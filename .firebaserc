@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "daiichitravel-f49fd"
+  },
+  "targets": {
+    "daiichitravel-f49fd": {
+      "hosting": {
+        "daiichitravel": [
+          "daiichitravel"
+        ]
+      }
+    }
+  }
+}
