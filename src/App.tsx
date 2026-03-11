@@ -122,6 +122,10 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
 
+  // Booking form inputs
+  const [customerNameInput, setCustomerNameInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -161,7 +165,7 @@ export default function App() {
     }
   };
 
-  const handleConfirmBooking = (seatId: string) => {
+  const handleConfirmBooking = async (seatId: string) => {
     const basePriceAdult = selectedTrip.price || 0;
     const basePriceChild = selectedTrip.priceChild || basePriceAdult;
     
@@ -170,24 +174,47 @@ export default function App() {
     const totalAmount = totalBase + totalSurcharge;
 
     const bookingData = {
-      id: `BK${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      customerName: 'Nguyễn Văn A', // In real app, get from form
-      phone: '0912345678',
+      customerName: customerNameInput.trim() || (language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
+      phone: phoneInput.trim(),
+      type: 'TRIP',
       route: selectedTrip.route,
-      date: new Date().toLocaleDateString(),
+      date: new Date().toLocaleDateString('vi-VN'),
       time: selectedTrip.time,
+      tripId: selectedTrip.id,
       seatId,
       amount: totalAmount,
-      paymentMethod: 'Tiền mặt',
+      agent: currentUser?.role === UserRole.AGENT ? currentUser.name : 'Trực tiếp',
+      status: 'BOOKED',
       adults,
       children,
       pickupPoint,
-      dropoffPoint
+      dropoffPoint,
+      paymentMethod: 'Tiền mặt',
     };
 
-    setLastBooking(bookingData);
+    try {
+      // Save booking to Firebase
+      const result = await transportService.createBooking(bookingData);
+
+      // Update seat status in Firebase
+      await transportService.bookSeat(selectedTrip.id, seatId, {
+        status: SeatStatus.BOOKED,
+        customerName: bookingData.customerName,
+        customerPhone: bookingData.phone,
+      });
+
+      setLastBooking({ ...bookingData, id: result.id });
+    } catch (err) {
+      console.error('Failed to save booking:', err);
+      setLastBooking(bookingData);
+    }
+
     setIsTicketOpen(true);
     setShowBookingForm(null);
+
+    // Reset form inputs
+    setCustomerNameInput('');
+    setPhoneInput('');
 
     // Send real-time notification
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -200,7 +227,7 @@ export default function App() {
       }));
     }
     
-    // Update local state to show seat as booked
+    // Optimistic local state update while Firebase listener syncs
     setTrips(prev => prev.map(trip => {
       if (trip.id === selectedTrip.id) {
         return {
@@ -495,8 +522,8 @@ export default function App() {
                       <div><label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label><input type="number" min="1" value={adults} onChange={(e) => setAdults(parseInt(e.target.value) || 1)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
                       <div><label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label><input type="number" min="0" value={children} onChange={(e) => setChildren(parseInt(e.target.value) || 0)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
                     </div>
-                    <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
-                    <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
+                    <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
+                    <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
                     
                     {/* Pickup Point */}
                     <div>

@@ -5,6 +5,7 @@ import {
   updateDoc, 
   addDoc, 
   deleteDoc,
+  getDoc,
   setDoc,
   query, 
   orderBy,
@@ -31,9 +32,14 @@ export const transportService = {
   bookSeat: async (tripId: string, seatId: string, bookingData: Partial<Seat>) => {
     if (!db) return;
     const tripRef = doc(db, 'trips', tripId);
-    // In a real app, you'd fetch the trip, update the seats array, and save it back
-    // For simplicity in this demo, we assume the structure is manageable
-    // Note: In production, consider a sub-collection for seats if there are many
+    const tripSnap = await getDoc(tripRef);
+    if (!tripSnap.exists()) return;
+    const tripData = tripSnap.data();
+    const seats = tripData.seats || [];
+    const updatedSeats = seats.map((seat: Seat) =>
+      seat.id === seatId ? { ...seat, ...bookingData } : seat
+    );
+    await updateDoc(tripRef, { seats: updatedSeats });
   },
 
   // Listen to consignments
@@ -172,6 +178,20 @@ export const transportService = {
       localStorage.setItem('offline_bookings', JSON.stringify(offlineBookings));
       return { id: 'offline', status: 'saved_locally' };
     }
+  },
+
+  // Delete a booking
+  deleteBooking: async (bookingId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'bookings', bookingId));
+  },
+
+  // Update a booking
+  updateBooking: async (bookingId: string, updates: any) => {
+    if (!db) return;
+    const { id, ...data } = updates;
+    const bookingRef = doc(db, 'bookings', bookingId);
+    await updateDoc(bookingRef, data as Record<string, unknown>);
   },
 
   // Sync offline bookings to cloud
