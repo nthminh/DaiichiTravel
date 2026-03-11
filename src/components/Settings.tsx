@@ -26,23 +26,31 @@ export const Settings: React.FC<SettingsProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
 
   // Form states for personal password change
+  const [newUsername, setNewUsername] = useState(currentUser.username);
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
 
   const handlePersonalUpdate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPass !== confirmPass) {
+    if (newPass && newPass !== confirmPass) {
       setErrorMsg(language === 'vi' ? 'Mật khẩu xác nhận không khớp' : 'Passwords do not match');
       return;
     }
-    // In a real app, we'd verify currentPass
-    onUpdateAdmin({ password: newPass });
+    const updates: { username?: string; password?: string } = {};
+    if (newUsername && newUsername !== currentUser.username) updates.username = newUsername;
+    if (newPass) updates.password = newPass;
+    if (Object.keys(updates).length === 0) {
+      setErrorMsg(language === 'vi' ? 'Không có thay đổi nào' : 'No changes made');
+      return;
+    }
+    onUpdateAdmin(updates);
     setSuccessMsg(language === 'vi' ? 'Cập nhật thành công' : 'Update successful');
     setCurrentPass('');
     setNewPass('');
     setConfirmPass('');
     setTimeout(() => setSuccessMsg(''), 3000);
+    setTimeout(() => setErrorMsg(''), 3000);
   };
 
   return (
@@ -96,9 +104,9 @@ export const Settings: React.FC<SettingsProps> = ({
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.username}</label>
                 <input 
                   type="text" 
-                  value={currentUser.username}
-                  disabled
-                  className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-400 cursor-not-allowed" 
+                  value={newUsername}
+                  onChange={e => setNewUsername(e.target.value)}
+                  className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" 
                 />
               </div>
               <div>
@@ -146,7 +154,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
               <button type="submit" className="flex items-center justify-center gap-2 w-full py-4 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">
                 <Save size={20} />
-                {t.change_password}
+                {language === 'vi' ? 'Lưu thay đổi' : 'Save Changes'}
               </button>
             </form>
           </motion.div>

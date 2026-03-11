@@ -63,6 +63,15 @@ export interface Vehicle {
   layout?: VehicleSeat[];
 }
 
+interface TourItem {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  discountPercent?: number;
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('home');
@@ -98,6 +107,29 @@ export default function App() {
 
   // Consignment creation modal state
   const [showCreateConsignment, setShowCreateConsignment] = useState(false);
+
+  // Tours state (for customer-facing page)
+  const [tours, setTours] = useState<TourItem[]>([]);
+
+  // Agent CRUD state
+  const [showAddAgent, setShowAddAgent] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [agentForm, setAgentForm] = useState({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE' as const, username: '', password: '' });
+
+  // Route CRUD state
+  const [showAddRoute, setShowAddRoute] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<Route | null>(null);
+  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 });
+
+  // Vehicle CRUD state
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [vehicleForm, setVehicleForm] = useState({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
+
+  // Trip CRUD state
+  const [showAddTrip, setShowAddTrip] = useState(false);
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [tripForm, setTripForm] = useState({ time: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
   const [newConsignment, setNewConsignment] = useState({
     senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
     type: '', weight: '', cod: 0, notes: '',
@@ -155,6 +187,7 @@ export default function App() {
     const unsubscribeStops = transportService.subscribeToStops(setStops);
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
     const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
+    const unsubscribeTours = transportService.subscribeToTours(setTours);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -162,8 +195,129 @@ export default function App() {
       unsubscribeStops();
       unsubscribeRoutes();
       unsubscribeVehicles();
+      unsubscribeTours();
     };
   }, []);
+
+  // --- Agent CRUD handlers ---
+  const handleSaveAgent = async () => {
+    try {
+      if (editingAgent) {
+        await transportService.updateAgent(editingAgent.id, agentForm);
+      } else {
+        await transportService.addAgent(agentForm);
+      }
+      setShowAddAgent(false);
+      setEditingAgent(null);
+      setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '' });
+    } catch (err) {
+      console.error('Failed to save agent:', err);
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa đại lý này?' : 'Delete this agent?')) return;
+    try {
+      await transportService.deleteAgent(agentId);
+    } catch (err) {
+      console.error('Failed to delete agent:', err);
+    }
+  };
+
+  const handleStartEditAgent = (agent: Agent) => {
+    setEditingAgent(agent);
+    setAgentForm({ name: agent.name, code: agent.code, phone: agent.phone, email: agent.email, address: agent.address || '', commissionRate: agent.commissionRate, balance: agent.balance, status: agent.status, username: agent.username || '', password: agent.password || '' });
+    setShowAddAgent(true);
+  };
+
+  // --- Route CRUD handlers ---
+  const handleSaveRoute = async () => {
+    try {
+      if (editingRoute) {
+        await transportService.updateRoute(editingRoute.id, routeForm);
+      } else {
+        await transportService.addRoute(routeForm);
+      }
+      setShowAddRoute(false);
+      setEditingRoute(null);
+      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 });
+    } catch (err) {
+      console.error('Failed to save route:', err);
+    }
+  };
+
+  const handleDeleteRoute = async (routeId: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa tuyến này?' : 'Delete this route?')) return;
+    try {
+      await transportService.deleteRoute(routeId);
+    } catch (err) {
+      console.error('Failed to delete route:', err);
+    }
+  };
+
+  const handleStartEditRoute = (route: Route) => {
+    setEditingRoute(route);
+    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price });
+    setShowAddRoute(true);
+  };
+
+  // --- Vehicle CRUD handlers ---
+  const handleSaveVehicle = async () => {
+    try {
+      if (editingVehicle) {
+        await transportService.updateVehicle(editingVehicle.id, vehicleForm as Record<string, unknown>);
+      } else {
+        await transportService.addVehicle(vehicleForm as Record<string, unknown>);
+      }
+      setShowAddVehicle(false);
+      setEditingVehicle(null);
+      setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
+    } catch (err) {
+      console.error('Failed to save vehicle:', err);
+    }
+  };
+
+  const handleStartEditVehicle = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setVehicleForm({ licensePlate: vehicle.licensePlate, type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE' });
+    setShowAddVehicle(true);
+  };
+
+  // --- Trip CRUD handlers ---
+  const handleSaveTrip = async () => {
+    try {
+      const seats = Array.from({ length: tripForm.seatCount }, (_, i) => ({
+        id: String.fromCharCode(65 + Math.floor(i / 2)) + ((i % 2) + 1),
+        status: SeatStatus.EMPTY,
+        deck: 0,
+      }));
+      if (editingTrip) {
+        await transportService.updateTrip(editingTrip.id, { time: tripForm.time, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
+      } else {
+        await transportService.addTrip({ time: tripForm.time, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status, seats });
+      }
+      setShowAddTrip(false);
+      setEditingTrip(null);
+      setTripForm({ time: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
+    } catch (err) {
+      console.error('Failed to save trip:', err);
+    }
+  };
+
+  const handleStartEditTrip = (trip: Trip) => {
+    setEditingTrip(trip);
+    setTripForm({ time: trip.time, route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, seatCount: trip.seats?.length || 11, status: trip.status });
+    setShowAddTrip(true);
+  };
+
+  const handleDeleteTrip = async (tripId: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa chuyến này?' : 'Delete this trip?')) return;
+    try {
+      await transportService.deleteTrip(tripId);
+    } catch (err) {
+      console.error('Failed to delete trip:', err);
+    }
+  };
 
   const handleUpdateAgent = async (agentId: string, updates: any) => {
     try {
@@ -698,13 +852,100 @@ export default function App() {
           </div>
         );
 
+      case 'tours': {
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-bold">{t.tours}</h2>
+              <p className="text-sm text-gray-500">{language === 'vi' ? 'Khám phá các tour du lịch hấp dẫn' : 'Explore our amazing tour packages'}</p>
+            </div>
+            {tours.length === 0 ? (
+              <div className="text-center py-20">
+                <Star className="mx-auto text-gray-300 mb-4" size={48} />
+                <p className="text-gray-400">{language === 'vi' ? 'Chưa có tour nào. Liên hệ để biết thêm!' : 'No tours available yet. Contact us for more info!'}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {tours.map((tour) => {
+                  const discountedPrice = tour.discountPercent && tour.discountPercent > 0
+                    ? Math.round(tour.price * (1 - tour.discountPercent / 100))
+                    : null;
+                  return (
+                    <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
+                      <div className="relative h-48 overflow-hidden">
+                        <img src={tour.imageUrl} alt={tour.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                        {tour.discountPercent && tour.discountPercent > 0 ? (
+                          <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
+                            -{tour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="p-6">
+                        <h4 className="text-lg font-bold mb-2">{tour.title}</h4>
+                        <p className="text-sm text-gray-500 line-clamp-2 mb-4">{tour.description}</p>
+                        <div className="flex justify-between items-end">
+                          <div>
+                            {discountedPrice ? (
+                              <>
+                                <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
+                                <p className="text-xs text-gray-400 line-through">{tour.price.toLocaleString()}đ</p>
+                              </>
+                            ) : (
+                              <p className="text-xl font-bold text-daiichi-red">{tour.price.toLocaleString()}đ</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => setActiveTab('book-ticket')}
+                            className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
+                          >
+                            {language === 'vi' ? 'Đặt ngay' : 'Book Now'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case 'agents':
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div><h2 className="text-2xl font-bold">{t.agents}</h2><p className="text-sm text-gray-500">{t.agent_desc}</p></div>
-              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
+              <button onClick={() => { setShowAddAgent(true); setEditingAgent(null); setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
             </div>
+
+            {/* Add/Edit Agent Modal */}
+            {showAddAgent && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold">{editingAgent ? (language === 'vi' ? 'Chỉnh sửa đại lý' : 'Edit Agent') : (language === 'vi' ? 'Thêm đại lý mới' : 'Add New Agent')}</h3>
+                    <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tên đại lý' : 'Agent Name'}</label><input type="text" value={agentForm.name} onChange={e => setAgentForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mã đại lý' : 'Agent Code'}</label><input type="text" value={agentForm.code} onChange={e => setAgentForm(p => ({ ...p, code: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.phone_number}</label><input type="text" value={agentForm.phone} onChange={e => setAgentForm(p => ({ ...p, phone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Email</label><input type="email" value={agentForm.email} onChange={e => setAgentForm(p => ({ ...p, email: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Địa chỉ' : 'Address'}</label><input type="text" value={agentForm.address} onChange={e => setAgentForm(p => ({ ...p, address: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.commission} (%)</label><input type="number" min="0" max="100" value={agentForm.commissionRate} onChange={e => setAgentForm(p => ({ ...p, commissionRate: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label><select value={agentForm.status} onChange={e => setAgentForm(p => ({ ...p, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none"><option value="ACTIVE">{t.status_active}</option><option value="INACTIVE">{t.status_locked}</option></select></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={agentForm.username} onChange={e => setAgentForm(p => ({ ...p, username: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mật khẩu' : 'Password'}</label><input type="text" value={agentForm.password} onChange={e => setAgentForm(p => ({ ...p, password: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.code} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingAgent ? t.save : t.add_agent}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 { label: t.total_agents, value: agents.length, icon: Users, color: 'text-blue-600' },
@@ -742,7 +983,7 @@ export default function App() {
                       <td className="px-8 py-6"><span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-xs font-bold">{agent.commissionRate}%</span></td>
                       <td className="px-8 py-6 font-bold text-gray-700">{agent.balance.toLocaleString()}đ</td>
                       <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", agent.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>{agent.status === 'ACTIVE' ? t.status_active : t.status_locked}</span></td>
-                      <td className="px-8 py-6"><div className="flex gap-3"><button className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button className="text-gray-400 hover:text-daiichi-red"><Wallet size={18} /></button><button className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
+                      <td className="px-8 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditAgent(agent)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteAgent(agent.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -757,8 +998,34 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
-              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+              <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
             </div>
+
+            {/* Add/Edit Route Modal */}
+            {showAddRoute && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold">{editingRoute ? (language === 'vi' ? 'Chỉnh sửa tuyến' : 'Edit Route') : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}</h3>
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">STT</label><input type="number" value={routeForm.stt} onChange={e => setRouteForm(p => ({ ...p, stt: parseInt(e.target.value) || 1 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={routeForm.price} onChange={e => setRouteForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label><input type="text" value={routeForm.name} onChange={e => setRouteForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: Hà Nội - Cát Bà' : 'e.g. Hanoi - Cat Ba'} /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label><input type="text" value={routeForm.departurePoint} onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label><input type="text" value={routeForm.arrivalPoint} onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -780,7 +1047,7 @@ export default function App() {
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.departurePoint}</p></td>
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
-                      <td className="px-6 py-6"><div className="flex gap-3"><button className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
+                      <td className="px-6 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditRoute(route)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -795,8 +1062,33 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
-              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+              <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
             </div>
+
+            {/* Add/Edit Vehicle Modal */}
+            {showAddVehicle && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold">{editingVehicle ? (language === 'vi' ? 'Chỉnh sửa phương tiện' : 'Edit Vehicle') : (language === 'vi' ? 'Thêm phương tiện mới' : 'Add New Vehicle')}</h3>
+                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label><input type="text" value={vehicleForm.licensePlate} onChange={e => setVehicleForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="29B-123.45" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={vehicleForm.seats} onChange={e => setVehicleForm(p => ({ ...p, seats: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label><select value={vehicleForm.type} onChange={e => setVehicleForm(p => ({ ...p, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none"><option>Limousine 11 chỗ</option><option>Xe khách 45 chỗ</option><option>Xe khách 29 chỗ</option><option>Xe giường nằm</option></select></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.registration_expiry}</label><input type="date" value={vehicleForm.registrationExpiry} onChange={e => setVehicleForm(p => ({ ...p, registrationExpiry: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveVehicle} disabled={!vehicleForm.licensePlate} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingVehicle ? t.save : (language === 'vi' ? 'Thêm xe' : 'Add Vehicle')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -816,7 +1108,7 @@ export default function App() {
                       <td className="px-6 py-6 text-sm">{v.type}</td>
                       <td className="px-6 py-6 text-sm">{v.seats}</td>
                       <td className="px-6 py-6 text-sm">{v.registrationExpiry}</td>
-                      <td className="px-6 py-6"><div className="flex gap-3"><button className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button className="text-gray-400 hover:text-daiichi-red font-bold text-xs">{t.edit_layout}</button></div></td>
+                      <td className="px-6 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditVehicle(v)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -831,8 +1123,54 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">{t.operation_management}</h2>
-              <button className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
+              <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
             </div>
+
+            {/* Add/Edit Trip Modal */}
+            {showAddTrip && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold">{editingTrip ? (language === 'vi' ? 'Chỉnh sửa chuyến' : 'Edit Trip') : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Trip')}</h3>
+                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_time}</label><input type="time" value={tripForm.time} onChange={e => setTripForm(p => ({ ...p, time: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
+                      <select value={tripForm.route} onChange={e => setTripForm(p => ({ ...p, route: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
+                        {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
+                      <select value={tripForm.licensePlate} onChange={e => setTripForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="">{language === 'vi' ? '-- Chọn xe --' : '-- Select Vehicle --'}</option>
+                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={tripForm.driverName} onChange={e => setTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    {!editingTrip && (
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={tripForm.seatCount} onChange={e => setTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    )}
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
+                      <select value={tripForm.status} onChange={e => setTripForm(p => ({ ...p, status: e.target.value as TripStatus }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value={TripStatus.WAITING}>{language === 'vi' ? 'Chờ khởi hành' : 'Waiting'}</option>
+                        <option value={TripStatus.RUNNING}>{language === 'vi' ? 'Đang chạy' : 'Running'}</option>
+                        <option value={TripStatus.COMPLETED}>{language === 'vi' ? 'Hoàn thành' : 'Completed'}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route || !tripForm.licensePlate} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -847,12 +1185,12 @@ export default function App() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {trips.map((trip) => (
-                    <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>
-                      <td className="px-6 py-4 font-bold">{trip.time}</td>
-                      <td className="px-6 py-4 font-medium">{trip.licensePlate}</td>
-                      <td className="px-6 py-4 text-gray-600">{trip.driverName}</td>
-                      <td className="px-6 py-4"><StatusBadge status={trip.status} language={language} /></td>
-                      <td className="px-6 py-4"><button className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></td>
+                    <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
+                      <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.time}</td>
+                      <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
+                      <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
+                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
+                      <td className="px-6 py-4"><div className="flex gap-3"><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
                 </tbody>

@@ -296,4 +296,88 @@ export const transportService = {
     if (!db) return;
     await deleteDoc(doc(db, 'tours', tourId));
   },
+
+  // Update tour
+  updateTour: async (tourId: string, updates: Partial<TourData & { discountPercent?: number }>) => {
+    if (!db) return;
+    const ref = doc(db, 'tours', tourId);
+    await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // ===== AGENT METHODS =====
+
+  // Add agent
+  addAgent: async (agent: Omit<Agent, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'agents'), agent);
+  },
+
+  // Delete agent
+  deleteAgent: async (agentId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'agents', agentId));
+  },
+
+  // ===== ROUTE METHODS =====
+
+  // Add route
+  addRoute: async (route: Omit<Route, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'routes'), route);
+  },
+
+  // Update route
+  updateRoute: async (routeId: string, updates: Partial<Route>) => {
+    if (!db) return;
+    const ref = doc(db, 'routes', routeId);
+    await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // Delete route
+  deleteRoute: async (routeId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'routes', routeId));
+  },
+
+  // ===== VEHICLE METHODS =====
+
+  // Add vehicle
+  addVehicle: async (vehicle: Record<string, unknown>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'vehicles'), vehicle);
+  },
+
+  // Update vehicle
+  updateVehicle: async (vehicleId: string, updates: Record<string, unknown>) => {
+    if (!db) return;
+    const ref = doc(db, 'vehicles', vehicleId);
+    await updateDoc(ref, updates);
+  },
+
+  // Delete vehicle
+  deleteVehicle: async (vehicleId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'vehicles', vehicleId));
+  },
+
+  // ===== TRIP METHODS =====
+
+  // Add trip
+  addTrip: async (trip: Omit<Trip, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'trips'), trip);
+  },
+
+  // Update trip
+  updateTrip: async (tripId: string, updates: Partial<Trip>) => {
+    if (!db) return;
+    const ref = doc(db, 'trips', tripId);
+    await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // Delete trip
+  deleteTrip: async (tripId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'trips', tripId));
+  },
 };
