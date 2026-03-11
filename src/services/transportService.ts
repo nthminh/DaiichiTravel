@@ -14,6 +14,13 @@ import {
 import { db } from '../lib/firebase';
 import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice } from '../types';
 
+interface TourData {
+  title: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+}
+
 export const transportService = {
   // Listen to all trips
   subscribeToTrips: (callback: (trips: Trip[]) => void) => {
@@ -255,5 +262,38 @@ export const transportService = {
   deleteInvoice: async (invoiceId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'invoices', invoiceId));
+  },
+
+  // ===== TOUR METHODS =====
+
+  // Listen to tours
+  subscribeToTours: (callback: (tours: (TourData & { id: string })[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'tours'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const tours = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as (TourData & { id: string })[];
+      callback(tours);
+    }, (error) => {
+      console.error('Failed to subscribe to tours:', error);
+      callback([]);
+    });
+  },
+
+  // Add tour
+  addTour: async (tour: TourData) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'tours'), {
+      ...tour,
+      createdAt: Timestamp.now()
+    });
+  },
+
+  // Delete tour
+  deleteTour: async (tourId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'tours', tourId));
   },
 };
