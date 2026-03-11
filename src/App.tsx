@@ -63,6 +63,15 @@ export interface Vehicle {
   layout?: VehicleSeat[];
 }
 
+interface TourItem {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  discountPercent?: number;
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('home');
@@ -100,7 +109,7 @@ export default function App() {
   const [showCreateConsignment, setShowCreateConsignment] = useState(false);
 
   // Tours state (for customer-facing page)
-  const [tours, setTours] = useState<any[]>([]);
+  const [tours, setTours] = useState<TourItem[]>([]);
 
   // Agent CRUD state
   const [showAddAgent, setShowAddAgent] = useState(false);
@@ -857,7 +866,7 @@ export default function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {tours.map((tour: any) => {
+                {tours.map((tour) => {
                   const discountedPrice = tour.discountPercent && tour.discountPercent > 0
                     ? Math.round(tour.price * (1 - tour.discountPercent / 100))
                     : null;

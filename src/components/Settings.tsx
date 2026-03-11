@@ -37,7 +37,7 @@ export const Settings: React.FC<SettingsProps> = ({
       setErrorMsg(language === 'vi' ? 'Mật khẩu xác nhận không khớp' : 'Passwords do not match');
       return;
     }
-    const updates: any = {};
+    const updates: { username?: string; password?: string } = {};
     if (newUsername && newUsername !== currentUser.username) updates.username = newUsername;
     if (newPass) updates.password = newPass;
     if (Object.keys(updates).length === 0) {
