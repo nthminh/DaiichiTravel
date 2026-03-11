@@ -9,21 +9,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, TripStatus } from '../App';
+import { transportService } from '../services/transportService';
 
 interface DashboardProps {
   language: Language;
   trips: any[];
   consignments: any[];
 }
-
-// Mock Booking Data for Statistics
-const INITIAL_BOOKINGS = [
-  { id: 'BK001', customerName: 'Nguyễn Văn A', phone: '0912345678', type: 'TRIP', route: 'Hà Nội - Cát Bà', agent: 'Đại lý Hoàn Kiếm', amount: 300000, status: 'PAID', date: '2024-03-11 08:30', bookedBy: 'Agent' },
-  { id: 'BK002', customerName: 'Trần Thị B', phone: '0987654321', type: 'TOUR', route: 'Tour Lan Hạ 1 Ngày', agent: 'Trực tiếp', amount: 1200000, status: 'PAID', date: '2024-03-11 09:15', bookedBy: 'Admin' },
-  { id: 'BK003', customerName: 'Lê Văn C', phone: '0905556667', type: 'TRIP', route: 'Ninh Bình - Hà Nội', agent: 'Đại lý Cầu Giấy', amount: 250000, status: 'BOOKED', date: '2024-03-11 10:00', bookedBy: 'Agent' },
-  { id: 'BK004', customerName: 'Phạm Minh D', phone: '0944332211', type: 'TRIP', route: 'Hà Nội - Cát Bà', agent: 'Đại lý Long Biên', amount: 600000, status: 'PAID', date: '2024-03-11 10:45', bookedBy: 'Agent' },
-  { id: 'BK005', customerName: 'Hoàng Anh E', phone: '0911223344', type: 'TOUR', route: 'Tour Ninh Bình 2N1Đ', agent: 'Trực tiếp', amount: 2500000, status: 'PAID', date: '2024-03-11 11:30', bookedBy: 'Admin' },
-];
 
 const ResizableTh = ({ children, className, onResize, width }: any) => {
   const [isResizing, setIsResizing] = useState(false);
@@ -70,7 +62,7 @@ const ResizableTh = ({ children, className, onResize, width }: any) => {
 
 export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments }) => {
   const t = TRANSLATIONS[language];
-  const [bookings, setBookings] = useState(INITIAL_BOOKINGS);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<'ALL' | 'TRIP' | 'TOUR'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -91,6 +83,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   // Edit State
   const [editingBooking, setEditingBooking] = useState<any>(null);
+
+  // Subscribe to bookings from Firebase
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToBookings(setBookings);
+    return () => unsubscribe();
+  }, []);
 
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(bookings);

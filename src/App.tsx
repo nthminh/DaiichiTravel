@@ -12,10 +12,8 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
-import { Stop } from './types';
-import { 
-  MOCK_AGENTS, MOCK_ROUTES, MOCK_VEHICLES, MOCK_TOURS, MOCK_TRIPS, MOCK_CONSIGNMENTS 
-} from './constants/mockData';
+import { Stop, Trip, Consignment, Agent, Route } from './types';
+import { transportService } from './services/transportService';
 
 // Import Components
 import { Dashboard } from './components/Dashboard';
@@ -63,29 +61,13 @@ export interface Vehicle {
   layout?: VehicleSeat[];
 }
 
-// Firebase Service Mock (to keep existing logic)
-const transportService = {
-  subscribeToTrips: (callback: (data: any[]) => void) => {
-    callback(MOCK_TRIPS);
-    return () => {};
-  },
-  subscribeToConsignments: (callback: (data: any[]) => void) => {
-    callback(MOCK_CONSIGNMENTS);
-    return () => {};
-  },
-  saveBooking: async (booking: any) => {
-    console.log('Saving booking:', booking);
-    return { success: true };
-  }
-};
-
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('home');
   const [language, setLanguage] = useState<Language>('vi');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [trips, setTrips] = useState(MOCK_TRIPS);
-  const [consignments, setConsignments] = useState(MOCK_CONSIGNMENTS);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [consignments, setConsignments] = useState<Consignment[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [showBookingForm, setShowBookingForm] = useState<string | null>(null);
   const [activeDeck, setActiveDeck] = useState(0);
@@ -101,13 +83,9 @@ export default function App() {
   const [searchTo, setSearchTo] = useState('Ninh Bình');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [stops, setStops] = useState<Stop[]>([
-    { id: '1', name: 'Văn phòng Hà Nội', address: '93 Hồng Hà, Ba Đình', category: 'OFFICE', surcharge: 0 },
-    { id: '2', name: 'Nhà hát lớn', address: 'Tràng Tiền, Hoàn Kiếm', category: 'MAJOR', surcharge: 0 },
-    { id: '3', name: 'Sân bay Nội Bài', address: 'Sóc Sơn, Hà Nội', category: 'TRANSIT', surcharge: 100000 },
-    { id: '4', name: 'Tam Cốc', address: 'Ninh Hải, Hoa Lư', category: 'MINOR', surcharge: 0 },
-    { id: '5', name: 'Bái Đính', address: 'Gia Viễn, Ninh Bình', category: 'MAJOR', surcharge: 100000 },
-  ]);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
   // Ensure agents and guests start on the home page
   useEffect(() => {
@@ -141,7 +119,7 @@ export default function App() {
   }, []);
 
   // Credential states
-  const [agents, setAgents] = useState(MOCK_AGENTS);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
 
   // Ticket Modal State
@@ -153,14 +131,27 @@ export default function App() {
   useEffect(() => {
     const unsubscribeTrips = transportService.subscribeToTrips(setTrips);
     const unsubscribeConsignments = transportService.subscribeToConsignments(setConsignments);
+    const unsubscribeAgents = transportService.subscribeToAgents(setAgents);
+    const unsubscribeStops = transportService.subscribeToStops(setStops);
+    const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
+    const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
+      unsubscribeAgents();
+      unsubscribeStops();
+      unsubscribeRoutes();
+      unsubscribeVehicles();
     };
   }, []);
 
-  const handleUpdateAgent = (agentId: string, updates: any) => {
-    setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
+  const handleUpdateAgent = async (agentId: string, updates: any) => {
+    try {
+      await transportService.updateAgent(agentId, updates);
+    } catch {
+      // Fallback to local state update if Firebase is unavailable
+      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
+    }
   };
 
   const handleUpdateAdmin = (updates: any) => {
@@ -579,7 +570,7 @@ export default function App() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: t.total_agents, value: MOCK_AGENTS.length, icon: Users, color: 'text-blue-600' },
+                { label: t.total_agents, value: agents.length, icon: Users, color: 'text-blue-600' },
                 { label: t.agent_revenue, value: '850M', icon: Wallet, color: 'text-green-600' },
                 { label: t.commission_paid, value: '127M', icon: Star, color: 'text-daiichi-red' },
               ].map((s, i) => (
@@ -606,7 +597,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {MOCK_AGENTS.map((agent) => (
+                  {agents.map((agent) => (
                     <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-8 py-6"><p className="font-bold text-gray-800">{agent.name}</p><p className="text-xs text-gray-400 font-mono">{agent.code}</p></td>
                       <td className="px-8 py-6"><p className="text-xs font-bold text-gray-700">User: <span className="text-daiichi-red">{agent.username}</span></p><p className="text-[10px] text-gray-400">Pass: {agent.password}</p></td>
@@ -645,7 +636,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {MOCK_ROUTES.map((route) => (
+                  {routes.map((route) => (
                     <tr key={route.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-6 text-sm text-gray-500">{route.stt}</td>
                       <td className="px-6 py-6"><p className="font-bold text-gray-800">{route.name}</p></td>
@@ -682,7 +673,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {MOCK_VEHICLES.map((v) => (
+                  {vehicles.map((v) => (
                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-6 font-bold text-gray-800">{v.licensePlate}</td>
                       <td className="px-6 py-6 text-sm">{v.type}</td>

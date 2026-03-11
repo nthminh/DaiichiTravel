@@ -3,14 +3,7 @@ import { Plus, Trash2, Edit3, MapPin, Search, Save, X } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { cn } from '../lib/utils';
-
-const MOCK_STOPS: Stop[] = [
-  { id: '1', name: 'Văn phòng Hà Nội', address: '93 Hồng Hà, Ba Đình', category: 'OFFICE', surcharge: 0 },
-  { id: '2', name: 'Nhà hát lớn', address: 'Tràng Tiền, Hoàn Kiếm', category: 'MAJOR', surcharge: 0 },
-  { id: '3', name: 'Sân bay Nội Bài', address: 'Sóc Sơn, Hà Nội', category: 'TRANSIT', surcharge: 100000 },
-  { id: '4', name: 'Tam Cốc', address: 'Ninh Hải, Hoa Lư', category: 'MINOR', surcharge: 0 },
-  { id: '5', name: 'Bái Đính', address: 'Gia Viễn, Ninh Bình', category: 'MAJOR', surcharge: 100000 },
-];
+import { transportService } from '../services/transportService';
 
 interface StopManagementProps {
   language: Language;
@@ -31,25 +24,37 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     surcharge: 0
   });
 
-  const handleAddStop = () => {
+  const handleAddStop = async () => {
     if (!formData.name || !formData.address) return;
-    const newStop: Stop = {
-      ...formData,
-      id: Date.now().toString()
-    };
-    onUpdateStops([newStop, ...stops]);
+    try {
+      await transportService.addStop(formData);
+    } catch {
+      // Fallback to local state if Firebase is unavailable
+      const newStop: Stop = { ...formData, id: Date.now().toString() };
+      onUpdateStops([newStop, ...stops]);
+    }
     resetForm();
   };
 
-  const handleUpdateStop = () => {
+  const handleUpdateStop = async () => {
     if (!editingId || !formData.name || !formData.address) return;
-    onUpdateStops(stops.map(s => s.id === editingId ? { ...formData, id: editingId } : s));
+    try {
+      await transportService.updateStop(editingId, formData);
+    } catch {
+      // Fallback to local state if Firebase is unavailable
+      onUpdateStops(stops.map(s => s.id === editingId ? { ...formData, id: editingId } : s));
+    }
     resetForm();
   };
 
-  const handleDeleteStop = (id: string) => {
+  const handleDeleteStop = async (id: string) => {
     if (confirm(language === 'vi' ? 'Bạn có chắc chắn muốn xóa điểm dừng này?' : 'Are you sure you want to delete this stop?')) {
-      onUpdateStops(stops.filter(s => s.id !== id));
+      try {
+        await transportService.deleteStop(id);
+      } catch {
+        // Fallback to local state if Firebase is unavailable
+        onUpdateStops(stops.filter(s => s.id !== id));
+      }
     }
   };
 

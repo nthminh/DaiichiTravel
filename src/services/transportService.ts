@@ -4,15 +4,17 @@ import {
   doc, 
   updateDoc, 
   addDoc, 
+  deleteDoc,
+  setDoc,
   query, 
   orderBy,
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop } from '../types';
 
 export const transportService = {
-  // Listen to all trips for today
+  // Listen to all trips
   subscribeToTrips: (callback: (trips: Trip[]) => void) => {
     if (!db) return () => {};
     const q = query(collection(db, 'trips'), orderBy('time', 'asc'));
@@ -53,6 +55,97 @@ export const transportService = {
     return await addDoc(collection(db, 'consignments'), {
       ...consignment,
       createdAt: Timestamp.now()
+    });
+  },
+
+  // Listen to agents
+  subscribeToAgents: (callback: (agents: Agent[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'agents'), orderBy('name', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const agents = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Agent[];
+      callback(agents);
+    });
+  },
+
+  // Update agent
+  updateAgent: async (agentId: string, updates: Partial<Agent>) => {
+    if (!db) return;
+    const agentRef = doc(db, 'agents', agentId);
+    await updateDoc(agentRef, updates as Record<string, unknown>);
+  },
+
+  // Listen to routes
+  subscribeToRoutes: (callback: (routes: Route[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'routes'), orderBy('stt', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const routes = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Route[];
+      callback(routes);
+    });
+  },
+
+  // Listen to vehicles
+  subscribeToVehicles: (callback: (vehicles: Vehicle[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'vehicles'), orderBy('licensePlate', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const vehicles = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as (Vehicle & { id: string })[];
+      callback(vehicles);
+    });
+  },
+
+  // Listen to stops
+  subscribeToStops: (callback: (stops: Stop[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'stops'), orderBy('name', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const stops = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Stop[];
+      callback(stops);
+    });
+  },
+
+  // Add stop
+  addStop: async (stop: Omit<Stop, 'id'>) => {
+    if (!db) return;
+    return await addDoc(collection(db, 'stops'), stop);
+  },
+
+  // Update stop
+  updateStop: async (stopId: string, updates: Partial<Stop>) => {
+    if (!db) return;
+    const stopRef = doc(db, 'stops', stopId);
+    await updateDoc(stopRef, updates as Record<string, unknown>);
+  },
+
+  // Delete stop
+  deleteStop: async (stopId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'stops', stopId));
+  },
+
+  // Listen to bookings
+  subscribeToBookings: (callback: (bookings: any[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const bookings = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(bookings);
     });
   },
 
