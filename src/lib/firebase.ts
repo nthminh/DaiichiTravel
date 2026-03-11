@@ -16,7 +16,10 @@ const firebaseConfig = {
 // Initialize Firebase only if API key is present
 const isConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 
+// Use named database if provided, otherwise fall back to '(default)'
+const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)';
+
 export const app = isConfigured ? initializeApp(firebaseConfig) : null;
-export const db = app ? getFirestore(app) : null;
+export const db = app ? getFirestore(app, databaseId) : null;
 export const auth = app ? getAuth(app) : null;
 export const storage = app ? getStorage(app) : null;
