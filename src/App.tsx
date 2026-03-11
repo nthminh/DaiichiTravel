@@ -1,0 +1,863 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Bus, Users, Package, LayoutDashboard, ChevronRight, 
+  MapPin, Calendar, Truck, Star, Phone, Search, 
+  Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
+  Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from './lib/utils';
+
+// Import Constants & Types
+import { 
+  UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
+} from './constants/translations';
+import { Stop } from './types';
+import { 
+  MOCK_AGENTS, MOCK_ROUTES, MOCK_VEHICLES, MOCK_TOURS, MOCK_TRIPS, MOCK_CONSIGNMENTS 
+} from './constants/mockData';
+
+// Import Components
+import { Dashboard } from './components/Dashboard';
+import { Login } from './components/Login';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { UrgencyNotification } from './components/UrgencyNotification';
+import { StatusBadge } from './components/StatusBadge';
+import { Settings } from './components/Settings';
+import { TicketModal } from './components/TicketModal';
+import { SearchableSelect } from './components/SearchableSelect';
+import { Footer } from './components/Footer';
+import { TourManagement } from './components/TourManagement';
+import { StopManagement } from './components/StopManagement';
+
+// Re-export types for components
+export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
+export type { Language };
+
+export interface User {
+  id: string;
+  username: string;
+  role: UserRole;
+  name: string;
+  agentCode?: string;
+  balance?: number;
+  password?: string;
+}
+
+export interface VehicleSeat {
+  id: string;
+  row: number;
+  col: number;
+  deck?: number;
+  status?: SeatStatus;
+}
+
+export interface Vehicle {
+  id: string;
+  licensePlate: string;
+  type: string;
+  seats: number;
+  registrationExpiry: string;
+  status: string;
+  layout?: VehicleSeat[];
+}
+
+// Firebase Service Mock (to keep existing logic)
+const transportService = {
+  subscribeToTrips: (callback: (data: any[]) => void) => {
+    callback(MOCK_TRIPS);
+    return () => {};
+  },
+  subscribeToConsignments: (callback: (data: any[]) => void) => {
+    callback(MOCK_CONSIGNMENTS);
+    return () => {};
+  },
+  saveBooking: async (booking: any) => {
+    console.log('Saving booking:', booking);
+    return { success: true };
+  }
+};
+
+export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [activeTab, setActiveTab] = useState('home');
+  const [language, setLanguage] = useState<Language>('vi');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [trips, setTrips] = useState(MOCK_TRIPS);
+  const [consignments, setConsignments] = useState(MOCK_CONSIGNMENTS);
+  const [selectedTrip, setSelectedTrip] = useState<any>(null);
+  const [showBookingForm, setShowBookingForm] = useState<string | null>(null);
+  const [activeDeck, setActiveDeck] = useState(0);
+  const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ONE_WAY');
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [pickupPoint, setPickupPoint] = useState('');
+  const [dropoffPoint, setDropoffPoint] = useState('');
+  const [isTetSurcharge, setIsTetSurcharge] = useState(false);
+  const [pickupSurcharge, setPickupSurcharge] = useState(0);
+  const [dropoffSurcharge, setDropoffSurcharge] = useState(0);
+  const [searchFrom, setSearchFrom] = useState('Hà Nội');
+  const [searchTo, setSearchTo] = useState('Ninh Bình');
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [stops, setStops] = useState<Stop[]>([
+    { id: '1', name: 'Văn phòng Hà Nội', address: '93 Hồng Hà, Ba Đình', category: 'OFFICE', surcharge: 0 },
+    { id: '2', name: 'Nhà hát lớn', address: 'Tràng Tiền, Hoàn Kiếm', category: 'MAJOR', surcharge: 0 },
+    { id: '3', name: 'Sân bay Nội Bài', address: 'Sóc Sơn, Hà Nội', category: 'TRANSIT', surcharge: 100000 },
+    { id: '4', name: 'Tam Cốc', address: 'Ninh Hải, Hoa Lư', category: 'MINOR', surcharge: 0 },
+    { id: '5', name: 'Bái Đính', address: 'Gia Viễn, Ninh Bình', category: 'MAJOR', surcharge: 100000 },
+  ]);
+
+  // Ensure agents and guests start on the home page
+  useEffect(() => {
+    if (currentUser && (currentUser.role === UserRole.AGENT || currentUser.role === UserRole.CUSTOMER)) {
+      setActiveTab('home');
+    }
+  }, [currentUser]);
+
+  // WebSocket setup
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}`);
+    
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'NEW_BOOKING') {
+          setNotifications(prev => [{ ...data, id: Date.now() }, ...prev].slice(0, 5));
+          // Auto remove notification after 5 seconds
+          setTimeout(() => {
+            setNotifications(prev => prev.filter(n => n.id !== data.id));
+          }, 5000);
+        }
+      } catch (e) {
+        console.error("Failed to parse WS message", e);
+      }
+    };
+
+    setWs(socket);
+    return () => socket.close();
+  }, []);
+
+  // Credential states
+  const [agents, setAgents] = useState(MOCK_AGENTS);
+  const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
+
+  // Ticket Modal State
+  const [isTicketOpen, setIsTicketOpen] = useState(false);
+  const [lastBooking, setLastBooking] = useState<any>(null);
+
+  const t = TRANSLATIONS[language];
+
+  useEffect(() => {
+    const unsubscribeTrips = transportService.subscribeToTrips(setTrips);
+    const unsubscribeConsignments = transportService.subscribeToConsignments(setConsignments);
+    return () => {
+      unsubscribeTrips();
+      unsubscribeConsignments();
+    };
+  }, []);
+
+  const handleUpdateAgent = (agentId: string, updates: any) => {
+    setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
+  };
+
+  const handleUpdateAdmin = (updates: any) => {
+    setAdminCredentials(prev => ({ ...prev, ...updates }));
+    if (currentUser?.role === UserRole.MANAGER) {
+      setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+    }
+  };
+
+  const handleConfirmBooking = (seatId: string) => {
+    const basePriceAdult = selectedTrip.price || 0;
+    const basePriceChild = selectedTrip.priceChild || basePriceAdult;
+    
+    const totalBase = (adults * basePriceAdult) + (children * basePriceChild);
+    const totalSurcharge = pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0);
+    const totalAmount = totalBase + totalSurcharge;
+
+    const bookingData = {
+      id: `BK${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+      customerName: 'Nguyễn Văn A', // In real app, get from form
+      phone: '0912345678',
+      route: selectedTrip.route,
+      date: new Date().toLocaleDateString(),
+      time: selectedTrip.time,
+      seatId,
+      amount: totalAmount,
+      paymentMethod: 'Tiền mặt',
+      adults,
+      children,
+      pickupPoint,
+      dropoffPoint
+    };
+
+    setLastBooking(bookingData);
+    setIsTicketOpen(true);
+    setShowBookingForm(null);
+
+    // Send real-time notification
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'NEW_BOOKING',
+        customerName: bookingData.customerName,
+        route: bookingData.route,
+        time: bookingData.time,
+        amount: bookingData.amount
+      }));
+    }
+    
+    // Update local state to show seat as booked
+    setTrips(prev => prev.map(trip => {
+      if (trip.id === selectedTrip.id) {
+        return {
+          ...trip,
+          seats: trip.seats.map((s: any) => s.id === seatId ? { ...s, status: SeatStatus.BOOKED } : s)
+        };
+      }
+      return trip;
+    }));
+  };
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard language={language} trips={trips} consignments={consignments} />;
+      
+      case 'settings':
+        return (
+          <Settings 
+            language={language} 
+            currentUser={currentUser} 
+            agents={agents} 
+            onUpdateAgent={handleUpdateAgent} 
+            onUpdateAdmin={handleUpdateAdmin} 
+          />
+        );
+      
+      case 'home':
+        return (
+          <div className="space-y-12">
+            <div className="relative h-[400px] rounded-[40px] overflow-hidden">
+              <img 
+                src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/hinhnenhome.png?alt=media&token=4be06677-5484-4225-a48f-2a7f92dc99f4" 
+                alt="Travel Hero" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-12">
+                <div className="max-w-xl text-white">
+                  <motion.h2 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="text-5xl font-bold mb-4 leading-tight"
+                  >
+                    {t.hero_title}
+                  </motion.h2>
+                  <p className="text-lg text-white/80 mb-8">{t.hero_subtitle}</p>
+                  <div className="flex gap-4">
+                    <button onClick={() => setActiveTab('book-ticket')} className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all">{t.book_now}</button>
+                    <button onClick={() => setActiveTab('tours')} className="px-8 py-4 bg-white text-daiichi-red rounded-2xl font-bold hover:scale-105 transition-all">{t.view_hot_tours}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {[
+                { title: t.feature_limo_title, desc: t.feature_limo_desc, icon: Bus },
+                { title: t.feature_tour_title, desc: t.feature_tour_desc, icon: Star },
+                { title: t.feature_support_title, desc: '+84 96 100 47 09', icon: Phone },
+              ].map((f, i) => (
+                <div key={i} className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
+                  <div className="w-14 h-14 bg-daiichi-accent rounded-2xl flex items-center justify-center text-daiichi-red mb-6">
+                    <f.icon size={28} />
+                  </div>
+                  <h4 className="text-xl font-bold mb-2">{f.title}</h4>
+                  <p className="text-gray-500 leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <Footer language={language} />
+          </div>
+        );
+
+      case 'book-ticket':
+        return (
+          <div className="space-y-8">
+            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+              <div className="flex items-center gap-6 mb-6">
+                <h2 className="text-2xl font-bold">{t.search_title}</h2>
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  {(['ONE_WAY', 'ROUND_TRIP'] as const).map((type) => (
+                    <button 
+                      key={type}
+                      onClick={() => setTripType(type)}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                        tripType === type ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500"
+                      )}
+                    >
+                      {type === 'ONE_WAY' ? t.trip_one_way : t.trip_round_trip}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
+                  <div className="relative mt-1">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+                    <SearchableSelect
+                      options={['Hà Nội', 'Cát Bà', 'Ninh Bình', 'Hải Phòng']}
+                      value={searchFrom}
+                      onChange={setSearchFrom}
+                      placeholder={t.from}
+                      className="w-full"
+                      inputClassName="pl-12 py-4"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
+                  <div className="relative mt-1">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+                    <SearchableSelect
+                      options={['Cát Bà', 'Ninh Bình', 'Hải Phòng', 'Hà Nội']}
+                      value={searchTo}
+                      onChange={setSearchTo}
+                      placeholder={t.to}
+                      className="w-full"
+                      inputClassName="pl-12 py-4"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label>
+                  <div className="relative mt-1">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input type="date" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" defaultValue={new Date().toISOString().split('T')[0]} />
+                  </div>
+                </div>
+                {tripType === 'ROUND_TRIP' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.return_date}</label>
+                    <div className="relative mt-1">
+                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input type="date" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
+                  <div className="relative mt-1">
+                    <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <select className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl appearance-none focus:ring-2 focus:ring-daiichi-red/10">
+                      <option>{t.limo_11}</option>
+                      <option>{t.bus_45}</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.adults}</label>
+                    <div className="relative mt-1">
+                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="number" 
+                        min="1"
+                        value={adults}
+                        onChange={(e) => setAdults(parseInt(e.target.value) || 1)}
+                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.children}</label>
+                    <div className="relative mt-1">
+                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={children}
+                        onChange={(e) => setChildren(parseInt(e.target.value) || 0)}
+                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" 
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-end">
+                  <button className="w-full py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">{t.search_btn}</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>
+              {trips.map((trip) => (
+                <div key={trip.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8">
+                  <div className="text-center md:text-left">
+                    <p className="text-3xl font-bold text-gray-800">{trip.time}</p>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase">{trip.route}</span>
+                      <span className="text-sm text-gray-400">•</span>
+                      <span className="text-sm font-medium text-gray-600">{trip.licensePlate}</span>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Users size={16} />
+                        <span>{t.driver}: {trip.driverName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Bus size={16} />
+                        <span>{language === 'vi' ? 'Còn' : 'Only'} {trip.seats.filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
+                    <button 
+                      onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}
+                      className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
+                    >
+                      {t.select_seat}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'seat-mapping':
+        if (!selectedTrip) return null;
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-bold">{t.seat_map_title} - {selectedTrip.licensePlate}</h2>
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  <button onClick={() => setActiveDeck(0)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeDeck === 0 ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500")}>{t.deck_lower}</button>
+                  <button onClick={() => setActiveDeck(1)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeDeck === 1 ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500")}>{t.deck_upper}</button>
+                </div>
+              </div>
+              
+              <div className="max-w-md mx-auto bg-gray-50 p-8 rounded-[40px] border border-gray-100">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-3 flex justify-end mb-8">
+                    <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-gray-400 border border-gray-100">
+                      <Users size={24} />
+                    </div>
+                  </div>
+                  {selectedTrip.seats.filter(s => (s.deck || 0) === activeDeck).map((seat: any) => (
+                    <motion.button
+                      key={seat.id}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => seat.status === SeatStatus.EMPTY && setShowBookingForm(seat.id)}
+                      className={cn(
+                        "h-20 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden",
+                        seat.status === SeatStatus.PAID && "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20",
+                        seat.status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white shadow-lg shadow-daiichi-yellow/20",
+                        seat.status === SeatStatus.EMPTY && "bg-white border-2 border-gray-100 text-gray-400 hover:border-daiichi-red hover:text-daiichi-red"
+                      )}
+                    >
+                      <span className="text-xs font-bold">{seat.id}</span>
+                      <Users size={20} />
+                      {seat.status === SeatStatus.PAID && <CheckCircle2 size={12} className="absolute top-2 right-2" />}
+                    </motion.button>
+                  ))}
+                </div>
+                <div className="mt-12 flex justify-center gap-6 text-xs font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-yellow rounded" /> {t.booked}</div>
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white border border-gray-200 rounded" /> {t.empty}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold mb-4">{t.trip_info}</h3>
+                <div className="space-y-4 text-sm">
+                  <div className="flex justify-between"><span className="text-gray-500">{t.total_seats}</span><span className="font-bold">{selectedTrip.seats.length}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">{t.paid_seats}</span><span className="font-bold text-green-600">{selectedTrip.seats.filter(s => s.status === SeatStatus.PAID).length}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">{t.booked_seats}</span><span className="font-bold text-daiichi-yellow">{selectedTrip.seats.filter(s => s.status === SeatStatus.BOOKED).length}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">{t.empty_seats}</span><span className="font-bold text-gray-400">{selectedTrip.seats.filter(s => s.status === SeatStatus.EMPTY).length}</span></div>
+                </div>
+              </div>
+
+              {showBookingForm && (
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold">{t.booking_title}: {showBookingForm}</h3>
+                    <button onClick={() => setShowBookingForm(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                  </div>
+                  <form className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label><input type="number" min="1" value={adults} onChange={(e) => setAdults(parseInt(e.target.value) || 1)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
+                      <div><label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label><input type="number" min="0" value={children} onChange={(e) => setChildren(parseInt(e.target.value) || 0)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
+                    </div>
+                    <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
+                    <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
+                    
+                    {/* Pickup Point */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_point}</label>
+                      <SearchableSelect
+                        options={stops.map(s => s.name)}
+                        value={pickupPoint}
+                        onChange={(val) => {
+                          setPickupPoint(val);
+                          const stop = stops.find(s => s.name === val);
+                          setPickupSurcharge(stop?.surcharge || 0);
+                        }}
+                        placeholder={t.select_pickup}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    {/* Dropoff Point */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_point}</label>
+                      <SearchableSelect
+                        options={stops.map(s => s.name)}
+                        value={dropoffPoint}
+                        onChange={(val) => {
+                          setDropoffPoint(val);
+                          const stop = stops.find(s => s.name === val);
+                          setDropoffSurcharge(stop?.surcharge || 0);
+                        }}
+                        placeholder={t.select_dropoff}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    {/* Tet Surcharge Toggle */}
+                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <input 
+                        type="checkbox" 
+                        id="tetSurcharge" 
+                        checked={isTetSurcharge} 
+                        onChange={(e) => setIsTetSurcharge(e.target.checked)}
+                        className="w-4 h-4 text-daiichi-red border-gray-300 rounded focus:ring-daiichi-red"
+                      />
+                      <label htmlFor="tetSurcharge" className="text-xs font-bold text-gray-500 uppercase cursor-pointer">
+                        {t.surcharge_tet}
+                      </label>
+                    </div>
+
+                    <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
+                        <span className="text-xl font-bold text-daiichi-red">
+                          {((adults * (selectedTrip.price || 0)) + (children * (selectedTrip.priceChild || selectedTrip.price || 0)) + pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0)).toLocaleString()}đ
+                        </span>
+                      </div>
+                    </div>
+
+                    <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} className="w-full py-4 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20">{t.confirm_booking}</button>
+                  </form>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'agents':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div><h2 className="text-2xl font-bold">{t.agents}</h2><p className="text-sm text-gray-500">{t.agent_desc}</p></div>
+              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                { label: t.total_agents, value: MOCK_AGENTS.length, icon: Users, color: 'text-blue-600' },
+                { label: t.agent_revenue, value: '850M', icon: Wallet, color: 'text-green-600' },
+                { label: t.commission_paid, value: '127M', icon: Star, color: 'text-daiichi-red' },
+              ].map((s, i) => (
+                <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <div><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{s.label}</p><h3 className="text-2xl font-bold mt-2">{s.value}</h3></div>
+                    <div className={cn("p-3 rounded-xl bg-gray-50", s.color)}><s.icon size={20} /></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.agent_id_name}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.username}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.phone_number}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.commission}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.balance}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {MOCK_AGENTS.map((agent) => (
+                    <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-8 py-6"><p className="font-bold text-gray-800">{agent.name}</p><p className="text-xs text-gray-400 font-mono">{agent.code}</p></td>
+                      <td className="px-8 py-6"><p className="text-xs font-bold text-gray-700">User: <span className="text-daiichi-red">{agent.username}</span></p><p className="text-[10px] text-gray-400">Pass: {agent.password}</p></td>
+                      <td className="px-8 py-6"><p className="text-sm font-medium">{agent.phone}</p><p className="text-xs text-gray-400">{agent.email}</p></td>
+                      <td className="px-8 py-6"><span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-xs font-bold">{agent.commissionRate}%</span></td>
+                      <td className="px-8 py-6 font-bold text-gray-700">{agent.balance.toLocaleString()}đ</td>
+                      <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", agent.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>{agent.status === 'ACTIVE' ? t.status_active : t.status_locked}</span></td>
+                      <td className="px-8 py-6"><div className="flex gap-3"><button className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button className="text-gray-400 hover:text-daiichi-red"><Wallet size={18} /></button><button className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'routes':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
+              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+            </div>
+            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">STT</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.route_name}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.departure_point}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.arrival_point}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_price}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {MOCK_ROUTES.map((route) => (
+                    <tr key={route.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-6 text-sm text-gray-500">{route.stt}</td>
+                      <td className="px-6 py-6"><p className="font-bold text-gray-800">{route.name}</p></td>
+                      <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.departurePoint}</p></td>
+                      <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
+                      <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
+                      <td className="px-6 py-6"><div className="flex gap-3"><button className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'vehicles':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
+              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+            </div>
+            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.license_plate}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.vehicle_type}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seats}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.registration_expiry}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {MOCK_VEHICLES.map((v) => (
+                    <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-6 font-bold text-gray-800">{v.licensePlate}</td>
+                      <td className="px-6 py-6 text-sm">{v.type}</td>
+                      <td className="px-6 py-6 text-sm">{v.seats}</td>
+                      <td className="px-6 py-6 text-sm">{v.registrationExpiry}</td>
+                      <td className="px-6 py-6"><div className="flex gap-3"><button className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button className="text-gray-400 hover:text-daiichi-red font-bold text-xs">{t.edit_layout}</button></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'operations':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">{t.operation_management}</h2>
+              <button className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {trips.map((trip) => (
+                    <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>
+                      <td className="px-6 py-4 font-bold">{trip.time}</td>
+                      <td className="px-6 py-4 font-medium">{trip.licensePlate}</td>
+                      <td className="px-6 py-4 text-gray-600">{trip.driverName}</td>
+                      <td className="px-6 py-4"><StatusBadge status={trip.status} language={language} /></td>
+                      <td className="px-6 py-4"><button className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'tour-management':
+        return <TourManagement language={language} />;
+
+      case 'stop-management':
+        return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
+
+      case 'consignments':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">{t.consignment_title}</h2>
+              <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.create_bill}</button>
+            </div>
+            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mã đơn</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.sender}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.receiver}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.goods_type}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.weight}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cod}</th>
+                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {consignments.map((c) => (
+                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-8 py-6 font-bold text-daiichi-red">{c.id}</td>
+                      <td className="px-8 py-6"><p className="font-bold text-gray-800">{c.sender}</p></td>
+                      <td className="px-8 py-6"><p className="font-bold text-gray-800">{c.receiver}</p></td>
+                      <td className="px-8 py-6 text-sm">{c.type}</td>
+                      <td className="px-8 py-6 text-sm">{c.weight}</td>
+                      <td className="px-8 py-6 font-bold">{c.cod.toLocaleString()}đ</td>
+                      <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", c.status === 'DELIVERED' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600')}>{c.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <Login 
+        onLogin={setCurrentUser} 
+        language={language} 
+        setLanguage={setLanguage} 
+        adminCredentials={adminCredentials}
+        agents={agents}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-daiichi-accent">
+      <UrgencyNotification language={language} />
+      
+      {/* Real-time Notifications */}
+      <div className="fixed top-6 right-6 z-[100] space-y-4 pointer-events-none">
+        <AnimatePresence>
+          {notifications.map((n) => (
+            <motion.div
+              key={n.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+              className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl border border-daiichi-red/10 flex items-start gap-4 w-80 pointer-events-auto"
+            >
+              <div className="w-10 h-10 bg-daiichi-red/10 rounded-xl flex items-center justify-center text-daiichi-red shrink-0">
+                <Bell size={20} className="animate-bounce" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-daiichi-red uppercase tracking-widest mb-1">
+                  {language === 'vi' ? 'Đơn hàng mới!' : 'New Booking!'}
+                </p>
+                <p className="text-sm font-bold text-gray-800 line-clamp-1">{n.customerName}</p>
+                <p className="text-[10px] text-gray-500 font-medium">
+                  {n.route} • {n.time}
+                </p>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      <TicketModal 
+        isOpen={isTicketOpen} 
+        onClose={() => setIsTicketOpen(false)} 
+        booking={lastBooking} 
+        language={language} 
+      />
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        currentUser={currentUser} 
+        onLogout={() => setCurrentUser(null)} 
+        language={language} 
+        setLanguage={setLanguage} 
+        isSidebarOpen={isSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen} 
+      />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-8 bg-daiichi-accent/30 relative">
+          {/* Mobile Menu Button - Since Header is removed */}
+          <button 
+            onClick={() => setIsSidebarOpen(true)} 
+            className="lg:hidden absolute top-4 left-4 z-50 p-2 bg-white rounded-xl shadow-md text-gray-400 hover:text-daiichi-red transition-colors"
+          >
+            <Menu size={24} />
+          </button>
+          
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+    </div>
+  );
+}

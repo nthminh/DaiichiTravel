@@ -1,0 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --color-daiichi-red: #E31B23;
+  --color-daiichi-accent: #F4F4F4;
+  --color-daiichi-yellow: #FBBF24;
+}
+
+@layer base {
+  body {
+    @apply bg-daiichi-accent text-gray-900 font-sans;
+  }
+}

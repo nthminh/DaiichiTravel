@@ -1,0 +1,5 @@
+{
+  "name": "Daiichi travel",
+  "description": "Hệ thống quản lý điều hành, sơ đồ ghế, giám sát GPS và hàng hóa cho Daiichi Limousine.",
+  "requestFramePermissions": ["camera", "geolocation"]
+}
