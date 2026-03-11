@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
-import { TRANSLATIONS, Language, TripStatus } from '../App';
+import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
 
 interface DashboardProps {
@@ -97,9 +97,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     XLSX.writeFile(workbook, `Daiichi_Bookings_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm(t.confirm_delete)) {
+      // Optimistic local update for immediate feedback
       setBookings(prev => prev.filter(b => b.id !== id));
+      try {
+        await transportService.deleteBooking(id);
+      } catch (err) {
+        console.error('Failed to delete booking:', err);
+        // Firebase subscription will restore correct state on next update
+      }
     }
   };
 
@@ -107,34 +114,79 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     setEditingBooking({ ...booking });
   };
 
-  const saveEdit = () => {
-    setBookings(prev => prev.map(b => b.id === editingBooking.id ? editingBooking : b));
+  const saveEdit = async () => {
+    const updated = editingBooking;
+    // Optimistic local update for immediate feedback
+    setBookings(prev => prev.map(b => b.id === updated.id ? updated : b));
     setEditingBooking(null);
+    try {
+      await transportService.updateBooking(updated.id, updated);
+    } catch (err) {
+      console.error('Failed to update booking:', err);
+      // Firebase subscription will restore correct state on next update
+    }
   };
 
   const filteredBookings = bookings.filter(b => {
     const matchesType = filterType === 'ALL' || b.type === filterType;
-    const matchesSearch = b.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         b.agent.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         b.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (b.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (b.agent || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (b.id || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesAgent = agentFilter === 'ALL' || b.agent === agentFilter;
     
-    const bookingDate = new Date(b.date.split(' ')[0]);
+    const rawDate = b.date ? String(b.date).split(' ')[0] : '';
+    const bookingDate = rawDate ? new Date(rawDate) : new Date(0);
     const matchesStart = !startDate || bookingDate >= new Date(startDate);
     const matchesEnd = !endDate || bookingDate <= new Date(endDate);
 
     return matchesType && matchesSearch && matchesAgent && matchesStart && matchesEnd;
   });
 
-  const uniqueAgents = Array.from(new Set(bookings.map(b => b.agent)));
+  const uniqueAgents = Array.from(new Set(bookings.map(b => b.agent).filter(Boolean)));
+
+  const totalTrips = trips.length;
+  const totalSeatsBooked = trips.reduce((sum, trip) =>
+    sum + (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length, 0
+  );
+  const totalConsignments = consignments.length;
+  const totalRevenue = bookings.reduce((sum, b) => sum + (b.amount || 0), 0);
+
+  const formatRevenue = (amount: number) => {
+    if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(1)}T`;
+    if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
+    if (amount >= 1000) return `${(amount / 1000).toFixed(0)}K`;
+    return amount.toLocaleString();
+  };
 
   const stats = [
-    { label: t.stats_trips, value: '24', icon: Bus, color: 'text-blue-600', bg: 'bg-blue-50', trend: '+12%', isUp: true },
-    { label: language === 'vi' ? 'Ghế đã đặt' : 'Seats Booked', value: '156', icon: Users, color: 'text-daiichi-red', bg: 'bg-red-50', trend: '+5%', isUp: true },
-    { label: t.stats_consignments, value: '42', icon: Package, color: 'text-yellow-600', bg: 'bg-yellow-50', trend: '-2%', isUp: false },
-    { label: language === 'vi' ? 'Doanh thu dự kiến' : 'Expected Revenue', value: '12.5M', icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50', trend: '+18%', isUp: true },
+    { label: t.stats_trips, value: String(totalTrips), icon: Bus, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: language === 'vi' ? 'Ghế đã đặt' : 'Seats Booked', value: String(totalSeatsBooked), icon: Users, color: 'text-daiichi-red', bg: 'bg-red-50' },
+    { label: t.stats_consignments, value: String(totalConsignments), icon: Package, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+    { label: language === 'vi' ? 'Doanh thu dự kiến' : 'Expected Revenue', value: formatRevenue(totalRevenue), icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
   ];
+
+  const formatActivityTime = (createdAt: any): string => {
+    if (!createdAt) return '';
+    try {
+      const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+      const diffMins = Math.floor((Date.now() - date.getTime()) / 60000);
+      if (diffMins < 60) return language === 'vi' ? `${diffMins} phút trước` : `${diffMins} mins ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return language === 'vi' ? `${diffHours} giờ trước` : `${diffHours} hours ago`;
+      return date.toLocaleDateString();
+    } catch {
+      return '';
+    }
+  };
+
+  const recentActivities = bookings.slice(0, 3).map(b => ({
+    msg: language === 'vi'
+      ? `Đặt chỗ mới: ${b.customerName || ''} - ${b.route || ''}`
+      : `New booking: ${b.customerName || ''} - ${b.route || ''}`,
+    time: formatActivityTime(b.createdAt),
+    type: 'info' as const,
+  }));
 
   return (
     <div className="space-y-8 pb-20">
@@ -172,13 +224,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
             <div className="flex justify-between items-start mb-4">
               <div className={cn("p-4 rounded-2xl", stat.bg, stat.color)}>
                 <stat.icon size={24} />
-              </div>
-              <div className={cn(
-                "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
-                stat.isUp ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
-              )}>
-                {stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {stat.trend}
               </div>
             </div>
             <div>
@@ -436,13 +481,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
           <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
             <h3 className="text-xl font-bold text-gray-800 mb-6">{t.recent_activity}</h3>
             <div className="space-y-6">
-              {[
-                { msg: language === 'vi' ? 'Xe 29B-123.45 đã đến điểm trả khách' : 'Bus 29B-123.45 arrived at drop-off point', time: language === 'vi' ? '2 phút trước' : '2 mins ago', type: 'success' },
-                { msg: language === 'vi' ? 'Đơn hàng DX-001 đã được giao' : 'Order DX-001 delivered', time: language === 'vi' ? '15 phút trước' : '15 mins ago', type: 'info' },
-                { msg: language === 'vi' ? 'Cảnh báo: Xe 29B-678.90 dừng sai điểm' : 'Warning: Bus 29B-678.90 stopped at wrong point', time: language === 'vi' ? '30 phút trước' : '30 mins ago', type: 'error' },
-              ].map((log, i) => (
+              {recentActivities.length === 0 ? (
+                <p className="text-sm text-gray-400">{language === 'vi' ? 'Chưa có hoạt động nào' : 'No recent activity'}</p>
+              ) : recentActivities.map((log, i) => (
                 <div key={i} className="flex gap-4 relative">
-                  {i !== 2 && <div className="absolute left-[7px] top-6 w-[2px] h-10 bg-gray-100" />}
+                  {i !== recentActivities.length - 1 && <div className="absolute left-[7px] top-6 w-[2px] h-10 bg-gray-100" />}
                   <div className={cn(
                     "w-4 h-4 mt-1.5 rounded-full border-4 border-white shadow-sm ring-1 ring-gray-100",
                     log.type === 'success' ? 'bg-green-500' : log.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
