@@ -157,7 +157,7 @@ export interface Invoice {
   status: 'UNPAID' | 'PARTIAL' | 'PAID';
   paymentMethod?: string;
   dueDate?: string;
-  createdAt: any;
+  createdAt?: any;
   notes?: string;
 }
 

@@ -162,7 +162,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
       paymentMethod: newInvoice.paymentMethod,
       dueDate: newInvoice.dueDate,
       notes: newInvoice.notes,
-      createdAt: null,
     };
     await transportService.createInvoice(invoice);
     setShowCreateModal(false);
@@ -172,7 +171,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
   const handleRecordPayment = async () => {
     if (!showPaymentModal) return;
     const amount = parseFloat(paymentInput) || 0;
-    const newPaid = Math.min(showPaymentModal.paidAmount + amount, showPaymentModal.total);
+    const newPaid = showPaymentModal.paidAmount + amount;
     const newDebt = showPaymentModal.total - newPaid;
     const newStatus: Invoice['status'] = newDebt <= 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
     await transportService.updateInvoice(showPaymentModal.id, { paidAmount: newPaid, debtAmount: newDebt, status: newStatus });
@@ -199,7 +198,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-    XLSX.writeFile(wb, `financial-report-${new Date().toLocaleDateString('vi-VN')}.xlsx`);
+    XLSX.writeFile(wb, `financial-report-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const statusColor: Record<Invoice['status'], string> = {
@@ -786,7 +785,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                     value={paymentInput}
                     onChange={e => setPaymentInput(e.target.value)}
                     min={1}
-                    max={showPaymentModal.debtAmount}
                     className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-lg font-bold"
                     placeholder="0"
                     autoFocus

@@ -179,8 +179,10 @@ export default function App() {
     const basePriceChild = selectedTrip.priceChild || basePriceAdult;
     
     // Children over 4 years old are charged adult price
-    const childrenOver4 = childrenAges.filter(age => age > 4).length;
-    const childrenUnder4 = childrenAges.filter(age => age <= 4).length;
+    const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
+      (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+      { childrenOver4: 0, childrenUnder4: 0 }
+    );
     const effectiveAdults = adults + childrenOver4;
     const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
     
@@ -645,8 +647,10 @@ export default function App() {
                           {(() => {
                             const basePriceAdult = selectedTrip.price || 0;
                             const basePriceChild = selectedTrip.priceChild || basePriceAdult;
-                            const childrenOver4 = childrenAges.filter(age => age > 4).length;
-                            const childrenUnder4 = childrenAges.filter(age => age <= 4).length;
+                            const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
+                              (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+                              { childrenOver4: 0, childrenUnder4: 0 }
+                            );
                             const effectiveAdults = adults + childrenOver4;
                             const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
                             return ((effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild) + pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0)).toLocaleString();
@@ -848,7 +852,11 @@ export default function App() {
             const d = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt ? new Date(c.createdAt) : null);
             if (!d) return true;
             if (consignmentDateFrom && d < new Date(consignmentDateFrom)) return false;
-            if (consignmentDateTo && d > new Date(consignmentDateTo + 'T23:59:59')) return false;
+            if (consignmentDateTo) {
+              const toDate = new Date(consignmentDateTo);
+              toDate.setHours(23, 59, 59, 999);
+              if (d > toDate) return false;
+            }
             return true;
           })();
           return searchOk && statusOk && dateOk;
@@ -953,7 +961,7 @@ export default function App() {
                     </td></tr>
                   ) : filteredConsignments.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-5 font-bold text-daiichi-red text-sm">{c.id.slice(-8).toUpperCase()}</td>
+                      <td className="px-6 py-5 font-bold text-daiichi-red text-sm">{(c.id.length >= 8 ? c.id.slice(-8) : c.id).toUpperCase()}</td>
                       <td className="px-6 py-5">
                         <p className="font-bold text-gray-800 text-sm">{c.sender || c.senderName}</p>
                         {c.senderPhone && <p className="text-xs text-gray-400">{c.senderPhone}</p>}
