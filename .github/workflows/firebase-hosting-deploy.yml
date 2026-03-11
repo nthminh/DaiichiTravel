@@ -34,11 +34,10 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Deploy to Firebase Hosting (daiichitravel.web.app)
+      - name: Deploy to Firebase Hosting (daiichitravel-f49fd.web.app)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DAIICHITRAVEL_F49FD }}
           channelId: live
           projectId: daiichitravel-f49fd
-          target: daiichitravel
