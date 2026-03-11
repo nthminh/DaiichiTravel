@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language, TRANSLATIONS } from '../App';
+import { transportService } from '../services/transportService';
 
 interface Tour {
   id: string;
@@ -23,6 +24,12 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
   const [newTour, setNewTour] = useState({ title: '', description: '', price: 0, imageUrl: '' });
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToTours(setTours);
+    return unsubscribe;
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,19 +62,31 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
     );
   };
 
-  const handleAddTour = () => {
+  const handleAddTour = async () => {
     if (!newTour.title || !newTour.imageUrl) return;
-    const tour: Tour = {
-      ...newTour,
-      id: Date.now().toString()
-    };
-    setTours(prev => [...prev, tour]);
-    setNewTour({ title: '', description: '', price: 0, imageUrl: '' });
-    setIsAdding(false);
+    setSaving(true);
+    try {
+      await transportService.addTour({
+        title: newTour.title,
+        description: newTour.description,
+        price: newTour.price,
+        imageUrl: newTour.imageUrl,
+      });
+      setNewTour({ title: '', description: '', price: 0, imageUrl: '' });
+      setIsAdding(false);
+    } catch (err) {
+      console.error('Failed to save tour:', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteTour = (id: string) => {
-    setTours(prev => prev.filter(t => t.id !== id));
+  const handleDeleteTour = async (id: string) => {
+    try {
+      await transportService.deleteTour(id);
+    } catch (err) {
+      console.error('Failed to delete tour:', err);
+    }
   };
 
   return (
@@ -170,9 +189,10 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
             </button>
             <button 
               onClick={handleAddTour}
-              disabled={!newTour.title || !newTour.imageUrl || uploading}
-              className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all"
+              disabled={!newTour.title || !newTour.imageUrl || uploading || saving}
+              className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2"
             >
+              {saving && <Loader2 size={16} className="animate-spin" />}
               {language === 'vi' ? 'Lưu Tour' : 'Save Tour'}
             </button>
           </div>
