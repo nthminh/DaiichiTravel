@@ -240,26 +240,26 @@ export default function App() {
       case 'home':
         return (
           <div className="space-y-12">
-            <div className="relative h-[400px] rounded-[40px] overflow-hidden">
+            <div className="relative h-48 sm:h-72 md:h-[400px] rounded-[40px] overflow-hidden">
               <img 
                 src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/hinhnenhome.png?alt=media&token=4be06677-5484-4225-a48f-2a7f92dc99f4" 
                 alt="Travel Hero" 
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-12">
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-6 sm:px-12">
                 <div className="max-w-xl text-white">
                   <motion.h2 
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="text-5xl font-bold mb-4 leading-tight"
+                    className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight"
                   >
                     {t.hero_title}
                   </motion.h2>
-                  <p className="text-lg text-white/80 mb-8">{t.hero_subtitle}</p>
-                  <div className="flex gap-4">
-                    <button onClick={() => setActiveTab('book-ticket')} className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all">{t.book_now}</button>
-                    <button onClick={() => setActiveTab('tours')} className="px-8 py-4 bg-white text-daiichi-red rounded-2xl font-bold hover:scale-105 transition-all">{t.view_hot_tours}</button>
+                  <p className="text-sm sm:text-base text-white/80 mb-4 sm:mb-8">{t.hero_subtitle}</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button onClick={() => setActiveTab('book-ticket')} className="px-4 py-2 sm:px-8 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm sm:text-base">{t.book_now}</button>
+                    <button onClick={() => setActiveTab('tours')} className="px-4 py-2 sm:px-8 sm:py-4 bg-white text-daiichi-red rounded-2xl font-bold hover:scale-105 transition-all text-sm sm:text-base">{t.view_hot_tours}</button>
                   </div>
                 </div>
               </div>
@@ -271,7 +271,7 @@ export default function App() {
                 { title: t.feature_tour_title, desc: t.feature_tour_desc, icon: Star },
                 { title: t.feature_support_title, desc: '+84 96 100 47 09', icon: Phone },
               ].map((f, i) => (
-                <div key={i} className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
+                <div key={i} className="bg-white p-5 sm:p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
                   <div className="w-14 h-14 bg-daiichi-accent rounded-2xl flex items-center justify-center text-daiichi-red mb-6">
                     <f.icon size={28} />
                   </div>
@@ -288,7 +288,7 @@ export default function App() {
       case 'book-ticket':
         return (
           <div className="space-y-8">
-            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+            <div className="bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
               <div className="flex items-center gap-6 mb-6">
                 <h2 className="text-2xl font-bold">{t.search_title}</h2>
                 <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -439,7 +439,7 @@ export default function App() {
         if (!selectedTrip) return null;
         return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+            <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-bold">{t.seat_map_title} - {selectedTrip.licensePlate}</h2>
                 <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -448,7 +448,7 @@ export default function App() {
                 </div>
               </div>
               
-              <div className="max-w-md mx-auto bg-gray-50 p-8 rounded-[40px] border border-gray-100">
+              <div className="max-w-md mx-auto bg-gray-50 p-4 sm:p-8 rounded-[40px] border border-gray-100">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-3 flex justify-end mb-8">
                     <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-gray-400 border border-gray-100">
@@ -592,6 +592,7 @@ export default function App() {
               ))}
             </div>
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -618,6 +619,7 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         );
@@ -630,6 +632,7 @@ export default function App() {
               <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
             </div>
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -654,6 +657,7 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         );
@@ -666,6 +670,7 @@ export default function App() {
               <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
             </div>
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -688,6 +693,7 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         );
@@ -700,6 +706,7 @@ export default function App() {
               <button className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -722,6 +729,7 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         );
@@ -740,6 +748,7 @@ export default function App() {
               <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.create_bill}</button>
             </div>
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -766,6 +775,7 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         );
@@ -836,7 +846,7 @@ export default function App() {
         setIsSidebarOpen={setIsSidebarOpen} 
       />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-8 bg-daiichi-accent/30 relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">
           {/* Mobile Menu Button - Since Header is removed */}
           <button 
             onClick={() => setIsSidebarOpen(true)} 
@@ -852,6 +862,7 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
+              className="pt-12 lg:pt-0"
             >
               {renderContent()}
             </motion.div>
