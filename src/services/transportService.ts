@@ -12,7 +12,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice } from '../types';
 
 export const transportService = {
   // Listen to all trips
@@ -217,5 +217,43 @@ export const transportService = {
     }
 
     localStorage.setItem('offline_bookings', JSON.stringify(remainingBookings));
-  }
+  },
+
+  // ===== INVOICE METHODS =====
+
+  // Listen to invoices
+  subscribeToInvoices: (callback: (invoices: Invoice[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'invoices'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const invoices = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Invoice[];
+      callback(invoices);
+    }, () => callback([]));
+  },
+
+  // Create invoice
+  createInvoice: async (invoice: Omit<Invoice, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'invoices'), {
+      ...invoice,
+      createdAt: Timestamp.now()
+    });
+  },
+
+  // Update invoice
+  updateInvoice: async (invoiceId: string, updates: Partial<Invoice>) => {
+    if (!db) return;
+    const ref = doc(db, 'invoices', invoiceId);
+    const { id: _id, ...data } = updates as any;
+    await updateDoc(ref, data as Record<string, unknown>);
+  },
+
+  // Delete invoice
+  deleteInvoice: async (invoiceId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'invoices', invoiceId));
+  },
 };

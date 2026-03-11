@@ -109,6 +109,13 @@ export interface Trip {
   price: number;
 }
 
+export interface ConsignmentItem {
+  name: string;
+  quantity: number;
+  weight?: string;
+  note?: string;
+}
+
 export interface Consignment {
   id: string;
   senderName: string;
@@ -118,6 +125,49 @@ export interface Consignment {
   status: 'PENDING' | 'PICKED_UP' | 'DELIVERED';
   qrCode: string;
   photoUrl?: string;
+  // Additional fields used in display
+  sender?: string;
+  receiver?: string;
+  type?: string;
+  weight?: string;
+  cod?: number;
+  items?: ConsignmentItem[];
+  routeId?: string;
+  tripId?: string;
+  createdAt?: any;
+  notes?: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  type: 'RETAIL' | 'AGENT';
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  agentId?: string;
+  agentName?: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  paidAmount: number;
+  debtAmount: number;
+  status: 'UNPAID' | 'PARTIAL' | 'PAID';
+  paymentMethod?: string;
+  dueDate?: string;
+  createdAt?: any;
+  notes?: string;
+}
+
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  type: 'TICKET' | 'TOUR' | 'CONSIGNMENT' | 'OTHER';
+  referenceId?: string;
 }
 
 export interface VehicleSeat {

@@ -3,7 +3,8 @@ import {
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
-  Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info
+  Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
+  Filter, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -28,6 +29,7 @@ import { SearchableSelect } from './components/SearchableSelect';
 import { Footer } from './components/Footer';
 import { TourManagement } from './components/TourManagement';
 import { StopManagement } from './components/StopManagement';
+import { FinancialReport } from './components/FinancialReport';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -87,6 +89,13 @@ export default function App() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
+  // Consignment search/filter state
+  const [consignmentSearch, setConsignmentSearch] = useState('');
+  const [consignmentStatusFilter, setConsignmentStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'DELIVERED'>('ALL');
+  const [consignmentDateFrom, setConsignmentDateFrom] = useState('');
+  const [consignmentDateTo, setConsignmentDateTo] = useState('');
+  const [showConsignmentFilters, setShowConsignmentFilters] = useState(false);
+
   // Ensure agents and guests start on the home page
   useEffect(() => {
     if (currentUser && (currentUser.role === UserRole.AGENT || currentUser.role === UserRole.CUSTOMER)) {
@@ -125,7 +134,7 @@ export default function App() {
   // Booking form inputs
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
-
+  const [childrenAges, setChildrenAges] = useState<number[]>([]);
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -169,7 +178,15 @@ export default function App() {
     const basePriceAdult = selectedTrip.price || 0;
     const basePriceChild = selectedTrip.priceChild || basePriceAdult;
     
-    const totalBase = (adults * basePriceAdult) + (children * basePriceChild);
+    // Children over 4 years old are charged adult price
+    const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
+      (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+      { childrenOver4: 0, childrenUnder4: 0 }
+    );
+    const effectiveAdults = adults + childrenOver4;
+    const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
+    
+    const totalBase = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
     const totalSurcharge = pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0);
     const totalAmount = totalBase + totalSurcharge;
 
@@ -217,6 +234,7 @@ export default function App() {
     setPhoneInput('');
     setAdults(1);
     setChildren(0);
+    setChildrenAges([]);
     setPickupPoint('');
     setDropoffPoint('');
     setPickupSurcharge(0);
@@ -527,8 +545,52 @@ export default function App() {
                   <form className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label><input type="number" min="1" value={adults} onChange={(e) => setAdults(parseInt(e.target.value) || 1)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
-                      <div><label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label><input type="number" min="0" value={children} onChange={(e) => setChildren(parseInt(e.target.value) || 0)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label>
+                        <input type="number" min="0" value={children} onChange={(e) => {
+                          const count = parseInt(e.target.value) || 0;
+                          setChildren(count);
+                          setChildrenAges(prev => {
+                            const arr = [...prev];
+                            while (arr.length < count) arr.push(0);
+                            return arr.slice(0, count);
+                          });
+                        }} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" />
+                      </div>
                     </div>
+
+                    {/* Children age inputs */}
+                    {children > 0 && (
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
+                        <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
+                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children over 4 are charged adult price'}</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {Array.from({ length: children }).map((_, i) => (
+                            <div key={i} className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="17"
+                                value={childrenAges[i] ?? ''}
+                                placeholder={`${t.child_age_placeholder || 'Age'} ${i + 1}`}
+                                onChange={e => {
+                                  const ages = [...childrenAges];
+                                  ages[i] = parseInt(e.target.value) || 0;
+                                  setChildrenAges(ages);
+                                }}
+                                className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
+                              />
+                              {(childrenAges[i] ?? 0) > 4 && (
+                                <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                                  {t.child_counted_as_adult || 'Adult'}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
                     <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
                     
@@ -582,7 +644,17 @@ export default function App() {
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
                         <span className="text-xl font-bold text-daiichi-red">
-                          {((adults * (selectedTrip.price || 0)) + (children * (selectedTrip.priceChild || selectedTrip.price || 0)) + pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0)).toLocaleString()}đ
+                          {(() => {
+                            const basePriceAdult = selectedTrip.price || 0;
+                            const basePriceChild = selectedTrip.priceChild || basePriceAdult;
+                            const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
+                              (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+                              { childrenOver4: 0, childrenUnder4: 0 }
+                            );
+                            const effectiveAdults = adults + childrenOver4;
+                            const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
+                            return ((effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild) + pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0)).toLocaleString();
+                          })()}đ
                         </span>
                       </div>
                     </div>
@@ -765,37 +837,162 @@ export default function App() {
       case 'stop-management':
         return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
 
-      case 'consignments':
+      case 'financial-report':
+        return <FinancialReport language={language} agents={agents} />;
+
+      case 'consignments': {
+        const filteredConsignments = consignments.filter(c => {
+          const searchOk = !consignmentSearch ||
+            (c.sender || c.senderName || '').toLowerCase().includes(consignmentSearch.toLowerCase()) ||
+            (c.receiver || c.receiverName || '').toLowerCase().includes(consignmentSearch.toLowerCase()) ||
+            c.id.toLowerCase().includes(consignmentSearch.toLowerCase());
+          const statusOk = consignmentStatusFilter === 'ALL' || c.status === consignmentStatusFilter;
+          const dateOk = (() => {
+            if (!consignmentDateFrom && !consignmentDateTo) return true;
+            const d = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt ? new Date(c.createdAt) : null);
+            if (!d) return true;
+            if (consignmentDateFrom && d < new Date(consignmentDateFrom)) return false;
+            if (consignmentDateTo) {
+              const toDate = new Date(consignmentDateTo);
+              toDate.setHours(23, 59, 59, 999);
+              if (d > toDate) return false;
+            }
+            return true;
+          })();
+          return searchOk && statusOk && dateOk;
+        });
+
+        const statusColorMap: Record<string, string> = {
+          DELIVERED: 'bg-green-100 text-green-600',
+          PICKED_UP: 'bg-blue-100 text-blue-600',
+          PENDING: 'bg-yellow-100 text-yellow-600',
+        };
+        const statusLabelMap: Record<string, string> = {
+          DELIVERED: t.filter_delivered || 'Delivered',
+          PICKED_UP: t.filter_picked_up || 'In Transit',
+          PENDING: t.filter_pending || 'Pending',
+        };
+
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">{t.consignment_title}</h2>
               <button className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.create_bill}</button>
             </div>
+
+            {/* Advanced Search Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={consignmentSearch}
+                    onChange={e => setConsignmentSearch(e.target.value)}
+                    placeholder={t.search_sender_receiver || 'Search by sender/receiver...'}
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowConsignmentFilters(v => !v)}
+                  className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border", showConsignmentFilters ? "bg-daiichi-red text-white border-daiichi-red" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50")}
+                >
+                  <Filter size={16} />
+                  {t.advanced_search || 'Advanced'}
+                </button>
+                {(consignmentSearch || consignmentStatusFilter !== 'ALL' || consignmentDateFrom || consignmentDateTo) && (
+                  <button
+                    onClick={() => { setConsignmentSearch(''); setConsignmentStatusFilter('ALL'); setConsignmentDateFrom(''); setConsignmentDateTo(''); }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
+                  >
+                    <X size={14} />
+                    {t.reset_filter || 'Reset'}
+                  </button>
+                )}
+              </div>
+
+              {/* Expanded Filters */}
+              {showConsignmentFilters && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-gray-100">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.status}</label>
+                    <select value={consignmentStatusFilter} onChange={e => setConsignmentStatusFilter(e.target.value as any)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                      <option value="ALL">{t.filter_status_all || 'All statuses'}</option>
+                      <option value="PENDING">{t.filter_pending || 'Pending'}</option>
+                      <option value="PICKED_UP">{t.filter_picked_up || 'In Transit'}</option>
+                      <option value="DELIVERED">{t.filter_delivered || 'Delivered'}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.date_from || 'From Date'}</label>
+                    <input type="date" value={consignmentDateFrom} onChange={e => setConsignmentDateFrom(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.date_to || 'To Date'}</label>
+                    <input type="date" value={consignmentDateTo} onChange={e => setConsignmentDateTo(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none" />
+                  </div>
+                </motion.div>
+              )}
+
+              <p className="text-xs text-gray-400">
+                {filteredConsignments.length} / {consignments.length} {language === 'vi' ? 'đơn hàng' : language === 'en' ? 'orders' : '注文'}
+              </p>
+            </div>
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mã đơn</th>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.sender}</th>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.receiver}</th>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.goods_type}</th>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.weight}</th>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cod}</th>
-                    <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.consignment_code || 'Code'}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.sender}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.receiver}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cargo_items || 'Items'}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.goods_type}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.weight}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cod}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {consignments.map((c) => (
+                  {filteredConsignments.length === 0 ? (
+                    <tr><td colSpan={8} className="px-8 py-12 text-center text-gray-400 text-sm">
+                      {language === 'vi' ? 'Không tìm thấy đơn hàng' : language === 'en' ? 'No orders found' : '注文が見つかりません'}
+                    </td></tr>
+                  ) : filteredConsignments.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-8 py-6 font-bold text-daiichi-red">{c.id}</td>
-                      <td className="px-8 py-6"><p className="font-bold text-gray-800">{c.sender}</p></td>
-                      <td className="px-8 py-6"><p className="font-bold text-gray-800">{c.receiver}</p></td>
-                      <td className="px-8 py-6 text-sm">{c.type}</td>
-                      <td className="px-8 py-6 text-sm">{c.weight}</td>
-                      <td className="px-8 py-6 font-bold">{c.cod.toLocaleString()}đ</td>
-                      <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", c.status === 'DELIVERED' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600')}>{c.status}</span></td>
+                      <td className="px-6 py-5 font-bold text-daiichi-red text-sm">{(c.id.length >= 8 ? c.id.slice(-8) : c.id).toUpperCase()}</td>
+                      <td className="px-6 py-5">
+                        <p className="font-bold text-gray-800 text-sm">{c.sender || c.senderName}</p>
+                        {c.senderPhone && <p className="text-xs text-gray-400">{c.senderPhone}</p>}
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="font-bold text-gray-800 text-sm">{c.receiver || c.receiverName}</p>
+                        {c.receiverPhone && <p className="text-xs text-gray-400">{c.receiverPhone}</p>}
+                      </td>
+                      <td className="px-6 py-5">
+                        {c.items && c.items.length > 0 ? (
+                          <div className="space-y-1">
+                            {c.items.map((item: any, i: number) => (
+                              <div key={i} className="text-xs bg-gray-100 rounded-lg px-2 py-1">
+                                <span className="font-bold">{item.name}</span>
+                                {item.quantity > 1 && <span className="text-gray-500 ml-1">×{item.quantity}</span>}
+                                {item.weight && <span className="text-gray-400 ml-1">({item.weight})</span>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-5 text-sm text-gray-600">{c.type || '—'}</td>
+                      <td className="px-6 py-5 text-sm text-gray-600">{c.weight || '—'}</td>
+                      <td className="px-6 py-5 font-bold text-gray-700">{c.cod ? c.cod.toLocaleString() + 'đ' : '—'}</td>
+                      <td className="px-6 py-5">
+                        <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", statusColorMap[c.status] || 'bg-gray-100 text-gray-600')}>
+                          {statusLabelMap[c.status] || c.status}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -804,6 +1001,7 @@ export default function App() {
             </div>
           </div>
         );
+      }
 
       default:
         return null;

@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
-  MapPin, Truck, Star, LogOut, Menu, X, Globe, Settings as SettingsIcon
+  MapPin, Truck, Star, LogOut, Menu, X, Globe, Settings as SettingsIcon,
+  BarChart2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -36,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'operations', label: t.operations, icon: Globe, roles: [UserRole.MANAGER] },
     { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star, roles: [UserRole.MANAGER] },
     { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin, roles: [UserRole.MANAGER] },
+    { id: 'financial-report', label: TRANSLATIONS[language].financial_report || 'Financial Report', icon: BarChart2, roles: [UserRole.MANAGER] },
     { id: 'settings', label: t.settings, icon: SettingsIcon, roles: [UserRole.MANAGER, UserRole.AGENT] },
   ];
 
