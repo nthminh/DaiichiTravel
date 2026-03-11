@@ -79,8 +79,8 @@ export default function App() {
   const [isTetSurcharge, setIsTetSurcharge] = useState(false);
   const [pickupSurcharge, setPickupSurcharge] = useState(0);
   const [dropoffSurcharge, setDropoffSurcharge] = useState(0);
-  const [searchFrom, setSearchFrom] = useState('Hà Nội');
-  const [searchTo, setSearchTo] = useState('Ninh Bình');
+  const [searchFrom, setSearchFrom] = useState('');
+  const [searchTo, setSearchTo] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -215,6 +215,13 @@ export default function App() {
     // Reset form inputs
     setCustomerNameInput('');
     setPhoneInput('');
+    setAdults(1);
+    setChildren(0);
+    setPickupPoint('');
+    setDropoffPoint('');
+    setPickupSurcharge(0);
+    setDropoffSurcharge(0);
+    setIsTetSurcharge(false);
 
     // Send real-time notification
     if (ws && ws.readyState === WebSocket.OPEN) {
