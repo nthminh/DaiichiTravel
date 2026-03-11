@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
@@ -17,6 +17,14 @@ const firebaseConfig = {
 const isConfigured = !!(import.meta.env.VITE_FIREBASE_API_KEY && firebaseConfig.projectId);
 
 export const app = isConfigured ? initializeApp(firebaseConfig) : null;
-export const db = app ? getFirestore(app) : null;
+
+// Enable IndexedDB-based offline persistence so writes are cached locally
+// and automatically synced to Firebase when connectivity is restored.
+export const db = app
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    })
+  : null;
+
 export const auth = app ? getAuth(app) : null;
 export const storage = app ? getStorage(app) : null;

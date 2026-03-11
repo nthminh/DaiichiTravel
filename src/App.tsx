@@ -86,6 +86,8 @@ export default function App() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(transportService.getPendingCount());
 
   // Ensure agents and guests start on the home page
   useEffect(() => {
@@ -149,6 +151,31 @@ export default function App() {
     };
   }, []);
 
+  // Network status tracking + offline queue sync
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      await transportService.syncPendingOperations();
+      setPendingCount(transportService.getPendingCount());
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Attempt to sync any operations that were queued in a previous session
+    if (navigator.onLine) {
+      transportService.syncPendingOperations()
+        .then(() => setPendingCount(transportService.getPendingCount()))
+        .catch(err => console.error('Initial sync failed:', err));
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const handleUpdateAgent = async (agentId: string, updates: any) => {
     try {
       await transportService.updateAgent(agentId, updates);
@@ -156,6 +183,7 @@ export default function App() {
       // Fallback to local state update if Firebase is unavailable
       setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
     }
+    setPendingCount(transportService.getPendingCount());
   };
 
   const handleUpdateAdmin = (updates: any) => {
@@ -244,6 +272,8 @@ export default function App() {
       }
       return trip;
     }));
+
+    setPendingCount(transportService.getPendingCount());
   };
 
   const renderContent = () => {
@@ -871,6 +901,28 @@ export default function App() {
         setIsSidebarOpen={setIsSidebarOpen} 
       />
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Offline / pending-sync banner */}
+        {(!isOnline || pendingCount > 0) && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`flex items-center justify-center gap-2 text-xs font-bold py-2 px-4 ${isOnline ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-700 text-white'}`}
+          >
+            {!isOnline ? (
+              <span>
+                {language === 'vi'
+                  ? `Mất kết nối – ${pendingCount > 0 ? `${pendingCount} thay đổi sẽ được đồng bộ khi có mạng lại` : 'Dữ liệu sẽ được lưu tạm thời'}`
+                  : `Offline – ${pendingCount > 0 ? `${pendingCount} change(s) will sync when back online` : 'Changes will be saved locally'}`}
+              </span>
+            ) : (
+              <span>
+                {language === 'vi'
+                  ? `Đang đồng bộ ${pendingCount} thay đổi lên Firebase…`
+                  : `Syncing ${pendingCount} pending change(s) to Firebase…`}
+              </span>
+            )}
+          </div>
+        )}
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">
           {/* Mobile Menu Button - Since Header is removed */}
           <button 
