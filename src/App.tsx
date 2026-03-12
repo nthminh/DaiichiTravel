@@ -37,6 +37,16 @@ import { VehicleSeatDiagram, generateVehicleLayout, serializeLayout, SerializedS
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
 export type { Language };
 
+export const PAYMENT_METHODS = ['Tiền mặt', 'Chuyển khoản', 'Thẻ tín dụng', 'MoMo'] as const;
+export type PaymentMethod = typeof PAYMENT_METHODS[number];
+const DEFAULT_PAYMENT_METHOD: PaymentMethod = 'Tiền mặt';
+const PAYMENT_METHOD_TRANSLATION_KEYS: Record<PaymentMethod, string> = {
+  'Tiền mặt': 'payment_cash',
+  'Chuyển khoản': 'payment_transfer',
+  'Thẻ tín dụng': 'payment_card',
+  'MoMo': 'payment_momo',
+};
+
 export interface User {
   id: string;
   username: string;
@@ -219,6 +229,7 @@ export default function App() {
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
   const [childrenAges, setChildrenAges] = useState<number[]>([]);
+  const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -596,7 +607,7 @@ export default function App() {
       children,
       pickupPoint,
       dropoffPoint,
-      paymentMethod: 'Tiền mặt',
+      paymentMethod: paymentMethodInput,
     };
 
     try {
@@ -630,6 +641,7 @@ export default function App() {
     setPickupSurcharge(0);
     setDropoffSurcharge(0);
     setIsTetSurcharge(false);
+    setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
 
     // Send real-time notification
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1028,6 +1040,22 @@ export default function App() {
                       <label htmlFor="tetSurcharge" className="text-xs font-bold text-gray-500 uppercase cursor-pointer">
                         {t.surcharge_tet}
                       </label>
+                    </div>
+
+                    {/* Payment Method */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                      <select
+                        value={paymentMethodInput}
+                        onChange={(e) => setPaymentMethodInput(e.target.value as PaymentMethod)}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                      >
+                        {PAYMENT_METHODS.map(method => (
+                          <option key={method} value={method}>
+                            {t[PAYMENT_METHOD_TRANSLATION_KEYS[method]]}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30">

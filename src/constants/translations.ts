@@ -83,7 +83,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     customer_name: 'Tên khách hàng',
     phone_number: 'Số điện thoại',
     pickup_point: 'Điểm đón',
-    payment_method: 'Thanh toán',
+    payment_method: 'Hình thức thanh toán',
+    payment_cash: 'Tiền mặt',
+    payment_transfer: 'Chuyển khoản',
+    payment_card: 'Thẻ tín dụng',
+    payment_momo: 'MoMo',
     confirm_booking: 'Xác nhận đặt chỗ',
     
     // Consignments
@@ -375,7 +379,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     customer_name: 'Customer Name',
     phone_number: 'Phone Number',
     pickup_point: 'Pickup Point',
-    payment_method: 'Payment',
+    payment_method: 'Payment Method',
+    payment_cash: 'Cash',
+    payment_transfer: 'Bank Transfer',
+    payment_card: 'Credit Card',
+    payment_momo: 'MoMo',
     confirm_booking: 'Confirm Booking',
     
     // Consignments
@@ -667,7 +675,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     customer_name: '顧客名',
     phone_number: '電話番号',
     pickup_point: '乗車地点',
-    payment_method: '支払い',
+    payment_method: '支払い方法',
+    payment_cash: '現金',
+    payment_transfer: '銀行振込',
+    payment_card: 'クレジットカード',
+    payment_momo: 'MoMo',
     confirm_booking: '予約を確定',
     
     // Consignments

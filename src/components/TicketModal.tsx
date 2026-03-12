@@ -55,12 +55,12 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="ticket-modal-root fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]"
+            className="ticket-card-print bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]"
           >
             {/* Success Header */}
             <div className="bg-green-500 p-8 text-white text-center relative overflow-hidden">
@@ -86,6 +86,15 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="w-4 h-4 bg-green-500 rounded-full" />
                 ))}
+              </div>
+
+              {/* Company Logo */}
+              <div className="flex items-center justify-center gap-3 pb-2 border-b border-gray-100">
+                <img src="/icon-192.png" alt="Daiichi Travel" className="w-10 h-10 rounded-lg object-contain" />
+                <div className="text-center">
+                  <p className="text-lg font-bold text-daiichi-red tracking-wide">DAIICHI TRAVEL</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Vé xe khách' : language === 'ja' ? 'バスチケット' : 'Bus Ticket'}</p>
+                </div>
               </div>
 
               <div className="flex justify-between items-start">
@@ -180,7 +189,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             </div>
 
             {/* Actions */}
-            <div className="p-8 bg-gray-50 flex gap-4 shrink-0">
+            <div className="ticket-actions-print p-8 bg-gray-50 flex gap-4 shrink-0">
               <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
                 <Download size={20} />
                 {language === 'vi' ? 'Tải xuống' : 'Download'}

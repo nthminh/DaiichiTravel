@@ -16,15 +16,34 @@
 
 @media print {
   body > * {
-    display: none !important;
+    visibility: hidden !important;
   }
-  .ticket-print-area {
-    display: block !important;
+  .ticket-modal-root {
+    visibility: visible !important;
+    display: flex !important;
     position: fixed !important;
     inset: 0 !important;
+    background: white !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+    z-index: 9999 !important;
+  }
+  .ticket-modal-root * {
+    visibility: visible !important;
+  }
+  .ticket-card-print {
     max-height: none !important;
     overflow: visible !important;
-    background: white !important;
-    padding: 32px !important;
+    width: 100% !important;
+    max-width: 600px !important;
+    box-shadow: none !important;
+  }
+  .ticket-print-area {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .ticket-actions-print {
+    display: none !important;
   }
 }
