@@ -1768,8 +1768,8 @@ export default function App() {
         const filteredAgents = agents.filter(agent => {
           const q = agentSearch.toLowerCase();
           const matchSearch = !q ||
-            agent.name.toLowerCase().includes(q) ||
-            agent.code.toLowerCase().includes(q) ||
+            (agent.name || '').toLowerCase().includes(q) ||
+            (agent.code || '').toLowerCase().includes(q) ||
             (agent.phone || '').toLowerCase().includes(q) ||
             (agent.email || '').toLowerCase().includes(q) ||
             (agent.address || '').toLowerCase().includes(q);
