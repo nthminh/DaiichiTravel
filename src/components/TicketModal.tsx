@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   X, Download, Share2, CheckCircle2, 
   MapPin, Calendar, Clock, User, Users,
-  CreditCard, QrCode, Copy
+  CreditCard, QrCode, Copy, Palmtree, Moon, Coffee
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -20,24 +20,40 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
   const [copied, setCopied] = useState(false);
   if (!booking) return null;
 
+  const isTour = booking.type === 'TOUR';
+
   const handleDownload = () => {
     window.print();
   };
 
   const handleShare = async () => {
-    const text = [
-      `🎫 ${language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket'}`,
-      `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: #${booking.id}`,
-      `🚌 ${booking.route}`,
-      `📅 ${booking.date} ${booking.time}`,
-      `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`,
-      `👤 ${booking.customerName} - ${booking.phone}`,
-      `💰 ${booking.amount.toLocaleString()}đ`,
-    ].join('\n');
+    let text: string;
+    if (isTour) {
+      text = [
+        `🌴 ${language === 'vi' ? 'Xác nhận đặt tour - Daiichi Travel' : 'Tour Booking Confirmation - Daiichi Travel'}`,
+        `📋 ${language === 'vi' ? 'Mã đặt tour' : 'Booking ID'}: #${booking.id}`,
+        `🗺️ ${booking.route}`,
+        booking.duration ? `⏱️ ${language === 'vi' ? 'Thời gian' : 'Duration'}: ${booking.duration}` : '',
+        `📅 ${language === 'vi' ? 'Ngày khởi hành' : 'Departure'}: ${booking.date}`,
+        `👤 ${booking.customerName} - ${booking.phone}`,
+        `👥 ${booking.adults} ${language === 'vi' ? 'người lớn' : 'adults'}${booking.children > 0 ? `, ${booking.children} ${language === 'vi' ? 'trẻ em' : 'children'}` : ''}`,
+        `💰 ${(booking.amount || 0).toLocaleString()}đ`,
+      ].filter(Boolean).join('\n');
+    } else {
+      text = [
+        `🎫 ${language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket'}`,
+        `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: #${booking.id}`,
+        `🚌 ${booking.route}`,
+        `📅 ${booking.date} ${booking.time}`,
+        `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`,
+        `👤 ${booking.customerName} - ${booking.phone}`,
+        `💰 ${(booking.amount || 0).toLocaleString()}đ`,
+      ].join('\n');
+    }
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket', text });
+        await navigator.share({ title: language === 'vi' ? 'Daiichi Travel' : 'Daiichi Travel', text });
       } catch {
         // user cancelled or share failed, fall through to clipboard
       }
@@ -52,6 +68,19 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
     }
   };
 
+  const accommodationLabel: Record<string, string> = {
+    none: language === 'vi' ? 'Không có' : 'None',
+    standard: language === 'vi' ? 'Phòng tiêu chuẩn' : 'Standard Room',
+    deluxe: language === 'vi' ? 'Phòng Deluxe' : 'Deluxe Room',
+    suite: language === 'vi' ? 'Phòng Suite' : 'Suite Room',
+  };
+  const mealLabel: Record<string, string> = {
+    none: language === 'vi' ? 'Không có' : 'None',
+    breakfast: language === 'vi' ? 'Bữa sáng' : 'Breakfast',
+    half_board: language === 'vi' ? 'Nửa ngày ăn' : 'Half Board',
+    full_board: language === 'vi' ? 'Cả ngày ăn' : 'Full Board',
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -63,16 +92,24 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             className="ticket-card-print bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]"
           >
             {/* Success Header */}
-            <div className="bg-green-500 p-8 text-white text-center relative overflow-hidden">
+            <div className={cn("p-8 text-white text-center relative overflow-hidden", isTour ? "bg-emerald-500" : "bg-green-500")}>
               <div className="absolute top-0 left-0 w-full h-full opacity-10">
                 <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle,white_0%,transparent_70%)]" />
               </div>
               <div className="relative z-10">
                 <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md">
-                  <CheckCircle2 size={32} />
+                  {isTour ? <Palmtree size={32} /> : <CheckCircle2 size={32} />}
                 </div>
-                <h3 className="text-2xl font-bold">{t.ticket_sent_title}</h3>
-                <p className="text-white/80 text-sm mt-2">{t.ticket_sent_desc}</p>
+                <h3 className="text-2xl font-bold">
+                  {isTour
+                    ? (language === 'vi' ? 'Đặt tour thành công!' : 'Tour Booked!')
+                    : t.ticket_sent_title}
+                </h3>
+                <p className="text-white/80 text-sm mt-2">
+                  {isTour
+                    ? (language === 'vi' ? 'Xác nhận đặt tour của bạn' : 'Your tour booking confirmation')
+                    : t.ticket_sent_desc}
+                </p>
               </div>
               <button onClick={onClose} className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors">
                 <X size={24} />
@@ -84,7 +121,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
               {/* Perforated Line */}
               <div className="absolute top-0 left-0 w-full flex justify-between px-4 -translate-y-1/2">
                 {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="w-4 h-4 bg-green-500 rounded-full" />
+                  <div key={i} className={cn("w-4 h-4 rounded-full", isTour ? "bg-emerald-500" : "bg-green-500")} />
                 ))}
               </div>
 
@@ -93,13 +130,19 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                 <img src="/icon-192.png" alt="Daiichi Travel" className="w-10 h-10 rounded-lg object-contain" />
                 <div className="text-center">
                   <p className="text-lg font-bold text-daiichi-red tracking-wide">DAIICHI TRAVEL</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Vé xe khách' : language === 'ja' ? 'バスチケット' : 'Bus Ticket'}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">
+                    {isTour
+                      ? (language === 'vi' ? 'Xác nhận tour' : language === 'ja' ? 'ツアー確認' : 'Tour Confirmation')
+                      : (language === 'vi' ? 'Vé xe khách' : language === 'ja' ? 'バスチケット' : 'Bus Ticket')}
+                  </p>
                 </div>
               </div>
 
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_code}</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {isTour ? (language === 'vi' ? 'Mã đặt tour' : 'Booking ID') : t.ticket_code}
+                  </p>
                   <p className="text-xl font-mono font-bold text-daiichi-red">#{booking.id}</p>
                 </div>
                 <div className="text-right">
@@ -111,82 +154,182 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-4">
+              {isTour ? (
+                /* ── TOUR TICKET BODY ── */
+                <div className="space-y-6">
+                  {/* Tour name & duration */}
                   <div>
                     <div className="flex items-center gap-2 text-gray-400 mb-1">
-                      <User size={14} />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">{t.passenger}</span>
+                      <Palmtree size={14} className="text-emerald-500" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Tour' : 'Tour'}</span>
                     </div>
-                    <p className="font-bold text-gray-800">{booking.customerName}</p>
-                    <p className="text-xs text-gray-500">{booking.phone}</p>
+                    <p className="font-bold text-gray-800 text-lg">{booking.route}</p>
+                    {booking.duration && (
+                      <p className="text-xs text-emerald-600 font-medium mt-0.5">{booking.duration}</p>
+                    )}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 text-gray-400 mb-1">
-                      <Users size={14} />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">{t.passengers}</span>
-                    </div>
-                    <p className="text-sm font-bold text-gray-700">{booking.adults} {t.adults}, {booking.children} {t.children}</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-gray-400 mb-1">
-                      <MapPin size={14} />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">{t.trip}</span>
-                    </div>
-                    <p className="font-bold text-gray-800">{booking.route}</p>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <Calendar size={12} />
-                      <span>{booking.date}</span>
-                    </div>
-                  </div>
-                  {booking.pickupPoint && (
-                    <div>
-                      <div className="flex items-center gap-2 text-gray-400 mb-1">
-                        <MapPin size={14} className="text-blue-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">{t.pickup_point}</span>
-                      </div>
-                      <p className="text-[10px] font-bold text-gray-700 leading-tight">{booking.pickupPoint}</p>
-                    </div>
-                  )}
-                  {booking.dropoffPoint && (
-                    <div>
-                      <div className="flex items-center gap-2 text-gray-400 mb-1">
-                        <MapPin size={14} className="text-green-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">{t.dropoff_point}</span>
-                      </div>
-                      <p className="text-[10px] font-bold text-gray-700 leading-tight">{booking.dropoffPoint}</p>
-                    </div>
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2 text-gray-400 mb-1">
-                      <Clock size={14} />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">{t.departure}</span>
-                    </div>
-                    <p className="font-bold text-gray-800">{booking.time}</p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seat}</p>
-                  <p className="text-2xl font-bold text-daiichi-red">
-                    {(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}
-                  </p>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      {/* Passenger */}
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <User size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{t.passenger}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{booking.customerName}</p>
+                        <p className="text-xs text-gray-500">{booking.phone}</p>
+                      </div>
+                      {/* Passengers count */}
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <Users size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{t.passengers}</span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-700">
+                          {booking.adults} {t.adults}
+                          {(booking.children || 0) > 0 && `, ${booking.children} ${t.children}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      {/* Departure date */}
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <Calendar size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Ngày khởi hành' : 'Departure'}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{booking.date}</p>
+                      </div>
+                      {/* Overnight stays */}
+                      {(booking.nights ?? 0) > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <Moon size={14} className="text-indigo-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Số đêm' : 'Nights'}</span>
+                          </div>
+                          <p className="font-bold text-gray-800">{booking.nights} {language === 'vi' ? 'đêm' : 'nights'}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Accommodation & Meals */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {booking.accommodation && booking.accommodation !== 'none' && (
+                      <div className="p-3 bg-blue-50 rounded-2xl">
+                        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">{language === 'vi' ? 'Phòng nghỉ' : 'Room'}</p>
+                        <p className="text-sm font-bold text-blue-700">{accommodationLabel[booking.accommodation] || booking.accommodation}</p>
+                      </div>
+                    )}
+                    {booking.mealPlan && booking.mealPlan !== 'none' && (
+                      <div className="p-3 bg-amber-50 rounded-2xl">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Coffee size={12} className="text-amber-400" />
+                          <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">{language === 'vi' ? 'Bữa ăn' : 'Meals'}</p>
+                        </div>
+                        <p className="text-sm font-bold text-amber-700">{mealLabel[booking.mealPlan] || booking.mealPlan}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total */}
+                  <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Trạng thái' : 'Status'}</p>
+                      <p className="text-lg font-bold text-emerald-600">{language === 'vi' ? 'Đã đặt' : 'Booked'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
+                      <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
-                  <p className="text-2xl font-bold text-gray-800">{booking.amount.toLocaleString()}đ</p>
-                </div>
-              </div>
+              ) : (
+                /* ── BUS TICKET BODY ── */
+                <>
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <User size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{t.passenger}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{booking.customerName}</p>
+                        <p className="text-xs text-gray-500">{booking.phone}</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <Users size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{t.passengers}</span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-700">{booking.adults} {t.adults}, {booking.children} {t.children}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <MapPin size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{t.trip}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{booking.route}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                          <Calendar size={12} />
+                          <span>{booking.date}</span>
+                        </div>
+                      </div>
+                      {booking.pickupPoint && (
+                        <div>
+                          <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <MapPin size={14} className="text-blue-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{t.pickup_point}</span>
+                          </div>
+                          <p className="text-[10px] font-bold text-gray-700 leading-tight">{booking.pickupPoint}</p>
+                        </div>
+                      )}
+                      {booking.dropoffPoint && (
+                        <div>
+                          <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <MapPin size={14} className="text-green-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{t.dropoff_point}</span>
+                          </div>
+                          <p className="text-[10px] font-bold text-gray-700 leading-tight">{booking.dropoffPoint}</p>
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <Clock size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{t.departure}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{booking.time}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seat}</p>
+                      <p className="text-2xl font-bold text-daiichi-red">
+                        {(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
+                      <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="flex flex-col items-center gap-4 pt-4">
                 <div className="p-4 bg-white border-2 border-gray-50 rounded-3xl shadow-sm">
                   <QrCode size={120} className="text-gray-800" />
                 </div>
-                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">{language === 'vi' ? 'Quét mã để lên xe' : 'Scan to board'}</p>
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">
+                  {isTour
+                    ? (language === 'vi' ? 'Quét mã để xác nhận tour' : 'Scan to confirm tour')
+                    : (language === 'vi' ? 'Quét mã để lên xe' : 'Scan to board')}
+                </p>
               </div>
             </div>
 

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Bus, Users, Package, LayoutDashboard, ChevronRight, 
+  Bus, Users, Package, 
   Download, Filter, Calendar as CalendarIcon, Search,
-  TrendingUp, ArrowUpRight, ArrowDownRight, User,
-  MapPin, Clock, CreditCard, Tag, Edit3, Trash2, X, Check
+  TrendingUp, User,
+  MapPin, Clock, CreditCard, Tag, Edit3, Trash2, X, Check,
+  Eye, Moon, Coffee, Hotel
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -88,6 +89,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   // Edit State
   const [editingBooking, setEditingBooking] = useState<any>(null);
+  // Detail View State
+  const [viewingBooking, setViewingBooking] = useState<any>(null);
 
   // Subscribe to bookings from Firebase
   useEffect(() => {
@@ -123,6 +126,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const handleEdit = (booking: any) => {
     setEditingBooking({ ...booking });
+  };
+
+  const handleView = (booking: any) => {
+    setViewingBooking(booking);
   };
 
   const saveEdit = async () => {
@@ -409,7 +416,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filteredBookings.map((booking) => (
-                    <tr key={booking.id} className="group hover:bg-gray-50/50 transition-colors">
+                    <tr key={booking.id} className="group hover:bg-gray-50/50 transition-colors cursor-pointer" onDoubleClick={() => handleView(booking)}>
                       <td className="py-5">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-daiichi-accent rounded-full flex items-center justify-center text-daiichi-red font-bold text-sm">
@@ -452,6 +459,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       </td>
                       <td className="py-5">
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleView(booking)}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title={language === 'vi' ? 'Xem chi tiết' : 'View details'}
+                          >
+                            <Eye size={16} />
+                          </button>
                           <button 
                             onClick={() => handleEdit(booking)}
                             className="p-2 text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-lg transition-all"
@@ -655,6 +669,222 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         </div>
       </div>
 
+      {/* Detail View Modal (double-click) */}
+      <AnimatePresence>
+        {viewingBooking && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              {/* Header */}
+              <div className={cn("p-8 text-white relative", viewingBooking.type === 'TOUR' ? "bg-emerald-500" : "bg-blue-500")}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{viewingBooking.type === 'TOUR' ? (language === 'vi' ? 'Đặt tour' : 'Tour Booking') : (language === 'vi' ? 'Vé xe' : 'Bus Ticket')}</span>
+                    <h3 className="text-2xl font-bold mt-1">#{viewingBooking.id?.slice(-8).toUpperCase() || viewingBooking.id}</h3>
+                    <p className="text-white/80 text-sm mt-1">{viewingBooking.route}</p>
+                  </div>
+                  <button onClick={() => setViewingBooking(null)} className="text-white/60 hover:text-white transition-colors p-2">
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="p-8 overflow-y-auto flex-1 space-y-6">
+                {/* Customer Info */}
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Thông tin khách hàng' : 'Customer Info'}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex items-center gap-2 text-gray-400 mb-1">
+                        <User size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Tên' : 'Name'}</span>
+                      </div>
+                      <p className="font-bold text-gray-800">{viewingBooking.customerName}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex items-center gap-2 text-gray-400 mb-1">
+                        <CreditCard size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</span>
+                      </div>
+                      <p className="font-bold text-gray-800">{viewingBooking.phone}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex items-center gap-2 text-gray-400 mb-1">
+                        <Users size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Số người' : 'Persons'}</span>
+                      </div>
+                      <p className="font-bold text-gray-800">
+                        {viewingBooking.adults ?? 1} {language === 'vi' ? 'người lớn' : 'adults'}
+                        {(viewingBooking.children ?? 0) > 0 && `, ${viewingBooking.children} ${language === 'vi' ? 'trẻ em' : 'children'}`}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex items-center gap-2 text-gray-400 mb-1">
+                        <Tag size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Đại lý' : 'Agent'}</span>
+                      </div>
+                      <p className="font-bold text-gray-800">{viewingBooking.agent || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Service Info */}
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Thông tin dịch vụ' : 'Service Info'}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex items-center gap-2 text-gray-400 mb-1">
+                        <MapPin size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{viewingBooking.type === 'TOUR' ? 'Tour' : (language === 'vi' ? 'Tuyến' : 'Route')}</span>
+                      </div>
+                      <p className="font-bold text-gray-800 text-sm">{viewingBooking.route}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                      <div className="flex items-center gap-2 text-gray-400 mb-1">
+                        <CalendarIcon size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Ngày' : 'Date'}</span>
+                      </div>
+                      <p className="font-bold text-gray-800">{viewingBooking.date}</p>
+                    </div>
+                    {viewingBooking.type !== 'TOUR' && viewingBooking.time && (
+                      <div className="p-4 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <Clock size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Giờ' : 'Time'}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{viewingBooking.time}</p>
+                      </div>
+                    )}
+                    {viewingBooking.type !== 'TOUR' && (viewingBooking.seatId || viewingBooking.seatIds) && (
+                      <div className="p-4 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <Bus size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Ghế' : 'Seat'}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">
+                          {viewingBooking.seatIds?.length > 1 ? viewingBooking.seatIds.join(', ') : (viewingBooking.seatId || '—')}
+                        </p>
+                      </div>
+                    )}
+                    {viewingBooking.type !== 'TOUR' && viewingBooking.pickupPoint && (
+                      <div className="p-4 bg-blue-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-blue-400 mb-1">
+                          <MapPin size={14} className="text-blue-500" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Đón' : 'Pickup'}</span>
+                        </div>
+                        <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupPoint}</p>
+                      </div>
+                    )}
+                    {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffPoint && (
+                      <div className="p-4 bg-green-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-green-400 mb-1">
+                          <MapPin size={14} className="text-green-500" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Trả' : 'Dropoff'}</span>
+                        </div>
+                        <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffPoint}</p>
+                      </div>
+                    )}
+                    {/* Tour specific fields */}
+                    {viewingBooking.type === 'TOUR' && viewingBooking.duration && (
+                      <div className="p-4 bg-indigo-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-indigo-400 mb-1">
+                          <Clock size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Thời gian' : 'Duration'}</span>
+                        </div>
+                        <p className="font-bold text-indigo-800">{viewingBooking.duration}</p>
+                      </div>
+                    )}
+                    {viewingBooking.type === 'TOUR' && (viewingBooking.nights ?? 0) > 0 && (
+                      <div className="p-4 bg-indigo-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-indigo-400 mb-1">
+                          <Moon size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Số đêm' : 'Nights'}</span>
+                        </div>
+                        <p className="font-bold text-indigo-800">{viewingBooking.nights}</p>
+                      </div>
+                    )}
+                    {viewingBooking.type === 'TOUR' && viewingBooking.accommodation && viewingBooking.accommodation !== 'none' && (
+                      <div className="p-4 bg-blue-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-blue-400 mb-1">
+                          <Hotel size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Phòng' : 'Room'}</span>
+                        </div>
+                        <p className="font-bold text-blue-800 capitalize">{viewingBooking.accommodation}</p>
+                      </div>
+                    )}
+                    {viewingBooking.type === 'TOUR' && viewingBooking.mealPlan && viewingBooking.mealPlan !== 'none' && (
+                      <div className="p-4 bg-amber-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-amber-400 mb-1">
+                          <Coffee size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Bữa ăn' : 'Meals'}</span>
+                        </div>
+                        <p className="font-bold text-amber-800">{viewingBooking.mealPlan}</p>
+                      </div>
+                    )}
+                    {viewingBooking.paymentMethod && (
+                      <div className="p-4 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                          <CreditCard size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Thanh toán' : 'Payment'}</span>
+                        </div>
+                        <p className="font-bold text-gray-800">{viewingBooking.paymentMethod}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {viewingBooking.notes && (
+                  <div className="p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
+                    <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-widest mb-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</p>
+                    <p className="text-sm text-gray-700">{viewingBooking.notes}</p>
+                  </div>
+                )}
+
+                {/* Total */}
+                <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Trạng thái' : 'Status'}</p>
+                    <span className={cn(
+                      "text-sm font-bold",
+                      viewingBooking.status === 'PAID' ? "text-green-600" : "text-yellow-600"
+                    )}>
+                      {viewingBooking.status === 'PAID' ? (language === 'vi' ? 'Đã trả' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Tổng tiền' : 'Total'}</p>
+                    <p className="text-2xl font-bold text-daiichi-red">{(viewingBooking.amount || 0).toLocaleString()}đ</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 bg-gray-50 flex gap-3 shrink-0">
+                <button 
+                  onClick={() => { setViewingBooking(null); handleEdit(viewingBooking); }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20"
+                >
+                  <Edit3 size={18} />
+                  {language === 'vi' ? 'Chỉnh sửa' : 'Edit'}
+                </button>
+                <button 
+                  onClick={() => setViewingBooking(null)}
+                  className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 rounded-2xl font-bold hover:bg-gray-100 transition-all"
+                >
+                  {language === 'vi' ? 'Đóng' : 'Close'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Edit Modal */}
       <AnimatePresence>
         {editingBooking && (
@@ -663,70 +893,139 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden"
+              className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="p-8">
+              <div className="p-8 overflow-y-auto flex-1">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-800">{t.edit_booking}</h3>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-800">{t.edit_booking}</h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {editingBooking.type === 'TOUR' ? (language === 'vi' ? 'Đặt tour' : 'Tour Booking') : (language === 'vi' ? 'Vé xe' : 'Bus Ticket')}
+                      {' • '}#{editingBooking.id?.slice(-8).toUpperCase()}
+                    </p>
+                  </div>
                   <button onClick={() => setEditingBooking(null)} className="text-gray-400 hover:text-gray-600">
                     <X size={24} />
                   </button>
                 </div>
                 <div className="space-y-4">
+                  {/* Customer Name */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tên khách hàng' : 'Customer Name'}</label>
-                    <input 
-                      type="text" 
-                      value={editingBooking.customerName}
+                    <input type="text" value={editingBooking.customerName}
                       onChange={e => setEditingBooking({...editingBooking, customerName: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" 
-                    />
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>
+                  {/* Phone */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</label>
-                    <input 
-                      type="text" 
-                      value={editingBooking.phone}
+                    <input type="text" value={editingBooking.phone || ''}
                       onChange={e => setEditingBooking({...editingBooking, phone: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" 
-                    />
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>
+                  {/* Date */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày' : 'Date'}</label>
+                    <input type="text" value={editingBooking.date || ''}
+                      onChange={e => setEditingBooking({...editingBooking, date: e.target.value})}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                  </div>
+                  {/* Persons */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Người lớn' : 'Adults'}</label>
+                      <input type="number" min="1" value={editingBooking.adults ?? 1}
+                        onChange={e => setEditingBooking({...editingBooking, adults: parseInt(e.target.value) || 1})}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Trẻ em' : 'Children'}</label>
+                      <input type="number" min="0" value={editingBooking.children ?? 0}
+                        onChange={e => setEditingBooking({...editingBooking, children: parseInt(e.target.value) || 0})}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                  </div>
+                  {/* Tour-specific fields */}
+                  {editingBooking.type === 'TOUR' && (
+                    <>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Phòng nghỉ' : 'Accommodation'}</label>
+                        <select value={editingBooking.accommodation || 'none'}
+                          onChange={e => setEditingBooking({...editingBooking, accommodation: e.target.value})}
+                          className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
+                          <option value="none">{language === 'vi' ? 'Không có' : 'None'}</option>
+                          <option value="standard">{language === 'vi' ? 'Tiêu chuẩn' : 'Standard'}</option>
+                          <option value="deluxe">Deluxe</option>
+                          <option value="suite">Suite</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Bữa ăn' : 'Meal Plan'}</label>
+                        <select value={editingBooking.mealPlan || 'none'}
+                          onChange={e => setEditingBooking({...editingBooking, mealPlan: e.target.value})}
+                          className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
+                          <option value="none">{language === 'vi' ? 'Không có' : 'None'}</option>
+                          <option value="breakfast">{language === 'vi' ? 'Bữa sáng' : 'Breakfast'}</option>
+                          <option value="half_board">{language === 'vi' ? 'Nửa ngày ăn' : 'Half Board'}</option>
+                          <option value="full_board">{language === 'vi' ? 'Cả ngày ăn' : 'Full Board'}</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+                  {/* Trip-specific fields */}
+                  {editingBooking.type !== 'TOUR' && editingBooking.seatId && (
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghế' : 'Seat'}</label>
+                      <input type="text" value={editingBooking.seatIds?.join(', ') || editingBooking.seatId || ''}
+                        readOnly
+                        className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-100 rounded-2xl text-gray-500 cursor-not-allowed" />
+                    </div>
+                  )}
+                  {/* Notes */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</label>
+                    <textarea value={editingBooking.notes || ''}
+                      onChange={e => setEditingBooking({...editingBooking, notes: e.target.value})}
+                      rows={2}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
+                  </div>
+                  {/* Amount */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tổng tiền (đ)' : 'Amount (VND)'}</label>
+                    <input type="number" min="0" value={editingBooking.amount || 0}
+                      onChange={e => setEditingBooking({...editingBooking, amount: parseInt(e.target.value) || 0})}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                  </div>
+                  {/* Agent */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Đại lý' : 'Agent'}</label>
-                    <select 
-                      value={editingBooking.agent}
+                    <select value={editingBooking.agent || 'Trực tiếp'}
                       onChange={e => setEditingBooking({...editingBooking, agent: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    >
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
                       <option value="Trực tiếp">{language === 'vi' ? 'Trực tiếp' : 'Direct'}</option>
                       {uniqueAgents.filter(a => a !== 'Trực tiếp').map(a => (
                         <option key={a} value={a}>{a}</option>
                       ))}
                     </select>
                   </div>
+                  {/* Status */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Trạng thái' : 'Status'}</label>
-                    <select 
-                      value={editingBooking.status}
+                    <select value={editingBooking.status}
                       onChange={e => setEditingBooking({...editingBooking, status: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    >
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
                       <option value="PAID">{language === 'vi' ? 'Đã trả' : 'Paid'}</option>
                       <option value="BOOKED">{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex gap-4 mt-8">
-                  <button 
-                    onClick={() => setEditingBooking(null)}
-                    className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl font-bold hover:bg-gray-100 transition-all"
-                  >
+                  <button onClick={() => setEditingBooking(null)}
+                    className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl font-bold hover:bg-gray-100 transition-all">
                     {t.cancel}
                   </button>
-                  <button 
-                    onClick={saveEdit}
-                    className="flex-1 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-                  >
+                  <button onClick={saveEdit}
+                    className="flex-1 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
                     <Check size={20} />
                     {t.save}
                   </button>
