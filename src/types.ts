@@ -172,9 +172,12 @@ export interface InvoiceItem {
 
 export interface VehicleSeat {
   id: string;
+  label?: string;
   row: number;
   col: number;
   deck?: number; // 0 for lower, 1 for upper
+  discounted?: boolean; // true = discounted due to unfavourable position
+  booked?: boolean;
 }
 
 export interface Vehicle {

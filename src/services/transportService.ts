@@ -7,6 +7,8 @@ import {
   deleteDoc,
   getDoc,
   setDoc,
+  getDocs,
+  writeBatch,
   query, 
   orderBy,
   Timestamp 
@@ -358,6 +360,81 @@ export const transportService = {
   deleteVehicle: async (vehicleId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'vehicles', vehicleId));
+  },
+
+  // Seed the 53 company vehicles (safe: only adds missing ones by licensePlate)
+  seedVehicles: async () => {
+    if (!db) throw new Error('Firebase not configured');
+    const VEHICLES: Omit<Vehicle, 'id' | 'stt' | 'ownerId' | 'layout'>[] = [
+      { licensePlate: '15H-10271', type: 'Giường nằm', seats: 30, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-044.54', type: 'Ghế ngồi limousine', seats: 16, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-40313', type: 'Ghế ngồi', seats: 16, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81034', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81024', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29E-34918', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-64157', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '38F-005.13', type: 'Giường nằm', seats: 40, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81004', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15H-04461', type: 'Ghế ngồi', seats: 47, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-64193', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29E-37743', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-40988', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-01022', type: 'Ghế ngồi', seats: 37, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81019', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-00688', type: 'Ghế ngồi', seats: 47, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29E-37513', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-64180', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-64185', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29E-35633', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: 'Lan Hạ', type: 'Ghế ngồi', seats: 58, registrationExpiry: '2026-01-05' },
+      { licensePlate: '15F-01043', type: 'Giường nằm', seats: 44, registrationExpiry: '2025-12-30' },
+      { licensePlate: 'DAIICHI LUXURY CRUISE', type: 'Ghế ngồi', seats: 30, registrationExpiry: '2026-01-07' },
+      { licensePlate: '15F-044.22', type: 'Ghế ngồi limousine', seats: 16, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-40861', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81007', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-17305', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-23' },
+      { licensePlate: '29B-40277', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29E-37643', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: 'Bus Thường', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2026-01-05' },
+      { licensePlate: '67F-00655', type: 'Ghế ngồi', seats: 37, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29E-37480', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81022', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81027', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-006.89', type: 'Ghế ngồi limousine', seats: 16, registrationExpiry: '2025-12-30' },
+      { licensePlate: 'Daiichi Boutique Cruise', type: 'Giường nằm', seats: 25, registrationExpiry: '2026-01-06' },
+      { licensePlate: '15F-01046', type: 'Giường nằm', seats: 30, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-64126', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-17432', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-40320', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-006.79', type: 'Ghế ngồi limousine', seats: 16, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-40588', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-00665', type: 'Ghế ngồi', seats: 47, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15H-10275', type: 'Giường nằm', seats: 38, registrationExpiry: '2025-12-30' },
+      { licensePlate: '29B-40612', type: 'Ghế ngồi', seats: 45, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81029', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-006.78', type: 'Ghế ngồi limousine', seats: 16, registrationExpiry: '2025-12-30' },
+      { licensePlate: '15F-010.14', type: 'Phòng VIP (cabin)', seats: 20, registrationExpiry: '2025-12-30' },
+      { licensePlate: '30M-81041', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+      { licensePlate: 'Limosine luxury 11C', type: 'Ghế ngồi limousine', seats: 10, registrationExpiry: '2026-01-05' },
+      { licensePlate: '29E-37507', type: 'Ghế ngồi', seats: 10, registrationExpiry: '2025-12-30' },
+      { licensePlate: 'Limo Green 7C', type: 'Ghế ngồi limousine', seats: 6, registrationExpiry: '2026-01-05' },
+      { licensePlate: '30M-81044', type: 'Ghế ngồi', seats: 6, registrationExpiry: '2025-12-30' },
+    ];
+
+    // Fetch existing vehicles to avoid duplicates
+    const existing = await getDocs(collection(db, 'vehicles'));
+    const existingPlates = new Set(existing.docs.map(d => (d.data() as Vehicle).licensePlate));
+
+    const toAdd = VEHICLES.filter(v => !existingPlates.has(v.licensePlate));
+    if (toAdd.length === 0) return 0;
+
+    const batch = writeBatch(db);
+    toAdd.forEach(v => {
+      const ref = doc(collection(db, 'vehicles'));
+      batch.set(ref, { ...v, status: 'ACTIVE' });
+    });
+    await batch.commit();
+    return toAdd.length;
   },
 
   // ===== ADMIN SETTINGS METHODS =====
