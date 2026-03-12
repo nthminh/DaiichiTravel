@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter
+  Filter, Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -459,6 +459,16 @@ export default function App() {
     return serializeLayout(generatedLayout).map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
   };
 
+  const handleTripVehicleSelect = (licensePlate: string) => {
+    const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
+    setTripForm(p => ({ ...p, licensePlate, seatCount: vehicle?.seats || p.seatCount }));
+  };
+
+  const handleBatchVehicleSelect = (licensePlate: string) => {
+    const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
+    setBatchTripForm(p => ({ ...p, licensePlate, seatCount: vehicle?.seats || p.seatCount }));
+  };
+
   // --- Batch trip creation ---
   const handleBatchAddTrips = async () => {
     const validSlots = batchTimeSlots.filter(t => t.trim() !== '');
@@ -759,6 +769,10 @@ export default function App() {
                     <button onClick={() => setActiveTab('book-ticket')} className="px-4 py-2 sm:px-8 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm sm:text-base">{t.book_now}</button>
                     <button onClick={() => setActiveTab('tours')} className="px-4 py-2 sm:px-8 sm:py-4 bg-white text-daiichi-red rounded-2xl font-bold hover:scale-105 transition-all text-sm sm:text-base">{t.view_hot_tours}</button>
                   </div>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-full border border-white/40">
+                    <CheckCircle2 size={16} className="text-green-300 flex-shrink-0" />
+                    <span>{language === 'vi' ? 'Không cần đăng nhập – Đặt vé ngay tức thì!' : language === 'ja' ? 'ログイン不要 – 今すぐ予約！' : 'No login required – Book instantly!'}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -985,6 +999,14 @@ export default function App() {
                           <span>{language === 'vi' ? 'Còn' : 'Only'} {(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
                         </div>
                       </div>
+                      {(trip.addons || []).length > 0 && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200">
+                            <Gift size={12} />
+                            {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'add-on services'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
@@ -1188,6 +1210,32 @@ export default function App() {
                   <div className="flex justify-between"><span className="text-gray-500">{t.empty_seats}</span><span className="font-bold text-gray-400">{selectedTrip.seats.filter(s => s.status === SeatStatus.EMPTY).length}</span></div>
                 </div>
               </div>
+
+              {(selectedTrip.addons || []).length > 0 && (
+                <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-emerald-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Gift size={20} className="text-emerald-600" />
+                    <h3 className="text-lg font-bold text-emerald-700">{language === 'vi' ? 'Dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">{language === 'vi' ? 'Các dịch vụ tùy chọn cho chuyến đi này – liên hệ để đặt thêm:' : language === 'ja' ? 'このトリップのオプションサービス – 予約時にお問い合わせください:' : 'Optional services for this trip – contact us to add them:'}</p>
+                  <div className="space-y-2">
+                    {(selectedTrip.addons || []).map((addon: TripAddon) => (
+                      <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-gray-800">{addon.name}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
+                              {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
+                            </span>
+                          </div>
+                          {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                        </div>
+                        <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {showBookingForm && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
@@ -2324,9 +2372,9 @@ export default function App() {
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
-                      <select value={tripForm.licensePlate} onChange={e => setTripForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                      <select value={tripForm.licensePlate} onChange={e => handleTripVehicleSelect(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="">{language === 'vi' ? '-- Chọn xe --' : '-- Select Vehicle --'}</option>
-                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type}</option>)}
+                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={tripForm.driverName} onChange={e => setTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
@@ -2385,9 +2433,9 @@ export default function App() {
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
-                      <select value={batchTripForm.licensePlate} onChange={e => setBatchTripForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                      <select value={batchTripForm.licensePlate} onChange={e => handleBatchVehicleSelect(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="">{language === 'vi' ? '-- Chọn xe --' : '-- Select Vehicle --'}</option>
-                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type}</option>)}
+                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={batchTripForm.driverName} onChange={e => setBatchTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
