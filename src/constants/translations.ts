@@ -272,6 +272,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     select_extra_seats_prompt: 'Vui lòng chọn thêm ghế trên sơ đồ cho trẻ trên 4 tuổi',
     extra_seats_selected_label: 'Ghế đã chọn thêm',
     extra_seat_child: 'Ghế trẻ',
+    seats_needed_notice: 'Mỗi hành khách cần một ghế riêng',
+    select_extra_seats_prompt_all: 'Vui lòng chọn thêm ghế trên sơ đồ cho tất cả hành khách',
 
     // Advanced consignment search
     advanced_search: 'Tìm kiếm nâng cao',
@@ -600,6 +602,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     select_extra_seats_prompt: 'Please select extra seat(s) on the map for children over 4',
     extra_seats_selected_label: 'Extra seats selected',
     extra_seat_child: 'Child seat',
+    seats_needed_notice: 'All passengers need their own seat',
+    select_extra_seats_prompt_all: 'Please select extra seat(s) on the map for all passengers',
 
     // Advanced consignment search
     advanced_search: 'Advanced Search',
@@ -928,6 +932,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     select_extra_seats_prompt: '4歳以上の子供のために座席表で追加の席を選択してください',
     extra_seats_selected_label: '追加で選択した席',
     extra_seat_child: '子供席',
+    seats_needed_notice: 'すべての乗客には専用の席が必要です',
+    select_extra_seats_prompt_all: 'すべての乗客のために座席表で追加の席を選択してください',
 
     // Advanced consignment search
     advanced_search: '高度な検索',

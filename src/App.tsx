@@ -540,8 +540,8 @@ export default function App() {
     const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount;
     const totalAmount = Math.round((totalBase + totalSurcharge) * (1 - bookingDiscount / 100));
 
-    // Extra seats for children over 4 (one seat per such child)
-    const extraSeatsForBooking = extraSeatIds.slice(0, childrenOver4);
+    // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
+    const extraSeatsForBooking = extraSeatIds.slice(0, (adults - 1) + childrenOver4);
     const allSeatIds = [seatId, ...extraSeatsForBooking];
 
     const bookingData = {
@@ -839,9 +839,9 @@ export default function App() {
         if (!selectedTrip) return null;
         {
           const childrenOver4Count = childrenAges.filter(age => age > 4).length;
-          const extraSeatsNeeded = childrenOver4Count;
+          const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
           const canConfirmBooking = extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded;
-          const isSelectingExtraSeats = !!showBookingForm && childrenOver4Count > 0;
+          const isSelectingExtraSeats = !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
 
           // Build seat status lookup
           const seatStatusMap: Record<string, SeatStatus> = {};
@@ -1028,7 +1028,13 @@ export default function App() {
                       <div>
                         <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
                         <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
-                          <button type="button" onClick={() => setAdults(Math.max(1, adults - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                          <button type="button" onClick={() => {
+                            const newAdults = Math.max(1, adults - 1);
+                            setAdults(newAdults);
+                            const currentOver4Count = childrenAges.filter(age => age > 4).length;
+                            const newExtraSeatsNeeded = (newAdults - 1) + currentOver4Count;
+                            setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
+                          }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                           <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
                           <button type="button" onClick={() => setAdults(adults + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
                         </div>
@@ -1093,15 +1099,15 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Extra seats required notice for children over 4 */}
-                    {childrenOver4Count > 0 && (
+                    {/* Extra seats required notice for all passengers */}
+                    {extraSeatsNeeded > 0 && (
                       <div className={cn("p-3 rounded-xl border space-y-2", canConfirmBooking ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200")}>
                         <p className={cn("text-xs font-bold uppercase", canConfirmBooking ? "text-green-600" : "text-orange-600")}>
-                          {t.child_needs_seat || 'Children over 4 need their own seat'}
+                          {t.seats_needed_notice || 'All passengers need their own seat'}
                         </p>
                         {!canConfirmBooking && (
                           <p className="text-[10px] text-orange-500">
-                            {t.select_extra_seats_prompt || 'Please select extra seat(s) on the map for children over 4'} ({extraSeatIds.length}/{extraSeatsNeeded})
+                            {t.select_extra_seats_prompt_all || 'Please select extra seat(s) on the map for all passengers'} ({extraSeatIds.length}/{extraSeatsNeeded})
                           </p>
                         )}
                         {extraSeatIds.length > 0 && (
