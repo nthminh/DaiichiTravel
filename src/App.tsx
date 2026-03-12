@@ -30,6 +30,7 @@ import { Footer } from './components/Footer';
 import { TourManagement } from './components/TourManagement';
 import { StopManagement } from './components/StopManagement';
 import { FinancialReport } from './components/FinancialReport';
+import { VehicleSeatDiagram, generateVehicleLayout, serializeLayout, SerializedSeat } from './components/VehicleSeatDiagram';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -116,6 +117,11 @@ export default function App() {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [agentForm, setAgentForm] = useState({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE' as const, username: '', password: '' });
 
+  // Agent search / filter state
+  const [agentSearch, setAgentSearch] = useState('');
+  const [agentStatusFilter, setAgentStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [showAgentFilters, setShowAgentFilters] = useState(false);
+
   // Route CRUD state
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
@@ -125,6 +131,9 @@ export default function App() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [vehicleForm, setVehicleForm] = useState({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
+
+  // Vehicle seat diagram state
+  const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
 
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
@@ -288,6 +297,16 @@ export default function App() {
     setEditingVehicle(vehicle);
     setVehicleForm({ licensePlate: vehicle.licensePlate, type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE' });
     setShowAddVehicle(true);
+  };
+
+  const handleSaveVehicleLayout = async (seats: SerializedSeat[]) => {
+    if (!diagramVehicle) return;
+    try {
+      await transportService.updateVehicle(diagramVehicle.id, { layout: seats } as Record<string, unknown>);
+      setVehicles(prev => prev.map(v => v.id === diagramVehicle.id ? { ...v, layout: seats as any } : v));
+    } catch (err) {
+      console.error('Failed to save vehicle layout:', err);
+    }
   };
 
   // --- Trip CRUD handlers ---
@@ -924,7 +943,24 @@ export default function App() {
         );
       }
 
-      case 'agents':
+      case 'agents': {
+        // Computed filtered list
+        const filteredAgents = agents.filter(agent => {
+          const q = agentSearch.toLowerCase();
+          const matchSearch = !q ||
+            agent.name.toLowerCase().includes(q) ||
+            agent.code.toLowerCase().includes(q) ||
+            (agent.phone || '').toLowerCase().includes(q) ||
+            (agent.email || '').toLowerCase().includes(q) ||
+            (agent.address || '').toLowerCase().includes(q);
+          const matchStatus = agentStatusFilter === 'ALL' || agent.status === agentStatusFilter;
+          return matchSearch && matchStatus;
+        });
+
+        // Computed stats from filtered list
+        const totalBalance = filteredAgents.reduce((sum, a) => sum + (a.balance || 0), 0);
+        const totalCommission = filteredAgents.reduce((sum, a) => sum + ((a.balance || 0) * (a.commissionRate || 0) / 100), 0);
+
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -959,20 +995,104 @@ export default function App() {
               </div>
             )}
 
+            {/* Search & Filter bar */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 space-y-3">
+              <div className="flex gap-3 flex-wrap">
+                <div className="flex-1 min-w-[200px] relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder={language === 'vi' ? 'Tìm theo tên, mã, SĐT, email...' : 'Search by name, code, phone, email...'}
+                    value={agentSearch}
+                    onChange={e => setAgentSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowAgentFilters(p => !p)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                    showAgentFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  )}
+                >
+                  <Filter size={15} />
+                  {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
+                  {agentStatusFilter !== 'ALL' && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded text-[10px] font-bold">1</span>
+                  )}
+                </button>
+                {(agentSearch || agentStatusFilter !== 'ALL') && (
+                  <button
+                    onClick={() => { setAgentSearch(''); setAgentStatusFilter('ALL'); }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                  >
+                    <X size={14} />
+                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
+                  </button>
+                )}
+              </div>
+              {showAgentFilters && (
+                <div className="flex gap-4 flex-wrap pt-1 border-t border-gray-100">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                      {t.status}
+                    </label>
+                    <div className="flex gap-2">
+                      {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setAgentStatusFilter(s)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                            agentStatusFilter === s
+                              ? s === 'ACTIVE' ? 'bg-green-100 text-green-700 ring-2 ring-green-400'
+                                : s === 'INACTIVE' ? 'bg-red-100 text-red-600 ring-2 ring-red-400'
+                                : 'bg-daiichi-red text-white'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          )}
+                        >
+                          {s === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All')
+                            : s === 'ACTIVE' ? t.status_active
+                            : t.status_locked}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {(agentSearch || agentStatusFilter !== 'ALL') && (
+                <p className="text-xs text-gray-500">
+                  {language === 'vi'
+                    ? `Hiển thị ${filteredAgents.length} / ${agents.length} đại lý`
+                    : `Showing ${filteredAgents.length} / ${agents.length} agents`}
+                </p>
+              )}
+            </div>
+
+            {/* Stats – computed from filtered results */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: t.total_agents, value: agents.length, icon: Users, color: 'text-blue-600' },
-                { label: t.agent_revenue, value: '850M', icon: Wallet, color: 'text-green-600' },
-                { label: t.commission_paid, value: '127M', icon: Star, color: 'text-daiichi-red' },
+                { label: t.total_agents, value: filteredAgents.length, icon: Users, color: 'text-blue-600', raw: true },
+                { label: t.agent_revenue, value: totalBalance.toLocaleString() + 'đ', icon: Wallet, color: 'text-green-600', raw: false },
+                { label: t.commission_paid, value: Math.round(totalCommission).toLocaleString() + 'đ', icon: Star, color: 'text-daiichi-red', raw: false },
               ].map((s, i) => (
                 <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                   <div className="flex justify-between items-start">
-                    <div><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{s.label}</p><h3 className="text-2xl font-bold mt-2">{s.value}</h3></div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{s.label}</p>
+                      <h3 className="text-2xl font-bold mt-2">{s.value}</h3>
+                      {(agentSearch || agentStatusFilter !== 'ALL') && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {language === 'vi' ? 'Kết quả tìm kiếm' : 'Filtered result'}
+                        </p>
+                      )}
+                    </div>
                     <div className={cn("p-3 rounded-xl bg-gray-50", s.color)}><s.icon size={20} /></div>
                   </div>
                 </div>
               ))}
             </div>
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -988,13 +1108,19 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {agents.map((agent) => (
+                  {filteredAgents.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-8 py-12 text-center text-gray-400 text-sm">
+                        {language === 'vi' ? 'Không tìm thấy đại lý nào phù hợp.' : 'No agents found matching your search.'}
+                      </td>
+                    </tr>
+                  ) : filteredAgents.map((agent) => (
                     <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-8 py-6"><p className="font-bold text-gray-800">{agent.name}</p><p className="text-xs text-gray-400 font-mono">{agent.code}</p></td>
                       <td className="px-8 py-6"><p className="text-xs font-bold text-gray-700">User: <span className="text-daiichi-red">{agent.username}</span></p><p className="text-[10px] text-gray-400">Pass: {agent.password}</p></td>
                       <td className="px-8 py-6"><p className="text-sm font-medium">{agent.phone}</p><p className="text-xs text-gray-400">{agent.email}</p></td>
                       <td className="px-8 py-6"><span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-xs font-bold">{agent.commissionRate}%</span></td>
-                      <td className="px-8 py-6 font-bold text-gray-700">{agent.balance.toLocaleString()}đ</td>
+                      <td className="px-8 py-6 font-bold text-gray-700">{(agent.balance || 0).toLocaleString()}đ</td>
                       <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", agent.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>{agent.status === 'ACTIVE' ? t.status_active : t.status_locked}</span></td>
                       <td className="px-8 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditAgent(agent)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteAgent(agent.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
                     </tr>
@@ -1005,6 +1131,7 @@ export default function App() {
             </div>
           </div>
         );
+      }
 
       case 'routes':
         return (
@@ -1073,9 +1200,28 @@ export default function App() {
       case 'vehicles':
         return (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
-              <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+              <div className="flex gap-3">
+                {vehicles.length === 0 && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const added = await transportService.seedVehicles();
+                        if (added === 0) alert(language === 'vi' ? 'Tất cả xe đã tồn tại.' : 'All vehicles already exist.');
+                        else alert(language === 'vi' ? `Đã thêm ${added} xe.` : `Added ${added} vehicles.`);
+                      } catch (e) {
+                        console.error(e);
+                        alert(language === 'vi' ? 'Lỗi khi thêm dữ liệu xe.' : 'Error seeding vehicles.');
+                      }
+                    }}
+                    className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm"
+                  >
+                    {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
+                  </button>
+                )}
+                <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+              </div>
             </div>
 
             {/* Add/Edit Vehicle Modal */}
@@ -1089,9 +1235,16 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label><input type="text" value={vehicleForm.licensePlate} onChange={e => setVehicleForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="29B-123.45" /></div>
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={vehicleForm.seats} onChange={e => setVehicleForm(p => ({ ...p, seats: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={vehicleForm.seats} onChange={e => setVehicleForm(p => ({ ...p, seats: parseInt(e.target.value) || 6 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label><select value={vehicleForm.type} onChange={e => setVehicleForm(p => ({ ...p, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none"><option>Limousine 11 chỗ</option><option>Xe khách 45 chỗ</option><option>Xe khách 29 chỗ</option><option>Xe giường nằm</option></select></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
+                      <select value={vehicleForm.type} onChange={e => setVehicleForm(p => ({ ...p, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="Ghế ngồi">Ghế ngồi</option>
+                        <option value="Ghế ngồi limousine">Ghế ngồi limousine</option>
+                        <option value="Giường nằm">Giường nằm</option>
+                        <option value="Phòng VIP (cabin)">Phòng VIP (cabin)</option>
+                      </select>
+                    </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.registration_expiry}</label><input type="date" value={vehicleForm.registrationExpiry} onChange={e => setVehicleForm(p => ({ ...p, registrationExpiry: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
@@ -1102,11 +1255,26 @@ export default function App() {
               </div>
             )}
 
+            {/* Vehicle seat diagram modal */}
+            {diagramVehicle && (
+              <VehicleSeatDiagram
+                licensePlate={diagramVehicle.licensePlate}
+                vehicleType={diagramVehicle.type}
+                seatCount={diagramVehicle.seats}
+                savedSeats={(diagramVehicle.layout as any) || null}
+                editable={true}
+                onSave={handleSaveVehicleLayout}
+                onClose={() => setDiagramVehicle(null)}
+                language={language}
+              />
+            )}
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">STT</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.license_plate}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.vehicle_type}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seats}</th>
@@ -1115,13 +1283,26 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {vehicles.map((v) => (
+                  {vehicles.map((v, idx) => (
                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-6 text-sm text-gray-500">{idx + 1}</td>
                       <td className="px-6 py-6 font-bold text-gray-800">{v.licensePlate}</td>
                       <td className="px-6 py-6 text-sm">{v.type}</td>
                       <td className="px-6 py-6 text-sm">{v.seats}</td>
                       <td className="px-6 py-6 text-sm">{v.registrationExpiry}</td>
-                      <td className="px-6 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditVehicle(v)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button></div></td>
+                      <td className="px-6 py-6">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDiagramVehicle(v)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all"
+                            title={language === 'vi' ? 'Xem / sửa sơ đồ xe' : 'View / edit seat diagram'}
+                          >
+                            <Bus size={13} />
+                            {language === 'vi' ? 'Sơ đồ' : 'Diagram'}
+                          </button>
+                          <button onClick={() => handleStartEditVehicle(v)} className="text-gray-400 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
