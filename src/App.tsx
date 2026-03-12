@@ -323,6 +323,29 @@ export default function App() {
     }
   };
 
+  // --- Excel template download handlers ---
+  const handleDownloadRoutesTemplate = () => {
+    const sample = [
+      { STT: 1, 'Tên tuyến': 'Hà Nội - Cát Bà', 'Điểm đi': '12 Nguyễn Du, Hà Nội', 'Điểm đến': 'Cảng Cát Bà, Hải Phòng', 'Giá vé': 150000 },
+      { STT: 2, 'Tên tuyến': 'Hà Nội - Hạ Long', 'Điểm đi': '12 Nguyễn Du, Hà Nội', 'Điểm đến': 'Cảng Tuần Châu, Quảng Ninh', 'Giá vé': 180000 },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Tuyến');
+    XLSX.writeFile(wb, 'Mau_Import_Tuyen.xlsx');
+  };
+
+  const handleDownloadVehiclesTemplate = () => {
+    const sample = [
+      { 'Biển số': '29B-12345', 'Loại xe': 'Ghế ngồi', 'Số ghế': 45, 'Hạn đăng kiểm': '2026-12-31' },
+      { 'Biển số': '30M-67890', 'Loại xe': 'Giường nằm', 'Số ghế': 40, 'Hạn đăng kiểm': '2026-06-30' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Xe');
+    XLSX.writeFile(wb, 'Mau_Import_Xe.xlsx');
+  };
+
   // --- Excel import handlers ---
   const handleImportRoutesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1218,6 +1241,9 @@ export default function App() {
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
                 <input type="file" accept=".xlsx,.xls,.csv" ref={routeImportRef} onChange={handleImportRoutesFromExcel} className="hidden" />
+                <button onClick={handleDownloadRoutesTemplate} className="flex items-center gap-2 bg-blue-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 text-sm">
+                  <FileText size={16} />{language === 'vi' ? 'Tải mẫu Excel' : 'Download Template'}
+                </button>
                 <button onClick={() => routeImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
                   <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
                 </button>
@@ -1305,6 +1331,9 @@ export default function App() {
                   </button>
                 )}
                 <input type="file" accept=".xlsx,.xls,.csv" ref={vehicleImportRef} onChange={handleImportVehiclesFromExcel} className="hidden" />
+                <button onClick={handleDownloadVehiclesTemplate} className="flex items-center gap-2 bg-blue-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 text-sm">
+                  <FileText size={16} />{language === 'vi' ? 'Tải mẫu Excel' : 'Download Template'}
+                </button>
                 <button onClick={() => vehicleImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
                   <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
                 </button>
