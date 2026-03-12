@@ -13,3 +13,18 @@
     @apply bg-daiichi-accent text-gray-900 font-sans;
   }
 }
+
+@media print {
+  body > * {
+    display: none !important;
+  }
+  .ticket-print-area {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 32px !important;
+  }
+}

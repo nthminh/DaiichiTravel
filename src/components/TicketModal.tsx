@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, Download, Share2, CheckCircle2, 
   MapPin, Calendar, Clock, User, Users,
-  CreditCard, QrCode
+  CreditCard, QrCode, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -17,7 +17,40 @@ interface TicketModalProps {
 
 export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language }) => {
   const t = TRANSLATIONS[language];
+  const [copied, setCopied] = useState(false);
   if (!booking) return null;
+
+  const handleDownload = () => {
+    window.print();
+  };
+
+  const handleShare = async () => {
+    const text = [
+      `🎫 ${language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket'}`,
+      `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: #${booking.id}`,
+      `🚌 ${booking.route}`,
+      `📅 ${booking.date} ${booking.time}`,
+      `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${booking.seatId}`,
+      `👤 ${booking.customerName} - ${booking.phone}`,
+      `💰 ${booking.amount.toLocaleString()}đ`,
+    ].join('\n');
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket', text });
+      } catch {
+        // user cancelled or share failed, fall through to clipboard
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // clipboard not available
+      }
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -27,7 +60,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden relative"
+            className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]"
           >
             {/* Success Header */}
             <div className="bg-green-500 p-8 text-white text-center relative overflow-hidden">
@@ -47,7 +80,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             </div>
 
             {/* Ticket Body */}
-            <div className="p-8 space-y-8 relative">
+            <div className="p-8 space-y-8 relative overflow-y-auto flex-1 ticket-print-area">
               {/* Perforated Line */}
               <div className="absolute top-0 left-0 w-full flex justify-between px-4 -translate-y-1/2">
                 {Array.from({ length: 12 }).map((_, i) => (
@@ -147,14 +180,14 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             </div>
 
             {/* Actions */}
-            <div className="p-8 bg-gray-50 flex gap-4">
-              <button className="flex-1 flex items-center justify-center gap-2 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
+            <div className="p-8 bg-gray-50 flex gap-4 shrink-0">
+              <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
                 <Download size={20} />
                 {language === 'vi' ? 'Tải xuống' : 'Download'}
               </button>
-              <button className="flex-1 flex items-center justify-center gap-2 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">
-                <Share2 size={20} />
-                {language === 'vi' ? 'Chia sẻ' : 'Share'}
+              <button onClick={handleShare} className={cn("flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold shadow-lg transition-all", copied ? "bg-green-500 text-white shadow-green-500/20" : "bg-daiichi-red text-white shadow-daiichi-red/20 hover:scale-[1.02]")}>
+                {copied ? <Copy size={20} /> : <Share2 size={20} />}
+                {copied ? (language === 'vi' ? 'Đã sao chép!' : 'Copied!') : (language === 'vi' ? 'Chia sẻ' : 'Share')}
               </button>
             </div>
           </motion.div>
