@@ -122,6 +122,9 @@ export default function App() {
   const [tourNotes, setTourNotes] = useState('');
   const [tourPaymentMethod, setTourPaymentMethod] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [tourBookingSuccess, setTourBookingSuccess] = useState(false);
+  const [tourBookingError, setTourBookingError] = useState<string>('');
+  const [tourBookingId, setTourBookingId] = useState<string>('');
+  const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -1309,6 +1312,42 @@ export default function App() {
         const mealCost = mealCosts[tourMealPlan] * totalPersons;
         const tourTotal = baseTourPrice + accomCost + mealCost;
 
+        const handleTourBooking = async () => {
+          if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
+          setIsTourBookingLoading(true);
+          setTourBookingError('');
+          const bookingData = {
+            type: 'TOUR',
+            customerName: tourBookingName.trim(),
+            phone: tourBookingPhone.trim(),
+            email: tourBookingEmail.trim(),
+            tourId: selectedTour.id,
+            route: selectedTour.title,
+            date: tourBookingDate,
+            adults: tourBookingAdults,
+            children: tourBookingChildren,
+            accommodation: tourAccommodation,
+            mealPlan: tourMealPlan,
+            notes: tourNotes,
+            amount: tourTotal,
+            paymentMethod: tourPaymentMethod,
+            agent: currentUser?.role === UserRole.AGENT ? currentUser.name : 'Trực tiếp',
+            status: 'BOOKED',
+          };
+          try {
+            const result = await transportService.createBooking(bookingData);
+            setTourBookingId(result.id || '');
+            setTourBookingSuccess(true);
+          } catch (err) {
+            console.error('Failed to save tour booking:', err);
+            setTourBookingError(language === 'vi'
+              ? 'Đã xảy ra lỗi khi đặt tour. Vui lòng thử lại.'
+              : 'An error occurred while booking. Please try again.');
+          } finally {
+            setIsTourBookingLoading(false);
+          }
+        };
+
         if (tourBookingSuccess) {
           return (
             <div className="flex flex-col items-center justify-center py-20 space-y-6">
@@ -1316,20 +1355,55 @@ export default function App() {
                 <CheckCircle2 className="text-green-500" size={40} />
               </div>
               <h2 className="text-2xl font-bold text-gray-800">{t.tour_booking_success}</h2>
-              <p className="text-gray-500 text-center max-w-md">
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 w-full max-w-sm space-y-3">
+                {tourBookingId && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400 font-medium">{language === 'vi' ? 'Mã đặt tour' : 'Booking ID'}</span>
+                    <span className="font-bold text-daiichi-red">#{tourBookingId.slice(-8).toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400 font-medium">{language === 'vi' ? 'Tour' : 'Tour'}</span>
+                  <span className="font-bold text-gray-700 text-right max-w-[180px] truncate">{selectedTour?.title}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400 font-medium">{language === 'vi' ? 'Ngày khởi hành' : 'Departure'}</span>
+                  <span className="font-bold text-gray-700">{tourBookingDate}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400 font-medium">{language === 'vi' ? 'Khách hàng' : 'Customer'}</span>
+                  <span className="font-bold text-gray-700">{tourBookingName}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400 font-medium">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</span>
+                  <span className="font-bold text-gray-700">{tourBookingPhone}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400 font-medium">{language === 'vi' ? 'Số người' : 'Persons'}</span>
+                  <span className="font-bold text-gray-700">
+                    {tourBookingAdults} {language === 'vi' ? 'người lớn' : 'adults'}
+                    {tourBookingChildren > 0 && `, ${tourBookingChildren} ${language === 'vi' ? 'trẻ em' : 'children'}`}
+                  </span>
+                </div>
+                <div className="border-t border-gray-100 pt-3 flex justify-between">
+                  <span className="text-sm font-bold text-gray-500 uppercase">{t.total_amount}</span>
+                  <span className="text-lg font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
+                </div>
+              </div>
+              <p className="text-gray-500 text-center max-w-md text-sm">
                 {language === 'vi'
-                  ? `Cảm ơn ${tourBookingName}! Chúng tôi sẽ liên hệ qua SĐT ${tourBookingPhone} để xác nhận tour.`
-                  : `Thank you ${tourBookingName}! We will contact you at ${tourBookingPhone} to confirm your tour.`}
+                  ? `Chúng tôi sẽ liên hệ qua SĐT ${tourBookingPhone} để xác nhận tour.`
+                  : `We will contact you at ${tourBookingPhone} to confirm your tour.`}
               </p>
               <div className="flex gap-4">
                 <button
-                  onClick={() => { setTourBookingSuccess(false); setActiveTab('tours'); }}
+                  onClick={() => { setTourBookingSuccess(false); setTourBookingId(''); setActiveTab('tours'); }}
                   className="px-6 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50"
                 >
                   {language === 'vi' ? 'Xem thêm tour' : 'Browse more tours'}
                 </button>
                 <button
-                  onClick={() => { setTourBookingSuccess(false); setActiveTab('home'); }}
+                  onClick={() => { setTourBookingSuccess(false); setTourBookingId(''); setActiveTab('home'); }}
                   className="px-6 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20"
                 >
                   {t.home}
@@ -1507,18 +1581,24 @@ export default function App() {
                 </div>
               </div>
 
+              {tourBookingError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 font-medium">
+                  {tourBookingError}
+                </div>
+              )}
+
               <button
                 type="button"
-                disabled={!tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
-                onClick={() => setTourBookingSuccess(true)}
+                disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
+                onClick={handleTourBooking}
                 className={cn(
                   "w-full py-4 text-white rounded-xl font-bold shadow-lg",
-                  tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
+                  !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
                     ? "bg-daiichi-red shadow-daiichi-red/20"
                     : "bg-gray-300 shadow-gray-200 cursor-not-allowed"
                 )}
               >
-                {t.confirm_tour_booking}
+                {isTourBookingLoading ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...') : t.confirm_tour_booking}
               </button>
             </div>
           </div>
