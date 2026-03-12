@@ -3,6 +3,7 @@ import { Plus, Trash2, Edit3, MapPin, Search, Save, X } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
+import { ResizableTh } from './ResizableTh';
 
 interface StopManagementProps {
   language: Language;
@@ -15,6 +16,14 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [colWidths, setColWidths] = useState({
+    name: 220,
+    category: 150,
+    address: 260,
+    surcharge: 140,
+    actions: 120,
+  });
   
   const [formData, setFormData] = useState<Omit<Stop, 'id'>>({
     name: '',
@@ -195,11 +204,11 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_name}</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Loại điểm' : 'Category'}</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_address}</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.surcharge}</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">{t.actions}</th>
+                <ResizableTh width={colWidths.name} onResize={(w) => setColWidths(p => ({ ...p, name: w }))} className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_name}</ResizableTh>
+                <ResizableTh width={colWidths.category} onResize={(w) => setColWidths(p => ({ ...p, category: w }))} className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Loại điểm' : 'Category'}</ResizableTh>
+                <ResizableTh width={colWidths.address} onResize={(w) => setColWidths(p => ({ ...p, address: w }))} className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_address}</ResizableTh>
+                <ResizableTh width={colWidths.surcharge} onResize={(w) => setColWidths(p => ({ ...p, surcharge: w }))} className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.surcharge}</ResizableTh>
+                <ResizableTh width={colWidths.actions} onResize={(w) => setColWidths(p => ({ ...p, actions: w }))} className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">{t.actions}</ResizableTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

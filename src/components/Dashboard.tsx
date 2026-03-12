@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bus, Users, Package, ChevronRight,
   Download, Filter, Calendar as CalendarIcon, Search,
@@ -11,55 +11,13 @@ import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
+import { ResizableTh } from './ResizableTh';
 
 interface DashboardProps {
   language: Language;
   trips: any[];
   consignments: any[];
 }
-
-const ResizableTh = ({ children, className, onResize, width }: any) => {
-  const [isResizing, setIsResizing] = useState(false);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsResizing(true);
-    startX.current = e.clientX;
-    startWidth.current = width;
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    const newWidth = startWidth.current + (e.clientX - startX.current);
-    onResize(Math.max(100, newWidth));
-  };
-
-  const handleMouseUp = () => {
-    setIsResizing(false);
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-
-  return (
-    <th 
-      className={cn("relative group select-none", className)}
-      style={{ width: `${width}px` }}
-    >
-      <div className="flex items-center gap-2 h-full">
-        {children}
-      </div>
-      <div 
-        onMouseDown={handleMouseDown}
-        className={cn(
-          "absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-daiichi-red/50 transition-colors",
-          isResizing && "bg-daiichi-red w-0.5"
-        )}
-      />
-    </th>
-  );
-};
 
 export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps }) => {
   const t = TRANSLATIONS[language];
@@ -85,6 +43,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     price: 120,
     status: 120,
     actions: 120
+  });
+
+  const [consignColWidths, setConsignColWidths] = useState({
+    sender: 180,
+    receiver: 180,
+    typeWeight: 150,
+    cod: 120,
+    status: 150,
+    created: 160,
   });
 
   // Edit State
@@ -613,12 +580,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-50">
-                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[180px]">{language === 'vi' ? 'Người gửi' : 'Sender'}</th>
-                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[180px]">{language === 'vi' ? 'Người nhận' : 'Receiver'}</th>
-                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[120px]">{language === 'vi' ? 'Loại / KL' : 'Type / Weight'}</th>
-                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[100px]">COD</th>
-                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[120px]">{language === 'vi' ? 'Trạng thái' : 'Status'}</th>
-                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[140px]">{language === 'vi' ? 'Ngày tạo' : 'Created'}</th>
+                <ResizableTh width={consignColWidths.sender} onResize={(w) => setConsignColWidths(p => ({ ...p, sender: w }))} className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Người gửi' : 'Sender'}</ResizableTh>
+                <ResizableTh width={consignColWidths.receiver} onResize={(w) => setConsignColWidths(p => ({ ...p, receiver: w }))} className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Người nhận' : 'Receiver'}</ResizableTh>
+                <ResizableTh width={consignColWidths.typeWeight} onResize={(w) => setConsignColWidths(p => ({ ...p, typeWeight: w }))} className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Loại / KL' : 'Type / Weight'}</ResizableTh>
+                <ResizableTh width={consignColWidths.cod} onResize={(w) => setConsignColWidths(p => ({ ...p, cod: w }))} className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">COD</ResizableTh>
+                <ResizableTh width={consignColWidths.status} onResize={(w) => setConsignColWidths(p => ({ ...p, status: w }))} className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Trạng thái' : 'Status'}</ResizableTh>
+                <ResizableTh width={consignColWidths.created} onResize={(w) => setConsignColWidths(p => ({ ...p, created: w }))} className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Ngày tạo' : 'Created'}</ResizableTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

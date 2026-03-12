@@ -10,6 +10,7 @@ import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 import { Invoice, InvoiceItem } from '../types';
 import * as XLSX from 'xlsx';
+import { ResizableTh } from './ResizableTh';
 
 interface FinancialReportProps {
   language: Language;
@@ -41,6 +42,17 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
   const [showInvoiceDetail, setShowInvoiceDetail] = useState<Invoice | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState<Invoice | null>(null);
   const [paymentInput, setPaymentInput] = useState('');
+
+  const [colWidths, setColWidths] = useState({
+    invoiceNo: 150,
+    customer: 200,
+    type: 130,
+    total: 150,
+    paid: 150,
+    debt: 150,
+    status: 130,
+    options: 120,
+  });
 
   // New invoice form state
   const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
@@ -387,14 +399,14 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.invoice_number || 'Invoice No.'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.customer_name || 'Customer'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.invoice_type || 'Type'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_amount || 'Total'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.paid_amount || 'Paid'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.debt_amount || 'Debt'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.invoice_status || 'Status'}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options || 'Options'}</th>
+                    <ResizableTh width={colWidths.invoiceNo} onResize={(w) => setColWidths(p => ({ ...p, invoiceNo: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.invoice_number || 'Invoice No.'}</ResizableTh>
+                    <ResizableTh width={colWidths.customer} onResize={(w) => setColWidths(p => ({ ...p, customer: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.customer_name || 'Customer'}</ResizableTh>
+                    <ResizableTh width={colWidths.type} onResize={(w) => setColWidths(p => ({ ...p, type: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.invoice_type || 'Type'}</ResizableTh>
+                    <ResizableTh width={colWidths.total} onResize={(w) => setColWidths(p => ({ ...p, total: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_amount || 'Total'}</ResizableTh>
+                    <ResizableTh width={colWidths.paid} onResize={(w) => setColWidths(p => ({ ...p, paid: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.paid_amount || 'Paid'}</ResizableTh>
+                    <ResizableTh width={colWidths.debt} onResize={(w) => setColWidths(p => ({ ...p, debt: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.debt_amount || 'Debt'}</ResizableTh>
+                    <ResizableTh width={colWidths.status} onResize={(w) => setColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.invoice_status || 'Status'}</ResizableTh>
+                    <ResizableTh width={colWidths.options} onResize={(w) => setColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options || 'Options'}</ResizableTh>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
