@@ -54,7 +54,7 @@ export const transportService = {
   // Listen to consignments
   subscribeToConsignments: (callback: (consignments: Consignment[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'consignments'), orderBy('id', 'desc'));
+    const q = query(collection(db, 'consignments'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snapshot) => {
       const consignments = snapshot.docs.map(doc => ({
         id: doc.id,
