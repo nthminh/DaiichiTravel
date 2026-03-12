@@ -275,7 +275,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
 
   const [layout, setLayout] = useState<VehicleLayout>(buildLayout);
   const [activeDeck, setActiveDeck] = useState(0);
-  const [editMode, setEditMode] = useState<'view' | 'discount'>('view');
+  const [editMode, setEditMode] = useState<'view' | 'discount' | 'position'>('view');
   const [isDirty, setIsDirty] = useState(false);
 
   const isMultiDeck = layout.decks.length > 1;
@@ -291,6 +291,38 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       return next;
     });
     setIsDirty(true);
+  };
+
+  const togglePosition = (deckIdx: number, rowIdx: number, colIdx: number) => {
+    if (!editable || editMode !== 'position') return;
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      const cell = next.decks[deckIdx][rowIdx][colIdx];
+      if (cell.isDriver) return prev; // never toggle driver cell
+      if (cell.isAisle) {
+        // Aisle → seat: auto-assign the next available label
+        const allLabels = next.decks.flatMap(d => d.flatMap(r => r))
+          .filter(c => !c.isAisle && !c.isDriver)
+          .map(c => Number(c.label))
+          .filter(n => !isNaN(n));
+        const maxLabel = allLabels.length > 0 ? Math.max(...allLabels) : 0;
+        cell.label = String(maxLabel + 1);
+        delete cell.isAisle;
+      } else {
+        // Seat → aisle
+        cell.label = '';
+        cell.isAisle = true;
+        delete cell.discounted;
+        delete cell.booked;
+      }
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const handleCellClick = (deckIdx: number, rowIdx: number, colIdx: number) => {
+    if (editMode === 'discount') toggleDiscount(deckIdx, rowIdx, colIdx);
+    else if (editMode === 'position') togglePosition(deckIdx, rowIdx, colIdx);
   };
 
   const handleReset = () => {
@@ -323,6 +355,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       booked: 'Đã đặt',
       discounted: 'Giảm giá (vị trí kém)',
       editDiscount: 'Đánh dấu ghế giảm giá',
+      editPosition: 'Chỉnh sửa vị trí ghế',
       view: 'Chế độ xem',
       reset: 'Khôi phục mặc định',
       save: 'Lưu sơ đồ',
@@ -332,7 +365,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       seats_booked: 'Đã đặt',
       seats_discounted: 'Giảm giá',
       tip: 'Nhấp vào ghế để đánh dấu/bỏ đánh dấu giảm giá',
-      front: '← Đầu xe',
+      tipPosition: 'Nhấp vào ô trống để thêm ghế, nhấp vào ghế để xoá',
+      front: '← Đầu xe (Tài xế bên trái)',
     },
     en: {
       title: 'Seat Diagram',
@@ -342,6 +376,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       booked: 'Booked',
       discounted: 'Discounted (bad position)',
       editDiscount: 'Mark Discounted Seats',
+      editPosition: 'Edit Seat Positions',
       view: 'View Mode',
       reset: 'Reset Layout',
       save: 'Save Layout',
@@ -351,7 +386,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       seats_booked: 'Booked',
       seats_discounted: 'Discounted',
       tip: 'Click seats to toggle discount mark',
-      front: '← Front',
+      tipPosition: 'Click empty cell to add seat, click seat to remove',
+      front: '← Front (Driver on left)',
     },
     ja: {
       title: '座席図',
@@ -361,6 +397,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       booked: '予約済',
       discounted: '割引（不利な位置）',
       editDiscount: '割引席をマーク',
+      editPosition: '座席位置を編集',
       view: '表示モード',
       reset: 'デフォルトに戻す',
       save: '保存',
@@ -370,7 +407,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       seats_booked: '予約済',
       seats_discounted: '割引',
       tip: '座席をクリックして割引マークを切り替え',
-      front: '← 前方',
+      tipPosition: '空セルをクリックして座席を追加、座席をクリックして削除',
+      front: '← 前方（運転手は左側）',
     },
   };
   const label = t[language] ?? t.vi;
@@ -431,7 +469,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
 
         {/* Toolbar */}
         {editable && (
-          <div className="flex items-center gap-3 px-7 pt-4">
+          <div className="flex flex-wrap items-center gap-3 px-7 pt-4">
             <button
               onClick={() => setEditMode(editMode === 'discount' ? 'view' : 'discount')}
               className={cn(
@@ -443,6 +481,18 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
             >
               <span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />
               {editMode === 'discount' ? label.tip : label.editDiscount}
+            </button>
+            <button
+              onClick={() => setEditMode(editMode === 'position' ? 'view' : 'position')}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all',
+                editMode === 'position'
+                  ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" />
+              {editMode === 'position' ? label.tipPosition : label.editPosition}
             </button>
             <button
               onClick={handleReset}
@@ -465,6 +515,17 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
               <div key={rowIdx} className="flex gap-1.5 mb-1.5 justify-center">
                 {row.map((cell, colIdx) => {
                   if (cell.isAisle) {
+                    // In position-edit mode, show aisle cells as clickable empty slots
+                    if (editable && editMode === 'position') {
+                      return (
+                        <button
+                          key={colIdx}
+                          onClick={() => handleCellClick(activeDeck, rowIdx, colIdx)}
+                          className="w-10 h-10 flex-shrink-0 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          title={language === 'vi' ? 'Nhấp để thêm ghế' : 'Click to add seat'}
+                        />
+                      );
+                    }
                     return (
                       <div
                         key={colIdx}
@@ -478,11 +539,13 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                     : cell.discounted
                     ? `${label.available} – ${label.discounted.replace('(', '').replace(')', '')} (${cell.label})`
                     : `${label.available} (${cell.label})`;
+                  const isInteractive = editable && !isDriver &&
+                    (editMode === 'discount' || editMode === 'position');
                   return (
                     <button
                       key={colIdx}
-                      onClick={() => toggleDiscount(activeDeck, rowIdx, colIdx)}
-                      disabled={isDriver || !editable || editMode !== 'discount'}
+                      onClick={() => handleCellClick(activeDeck, rowIdx, colIdx)}
+                      disabled={isDriver || !editable || editMode === 'view'}
                       className={cn(
                         'w-10 h-10 rounded-lg text-[10px] font-bold flex-shrink-0 flex items-center justify-center',
                         'border-2 transition-all leading-tight text-center whitespace-pre-wrap',
@@ -493,7 +556,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                           : cell.discounted
                           ? 'bg-amber-100 border-amber-400 text-amber-700 ring-2 ring-amber-300'
                           : 'bg-green-50 border-green-300 text-green-800',
-                        editable && editMode === 'discount' && !isDriver && !cell.booked
+                        isInteractive && !cell.booked
                           ? 'cursor-pointer hover:scale-110 hover:shadow-md'
                           : ''
                       )}

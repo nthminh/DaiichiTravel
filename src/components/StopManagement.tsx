@@ -1,6 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Upload, FileText } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import React, { useState } from 'react';
+import { Plus, Trash2, Edit3, MapPin, Search, Save, X } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
@@ -16,7 +15,6 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const stopImportRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<Omit<Stop, 'id'>>({
     name: '',
@@ -24,49 +22,6 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     category: 'MAJOR',
     surcharge: 0
   });
-
-  const handleDownloadTemplate = () => {
-    const sample = [
-      { 'Tên điểm dừng': 'Văn phòng Hà Nội', 'Địa chỉ': '12 Nguyễn Du, Hoàn Kiếm, Hà Nội', 'Loại điểm': 'OFFICE', 'Phí phụ thêm': 0 },
-      { 'Tên điểm dừng': 'Trạm dừng Ninh Bình', 'Địa chỉ': 'Quốc lộ 1A, Ninh Bình', 'Loại điểm': 'MAJOR', 'Phí phụ thêm': 0 },
-      { 'Tên điểm dừng': 'Trạm thu phí Pháp Vân', 'Địa chỉ': 'Pháp Vân, Hà Nội', 'Loại điểm': 'TOLL', 'Phí phụ thêm': 25000 },
-    ];
-    const ws = XLSX.utils.json_to_sheet(sample);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Điểm dừng');
-    XLSX.writeFile(wb, 'Mau_Import_Diem_Dung.xlsx');
-  };
-
-  const handleImportFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      const newStops = rows
-        .filter(r => r['Tên điểm dừng'] || r['name'] || r['Name'])
-        .map(r => ({
-          name: String(r['Tên điểm dừng'] || r['name'] || r['Name'] || '').trim(),
-          address: String(r['Địa chỉ'] || r['address'] || r['Address'] || '').trim(),
-          category: String(r['Loại điểm'] || r['category'] || r['Category'] || 'MAJOR').trim() as Stop['category'],
-          surcharge: Number(r['Phí phụ thêm'] || r['surcharge'] || r['Surcharge'] || 0),
-        })) as Omit<Stop, 'id'>[];
-      if (newStops.length === 0) {
-        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
-        return;
-      }
-      const added = await transportService.importStops(newStops);
-      alert(language === 'vi'
-        ? added === 0 ? 'Tất cả điểm dừng đã tồn tại.' : `Đã nhập ${added} điểm dừng mới.`
-        : added === 0 ? 'All stops already exist.' : `Imported ${added} new stops.`);
-    } catch (err) {
-      console.error('Import stops error:', err);
-      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
-    }
-  };
 
   const handleAddStop = async () => {
     if (!formData.name || !formData.address) return;
@@ -132,21 +87,6 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
           <p className="text-sm text-gray-500">{language === 'vi' ? 'Quản lý các điểm đón và trả khách trên toàn hệ thống' : 'Manage pickup and dropoff points across the system'}</p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <input type="file" accept=".xlsx,.xls,.csv" ref={stopImportRef} onChange={handleImportFromExcel} className="hidden" />
-          <button
-            onClick={handleDownloadTemplate}
-            className="flex items-center gap-2 bg-blue-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 text-sm"
-          >
-            <FileText size={16} />
-            {language === 'vi' ? 'Tải mẫu Excel' : 'Download Template'}
-          </button>
-          <button
-            onClick={() => stopImportRef.current?.click()}
-            className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm"
-          >
-            <Upload size={16} />
-            {language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
-          </button>
           <button 
             onClick={() => setIsAdding(true)}
             className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 flex items-center gap-2 hover:scale-105 transition-all"

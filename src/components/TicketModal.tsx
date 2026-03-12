@@ -30,7 +30,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
       `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: #${booking.id}`,
       `🚌 ${booking.route}`,
       `📅 ${booking.date} ${booking.time}`,
-      `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${booking.seatId}`,
+      `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`,
       `👤 ${booking.customerName} - ${booking.phone}`,
       `💰 ${booking.amount.toLocaleString()}đ`,
     ].join('\n');
@@ -172,7 +172,9 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
               <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seat}</p>
-                  <p className="text-2xl font-bold text-daiichi-red">{booking.seatId}</p>
+                  <p className="text-2xl font-bold text-daiichi-red">
+                    {(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
