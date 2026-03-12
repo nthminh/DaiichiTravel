@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "upload": "tsx scripts/upload-to-firestore.ts"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
