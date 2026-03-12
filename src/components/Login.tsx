@@ -18,11 +18,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [infoMessage, setInfoMessage] = useState('');
 
   const t = TRANSLATIONS[language];
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    setInfoMessage('');
 
     const normalizedUsername = username.trim().toLowerCase();
     const trimmedPassword = password.trim();
@@ -35,7 +37,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
     // Check Agents - wait if still loading
     if (agentsLoading) {
-      setError(language === 'vi' ? 'Đang tải dữ liệu, vui lòng thử lại...' : 'Loading data, please try again...');
+      setInfoMessage(language === 'vi' ? 'Đang tải dữ liệu, vui lòng thử lại...' : 'Loading data, please try again...');
       return;
     }
 
@@ -128,6 +130,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
             </div>
           </div>
           {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+          {infoMessage && <p className="text-blue-600 text-sm font-medium">{infoMessage}</p>}
           {agentsLoading && (
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Loader2 size={14} className="animate-spin" />

@@ -103,7 +103,7 @@ export interface TripAddon {
   name: string;
   price: number;
   description?: string;
-  type?: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER';
+  type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER';
 }
 
 export interface Trip {

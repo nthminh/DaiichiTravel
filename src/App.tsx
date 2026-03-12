@@ -411,14 +411,16 @@ export default function App() {
   };
 
   // --- Trip CRUD handlers ---
+  const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
+    trip.date ? `${trip.date} ${trip.time}` : trip.time;
+
   const handleSaveTrip = async () => {
     try {
       const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
-      const timeValue = tripForm.date ? `${tripForm.date} ${tripForm.time}` : tripForm.time;
       if (editingTrip) {
-        await transportService.updateTrip(editingTrip.id, { time: timeValue, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
+        await transportService.updateTrip(editingTrip.id, { time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
       } else {
-        await transportService.addTrip({ time: timeValue, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status, seats, addons: [] });
+        await transportService.addTrip({ time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status, seats, addons: [] });
       }
       setShowAddTrip(false);
       setEditingTrip(null);
@@ -430,7 +432,7 @@ export default function App() {
 
   const handleStartEditTrip = (trip: Trip) => {
     setEditingTrip(trip);
-    setTripForm({ time: trip.date ? trip.time.replace(`${trip.date} `, '') : trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, seatCount: trip.seats?.length || 11, status: trip.status });
+    setTripForm({ time: trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, seatCount: trip.seats?.length || 11, status: trip.status });
     setShowAddTrip(true);
   };
 
@@ -461,7 +463,7 @@ export default function App() {
     try {
       const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
       const tripsToCreate = validSlots.map(slot => ({
-        time: `${batchTripForm.date} ${slot}`,
+        time: slot,
         date: batchTripForm.date,
         route: batchTripForm.route,
         licensePlate: batchTripForm.licensePlate,
@@ -486,7 +488,7 @@ export default function App() {
   const handleAddTripAddon = async () => {
     if (!showTripAddons || !tripAddonForm.name) return;
     const newAddon: TripAddon = {
-      id: `addon_${Date.now()}`,
+      id: `addon_${crypto.randomUUID()}`,
       name: tripAddonForm.name,
       price: tripAddonForm.price,
       description: tripAddonForm.description,
@@ -884,7 +886,7 @@ export default function App() {
               {trips.map((trip) => (
                 <div key={trip.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8">
                   <div className="text-center md:text-left">
-                    <p className="text-3xl font-bold text-gray-800">{trip.time}</p>
+                    <p className="text-3xl font-bold text-gray-800">{formatTripDisplayTime(trip)}</p>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
                   </div>
                   <div className="flex-1">
@@ -2416,7 +2418,7 @@ export default function App() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredTrips.map((trip) => (
                     <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.time}</td>
+                      <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{formatTripDisplayTime(trip)}</td>
                       <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
                       <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
                       <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
