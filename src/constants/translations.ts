@@ -236,10 +236,14 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Children age check
     child_age_label: 'Tuổi trẻ em',
     child_age_placeholder: 'Tuổi',
-    child_age_note: 'Trẻ trên 4 tuổi tính giá người lớn',
+    child_age_note: 'Trẻ trên 4 tuổi tính giá người lớn và cần ghế riêng',
     child_counted_as_adult: 'Tính như người lớn',
     years_old: 'tuổi',
     enter_child_ages: 'Nhập tuổi từng trẻ em',
+    child_needs_seat: 'Trẻ trên 4 tuổi cần ngồi ghế riêng',
+    select_extra_seats_prompt: 'Vui lòng chọn thêm ghế trên sơ đồ cho trẻ trên 4 tuổi',
+    extra_seats_selected_label: 'Ghế đã chọn thêm',
+    extra_seat_child: 'Ghế trẻ',
 
     // Advanced consignment search
     advanced_search: 'Tìm kiếm nâng cao',
@@ -532,10 +536,14 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Children age check
     child_age_label: 'Children\'s Age',
     child_age_placeholder: 'Age',
-    child_age_note: 'Children over 4 are charged adult price',
+    child_age_note: 'Children over 4 are charged adult price and need their own seat',
     child_counted_as_adult: 'Counted as adult',
     years_old: 'yrs',
     enter_child_ages: 'Enter each child\'s age',
+    child_needs_seat: 'Children over 4 need their own seat',
+    select_extra_seats_prompt: 'Please select extra seat(s) on the map for children over 4',
+    extra_seats_selected_label: 'Extra seats selected',
+    extra_seat_child: 'Child seat',
 
     // Advanced consignment search
     advanced_search: 'Advanced Search',
@@ -828,10 +836,14 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Children age check
     child_age_label: '子供の年齢',
     child_age_placeholder: '年齢',
-    child_age_note: '4歳以上の子供は大人料金が適用されます',
+    child_age_note: '4歳以上の子供は大人料金が適用され、別の席が必要です',
     child_counted_as_adult: '大人料金適用',
     years_old: '歳',
     enter_child_ages: '各子供の年齢を入力',
+    child_needs_seat: '4歳以上の子供には専用の席が必要です',
+    select_extra_seats_prompt: '4歳以上の子供のために座席表で追加の席を選択してください',
+    extra_seats_selected_label: '追加で選択した席',
+    extra_seat_child: '子供席',
 
     // Advanced consignment search
     advanced_search: '高度な検索',
