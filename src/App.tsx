@@ -105,9 +105,23 @@ export default function App() {
   const [children, setChildren] = useState(0);
   const [pickupPoint, setPickupPoint] = useState('');
   const [dropoffPoint, setDropoffPoint] = useState('');
-  const [isTetSurcharge, setIsTetSurcharge] = useState(false);
+  const [surchargeAmount, setSurchargeAmount] = useState(0);
+  const [bookingDiscount, setBookingDiscount] = useState(0);
   const [pickupSurcharge, setPickupSurcharge] = useState(0);
   const [dropoffSurcharge, setDropoffSurcharge] = useState(0);
+  // Tour booking states
+  const [selectedTour, setSelectedTour] = useState<TourItem | null>(null);
+  const [tourBookingName, setTourBookingName] = useState('');
+  const [tourBookingPhone, setTourBookingPhone] = useState('');
+  const [tourBookingEmail, setTourBookingEmail] = useState('');
+  const [tourBookingDate, setTourBookingDate] = useState('');
+  const [tourBookingAdults, setTourBookingAdults] = useState(1);
+  const [tourBookingChildren, setTourBookingChildren] = useState(0);
+  const [tourAccommodation, setTourAccommodation] = useState<'none' | 'standard' | 'deluxe' | 'suite'>('none');
+  const [tourMealPlan, setTourMealPlan] = useState<'none' | 'breakfast' | 'half_board' | 'full_board'>('none');
+  const [tourNotes, setTourNotes] = useState('');
+  const [tourPaymentMethod, setTourPaymentMethod] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
+  const [tourBookingSuccess, setTourBookingSuccess] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -523,8 +537,8 @@ export default function App() {
     const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
     
     const totalBase = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
-    const totalSurcharge = pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0);
-    const totalAmount = totalBase + totalSurcharge;
+    const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount;
+    const totalAmount = Math.round((totalBase + totalSurcharge) * (1 - bookingDiscount / 100));
 
     // Extra seats for children over 4 (one seat per such child)
     const extraSeatsForBooking = extraSeatIds.slice(0, childrenOver4);
@@ -588,7 +602,8 @@ export default function App() {
     setDropoffPoint('');
     setPickupSurcharge(0);
     setDropoffSurcharge(0);
-    setIsTetSurcharge(false);
+    setSurchargeAmount(0);
+    setBookingDiscount(0);
     setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
 
     // Send real-time notification
@@ -757,28 +772,20 @@ export default function App() {
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.adults}</label>
-                    <div className="relative mt-1">
-                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="number" 
-                        min="1"
-                        value={adults}
-                        onChange={(e) => setAdults(parseInt(e.target.value) || 1)}
-                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" 
-                      />
+                    <div className="flex items-center gap-2 mt-1 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl">
+                      <Users className="text-gray-400 flex-shrink-0" size={18} />
+                      <button type="button" onClick={() => setAdults(Math.max(1, adults - 1))} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                      <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
+                      <button type="button" onClick={() => setAdults(adults + 1)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
                     </div>
                   </div>
                   <div className="flex-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.children}</label>
-                    <div className="relative mt-1">
-                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={children}
-                        onChange={(e) => setChildren(parseInt(e.target.value) || 0)}
-                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" 
-                      />
+                    <div className="flex items-center gap-2 mt-1 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl">
+                      <Users className="text-gray-400 flex-shrink-0" size={18} />
+                      <button type="button" onClick={() => setChildren(Math.max(0, children - 1))} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                      <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
+                      <button type="button" onClick={() => setChildren(children + 1)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
                     </div>
                   </div>
                 </div>
@@ -1018,22 +1025,36 @@ export default function App() {
                   </div>
                   <form className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label><input type="number" min="1" value={adults} onChange={(e) => setAdults(parseInt(e.target.value) || 1)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" /></div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
+                        <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
+                          <button type="button" onClick={() => setAdults(Math.max(1, adults - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                          <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
+                          <button type="button" onClick={() => setAdults(adults + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
+                        </div>
+                      </div>
                       <div>
                         <label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label>
-                        <input type="number" min="0" value={children} onChange={(e) => {
-                          const count = parseInt(e.target.value) || 0;
-                          setChildren(count);
-                          setChildrenAges(prev => {
-                            const arr = [...prev];
-                            while (arr.length < count) arr.push(0);
-                            return arr.slice(0, count);
-                          });
-                          // Trim extra seats to new childrenOver4 count
-                          const newAges = childrenAges.slice(0, count);
-                          const newOver4Count = newAges.filter(age => age > 4).length;
-                          setExtraSeatIds(prev => prev.slice(0, newOver4Count));
-                        }} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" />
+                        <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
+                          <button type="button" onClick={() => {
+                            const count = Math.max(0, children - 1);
+                            setChildren(count);
+                            setChildrenAges(prev => prev.slice(0, count));
+                            const newAges = childrenAges.slice(0, count);
+                            const newOver4Count = newAges.filter(age => age > 4).length;
+                            setExtraSeatIds(prev => prev.slice(0, newOver4Count));
+                          }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                          <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
+                          <button type="button" onClick={() => {
+                            const count = children + 1;
+                            setChildren(count);
+                            setChildrenAges(prev => {
+                              const arr = [...prev];
+                              while (arr.length < count) arr.push(0);
+                              return arr.slice(0, count);
+                            });
+                          }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
+                        </div>
                       </div>
                     </div>
 
@@ -1131,18 +1152,33 @@ export default function App() {
                       />
                     </div>
 
-                    {/* Tet Surcharge Toggle */}
-                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <input 
-                        type="checkbox" 
-                        id="tetSurcharge" 
-                        checked={isTetSurcharge} 
-                        onChange={(e) => setIsTetSurcharge(e.target.checked)}
-                        className="w-4 h-4 text-daiichi-red border-gray-300 rounded focus:ring-daiichi-red"
+                    {/* Surcharge (custom amount) */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.surcharge_label}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={surchargeAmount || ''}
+                        onChange={(e) => setSurchargeAmount(parseInt(e.target.value) || 0)}
+                        placeholder={t.surcharge_placeholder}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                       />
-                      <label htmlFor="tetSurcharge" className="text-xs font-bold text-gray-500 uppercase cursor-pointer">
-                        {t.surcharge_tet}
-                      </label>
+                    </div>
+
+                    {/* Discount selector */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_discount}</label>
+                      <select
+                        value={bookingDiscount}
+                        onChange={(e) => setBookingDiscount(parseInt(e.target.value))}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                      >
+                        <option value={0}>{t.no_discount}</option>
+                        {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map(pct => (
+                          <option key={pct} value={pct}>-{pct}%</option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Payment Method */}
@@ -1174,10 +1210,14 @@ export default function App() {
                             );
                             const effectiveAdults = adults + childrenOver4;
                             const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
-                            return ((effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild) + pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0)).toLocaleString();
+                            const baseTotal = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild) + pickupSurcharge + dropoffSurcharge + surchargeAmount;
+                            return Math.round(baseTotal * (1 - bookingDiscount / 100)).toLocaleString();
                           })()}đ
                         </span>
                       </div>
+                      {bookingDiscount > 0 && (
+                        <p className="text-xs text-green-600 font-bold mt-1 text-right">-{bookingDiscount}% {t.booking_discount}</p>
+                      )}
                     </div>
 
                     <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>{t.confirm_booking}</button>
@@ -1232,10 +1272,10 @@ export default function App() {
                             )}
                           </div>
                           <button
-                            onClick={() => setActiveTab('book-ticket')}
+                            onClick={() => { setSelectedTour(tour); setActiveTab('book-tour'); }}
                             className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
                           >
-                            {language === 'vi' ? 'Đặt ngay' : 'Book Now'}
+                            {t.book_tour || (language === 'vi' ? 'Đặt tour' : 'Book Tour')}
                           </button>
                         </div>
                       </div>
@@ -1244,6 +1284,237 @@ export default function App() {
                 })}
               </div>
             )}
+          </div>
+        );
+      }
+
+      case 'book-tour': {
+        const accommodationCosts: Record<string, number> = { none: 0, standard: 300000, deluxe: 500000, suite: 800000 };
+        const mealCosts: Record<string, number> = { none: 0, breakfast: 100000, half_board: 200000, full_board: 300000 };
+        const totalPersons = tourBookingAdults + tourBookingChildren;
+        const pricePerAdult = selectedTour
+          ? (selectedTour.discountPercent
+              ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100))
+              : selectedTour.price)
+          : 0;
+        const pricePerChild = Math.round(pricePerAdult * 0.5);
+        const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
+        const accomCost = accommodationCosts[tourAccommodation] * totalPersons;
+        const mealCost = mealCosts[tourMealPlan] * totalPersons;
+        const tourTotal = baseTourPrice + accomCost + mealCost;
+
+        if (tourBookingSuccess) {
+          return (
+            <div className="flex flex-col items-center justify-center py-20 space-y-6">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="text-green-500" size={40} />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">{t.tour_booking_success}</h2>
+              <p className="text-gray-500 text-center max-w-md">
+                {language === 'vi'
+                  ? `Cảm ơn ${tourBookingName}! Chúng tôi sẽ liên hệ qua SĐT ${tourBookingPhone} để xác nhận tour.`
+                  : `Thank you ${tourBookingName}! We will contact you at ${tourBookingPhone} to confirm your tour.`}
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => { setTourBookingSuccess(false); setActiveTab('tours'); }}
+                  className="px-6 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50"
+                >
+                  {language === 'vi' ? 'Xem thêm tour' : 'Browse more tours'}
+                </button>
+                <button
+                  onClick={() => { setTourBookingSuccess(false); setActiveTab('home'); }}
+                  className="px-6 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20"
+                >
+                  {t.home}
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-6 max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+              <button onClick={() => setActiveTab('tours')} className="p-2 hover:bg-gray-100 rounded-xl text-gray-500">
+                <ChevronRight className="rotate-180" size={22} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold">{t.tour_booking_title}</h2>
+                <p className="text-sm text-gray-500">{language === 'vi' ? 'Điền thông tin để đặt tour' : 'Fill in details to book your tour'}</p>
+              </div>
+            </div>
+
+            {/* Selected Tour Card */}
+            {selectedTour && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex gap-4 p-4">
+                <img src={selectedTour.imageUrl} alt={selectedTour.title} className="w-24 h-24 object-cover rounded-xl flex-shrink-0" referrerPolicy="no-referrer" />
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-800">{selectedTour.title}</h3>
+                  <p className="text-xs text-gray-500 line-clamp-2 mt-1">{selectedTour.description}</p>
+                  <p className="text-daiichi-red font-bold mt-2">
+                    {pricePerAdult < selectedTour.price
+                      ? <>{pricePerAdult.toLocaleString()}đ <span className="text-xs text-gray-400 line-through">{selectedTour.price.toLocaleString()}đ</span></>
+                      : <>{pricePerAdult.toLocaleString()}đ</>
+                    }
+                    <span className="text-xs font-normal text-gray-500 ml-1">/{language === 'vi' ? 'người lớn' : 'adult'}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+              {/* Departure date */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.tour_departure_date}</label>
+                <div className="relative mt-1">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="date"
+                    value={tourBookingDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setTourBookingDate(e.target.value)}
+                    className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                  />
+                </div>
+              </div>
+
+              {/* Adults & children steppers */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
+                  <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
+                    <button type="button" onClick={() => setTourBookingAdults(Math.max(1, tourBookingAdults - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none">−</button>
+                    <span className="flex-1 text-center font-bold text-gray-800">{tourBookingAdults}</span>
+                    <button type="button" onClick={() => setTourBookingAdults(tourBookingAdults + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none">+</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.children} <span className="text-gray-400 font-normal normal-case">{language === 'vi' ? '(50% giá)' : '(50% price)'}</span></label>
+                  <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
+                    <button type="button" onClick={() => setTourBookingChildren(Math.max(0, tourBookingChildren - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none">−</button>
+                    <span className="flex-1 text-center font-bold text-gray-800">{tourBookingChildren}</span>
+                    <button type="button" onClick={() => setTourBookingChildren(tourBookingChildren + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none">+</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Accommodation */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.accommodation}</label>
+                <select
+                  value={tourAccommodation}
+                  onChange={(e) => setTourAccommodation(e.target.value as typeof tourAccommodation)}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                >
+                  <option value="none">{t.no_accommodation}</option>
+                  <option value="standard">{t.room_standard}</option>
+                  <option value="deluxe">{t.room_deluxe}</option>
+                  <option value="suite">{t.room_suite}</option>
+                </select>
+              </div>
+
+              {/* Meal plan */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.meal_plan}</label>
+                <select
+                  value={tourMealPlan}
+                  onChange={(e) => setTourMealPlan(e.target.value as typeof tourMealPlan)}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                >
+                  <option value="none">{t.meal_none}</option>
+                  <option value="breakfast">{t.meal_breakfast}</option>
+                  <option value="half_board">{t.meal_half_board}</option>
+                  <option value="full_board">{t.meal_full_board}</option>
+                </select>
+              </div>
+
+              {/* Customer info */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label>
+                <input
+                  type="text"
+                  value={tourBookingName}
+                  onChange={(e) => setTourBookingName(e.target.value)}
+                  placeholder={t.enter_name}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label>
+                <input
+                  type="tel"
+                  value={tourBookingPhone}
+                  onChange={(e) => setTourBookingPhone(e.target.value)}
+                  placeholder={t.enter_phone}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.customer_email || 'Email'}</label>
+                <input
+                  type="email"
+                  value={tourBookingEmail}
+                  onChange={(e) => setTourBookingEmail(e.target.value)}
+                  placeholder={t.enter_email || 'Email...'}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                />
+              </div>
+
+              {/* Payment method */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                <select
+                  value={tourPaymentMethod}
+                  onChange={(e) => setTourPaymentMethod(e.target.value as PaymentMethod)}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                >
+                  {PAYMENT_METHODS.map(m => (
+                    <option key={m} value={m}>{t[PAYMENT_METHOD_TRANSLATION_KEYS[m]]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">{t.tour_notes}</label>
+                <textarea
+                  value={tourNotes}
+                  onChange={(e) => setTourNotes(e.target.value)}
+                  rows={3}
+                  placeholder={language === 'vi' ? 'Nhập yêu cầu đặc biệt...' : 'Enter special requests...'}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 resize-none"
+                />
+              </div>
+
+              {/* Price breakdown */}
+              <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
+                <p className="text-xs font-bold text-gray-500 uppercase mb-2">{language === 'vi' ? 'Chi tiết giá' : 'Price breakdown'}</p>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span><span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span></div>
+                {tourBookingChildren > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span><span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span></div>}
+                {tourAccommodation !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_accommodation_cost}</span><span className="font-bold">{accomCost.toLocaleString()}đ</span></div>}
+                {tourMealPlan !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_meal_cost}</span><span className="font-bold">{mealCost.toLocaleString()}đ</span></div>}
+                <div className="border-t border-daiichi-accent/40 pt-2 flex justify-between">
+                  <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
+                  <span className="text-xl font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={!tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
+                onClick={() => setTourBookingSuccess(true)}
+                className={cn(
+                  "w-full py-4 text-white rounded-xl font-bold shadow-lg",
+                  tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
+                    ? "bg-daiichi-red shadow-daiichi-red/20"
+                    : "bg-gray-300 shadow-gray-200 cursor-not-allowed"
+                )}
+              >
+                {t.confirm_tour_booking}
+              </button>
+            </div>
           </div>
         );
       }
