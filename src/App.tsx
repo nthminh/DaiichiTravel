@@ -1292,14 +1292,13 @@ export default function App() {
         const accommodationCosts: Record<string, number> = { none: 0, standard: 300000, deluxe: 500000, suite: 800000 };
         const mealCosts: Record<string, number> = { none: 0, breakfast: 100000, half_board: 200000, full_board: 300000 };
         const totalPersons = tourBookingAdults + tourBookingChildren;
-        const baseTourPrice = selectedTour
-          ? (tourBookingAdults * (selectedTour.discountPercent
+        const pricePerAdult = selectedTour
+          ? (selectedTour.discountPercent
               ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100))
-              : selectedTour.price))
-            + (tourBookingChildren * Math.round((selectedTour.discountPercent
-              ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100))
-              : selectedTour.price) * 0.5))
+              : selectedTour.price)
           : 0;
+        const pricePerChild = Math.round(pricePerAdult * 0.5);
+        const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
         const accomCost = accommodationCosts[tourAccommodation] * totalPersons;
         const mealCost = mealCosts[tourMealPlan] * totalPersons;
         const tourTotal = baseTourPrice + accomCost + mealCost;
@@ -1355,9 +1354,9 @@ export default function App() {
                   <h3 className="font-bold text-gray-800">{selectedTour.title}</h3>
                   <p className="text-xs text-gray-500 line-clamp-2 mt-1">{selectedTour.description}</p>
                   <p className="text-daiichi-red font-bold mt-2">
-                    {selectedTour.discountPercent && selectedTour.discountPercent > 0
-                      ? <>{Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100)).toLocaleString()}đ <span className="text-xs text-gray-400 line-through">{selectedTour.price.toLocaleString()}đ</span></>
-                      : <>{selectedTour.price.toLocaleString()}đ</>
+                    {pricePerAdult < selectedTour.price
+                      ? <>{pricePerAdult.toLocaleString()}đ <span className="text-xs text-gray-400 line-through">{selectedTour.price.toLocaleString()}đ</span></>
+                      : <>{pricePerAdult.toLocaleString()}đ</>
                     }
                     <span className="text-xs font-normal text-gray-500 ml-1">/{language === 'vi' ? 'người lớn' : 'adult'}</span>
                   </p>
@@ -1492,8 +1491,8 @@ export default function App() {
               {/* Price breakdown */}
               <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">{language === 'vi' ? 'Chi tiết giá' : 'Price breakdown'}</p>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span><span className="font-bold">{selectedTour ? (Math.round((selectedTour.discountPercent ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100)) : selectedTour.price)) * tourBookingAdults).toLocaleString() : 0}đ</span></div>
-                {tourBookingChildren > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span><span className="font-bold">{selectedTour ? (Math.round((selectedTour.discountPercent ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100)) : selectedTour.price) * 0.5) * tourBookingChildren).toLocaleString() : 0}đ</span></div>}
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span><span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span></div>
+                {tourBookingChildren > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span><span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span></div>}
                 {tourAccommodation !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_accommodation_cost}</span><span className="font-bold">{accomCost.toLocaleString()}đ</span></div>}
                 {tourMealPlan !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_meal_cost}</span><span className="font-bold">{mealCost.toLocaleString()}đ</span></div>}
                 <div className="border-t border-daiichi-accent/40 pt-2 flex justify-between">
