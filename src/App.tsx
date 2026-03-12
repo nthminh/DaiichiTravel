@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, FileText
+  Filter, FileText, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
 import { cn } from './lib/utils';
 
 // Import Constants & Types
@@ -134,6 +135,10 @@ export default function App() {
 
   // Vehicle seat diagram state
   const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
+
+  // Excel import refs
+  const routeImportRef = useRef<HTMLInputElement>(null);
+  const vehicleImportRef = useRef<HTMLInputElement>(null);
 
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
@@ -306,6 +311,79 @@ export default function App() {
       setVehicles(prev => prev.map(v => v.id === diagramVehicle.id ? { ...v, layout: seats as any } : v));
     } catch (err) {
       console.error('Failed to save vehicle layout:', err);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa phương tiện này?' : 'Delete this vehicle?')) return;
+    try {
+      await transportService.deleteVehicle(vehicleId);
+    } catch (err) {
+      console.error('Failed to delete vehicle:', err);
+    }
+  };
+
+  // --- Excel import handlers ---
+  const handleImportRoutesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const routes = rows
+        .filter(r => r['Tên tuyến'] || r['name'] || r['Name'])
+        .map((r, idx) => ({
+          stt: Number(r['STT'] || r['stt'] || idx + 1),
+          name: String(r['Tên tuyến'] || r['name'] || r['Name'] || '').trim(),
+          departurePoint: String(r['Điểm đi'] || r['departurePoint'] || r['Departure'] || '').trim(),
+          arrivalPoint: String(r['Điểm đến'] || r['arrivalPoint'] || r['Arrival'] || '').trim(),
+          price: Number(r['Giá vé'] || r['price'] || r['Price'] || 0),
+        }));
+      if (routes.length === 0) {
+        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
+        return;
+      }
+      const added = await transportService.importRoutes(routes);
+      alert(language === 'vi'
+        ? added === 0 ? 'Tất cả tuyến đã tồn tại.' : `Đã nhập ${added} tuyến mới.`
+        : added === 0 ? 'All routes already exist.' : `Imported ${added} new routes.`);
+    } catch (err) {
+      console.error('Import routes error:', err);
+      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
+    }
+  };
+
+  const handleImportVehiclesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const vehicles = rows
+        .filter(r => r['Biển số'] || r['licensePlate'] || r['License Plate'])
+        .map(r => ({
+          licensePlate: String(r['Biển số'] || r['licensePlate'] || r['License Plate'] || '').trim(),
+          type: String(r['Loại xe'] || r['type'] || r['Type'] || 'Ghế ngồi').trim(),
+          seats: Number(r['Số ghế'] || r['seats'] || r['Seats'] || 0),
+          registrationExpiry: String(r['Hạn đăng kiểm'] || r['registrationExpiry'] || r['Registration Expiry'] || '').trim(),
+        }));
+      if (vehicles.length === 0) {
+        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
+        return;
+      }
+      const added = await transportService.importVehicles(vehicles);
+      alert(language === 'vi'
+        ? added === 0 ? 'Tất cả xe đã tồn tại.' : `Đã nhập ${added} xe mới.`
+        : added === 0 ? 'All vehicles already exist.' : `Imported ${added} new vehicles.`);
+    } catch (err) {
+      console.error('Import vehicles error:', err);
+      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
     }
   };
 
@@ -1136,9 +1214,15 @@ export default function App() {
       case 'routes':
         return (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
-              <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+              <div className="flex gap-3">
+                <input type="file" accept=".xlsx,.xls,.csv" ref={routeImportRef} onChange={handleImportRoutesFromExcel} className="hidden" />
+                <button onClick={() => routeImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
+                  <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
+                </button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+              </div>
             </div>
 
             {/* Add/Edit Route Modal */}
@@ -1202,7 +1286,7 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {vehicles.length === 0 && (
                   <button
                     onClick={async () => {
@@ -1220,6 +1304,10 @@ export default function App() {
                     {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
                   </button>
                 )}
+                <input type="file" accept=".xlsx,.xls,.csv" ref={vehicleImportRef} onChange={handleImportVehiclesFromExcel} className="hidden" />
+                <button onClick={() => vehicleImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
+                  <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
+                </button>
                 <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
               </div>
             </div>
@@ -1301,6 +1389,7 @@ export default function App() {
                             {language === 'vi' ? 'Sơ đồ' : 'Diagram'}
                           </button>
                           <button onClick={() => handleStartEditVehicle(v)} className="text-gray-400 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
+                          <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-400 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
