@@ -43,7 +43,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     e.target.value = '';
     try {
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
+      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
       const newStops = rows

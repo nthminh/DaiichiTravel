@@ -73,6 +73,19 @@ export const transportService = {
     });
   },
 
+  // Update consignment
+  updateConsignment: async (consignmentId: string, updates: Omit<Partial<Consignment>, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    const ref = doc(db, 'consignments', consignmentId);
+    await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // Delete consignment
+  deleteConsignment: async (consignmentId: string) => {
+    if (!db) throw new Error('Firebase not configured');
+    await deleteDoc(doc(db, 'consignments', consignmentId));
+  },
+
   // Listen to agents
   subscribeToAgents: (callback: (agents: Agent[]) => void) => {
     if (!db) return () => {};

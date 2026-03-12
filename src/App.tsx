@@ -110,6 +110,14 @@ export default function App() {
   // Consignment creation modal state
   const [showCreateConsignment, setShowCreateConsignment] = useState(false);
 
+  // Consignment edit state
+  const [editingConsignment, setEditingConsignment] = useState<Consignment | null>(null);
+  const [showEditConsignment, setShowEditConsignment] = useState(false);
+  const [editConsignmentForm, setEditConsignmentForm] = useState({
+    senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
+    type: '', weight: '', cod: 0, notes: '', status: 'PENDING' as 'PENDING' | 'PICKED_UP' | 'DELIVERED',
+  });
+
   // Tours state (for customer-facing page)
   const [tours, setTours] = useState<TourItem[]>([]);
 
@@ -353,7 +361,7 @@ export default function App() {
     e.target.value = '';
     try {
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
+      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
       const routes = rows
@@ -385,7 +393,7 @@ export default function App() {
     e.target.value = '';
     try {
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
+      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
       const vehicles = rows
@@ -489,6 +497,54 @@ export default function App() {
       setNewConsignment({ senderName: '', senderPhone: '', receiverName: '', receiverPhone: '', type: '', weight: '', cod: 0, notes: '' });
     } catch (err) {
       console.error('Failed to create consignment:', err);
+    }
+  };
+
+  const handleStartEditConsignment = (c: Consignment) => {
+    setEditingConsignment(c);
+    setEditConsignmentForm({
+      senderName: c.senderName || c.sender || '',
+      senderPhone: c.senderPhone || '',
+      receiverName: c.receiverName || c.receiver || '',
+      receiverPhone: c.receiverPhone || '',
+      type: c.type || '',
+      weight: c.weight || '',
+      cod: c.cod || 0,
+      notes: c.notes || '',
+      status: c.status,
+    });
+    setShowEditConsignment(true);
+  };
+
+  const handleUpdateConsignment = async () => {
+    if (!editingConsignment) return;
+    try {
+      await transportService.updateConsignment(editingConsignment.id, {
+        senderName: editConsignmentForm.senderName,
+        sender: editConsignmentForm.senderName,
+        senderPhone: editConsignmentForm.senderPhone,
+        receiverName: editConsignmentForm.receiverName,
+        receiver: editConsignmentForm.receiverName,
+        receiverPhone: editConsignmentForm.receiverPhone,
+        type: editConsignmentForm.type,
+        weight: editConsignmentForm.weight,
+        cod: editConsignmentForm.cod,
+        notes: editConsignmentForm.notes,
+        status: editConsignmentForm.status,
+      });
+      setShowEditConsignment(false);
+      setEditingConsignment(null);
+    } catch (err) {
+      console.error('Failed to update consignment:', err);
+    }
+  };
+
+  const handleDeleteConsignment = async (id: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa vận đơn này?' : 'Delete this consignment?')) return;
+    try {
+      await transportService.deleteConsignment(id);
+    } catch (err) {
+      console.error('Failed to delete consignment:', err);
     }
   };
 
@@ -1628,16 +1684,17 @@ export default function App() {
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.consignment_code || 'Code'}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.sender}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.receiver}</th>
-                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cargo_items || 'Items'}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.goods_type}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.weight}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cod}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Ghi chú' : 'Notes'}</th>
                     <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
+                    <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredConsignments.length === 0 ? (
-                    <tr><td colSpan={8} className="px-8 py-12 text-center text-gray-400 text-sm">
+                    <tr><td colSpan={9} className="px-8 py-12 text-center text-gray-400 text-sm">
                       {language === 'vi' ? 'Không tìm thấy đơn hàng' : language === 'en' ? 'No orders found' : '注文が見つかりません'}
                     </td></tr>
                   ) : filteredConsignments.map((c) => (
@@ -1651,28 +1708,20 @@ export default function App() {
                         <p className="font-bold text-gray-800 text-sm">{c.receiver || c.receiverName}</p>
                         {c.receiverPhone && <p className="text-xs text-gray-400">{c.receiverPhone}</p>}
                       </td>
-                      <td className="px-6 py-5">
-                        {c.items && c.items.length > 0 ? (
-                          <div className="space-y-1">
-                            {c.items.map((item: any, i: number) => (
-                              <div key={i} className="text-xs bg-gray-100 rounded-lg px-2 py-1">
-                                <span className="font-bold">{item.name}</span>
-                                {item.quantity > 1 && <span className="text-gray-500 ml-1">×{item.quantity}</span>}
-                                {item.weight && <span className="text-gray-400 ml-1">({item.weight})</span>}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
                       <td className="px-6 py-5 text-sm text-gray-600">{c.type || '—'}</td>
                       <td className="px-6 py-5 text-sm text-gray-600">{c.weight || '—'}</td>
                       <td className="px-6 py-5 font-bold text-gray-700">{c.cod ? c.cod.toLocaleString() + 'đ' : '—'}</td>
+                      <td className="px-6 py-5 text-sm text-gray-500 max-w-[160px] truncate">{c.notes || '—'}</td>
                       <td className="px-6 py-5">
                         <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", statusColorMap[c.status] || 'bg-gray-100 text-gray-600')}>
                           {statusLabelMap[c.status] || c.status}
                         </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex gap-3">
+                          <button onClick={() => handleStartEditConsignment(c)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button>
+                          <button onClick={() => handleDeleteConsignment(c.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1729,6 +1778,68 @@ export default function App() {
                   <button onClick={() => setShowCreateConsignment(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
                   <button onClick={handleCreateConsignment} disabled={!newConsignment.senderName || !newConsignment.receiverName} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all">
                     {language === 'vi' ? 'Tạo vận đơn' : 'Create Bill'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Consignment Modal */}
+          {showEditConsignment && editingConsignment && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-[32px] p-8 max-w-xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold">{language === 'vi' ? 'Chỉnh sửa vận đơn' : 'Edit Consignment'}</h3>
+                  <button onClick={() => { setShowEditConsignment(false); setEditingConsignment(null); }} className="p-2 hover:bg-gray-50 rounded-xl">
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.sender}</label>
+                    <input type="text" value={editConsignmentForm.senderName} onChange={e => setEditConsignmentForm(prev => ({ ...prev, senderName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Tên người gửi' : 'Sender name'} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'SĐT người gửi' : 'Sender phone'}</label>
+                    <input type="text" value={editConsignmentForm.senderPhone} onChange={e => setEditConsignmentForm(prev => ({ ...prev, senderPhone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="09xxx" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.receiver}</label>
+                    <input type="text" value={editConsignmentForm.receiverName} onChange={e => setEditConsignmentForm(prev => ({ ...prev, receiverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Tên người nhận' : 'Receiver name'} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'SĐT người nhận' : 'Receiver phone'}</label>
+                    <input type="text" value={editConsignmentForm.receiverPhone} onChange={e => setEditConsignmentForm(prev => ({ ...prev, receiverPhone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="09xxx" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.goods_type}</label>
+                    <input type="text" value={editConsignmentForm.type} onChange={e => setEditConsignmentForm(prev => ({ ...prev, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Loại hàng...' : 'Goods type...'} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.weight}</label>
+                    <input type="text" value={editConsignmentForm.weight} onChange={e => setEditConsignmentForm(prev => ({ ...prev, weight: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: 2kg' : 'e.g. 2kg'} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.cod}</label>
+                    <input type="number" min="0" value={editConsignmentForm.cod} onChange={e => setEditConsignmentForm(prev => ({ ...prev, cod: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</label>
+                    <input type="text" value={editConsignmentForm.notes} onChange={e => setEditConsignmentForm(prev => ({ ...prev, notes: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Ghi chú thêm...' : 'Additional notes...'} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
+                    <select value={editConsignmentForm.status} onChange={e => setEditConsignmentForm(prev => ({ ...prev, status: e.target.value as any }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
+                      <option value="PENDING">{t.filter_pending || 'Pending'}</option>
+                      <option value="PICKED_UP">{t.filter_picked_up || 'In Transit'}</option>
+                      <option value="DELIVERED">{t.filter_delivered || 'Delivered'}</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-4 pt-2">
+                  <button onClick={() => { setShowEditConsignment(false); setEditingConsignment(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                  <button onClick={handleUpdateConsignment} disabled={!editConsignmentForm.senderName || !editConsignmentForm.receiverName} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all">
+                    {t.save}
                   </button>
                 </div>
               </div>
