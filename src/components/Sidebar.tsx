@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, Menu, X, Globe, Settings as SettingsIcon,
-  BarChart2
+  BarChart2, ChevronDown
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Language, User, UserRole, TRANSLATIONS } from '../App';
 
@@ -24,26 +24,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
   language, setLanguage, isSidebarOpen, setIsSidebarOpen 
 }) => {
   const t = TRANSLATIONS[language];
+  const [isDaiichiOpen, setIsDaiichiOpen] = useState(false);
 
-  const menuItems = [
-    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard, roles: [UserRole.MANAGER] },
+  // Admin-only pages grouped under the "Daiichi" dropdown
+  const daiichiItems = [
+    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
+    { id: 'agents', label: t.agents, icon: Users },
+    { id: 'routes', label: t.routes, icon: MapPin },
+    { id: 'vehicles', label: t.vehicles, icon: Truck },
+    { id: 'operations', label: t.operations, icon: Globe },
+    { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star },
+    { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin },
+    { id: 'financial-report', label: TRANSLATIONS[language].financial_report || 'Financial Report', icon: BarChart2 },
+  ];
+
+  // Items visible to all applicable roles (non-admin-exclusive)
+  const otherMenuItems = [
     { id: 'home', label: t.home, icon: Home, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
     { id: 'book-ticket', label: t.book_ticket, icon: Bus, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
     { id: 'tours', label: t.tours, icon: Star, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
     { id: 'consignments', label: t.consignments, icon: Package, roles: [UserRole.MANAGER, UserRole.AGENT] },
-    { id: 'agents', label: t.agents, icon: Users, roles: [UserRole.MANAGER] },
-    { id: 'routes', label: t.routes, icon: MapPin, roles: [UserRole.MANAGER] },
-    { id: 'vehicles', label: t.vehicles, icon: Truck, roles: [UserRole.MANAGER] },
-    { id: 'operations', label: t.operations, icon: Globe, roles: [UserRole.MANAGER] },
-    { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star, roles: [UserRole.MANAGER] },
-    { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin, roles: [UserRole.MANAGER] },
-    { id: 'financial-report', label: TRANSLATIONS[language].financial_report || 'Financial Report', icon: BarChart2, roles: [UserRole.MANAGER] },
     { id: 'settings', label: t.settings, icon: SettingsIcon, roles: [UserRole.MANAGER, UserRole.AGENT] },
   ];
 
-  const filteredMenu = menuItems.filter(item => 
+  const filteredOtherMenu = otherMenuItems.filter(item =>
     !currentUser || item.roles.includes(currentUser.role)
   );
+
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
+  const isDaiichiActive = daiichiItems.some(item => item.id === activeTab);
 
   return (
     <div className={cn(
@@ -51,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       isSidebarOpen ? "translate-x-0" : "-translate-x-full"
     )}>
       <div className="flex flex-col h-full p-6">
-        <div className="flex items-center justify-between mb-10">
+        <div className="flex items-center justify-between mb-6">
           <img 
             src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724" 
             alt="Daiichi Logo" 
@@ -62,8 +71,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
+        {/* Daiichi admin dropdown – only visible for MANAGER */}
+        {isAdmin && (
+          <div className="mb-4">
+            <button
+              onClick={() => setIsDaiichiOpen(p => !p)}
+              className={cn(
+                "w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-bold transition-all",
+                isDaiichiActive
+                  ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20"
+                  : "bg-daiichi-accent text-daiichi-red hover:bg-red-100"
+              )}
+            >
+              <span className="flex items-center gap-3">
+                <Menu size={18} />
+                Daiichi
+              </span>
+              <ChevronDown
+                size={16}
+                className={cn("transition-transform duration-200", isDaiichiOpen ? "rotate-180" : "")}
+              />
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isDaiichiOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-1 ml-3 pl-3 border-l-2 border-daiichi-red/20 space-y-1">
+                    {daiichiItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
+                          activeTab === item.id
+                            ? "bg-daiichi-red text-white shadow-md shadow-daiichi-red/20"
+                            : "text-gray-500 hover:bg-gray-50"
+                        )}
+                      >
+                        <item.icon size={17} />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         <nav className="flex-1 space-y-2 overflow-y-auto">
-          {filteredMenu.map((item) => (
+          {filteredOtherMenu.map((item) => (
             <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
