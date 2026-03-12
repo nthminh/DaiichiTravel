@@ -435,6 +435,16 @@ export default function App() {
   const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
     trip.date ? `${trip.date} ${trip.time}` : trip.time;
 
+  const compareTripDateTime = (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => {
+    const aDate = a.date || '9999-12-31';
+    const aTime = a.time || '23:59';
+    const bDate = b.date || '9999-12-31';
+    const bTime = b.time || '23:59';
+    const aKey = `${aDate}T${aTime}`;
+    const bKey = `${bDate}T${bTime}`;
+    return aKey.localeCompare(bKey);
+  };
+
   const handleSaveTrip = async () => {
     try {
       const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
@@ -1002,6 +1012,7 @@ export default function App() {
               <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>
               {(() => {
                 const filteredBookingTrips = trips.filter(trip => {
+                  if (trip.status !== TripStatus.WAITING) return false;
                   const tripVehicle = (bookTicketSearch || vehicleTypeFilter)
                     ? vehicles.find(v => v.licensePlate === trip.licensePlate)
                     : undefined;
@@ -1030,7 +1041,7 @@ export default function App() {
                     if (!isNaN(maxVal) && trip.price > maxVal) return false;
                   }
                   return true;
-                });
+                }).sort((a, b) => compareTripDateTime(a, b));
                 return filteredBookingTrips.length > 0 ? filteredBookingTrips.map((trip) => (
                   <div key={trip.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8">
                     <div className="text-center md:text-left">
@@ -2493,7 +2504,7 @@ export default function App() {
             (trip.licensePlate || '').toLowerCase().includes(q) ||
             (trip.driverName || '').toLowerCase().includes(q)
           );
-        });
+        }).sort((a, b) => compareTripDateTime(a, b));
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">

@@ -152,6 +152,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div>
                 <p className="text-sm font-bold text-gray-800">{currentUser?.name}</p>
                 <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">{currentUser?.role}</p>
+                {currentUser?.role === UserRole.AGENT && currentUser.address && (
+                  <p className="text-[10px] text-gray-500 mt-0.5">{currentUser.address}</p>
+                )}
               </div>
             </div>
             {currentUser?.role === UserRole.AGENT && (
