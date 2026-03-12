@@ -1,8 +1,67 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // Helper function to check for Rowy user roles safely.
+    function isRowyUserWithRole(role) {
+      let userDocPath = /databases/$(database)/documents/_rowy_/userManagement/users/$(request.auth.uid);
+      return request.auth != null &&
+             exists(userDocPath) &&
+             (get(userDocPath).data.roles.hasAny([role, 'admin']));
+    }
+    
+    function isRowyAdmin() {
+        let userDocPath = /databases/$(database)/documents/_rowy_/userManagement/users/$(request.auth.uid);
+        return request.auth != null &&
+             exists(userDocPath) &&
+             get(userDocPath).data.roles.hasAny(['admin']);
+    }
+
+    // Rules for Rowy's internal collections.
+    match /_rowy_/{collection}/{document=**} {
+      allow read, write: if isRowyAdmin();
+    }
+    
+    // --- App Collections ---
+
+    // Public read access for these collections
+    match /trips/{trip} {
+      allow read: if true;
+      allow write: if isRowyUserWithRole('editor');
+    }
+    match /routes/{route} {
+      allow read: if true;
+      allow write: if isRowyUserWithRole('editor');
+    }
+    match /vehicles/{vehicle} {
+      allow read: if true;
+      allow write: if isRowyUserWithRole('editor');
+    }
+    match /stops/{stop} {
+      allow read: if true;
+      allow write: if isRowyUserWithRole('editor');
+    }
+    match /tours/{tour} {
+      allow read: if true; // Allow public read access to tours
+      allow write: if isRowyUserWithRole('editor'); // Only Rowy editors/admins can write
+    }
+
+    // Restricted collections. Only Rowy users can access.
+    match /consignments/{consignment} {
+      allow read, write: if isRowyUserWithRole('editor');
+    }
+    match /agents/{agent} {
+      allow read, write: if isRowyUserWithRole('editor');
+    }
+    match /bookings/{booking} {
+      allow read, write: if isRowyUserWithRole('editor');
+    }
+    match /invoices/{invoice} {
+      allow read, write: if isRowyUserWithRole('editor');
+    }
+    match /settings/{setting} {
+      allow read, write: if isRowyAdmin();
     }
   }
 }
