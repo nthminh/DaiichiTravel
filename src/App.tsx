@@ -1274,9 +1274,9 @@ export default function App() {
                             -{tour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
                           </div>
                         ) : null}
-                        {(tour as any).duration && (
+                        {tour.duration && (
                           <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
-                            {(tour as any).duration}
+                            {tour.duration}
                           </div>
                         )}
                       </div>
@@ -1284,16 +1284,16 @@ export default function App() {
                         <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
                         <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>
                         {/* Overnight & Breakfast badges */}
-                        {((tour as any).nights > 0 || (tour as any).breakfastCount > 0) && (
+                        {((tour.nights ?? 0) > 0 || (tour.breakfastCount ?? 0) > 0) && (
                           <div className="flex flex-wrap gap-2 mb-3">
-                            {(tour as any).nights > 0 && (
+                            {(tour.nights ?? 0) > 0 && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                                🌙 {(tour as any).nights} {language === 'vi' ? 'đêm' : 'nights'}
+                                🌙 {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
                               </span>
                             )}
-                            {(tour as any).breakfastCount > 0 && (
+                            {(tour.breakfastCount ?? 0) > 0 && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                                ☕ {(tour as any).breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
+                                ☕ {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
                               </span>
                             )}
                           </div>

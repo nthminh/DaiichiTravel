@@ -543,13 +543,13 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                     {(tour.nights ?? 0) > 0 && (
                       <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
                         <Moon size={10} /> {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
-                        {(tour.pricePerNight ?? 0) > 0 && <span className="text-indigo-400 ml-1">{(tour.pricePerNight!).toLocaleString()}đ/đêm</span>}
+                        {(tour.pricePerNight ?? 0) > 0 && <span className="text-indigo-400 ml-1">{(tour.pricePerNight ?? 0).toLocaleString()}đ/đêm</span>}
                       </span>
                     )}
                     {(tour.breakfastCount ?? 0) > 0 && (
                       <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
                         <Coffee size={10} /> {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
-                        {(tour.pricePerBreakfast ?? 0) > 0 && <span className="text-amber-400 ml-1">{(tour.pricePerBreakfast!).toLocaleString()}đ/bữa</span>}
+                        {(tour.pricePerBreakfast ?? 0) > 0 && <span className="text-amber-400 ml-1">{(tour.pricePerBreakfast ?? 0).toLocaleString()}đ/bữa</span>}
                       </span>
                     )}
                   </div>
