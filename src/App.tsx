@@ -75,7 +75,14 @@ interface TourItem {
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem('currentUser');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeTab, setActiveTab] = useState('home');
   const [language, setLanguage] = useState<Language>('vi');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -156,6 +163,15 @@ export default function App() {
     senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
     type: '', weight: '', cod: 0, notes: '',
   });
+
+  // Persist user session to localStorage so F5 doesn't log out
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('currentUser');
+    }
+  }, [currentUser]);
 
   // Ensure agents and guests start on the home page
   useEffect(() => {
