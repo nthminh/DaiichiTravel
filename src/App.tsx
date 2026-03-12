@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
@@ -8,6 +7,7 @@ import {
   Filter, FileText, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
 import { cn } from './lib/utils';
 
 // Import Constants & Types
@@ -137,8 +137,8 @@ export default function App() {
   const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
 
   // Excel import refs
-  const routeExcelInputRef = useRef<HTMLInputElement>(null);
-  const vehicleExcelInputRef = useRef<HTMLInputElement>(null);
+  const routeImportRef = useRef<HTMLInputElement>(null);
+  const vehicleImportRef = useRef<HTMLInputElement>(null);
 
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
@@ -315,7 +315,7 @@ export default function App() {
   };
 
   const handleDeleteVehicle = async (vehicleId: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa xe này?' : 'Delete this vehicle?')) return;
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa phương tiện này?' : 'Delete this vehicle?')) return;
     try {
       await transportService.deleteVehicle(vehicleId);
     } catch (err) {
@@ -323,74 +323,68 @@ export default function App() {
     }
   };
 
-  // --- Excel Import handlers ---
-  const handleImportRoutesExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- Excel import handlers ---
+  const handleImportRoutesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        const baseStt = routes.length > 0 ? Math.max(...routes.map(r => r.stt)) : 0;
-        let added = 0;
-        for (const row of rows) {
-          const name = String(row['Tên tuyến'] ?? row['name'] ?? '').trim();
-          if (!name) continue;
-          const routeData = {
-            stt: Number(row['STT'] ?? row['stt'] ?? baseStt + added + 1),
-            name,
-            departurePoint: String(row['Bến đi'] ?? row['Điểm đi'] ?? row['departurePoint'] ?? '').trim(),
-            arrivalPoint: String(row['Bến đến'] ?? row['Điểm đến'] ?? row['arrivalPoint'] ?? '').trim(),
-            price: Number(row['Giá vé'] ?? row['price'] ?? 0),
-          };
-          await transportService.addRoute(routeData);
-          added++;
-        }
-        alert(language === 'vi' ? `Đã nhập ${added} tuyến từ Excel.` : `Imported ${added} routes from Excel.`);
-      } catch (err) {
-        console.error('Failed to import routes from Excel:', err);
-        alert(language === 'vi' ? 'Lỗi khi nhập file Excel.' : 'Error importing Excel file.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
     e.target.value = '';
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const routes = rows
+        .filter(r => r['Tên tuyến'] || r['name'] || r['Name'])
+        .map((r, idx) => ({
+          stt: Number(r['STT'] || r['stt'] || idx + 1),
+          name: String(r['Tên tuyến'] || r['name'] || r['Name'] || '').trim(),
+          departurePoint: String(r['Điểm đi'] || r['departurePoint'] || r['Departure'] || '').trim(),
+          arrivalPoint: String(r['Điểm đến'] || r['arrivalPoint'] || r['Arrival'] || '').trim(),
+          price: Number(r['Giá vé'] || r['price'] || r['Price'] || 0),
+        }));
+      if (routes.length === 0) {
+        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
+        return;
+      }
+      const added = await transportService.importRoutes(routes);
+      alert(language === 'vi'
+        ? added === 0 ? 'Tất cả tuyến đã tồn tại.' : `Đã nhập ${added} tuyến mới.`
+        : added === 0 ? 'All routes already exist.' : `Imported ${added} new routes.`);
+    } catch (err) {
+      console.error('Import routes error:', err);
+      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
+    }
   };
 
-  const handleImportVehiclesExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportVehiclesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        let added = 0;
-        for (const row of rows) {
-          const licensePlate = String(row['Biển số'] ?? row['Biển số xe'] ?? row['licensePlate'] ?? '').trim();
-          if (!licensePlate) continue;
-          const vehicleData: Record<string, unknown> = {
-            licensePlate,
-            type: String(row['Loại xe'] ?? row['type'] ?? 'Ghế ngồi').trim(),
-            seats: Number(row['Số ghế'] ?? row['seats'] ?? 16),
-            registrationExpiry: String(row['Hạn đăng kiểm'] ?? row['registrationExpiry'] ?? '').trim(),
-            status: String(row['Trạng thái'] ?? row['status'] ?? 'ACTIVE').trim(),
-          };
-          await transportService.addVehicle(vehicleData);
-          added++;
-        }
-        alert(language === 'vi' ? `Đã nhập ${added} xe từ Excel.` : `Imported ${added} vehicles from Excel.`);
-      } catch (err) {
-        console.error('Failed to import vehicles from Excel:', err);
-        alert(language === 'vi' ? 'Lỗi khi nhập file Excel.' : 'Error importing Excel file.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
     e.target.value = '';
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const vehicles = rows
+        .filter(r => r['Biển số'] || r['licensePlate'] || r['License Plate'])
+        .map(r => ({
+          licensePlate: String(r['Biển số'] || r['licensePlate'] || r['License Plate'] || '').trim(),
+          type: String(r['Loại xe'] || r['type'] || r['Type'] || 'Ghế ngồi').trim(),
+          seats: Number(r['Số ghế'] || r['seats'] || r['Seats'] || 0),
+          registrationExpiry: String(r['Hạn đăng kiểm'] || r['registrationExpiry'] || r['Registration Expiry'] || '').trim(),
+        }));
+      if (vehicles.length === 0) {
+        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
+        return;
+      }
+      const added = await transportService.importVehicles(vehicles);
+      alert(language === 'vi'
+        ? added === 0 ? 'Tất cả xe đã tồn tại.' : `Đã nhập ${added} xe mới.`
+        : added === 0 ? 'All vehicles already exist.' : `Imported ${added} new vehicles.`);
+    } catch (err) {
+      console.error('Import vehicles error:', err);
+      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
+    }
   };
 
   // --- Trip CRUD handlers ---
@@ -1223,14 +1217,9 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <input ref={routeExcelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportRoutesExcel} />
-                <button
-                  onClick={() => routeExcelInputRef.current?.click()}
-                  className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm"
-                  title={language === 'vi' ? 'Nhập danh sách tuyến từ file Excel' : 'Import routes from Excel file'}
-                >
-                  <Upload size={15} />
-                  {language === 'vi' ? 'Nhập Excel' : 'Import Excel'}
+                <input type="file" accept=".xlsx,.xls,.csv" ref={routeImportRef} onChange={handleImportRoutesFromExcel} className="hidden" />
+                <button onClick={() => routeImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
+                  <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
                 </button>
                 <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
@@ -1297,7 +1286,7 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {vehicles.length === 0 && (
                   <button
                     onClick={async () => {
@@ -1315,14 +1304,9 @@ export default function App() {
                     {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
                   </button>
                 )}
-                <input ref={vehicleExcelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportVehiclesExcel} />
-                <button
-                  onClick={() => vehicleExcelInputRef.current?.click()}
-                  className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm"
-                  title={language === 'vi' ? 'Nhập danh sách xe từ file Excel' : 'Import vehicles from Excel file'}
-                >
-                  <Upload size={15} />
-                  {language === 'vi' ? 'Nhập Excel' : 'Import Excel'}
+                <input type="file" accept=".xlsx,.xls,.csv" ref={vehicleImportRef} onChange={handleImportVehiclesFromExcel} className="hidden" />
+                <button onClick={() => vehicleImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
+                  <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
                 </button>
                 <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
               </div>
