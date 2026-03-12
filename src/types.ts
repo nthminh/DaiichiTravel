@@ -127,6 +127,7 @@ export interface Trip {
   seats: Seat[];
   route: string;
   price: number;
+  agentPrice?: number; // agent price for this trip
   addons?: TripAddon[];
 }
 
