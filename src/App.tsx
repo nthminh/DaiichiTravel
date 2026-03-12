@@ -13,7 +13,7 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
-import { Stop, Trip, Consignment, Agent, Route } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon } from './types';
 import { transportService } from './services/transportService';
 
 // Import Components
@@ -200,7 +200,18 @@ export default function App() {
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
-  const [tripForm, setTripForm] = useState({ time: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
+  const [tripForm, setTripForm] = useState({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
+
+  // Batch trip creation state
+  const [showBatchAddTrip, setShowBatchAddTrip] = useState(false);
+  const [batchTripForm, setBatchTripForm] = useState({ date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11 });
+  const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
+  const [batchTripLoading, setBatchTripLoading] = useState(false);
+
+  // Trip addon management state
+  const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
+  const [tripAddonForm, setTripAddonForm] = useState({ name: '', price: 0, description: '', type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' });
+  const [showAddTripAddon, setShowAddTripAddon] = useState(false);
   const [newConsignment, setNewConsignment] = useState({
     senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
     type: '', weight: '', cod: 0, notes: '',
@@ -255,6 +266,7 @@ export default function App() {
 
   // Credential states
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
 
   // Load admin credentials from Firebase on mount
@@ -279,7 +291,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribeTrips = transportService.subscribeToTrips(setTrips);
     const unsubscribeConsignments = transportService.subscribeToConsignments(setConsignments);
-    const unsubscribeAgents = transportService.subscribeToAgents(setAgents);
+    const unsubscribeAgents = transportService.subscribeToAgents((data) => { setAgents(data); setAgentsLoading(false); });
     const unsubscribeStops = transportService.subscribeToStops(setStops);
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
     const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
@@ -401,43 +413,16 @@ export default function App() {
   // --- Trip CRUD handlers ---
   const handleSaveTrip = async () => {
     try {
-      // Find the vehicle to use its saved layout for proper seat labeling
-      const vehicle = vehicles.find(v => v.licensePlate === tripForm.licensePlate);
-      let seats: { id: string; row: number; col: number; deck: number; status: SeatStatus }[];
-
-      const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
-      if (savedLayout && savedLayout.length > 0) {
-        seats = savedLayout.map(s => ({
-          id: s.label,
-          row: s.row,
-          col: s.col,
-          deck: s.deck,
-          status: SeatStatus.EMPTY,
-        }));
-      } else {
-        // Fall back to generating layout from vehicle type / seat count
-        const generatedLayout = generateVehicleLayout(
-          vehicle?.type || 'Ghế ngồi',
-          tripForm.seatCount
-        );
-        const serialized = serializeLayout(generatedLayout);
-        seats = serialized.map(s => ({
-          id: s.label,
-          row: s.row,
-          col: s.col,
-          deck: s.deck,
-          status: SeatStatus.EMPTY,
-        }));
-      }
-
+      const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
+      const timeValue = tripForm.date ? `${tripForm.date} ${tripForm.time}` : tripForm.time;
       if (editingTrip) {
-        await transportService.updateTrip(editingTrip.id, { time: tripForm.time, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
+        await transportService.updateTrip(editingTrip.id, { time: timeValue, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
       } else {
-        await transportService.addTrip({ time: tripForm.time, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status, seats });
+        await transportService.addTrip({ time: timeValue, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status, seats, addons: [] });
       }
       setShowAddTrip(false);
       setEditingTrip(null);
-      setTripForm({ time: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
+      setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
     } catch (err) {
       console.error('Failed to save trip:', err);
     }
@@ -445,7 +430,7 @@ export default function App() {
 
   const handleStartEditTrip = (trip: Trip) => {
     setEditingTrip(trip);
-    setTripForm({ time: trip.time, route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, seatCount: trip.seats?.length || 11, status: trip.status });
+    setTripForm({ time: trip.date ? trip.time.replace(`${trip.date} `, '') : trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, seatCount: trip.seats?.length || 11, status: trip.status });
     setShowAddTrip(true);
   };
 
@@ -455,6 +440,77 @@ export default function App() {
       await transportService.deleteTrip(tripId);
     } catch (err) {
       console.error('Failed to delete trip:', err);
+    }
+  };
+
+  const buildSeatsForVehicle = (licensePlate: string, seatCount: number) => {
+    const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
+    const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
+    if (savedLayout && savedLayout.length > 0) {
+      return savedLayout.map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
+    }
+    const generatedLayout = generateVehicleLayout(vehicle?.type || 'Ghế ngồi', seatCount);
+    return serializeLayout(generatedLayout).map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
+  };
+
+  // --- Batch trip creation ---
+  const handleBatchAddTrips = async () => {
+    const validSlots = batchTimeSlots.filter(t => t.trim() !== '');
+    if (!batchTripForm.date || !batchTripForm.route || !batchTripForm.licensePlate || validSlots.length === 0) return;
+    setBatchTripLoading(true);
+    try {
+      const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
+      const tripsToCreate = validSlots.map(slot => ({
+        time: `${batchTripForm.date} ${slot}`,
+        date: batchTripForm.date,
+        route: batchTripForm.route,
+        licensePlate: batchTripForm.licensePlate,
+        driverName: batchTripForm.driverName,
+        price: batchTripForm.price,
+        status: TripStatus.WAITING,
+        seats,
+        addons: [] as TripAddon[],
+      }));
+      await transportService.addTripsBatch(tripsToCreate);
+      setShowBatchAddTrip(false);
+      setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11 });
+      setBatchTimeSlots(['']);
+    } catch (err) {
+      console.error('Failed to batch create trips:', err);
+    } finally {
+      setBatchTripLoading(false);
+    }
+  };
+
+  // --- Trip addon handlers ---
+  const handleAddTripAddon = async () => {
+    if (!showTripAddons || !tripAddonForm.name) return;
+    const newAddon: TripAddon = {
+      id: `addon_${Date.now()}`,
+      name: tripAddonForm.name,
+      price: tripAddonForm.price,
+      description: tripAddonForm.description,
+      type: tripAddonForm.type,
+    };
+    const updatedAddons = [...(showTripAddons.addons || []), newAddon];
+    try {
+      await transportService.updateTrip(showTripAddons.id, { addons: updatedAddons });
+      setShowTripAddons(prev => prev ? { ...prev, addons: updatedAddons } : null);
+      setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' });
+      setShowAddTripAddon(false);
+    } catch (err) {
+      console.error('Failed to add trip addon:', err);
+    }
+  };
+
+  const handleDeleteTripAddon = async (addonId: string) => {
+    if (!showTripAddons) return;
+    const updatedAddons = (showTripAddons.addons || []).filter(a => a.id !== addonId);
+    try {
+      await transportService.updateTrip(showTripAddons.id, { addons: updatedAddons });
+      setShowTripAddons(prev => prev ? { ...prev, addons: updatedAddons } : null);
+    } catch (err) {
+      console.error('Failed to delete trip addon:', err);
     }
   };
 
@@ -2153,7 +2209,10 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">{t.operation_management}</h2>
-              <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
+              <div className="flex gap-2">
+                <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
+                <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
+              </div>
             </div>
 
             {/* Add/Edit Trip Modal */}
@@ -2166,9 +2225,10 @@ export default function App() {
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={tripForm.date} onChange={e => setTripForm(p => ({ ...p, date: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_time}</label><input type="time" value={tripForm.time} onChange={e => setTripForm(p => ({ ...p, time: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
                       <select value={tripForm.route} onChange={e => setTripForm(p => ({ ...p, route: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
@@ -2201,6 +2261,128 @@ export default function App() {
               </div>
             )}
 
+            {/* Batch Create Trips Modal */}
+            {showBatchAddTrip && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-xl font-bold">⚡ {t.batch_add_trips}</h3>
+                      <p className="text-sm text-gray-500 mt-1">{language === 'vi' ? 'Chọn ngày và nhiều giờ để tạo nhiều chuyến cùng lúc' : 'Select a date and multiple times to create many trips at once'}</p>
+                    </div>
+                    <button onClick={() => setShowBatchAddTrip(false)} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={batchTripForm.date} onChange={e => setBatchTripForm(p => ({ ...p, date: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div className="col-span-2">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.select_times}</label>
+                      <div className="mt-2 space-y-2">
+                        {batchTimeSlots.map((slot, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <input type="time" value={slot} onChange={e => { const updated = [...batchTimeSlots]; updated[idx] = e.target.value; setBatchTimeSlots(updated); }} className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                            {batchTimeSlots.length > 1 && (
+                              <button onClick={() => setBatchTimeSlots(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={() => setBatchTimeSlots(prev => [...prev, ''])} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-xl border border-dashed border-blue-200">
+                          <span>+</span> {t.add_time_slot}
+                        </button>
+                      </div>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
+                      <select value={batchTripForm.route} onChange={e => setBatchTripForm(p => ({ ...p, route: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
+                        {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
+                      <select value={batchTripForm.licensePlate} onChange={e => setBatchTripForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="">{language === 'vi' ? '-- Chọn xe --' : '-- Select Vehicle --'}</option>
+                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={batchTripForm.driverName} onChange={e => setBatchTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={batchTripForm.price} onChange={e => setBatchTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={batchTripForm.seatCount} onChange={e => setBatchTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                  </div>
+                  {batchTripForm.date && batchTimeSlots.filter(s => s).length > 0 && (
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <p className="text-sm font-bold text-blue-700 mb-2">📋 {t.trips_to_create}: {batchTimeSlots.filter(s => s).length} {language === 'vi' ? 'chuyến' : 'trips'} vào ngày {batchTripForm.date}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {batchTimeSlots.filter(s => s).map((slot, i) => (
+                          <span key={i} className="px-3 py-1 bg-white text-blue-700 text-xs font-bold rounded-full border border-blue-200">{slot}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button onClick={() => setShowBatchAddTrip(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleBatchAddTrips} disabled={batchTripLoading || !batchTripForm.date || !batchTripForm.route || !batchTripForm.licensePlate || batchTimeSlots.filter(s => s).length === 0} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
+                      {batchTripLoading && <span className="animate-spin">⚡</span>}
+                      {language === 'vi' ? `Tạo ${batchTimeSlots.filter(s => s).length} chuyến` : `Create ${batchTimeSlots.filter(s => s).length} Trips`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Trip Add-ons Management Modal */}
+            {showTripAddons && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-xl font-bold">{t.manage_addons}</h3>
+                      <p className="text-sm text-gray-500 mt-1">{showTripAddons.time} · {showTripAddons.route}</p>
+                    </div>
+                    <button onClick={() => { setShowTripAddons(null); setShowAddTripAddon(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <div className="space-y-3">
+                    {(showTripAddons.addons || []).length === 0 && !showAddTripAddon && (
+                      <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
+                    )}
+                    {(showTripAddons.addons || []).map(addon => (
+                      <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm">{addon.name}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}</span>
+                          </div>
+                          {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                          <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
+                        </div>
+                        <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                    {showAddTripAddon ? (
+                      <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={tripAddonForm.name} onChange={e => setTripAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={tripAddonForm.price} onChange={e => setTripAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
+                            <select value={tripAddonForm.type} onChange={e => setTripAddonForm(p => ({ ...p, type: e.target.value as any }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                              <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
+                              <option value="TRANSPORT">{t.addon_type_transport}</option>
+                              <option value="FOOD">{t.addon_type_food}</option>
+                              <option value="OTHER">{t.addon_type_other}</option>
+                            </select>
+                          </div>
+                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                          <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setShowAddTripAddon(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Search bar */}
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -2227,6 +2409,7 @@ export default function App() {
                     <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>
                     <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>
                     <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>
                     <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
                   </tr>
                 </thead>
@@ -2237,11 +2420,17 @@ export default function App() {
                       <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
                       <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
                       <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
+                      <td className="px-6 py-4">
+                        <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
+                          <span>{(trip.addons || []).length}</span>
+                          <span>{t.manage_addons}</span>
+                        </button>
+                      </td>
                       <td className="px-6 py-4"><div className="flex gap-3"><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
                   {filteredTrips.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy chuyến xe nào.' : 'No trips found.'}</td></tr>
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy chuyến xe nào.' : 'No trips found.'}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -2545,6 +2734,7 @@ export default function App() {
         setLanguage={setLanguage} 
         adminCredentials={adminCredentials}
         agents={agents}
+        agentsLoading={agentsLoading}
       />
     );
   }

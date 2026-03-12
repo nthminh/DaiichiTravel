@@ -14,7 +14,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon } from '../types';
 
 interface TourData {
   title: string;
@@ -540,6 +540,16 @@ export const transportService = {
   addTrip: async (trip: Omit<Trip, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
     return await addDoc(collection(db, 'trips'), trip);
+  },
+
+  // Add multiple trips in batch
+  addTripsBatch: async (trips: Omit<Trip, 'id'>[]) => {
+    if (!db) throw new Error('Firebase not configured');
+    const batch = writeBatch(db);
+    const refs = trips.map(() => doc(collection(db, 'trips')));
+    refs.forEach((ref, i) => batch.set(ref, trips[i]));
+    await batch.commit();
+    return refs;
   },
 
   // Update trip
