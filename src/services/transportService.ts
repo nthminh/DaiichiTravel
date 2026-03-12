@@ -360,6 +360,33 @@ export const transportService = {
     await deleteDoc(doc(db, 'vehicles', vehicleId));
   },
 
+  // ===== ADMIN SETTINGS METHODS =====
+
+  // Load admin credentials from Firestore
+  getAdminSettings: async (): Promise<{ username: string; password: string } | null> => {
+    if (!db) return null;
+    try {
+      const ref = doc(db, 'settings', 'adminConfig');
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (typeof data.username === 'string' && typeof data.password === 'string') {
+          return { username: data.username, password: data.password };
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  // Save admin credentials to Firestore
+  saveAdminSettings: async (credentials: { username: string; password: string }) => {
+    if (!db) return;
+    const ref = doc(db, 'settings', 'adminConfig');
+    await setDoc(ref, credentials, { merge: true });
+  },
+
   // ===== TRIP METHODS =====
 
   // Add trip

@@ -170,6 +170,13 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
 
+  // Load admin credentials from Firebase on mount
+  useEffect(() => {
+    transportService.getAdminSettings()
+      .then(saved => { if (saved) setAdminCredentials(saved); })
+      .catch(err => console.error('Failed to load admin settings:', err));
+  }, []);
+
   // Booking form inputs
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
@@ -329,7 +336,13 @@ export default function App() {
   };
 
   const handleUpdateAdmin = (updates: any) => {
-    setAdminCredentials(prev => ({ ...prev, ...updates }));
+    setAdminCredentials(prev => {
+      const next = { ...prev, ...updates };
+      transportService.saveAdminSettings(next).catch(err =>
+        console.error('Failed to save admin settings:', err)
+      );
+      return next;
+    });
     if (currentUser?.role === UserRole.MANAGER) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
