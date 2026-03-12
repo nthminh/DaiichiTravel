@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
@@ -10,18 +10,21 @@ interface LoginProps {
   setLanguage: (l: Language) => void;
   adminCredentials: any;
   agents: any[];
+  agentsLoading?: boolean;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, agentsLoading }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [infoMessage, setInfoMessage] = useState('');
 
   const t = TRANSLATIONS[language];
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    setInfoMessage('');
 
     const normalizedUsername = username.trim().toLowerCase();
     const trimmedPassword = password.trim();
@@ -32,7 +35,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       return;
     }
 
-    // Check Agents
+    // Check Agents - wait if still loading
+    if (agentsLoading) {
+      setInfoMessage(language === 'vi' ? 'Đang tải dữ liệu, vui lòng thử lại...' : 'Loading data, please try again...');
+      return;
+    }
+
     const agent = agents.find(a =>
       a.username && a.password &&
       a.username.trim().toLowerCase() === normalizedUsername &&
@@ -122,6 +130,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
             </div>
           </div>
           {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+          {infoMessage && <p className="text-blue-600 text-sm font-medium">{infoMessage}</p>}
+          {agentsLoading && (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Loader2 size={14} className="animate-spin" />
+              <span>{language === 'vi' ? 'Đang kết nối hệ thống...' : 'Connecting to system...'}</span>
+            </div>
+          )}
           <button type="submit" className="w-full bg-daiichi-red text-white py-4 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:bg-red-600 transition-all">
             {t.login_btn}
           </button>

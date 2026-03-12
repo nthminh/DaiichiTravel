@@ -52,7 +52,8 @@ service cloud.firestore {
       allow read, write: if isRowyUserWithRole('editor');
     }
     match /agents/{agent} {
-      allow read, write: if isRowyUserWithRole('editor');
+      allow read: if true;
+      allow write: if isRowyUserWithRole('editor');
     }
     match /bookings/{booking} {
       allow read, write: if isRowyUserWithRole('editor');

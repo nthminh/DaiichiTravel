@@ -98,15 +98,25 @@ export enum TripStatus {
   COMPLETED = 'COMPLETED'
 }
 
+export interface TripAddon {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+  type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER';
+}
+
 export interface Trip {
   id: string;
   time: string;
+  date?: string; // YYYY-MM-DD
   licensePlate: string;
   driverName: string;
   status: TripStatus;
   seats: Seat[];
   route: string;
   price: number;
+  addons?: TripAddon[];
 }
 
 export interface ConsignmentItem {
