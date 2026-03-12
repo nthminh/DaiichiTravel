@@ -22,19 +22,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const normalizedUsername = username.trim().toLowerCase();
+    const trimmedPassword = password.trim();
     
     // Check Admin
-    if (username === adminCredentials.username && password === adminCredentials.password) {
+    if (normalizedUsername === adminCredentials.username.toLowerCase() && trimmedPassword === adminCredentials.password) {
       onLogin({ id: '1', username: adminCredentials.username, role: UserRole.MANAGER, name: 'Quản lý nhà xe' });
       return;
     }
 
     // Check Agents
-    const agent = agents.find(a => a.username === username && a.password === password);
+    const agent = agents.find(a =>
+      a.username && a.password &&
+      a.username.trim().toLowerCase() === normalizedUsername &&
+      a.password.trim() === trimmedPassword
+    );
     if (agent) {
       onLogin({ 
         id: agent.id, 
-        username: agent.username, 
+        username: agent.username!, 
         role: UserRole.AGENT, 
         name: agent.name, 
         agentCode: agent.code, 

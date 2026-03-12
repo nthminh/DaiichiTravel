@@ -173,6 +173,15 @@ export default function App() {
   const [agentStatusFilter, setAgentStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [showAgentFilters, setShowAgentFilters] = useState(false);
 
+  // Route search state
+  const [routeSearch, setRouteSearch] = useState('');
+
+  // Vehicle search state
+  const [vehicleSearch, setVehicleSearch] = useState('');
+
+  // Trip / Operations search state
+  const [tripSearch, setTripSearch] = useState('');
+
   // Route CRUD state
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
@@ -835,7 +844,7 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Bus size={16} />
-                        <span>{language === 'vi' ? 'Còn' : 'Only'} {trip.seats.filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
+                        <span>{language === 'vi' ? 'Còn' : 'Only'} {(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
                       </div>
                     </div>
                   </div>
@@ -1888,7 +1897,16 @@ export default function App() {
         );
       }
 
-      case 'routes':
+      case 'routes': {
+        const filteredRoutes = routes.filter(route => {
+          if (!routeSearch) return true;
+          const q = routeSearch.toLowerCase();
+          return (
+            (route.name || '').toLowerCase().includes(q) ||
+            (route.departurePoint || '').toLowerCase().includes(q) ||
+            (route.arrivalPoint || '').toLowerCase().includes(q)
+          );
+        });
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center flex-wrap gap-3">
@@ -1923,6 +1941,23 @@ export default function App() {
               </div>
             )}
 
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                value={routeSearch}
+                onChange={e => setRouteSearch(e.target.value)}
+                placeholder={language === 'vi' ? 'Tìm kiếm tuyến đường...' : 'Search routes...'}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
+              />
+              {routeSearch && (
+                <button onClick={() => setRouteSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -1937,7 +1972,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {routes.map((route) => (
+                  {filteredRoutes.map((route) => (
                     <tr key={route.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-6 text-sm text-gray-500">{route.stt}</td>
                       <td className="px-6 py-6"><p className="font-bold text-gray-800">{route.name}</p></td>
@@ -1947,14 +1982,26 @@ export default function App() {
                       <td className="px-6 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditRoute(route)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
                     </tr>
                   ))}
+                  {filteredRoutes.length === 0 && (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy tuyến đường nào.' : 'No routes found.'}</td></tr>
+                  )}
                 </tbody>
               </table>
               </div>
             </div>
           </div>
         );
+      }
 
-      case 'vehicles':
+      case 'vehicles': {
+        const filteredVehicles = vehicles.filter(v => {
+          if (!vehicleSearch) return true;
+          const q = vehicleSearch.toLowerCase();
+          return (
+            (v.licensePlate || '').toLowerCase().includes(q) ||
+            (v.type || '').toLowerCase().includes(q)
+          );
+        });
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center flex-wrap gap-3">
@@ -2026,6 +2073,23 @@ export default function App() {
               />
             )}
 
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                value={vehicleSearch}
+                onChange={e => setVehicleSearch(e.target.value)}
+                placeholder={language === 'vi' ? 'Tìm kiếm theo biển số, loại xe...' : 'Search by plate, type...'}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
+              />
+              {vehicleSearch && (
+                <button onClick={() => setVehicleSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
             <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -2040,7 +2104,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {vehicles.map((v, idx) => (
+                  {filteredVehicles.map((v, idx) => (
                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-6 text-sm text-gray-500">{idx + 1}</td>
                       <td className="px-6 py-6 font-bold text-gray-800">{v.licensePlate}</td>
@@ -2063,14 +2127,28 @@ export default function App() {
                       </td>
                     </tr>
                   ))}
+                  {filteredVehicles.length === 0 && (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy phương tiện nào.' : 'No vehicles found.'}</td></tr>
+                  )}
                 </tbody>
               </table>
               </div>
             </div>
           </div>
         );
+      }
 
-      case 'operations':
+      case 'operations': {
+        const filteredTrips = trips.filter(trip => {
+          if (!tripSearch) return true;
+          const q = tripSearch.toLowerCase();
+          return (
+            (trip.time || '').toLowerCase().includes(q) ||
+            (trip.route || '').toLowerCase().includes(q) ||
+            (trip.licensePlate || '').toLowerCase().includes(q) ||
+            (trip.driverName || '').toLowerCase().includes(q)
+          );
+        });
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -2123,6 +2201,23 @@ export default function App() {
               </div>
             )}
 
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                value={tripSearch}
+                onChange={e => setTripSearch(e.target.value)}
+                placeholder={language === 'vi' ? 'Tìm kiếm chuyến xe, tuyến, biển số, tài xế...' : 'Search trips by route, plate, driver...'}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
+              />
+              {tripSearch && (
+                <button onClick={() => setTripSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -2136,7 +2231,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {trips.map((trip) => (
+                  {filteredTrips.map((trip) => (
                     <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.time}</td>
                       <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
@@ -2145,12 +2240,16 @@ export default function App() {
                       <td className="px-6 py-4"><div className="flex gap-3"><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
+                  {filteredTrips.length === 0 && (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy chuyến xe nào.' : 'No trips found.'}</td></tr>
+                  )}
                 </tbody>
               </table>
               </div>
             </div>
           </div>
         );
+      }
 
       case 'tour-management':
         return <TourManagement language={language} />;
