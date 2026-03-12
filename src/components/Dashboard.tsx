@@ -60,15 +60,20 @@ const ResizableTh = ({ children, className, onResize, width }: any) => {
   );
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps }) => {
   const t = TRANSLATIONS[language];
   const [bookings, setBookings] = useState<any[]>([]);
+  const [consignments, setConsignments] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<'ALL' | 'TRIP' | 'TOUR'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [agentFilter, setAgentFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Consignment filter state
+  const [consignmentSearch, setConsignmentSearch] = useState('');
+  const [consignmentStatusFilter, setConsignmentStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'DELIVERED'>('ALL');
 
   // Column widths state
   const [colWidths, setColWidths] = useState({
@@ -87,6 +92,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   // Subscribe to bookings from Firebase
   useEffect(() => {
     const unsubscribe = transportService.subscribeToBookings(setBookings);
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to consignments from Firebase
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToConsignments(setConsignments);
     return () => unsubscribe();
   }, []);
 
@@ -144,6 +155,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   });
 
   const uniqueAgents = Array.from(new Set(bookings.map(b => b.agent).filter(Boolean)));
+
+  const filteredConsignments = consignments.filter(c => {
+    const q = consignmentSearch.toLowerCase();
+    const matchesSearch = !q ||
+      (c.senderName || c.sender || '').toLowerCase().includes(q) ||
+      (c.receiverName || c.receiver || '').toLowerCase().includes(q) ||
+      (c.senderPhone || '').toLowerCase().includes(q) ||
+      (c.receiverPhone || '').toLowerCase().includes(q) ||
+      (c.id || '').toLowerCase().includes(q) ||
+      (c.type || '').toLowerCase().includes(q);
+    const matchesStatus = consignmentStatusFilter === 'ALL' || c.status === consignmentStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const totalTrips = trips.length;
   const totalSeatsBooked = trips.reduce((sum, trip) =>
@@ -498,6 +522,136 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Consignment / Shipping Table */}
+      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">
+              {language === 'vi' ? 'Dịch vụ gửi hàng hóa' : 'Consignment / Shipping Services'}
+            </h3>
+            <p className="text-sm text-gray-400 mt-1">
+              {filteredConsignments.length}/{consignments.length} {language === 'vi' ? 'đơn hàng' : 'orders'}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Status filter pills */}
+            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+              {(['ALL', 'PENDING', 'PICKED_UP', 'DELIVERED'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setConsignmentStatusFilter(s)}
+                  className={cn(
+                    "px-3 py-1 rounded-lg text-[10px] font-bold transition-all",
+                    consignmentStatusFilter === s ? "bg-daiichi-red text-white" : "text-gray-500"
+                  )}
+                >
+                  {s === 'ALL'
+                    ? (language === 'vi' ? 'Tất cả' : 'All')
+                    : s === 'PENDING'
+                    ? (language === 'vi' ? 'Chờ' : 'Pending')
+                    : s === 'PICKED_UP'
+                    ? (language === 'vi' ? 'Đã lấy' : 'Picked Up')
+                    : (language === 'vi' ? 'Đã giao' : 'Delivered')}
+                </button>
+              ))}
+            </div>
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder={language === 'vi' ? 'Tìm theo tên, SĐT...' : 'Search by name, phone...'}
+                value={consignmentSearch}
+                onChange={e => setConsignmentSearch(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 w-56"
+              />
+            </div>
+            {/* Export */}
+            <button
+              onClick={() => {
+                const worksheet = XLSX.utils.json_to_sheet(filteredConsignments.map(c => ({
+                  ID: c.id,
+                  [language === 'vi' ? 'Người gửi' : 'Sender']: c.senderName || c.sender || '',
+                  [language === 'vi' ? 'SĐT người gửi' : 'Sender Phone']: c.senderPhone || '',
+                  [language === 'vi' ? 'Người nhận' : 'Receiver']: c.receiverName || c.receiver || '',
+                  [language === 'vi' ? 'SĐT người nhận' : 'Receiver Phone']: c.receiverPhone || '',
+                  [language === 'vi' ? 'Loại hàng' : 'Type']: c.type || '',
+                  [language === 'vi' ? 'Khối lượng' : 'Weight']: c.weight || '',
+                  COD: c.cod || 0,
+                  [language === 'vi' ? 'Trạng thái' : 'Status']: c.status || '',
+                  [language === 'vi' ? 'Ghi chú' : 'Notes']: c.notes || '',
+                })));
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, language === 'vi' ? 'Hàng hóa' : 'Consignments');
+                XLSX.writeFile(workbook, `Daiichi_Consignments_${new Date().toISOString().split('T')[0]}.xlsx`);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all"
+            >
+              <Download size={16} />
+              {language === 'vi' ? 'Xuất Excel' : 'Export'}
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto pb-4 custom-scrollbar">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-50">
+                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[180px]">{language === 'vi' ? 'Người gửi' : 'Sender'}</th>
+                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[180px]">{language === 'vi' ? 'Người nhận' : 'Receiver'}</th>
+                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[120px]">{language === 'vi' ? 'Loại / KL' : 'Type / Weight'}</th>
+                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[100px]">COD</th>
+                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[120px]">{language === 'vi' ? 'Trạng thái' : 'Status'}</th>
+                <th className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[140px]">{language === 'vi' ? 'Ngày tạo' : 'Created'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filteredConsignments.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-gray-400 text-sm">
+                    {language === 'vi' ? 'Chưa có đơn hàng nào' : 'No consignments found'}
+                  </td>
+                </tr>
+              ) : filteredConsignments.map(c => (
+                <tr key={c.id} className="group hover:bg-gray-50/50 transition-colors">
+                  <td className="py-4">
+                    <p className="font-bold text-gray-800 text-sm">{c.senderName || c.sender || '—'}</p>
+                    <p className="text-xs text-gray-400">{c.senderPhone || ''}</p>
+                  </td>
+                  <td className="py-4">
+                    <p className="font-bold text-gray-800 text-sm">{c.receiverName || c.receiver || '—'}</p>
+                    <p className="text-xs text-gray-400">{c.receiverPhone || ''}</p>
+                  </td>
+                  <td className="py-4">
+                    <p className="text-sm text-gray-700">{c.type || '—'}</p>
+                    {c.weight && <p className="text-xs text-gray-400">{c.weight}</p>}
+                  </td>
+                  <td className="py-4">
+                    <p className="font-bold text-gray-800 text-sm">{c.cod ? `${(+c.cod).toLocaleString()}đ` : '—'}</p>
+                  </td>
+                  <td className="py-4">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase",
+                      c.status === 'DELIVERED' ? "bg-green-100 text-green-600"
+                      : c.status === 'PICKED_UP' ? "bg-blue-100 text-blue-600"
+                      : "bg-yellow-100 text-yellow-600"
+                    )}>
+                      {c.status === 'DELIVERED'
+                        ? (language === 'vi' ? 'Đã giao' : 'Delivered')
+                        : c.status === 'PICKED_UP'
+                        ? (language === 'vi' ? 'Đã lấy' : 'Picked Up')
+                        : (language === 'vi' ? 'Chờ xử lý' : 'Pending')}
+                    </span>
+                  </td>
+                  <td className="py-4">
+                    <p className="text-xs text-gray-500">{formatActivityTime(c.createdAt)}</p>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
