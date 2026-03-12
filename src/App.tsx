@@ -230,6 +230,7 @@ export default function App() {
   const [phoneInput, setPhoneInput] = useState('');
   const [childrenAges, setChildrenAges] = useState<number[]>([]);
   const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
+  const [extraSeatIds, setExtraSeatIds] = useState<string[]>([]);
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -579,7 +580,7 @@ export default function App() {
     const basePriceAdult = selectedTrip.price || 0;
     const basePriceChild = selectedTrip.priceChild || basePriceAdult;
     
-    // Children over 4 years old are charged adult price
+    // Children over 4 years old are charged adult price and need their own seat
     const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
       (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
       { childrenOver4: 0, childrenUnder4: 0 }
@@ -591,6 +592,10 @@ export default function App() {
     const totalSurcharge = pickupSurcharge + dropoffSurcharge + (isTetSurcharge ? 30000 : 0);
     const totalAmount = totalBase + totalSurcharge;
 
+    // Extra seats for children over 4 (one seat per such child)
+    const extraSeatsForBooking = extraSeatIds.slice(0, childrenOver4);
+    const allSeatIds = [seatId, ...extraSeatsForBooking];
+
     const bookingData = {
       customerName: customerNameInput.trim() || (language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
       phone: phoneInput.trim(),
@@ -600,6 +605,7 @@ export default function App() {
       time: selectedTrip.time,
       tripId: selectedTrip.id,
       seatId,
+      seatIds: allSeatIds,
       amount: totalAmount,
       agent: currentUser?.role === UserRole.AGENT ? currentUser.name : 'Trực tiếp',
       status: 'BOOKED',
@@ -614,12 +620,19 @@ export default function App() {
       // Save booking to Firebase
       const result = await transportService.createBooking(bookingData);
 
-      // Update seat status in Firebase
+      // Update seat status in Firebase for all seats
       await transportService.bookSeat(selectedTrip.id, seatId, {
         status: SeatStatus.BOOKED,
         customerName: bookingData.customerName,
         customerPhone: bookingData.phone,
       });
+      for (const extraSeatId of extraSeatsForBooking) {
+        await transportService.bookSeat(selectedTrip.id, extraSeatId, {
+          status: SeatStatus.BOOKED,
+          customerName: bookingData.customerName,
+          customerPhone: bookingData.phone,
+        });
+      }
 
       setLastBooking({ ...bookingData, id: result.id });
     } catch (err) {
@@ -636,6 +649,7 @@ export default function App() {
     setAdults(1);
     setChildren(0);
     setChildrenAges([]);
+    setExtraSeatIds([]);
     setPickupPoint('');
     setDropoffPoint('');
     setPickupSurcharge(0);
@@ -659,7 +673,7 @@ export default function App() {
       if (trip.id === selectedTrip.id) {
         return {
           ...trip,
-          seats: trip.seats.map((s: any) => s.id === seatId ? { ...s, status: SeatStatus.BOOKED } : s)
+          seats: trip.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
         };
       }
       return trip;
@@ -882,7 +896,13 @@ export default function App() {
 
       case 'seat-mapping':
         if (!selectedTrip) return null;
-        return (
+        {
+          const childrenOver4Count = childrenAges.filter(age => age > 4).length;
+          const extraSeatsNeeded = childrenOver4Count;
+          const canConfirmBooking = extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded;
+          const isSelectingExtraSeats = !!showBookingForm && childrenOver4Count > 0;
+
+          return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-8">
@@ -893,6 +913,14 @@ export default function App() {
                 </div>
               </div>
               
+              {isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded && (
+                <div className="mb-4 p-3 bg-orange-50 rounded-2xl border border-orange-200 flex items-center gap-2">
+                  <span className="text-orange-500 font-bold text-sm">
+                    {t.select_extra_seats_prompt} ({extraSeatIds.length}/{extraSeatsNeeded})
+                  </span>
+                </div>
+              )}
+
               <div className="max-w-md mx-auto bg-gray-50 p-4 sm:p-8 rounded-[40px] border border-gray-100">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-3 flex justify-end mb-8">
@@ -900,24 +928,49 @@ export default function App() {
                       <Users size={24} />
                     </div>
                   </div>
-                  {selectedTrip.seats.filter(s => (s.deck || 0) === activeDeck).map((seat: any) => (
+                  {selectedTrip.seats.filter(s => (s.deck || 0) === activeDeck).map((seat: any) => {
+                    const isPrimarySeat = seat.id === showBookingForm;
+                    const isExtraSeat = extraSeatIds.includes(seat.id);
+                    return (
                     <motion.button
                       key={seat.id}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => seat.status === SeatStatus.EMPTY && setShowBookingForm(seat.id)}
+                      onClick={() => {
+                        if (seat.status !== SeatStatus.EMPTY) return;
+                        if (showBookingForm) {
+                          if (isPrimarySeat) return;
+                          if (isExtraSeat) {
+                            // Deselect this extra seat
+                            setExtraSeatIds(prev => prev.filter(id => id !== seat.id));
+                          } else if (isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded) {
+                            // Add as extra seat
+                            setExtraSeatIds(prev => [...prev, seat.id]);
+                          } else if (!isSelectingExtraSeats) {
+                            // No extra seats needed; switch primary seat
+                            setExtraSeatIds([]);
+                            setShowBookingForm(seat.id);
+                          }
+                        } else {
+                          setShowBookingForm(seat.id);
+                        }
+                      }}
                       className={cn(
                         "h-20 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden",
                         seat.status === SeatStatus.PAID && "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20",
                         seat.status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white shadow-lg shadow-daiichi-yellow/20",
-                        seat.status === SeatStatus.EMPTY && "bg-white border-2 border-gray-100 text-gray-400 hover:border-daiichi-red hover:text-daiichi-red"
+                        isPrimarySeat && "bg-daiichi-red/20 border-2 border-daiichi-red text-daiichi-red",
+                        isExtraSeat && "bg-blue-100 border-2 border-blue-500 text-blue-600",
+                        seat.status === SeatStatus.EMPTY && !isPrimarySeat && !isExtraSeat && "bg-white border-2 border-gray-100 text-gray-400 hover:border-daiichi-red hover:text-daiichi-red"
                       )}
                     >
                       <span className="text-xs font-bold">{seat.id}</span>
                       <Users size={20} />
                       {seat.status === SeatStatus.PAID && <CheckCircle2 size={12} className="absolute top-2 right-2" />}
+                      {isExtraSeat && <span className="absolute top-1 right-1 text-[8px] font-bold text-blue-600">+{t.extra_seat_child || 'Child seat'}</span>}
                     </motion.button>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="mt-12 flex justify-center gap-6 text-xs font-bold uppercase tracking-wider">
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
@@ -942,7 +995,7 @@ export default function App() {
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold">{t.booking_title}: {showBookingForm}</h3>
-                    <button onClick={() => setShowBookingForm(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                    <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                   </div>
                   <form className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -957,6 +1010,10 @@ export default function App() {
                             while (arr.length < count) arr.push(0);
                             return arr.slice(0, count);
                           });
+                          // Trim extra seats to new childrenOver4 count
+                          const newAges = childrenAges.slice(0, count);
+                          const newOver4Count = newAges.filter(age => age > 4).length;
+                          setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                         }} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" />
                       </div>
                     </div>
@@ -965,7 +1022,7 @@ export default function App() {
                     {children > 0 && (
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
                         <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children over 4 are charged adult price'}</p>
+                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children over 4 are charged adult price and need their own seat'}</p>
                         <div className="grid grid-cols-3 gap-2">
                           {Array.from({ length: children }).map((_, i) => (
                             <div key={i} className="relative">
@@ -979,6 +1036,9 @@ export default function App() {
                                   const ages = [...childrenAges];
                                   ages[i] = parseInt(e.target.value) || 0;
                                   setChildrenAges(ages);
+                                  // Trim extra seats if children over 4 count decreased
+                                  const newOver4Count = ages.filter(age => age > 4).length;
+                                  setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                                 }}
                                 className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
                               />
@@ -990,6 +1050,30 @@ export default function App() {
                             </div>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Extra seats required notice for children over 4 */}
+                    {childrenOver4Count > 0 && (
+                      <div className={cn("p-3 rounded-xl border space-y-2", canConfirmBooking ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200")}>
+                        <p className={cn("text-xs font-bold uppercase", canConfirmBooking ? "text-green-600" : "text-orange-600")}>
+                          {t.child_needs_seat || 'Children over 4 need their own seat'}
+                        </p>
+                        {!canConfirmBooking && (
+                          <p className="text-[10px] text-orange-500">
+                            {t.select_extra_seats_prompt || 'Please select extra seat(s) on the map for children over 4'} ({extraSeatIds.length}/{extraSeatsNeeded})
+                          </p>
+                        )}
+                        {extraSeatIds.length > 0 && (
+                          <div className="flex gap-2 flex-wrap">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase">{t.extra_seats_selected_label || 'Extra seats'}:</span>
+                            {extraSeatIds.map(id => (
+                              <span key={id} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                {id} ✓
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1077,13 +1161,14 @@ export default function App() {
                       </div>
                     </div>
 
-                    <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} className="w-full py-4 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20">{t.confirm_booking}</button>
+                    <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>{t.confirm_booking}</button>
                   </form>
                 </motion.div>
               )}
             </div>
           </div>
-        );
+          );
+        }
 
       case 'tours': {
         return (
