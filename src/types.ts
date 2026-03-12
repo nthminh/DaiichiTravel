@@ -1,3 +1,12 @@
+export interface PricePeriod {
+  id: string;
+  name?: string;       // e.g. "Hè 2025", "Tết Nguyên Đán"
+  price: number;       // retail price for this period
+  agentPrice: number;  // agent price for this period
+  startDate: string;   // YYYY-MM-DD
+  endDate: string;     // YYYY-MM-DD
+}
+
 export interface Route {
   id: string;
   stt: number;
@@ -5,7 +14,9 @@ export interface Route {
   note?: string;
   departurePoint: string;
   arrivalPoint: string;
-  price: number;
+  price: number;           // default retail price
+  agentPrice?: number;     // default agent price
+  pricePeriods?: PricePeriod[]; // seasonal/holiday price overrides
 }
 
 export enum UserRole {

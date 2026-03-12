@@ -13,7 +13,7 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod } from './types';
 import { transportService } from './services/transportService';
 
 // Import Components
@@ -189,7 +189,10 @@ export default function App() {
   // Route CRUD state
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
-  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 });
+  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 });
+  const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
+  const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
+  const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
 
   // Vehicle CRUD state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -223,7 +226,7 @@ export default function App() {
 
   // Column widths for each admin table
   const [agentColWidths, setAgentColWidths] = useState({ name: 200, username: 150, address: 200, phone: 150, commission: 130, balance: 150, status: 120, options: 120 });
-  const [routeColWidths, setRouteColWidths] = useState({ stt: 80, name: 200, departure: 200, arrival: 200, price: 150, options: 120 });
+  const [routeColWidths, setRouteColWidths] = useState({ stt: 80, name: 200, departure: 200, arrival: 200, price: 150, agentPrice: 150, options: 120 });
   const [vehicleColWidths, setVehicleColWidths] = useState({ stt: 80, licensePlate: 150, type: 150, seats: 100, expiry: 170, options: 160 });
   const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, driver: 180, status: 150, options: 180 });
   const [consignMgmtColWidths, setConsignMgmtColWidths] = useState({ code: 130, sender: 180, receiver: 180, goodsType: 130, weight: 100, cod: 130, notes: 160, status: 130, options: 100 });
@@ -345,14 +348,17 @@ export default function App() {
   // --- Route CRUD handlers ---
   const handleSaveRoute = async () => {
     try {
+      const routeData = { ...routeForm, pricePeriods: routePricePeriods };
       if (editingRoute) {
-        await transportService.updateRoute(editingRoute.id, routeForm);
+        await transportService.updateRoute(editingRoute.id, routeData);
       } else {
-        await transportService.addRoute(routeForm);
+        await transportService.addRoute(routeData);
       }
       setShowAddRoute(false);
       setEditingRoute(null);
-      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 });
+      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 });
+      setRoutePricePeriods([]);
+      setShowAddPricePeriod(false);
     } catch (err) {
       console.error('Failed to save route:', err);
     }
@@ -369,7 +375,9 @@ export default function App() {
 
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
-    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price });
+    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0 });
+    setRoutePricePeriods(route.pricePeriods || []);
+    setShowAddPricePeriod(false);
     setShowAddRoute(true);
   };
 
@@ -729,6 +737,26 @@ export default function App() {
     }));
   };
 
+  // --- Route price period helpers ---
+  const getRouteActivePeriod = (route: Route, date: string): PricePeriod | null => {
+    if (!date || !route.pricePeriods || route.pricePeriods.length === 0) return null;
+    return route.pricePeriods.find(p => p.startDate <= date && p.endDate >= date) || null;
+  };
+
+  const isRouteValidForDate = (route: Route, date: string): boolean => {
+    if (!date) return true;
+    if (!route.pricePeriods || route.pricePeriods.length === 0) return true;
+    return route.pricePeriods.some(p => p.startDate <= date && p.endDate >= date);
+  };
+
+  const formatRouteOption = (r: Route, period: PricePeriod | null, lang: string): string => {
+    const displayPrice = period ? period.price : r.price;
+    const periodLabel = period ? (period.name || (lang === 'vi' ? 'Kỳ giá' : 'Season')) : '';
+    const priceStr = displayPrice > 0 ? ` – ${displayPrice.toLocaleString()}đ` : '';
+    const seasonStr = periodLabel ? ` (${periodLabel})` : '';
+    return `${r.name}${priceStr}${seasonStr}`;
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -765,13 +793,9 @@ export default function App() {
                     {t.hero_title}
                   </motion.h2>
                   <p className="text-sm sm:text-base text-white/80 mb-4 sm:mb-8">{t.hero_subtitle}</p>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="mt-4 flex flex-wrap gap-3">
                     <button onClick={() => setActiveTab('book-ticket')} className="px-4 py-2 sm:px-8 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm sm:text-base">{t.book_now}</button>
                     <button onClick={() => setActiveTab('tours')} className="px-4 py-2 sm:px-8 sm:py-4 bg-white text-daiichi-red rounded-2xl font-bold hover:scale-105 transition-all text-sm sm:text-base">{t.view_hot_tours}</button>
-                  </div>
-                  <div className="mt-4 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-full border border-white/40">
-                    <CheckCircle2 size={16} className="text-green-300 flex-shrink-0" />
-                    <span>{language === 'vi' ? 'Không cần đăng nhập – Đặt vé ngay tức thì!' : language === 'ja' ? 'ログイン不要 – 今すぐ予約！' : 'No login required – Book instantly!'}</span>
                   </div>
                 </div>
               </div>
@@ -2103,14 +2127,14 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 }); setRoutePricePeriods([]); setShowAddPricePeriod(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
             {/* Add/Edit Route Modal */}
             {showAddRoute && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-bold">{editingRoute ? (language === 'vi' ? 'Chỉnh sửa tuyến' : 'Edit Route') : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}</h3>
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
@@ -2118,11 +2142,102 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">STT</label><input type="number" value={routeForm.stt} onChange={e => setRouteForm(p => ({ ...p, stt: parseInt(e.target.value) || 1 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={routeForm.price} onChange={e => setRouteForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label><input type="text" value={routeForm.name} onChange={e => setRouteForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: Hà Nội - Cát Bà' : 'e.g. Hanoi - Cat Ba'} /></div>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label><input type="text" value={routeForm.name} onChange={e => setRouteForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: Hà Nội - Cát Bà' : 'e.g. Hanoi - Cat Ba'} /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={routeForm.price} onChange={e => setRouteForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label>
+                        <input type="number" min="0" value={routeForm.agentPrice} onChange={e => setRouteForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+                        <p className="text-[10px] text-orange-500 mt-1 ml-1">{language === 'vi' ? '* Chỉ hiển thị cho đại lý' : '* Visible to agents only'}</p>
+                      </div>
+                    </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label><input type="text" value={routeForm.departurePoint} onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label><input type="text" value={routeForm.arrivalPoint} onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+
+                    {/* Price Periods (Seasonal Pricing) */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-700">{t.price_periods}</p>
+                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá thay đổi theo mùa / dịp lễ tết' : 'Prices that vary by season or holiday'}</p>
+                        </div>
+                        {!showAddPricePeriod && (
+                          <button onClick={() => { setShowAddPricePeriod(true); setPricePeriodForm({ name: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100">
+                            + {t.add_price_period}
+                          </button>
+                        )}
+                      </div>
+
+                      {routePricePeriods.length === 0 && !showAddPricePeriod && (
+                        <p className="text-xs text-gray-400 text-center py-2">{t.no_price_periods}</p>
+                      )}
+
+                      {routePricePeriods.map((period) => (
+                        <div key={period.id} className="flex items-center gap-3 bg-blue-50 rounded-xl p-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-800 truncate">{period.name || (language === 'vi' ? 'Kỳ giá' : 'Period')}</p>
+                            <p className="text-xs text-gray-500">{period.startDate} → {period.endDate}</p>
+                            <div className="flex gap-3 mt-1">
+                              <span className="text-xs font-bold text-daiichi-red">{period.price.toLocaleString()}đ</span>
+                              <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {period.agentPrice.toLocaleString()}đ</span>
+                            </div>
+                          </div>
+                          <button onClick={() => setRoutePricePeriods(prev => prev.filter(p => p.id !== period.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+
+                      {showAddPricePeriod && (
+                        <div className="border border-dashed border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/50">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_name}</label>
+                              <input type="text" value={pricePeriodForm.name} onChange={e => setPricePeriodForm(p => ({ ...p, name: e.target.value }))} placeholder={language === 'vi' ? 'VD: Tết 2026, Hè 2025...' : 'e.g. Tet 2026, Summer 2025...'} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_start}</label>
+                              <input type="date" value={pricePeriodForm.startDate} onChange={e => setPricePeriodForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_end}</label>
+                              <input type="date" value={pricePeriodForm.endDate} onChange={e => setPricePeriodForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_retail} (đ)</label>
+                              <input type="number" min="0" value={pricePeriodForm.price} onChange={e => setPricePeriodForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.price_period_agent} (đ)</label>
+                              <input type="number" min="0" value={pricePeriodForm.agentPrice} onChange={e => setPricePeriodForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowAddPricePeriod(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button
+                              disabled={!pricePeriodForm.startDate || !pricePeriodForm.endDate}
+                              onClick={() => {
+                                const newPeriod: PricePeriod = {
+                                  id: crypto.randomUUID(),
+                                  name: pricePeriodForm.name,
+                                  price: pricePeriodForm.price,
+                                  agentPrice: pricePeriodForm.agentPrice,
+                                  startDate: pricePeriodForm.startDate,
+                                  endDate: pricePeriodForm.endDate,
+                                };
+                                setRoutePricePeriods(prev => [...prev, newPeriod]);
+                                setShowAddPricePeriod(false);
+                                setPricePeriodForm({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
+                              }}
+                              className="px-4 py-1.5 bg-blue-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
+                            >
+                              {t.save}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
@@ -2159,6 +2274,7 @@ export default function App() {
                     <ResizableTh width={routeColWidths.departure} onResize={(w) => setRouteColWidths(p => ({ ...p, departure: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.departure_point}</ResizableTh>
                     <ResizableTh width={routeColWidths.arrival} onResize={(w) => setRouteColWidths(p => ({ ...p, arrival: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.arrival_point}</ResizableTh>
                     <ResizableTh width={routeColWidths.price} onResize={(w) => setRouteColWidths(p => ({ ...p, price: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_price}</ResizableTh>
+                    <ResizableTh width={routeColWidths.agentPrice} onResize={(w) => setRouteColWidths(p => ({ ...p, agentPrice: w }))} className="px-6 py-5 text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.agent_price}</ResizableTh>
                     <ResizableTh width={routeColWidths.options} onResize={(w) => setRouteColWidths(p => ({ ...p, options: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</ResizableTh>
                   </tr>
                 </thead>
@@ -2166,15 +2282,23 @@ export default function App() {
                   {filteredRoutes.map((route) => (
                     <tr key={route.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-6 text-sm text-gray-500">{route.stt}</td>
-                      <td className="px-6 py-6"><p className="font-bold text-gray-800">{route.name}</p></td>
+                      <td className="px-6 py-6">
+                        <p className="font-bold text-gray-800">{route.name}</p>
+                        {(route.pricePeriods || []).length > 0 && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
+                            <Calendar size={10} /> {(route.pricePeriods || []).length} {language === 'vi' ? 'kỳ giá' : 'periods'}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.departurePoint}</p></td>
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
+                      <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
                       <td className="px-6 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditRoute(route)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
                     </tr>
                   ))}
                   {filteredRoutes.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy tuyến đường nào.' : 'No routes found.'}</td></tr>
+                    <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy tuyến đường nào.' : 'No routes found.'}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -2360,14 +2484,43 @@ export default function App() {
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={tripForm.date} onChange={e => setTripForm(p => ({ ...p, date: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={tripForm.date} onChange={e => {
+                        const date = e.target.value;
+                        const selectedRoute = routes.find(r => r.name === tripForm.route);
+                        if (selectedRoute) {
+                          const period = getRouteActivePeriod(selectedRoute, date);
+                          const price = period ? period.price : selectedRoute.price;
+                          setTripForm(p => ({ ...p, date, price }));
+                        } else {
+                          setTripForm(p => ({ ...p, date }));
+                        }
+                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_time}</label><input type="time" value={tripForm.time} onChange={e => setTripForm(p => ({ ...p, time: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
-                      <select value={tripForm.route} onChange={e => setTripForm(p => ({ ...p, route: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
+                      {tripForm.date && (
+                        <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
+                          {language === 'vi' ? '* Chỉ hiển thị tuyến có hiệu lực vào ngày đã chọn' : '* Only showing routes valid for selected date'}
+                        </p>
+                      )}
+                      <select value={tripForm.route} onChange={e => {
+                        const routeName = e.target.value;
+                        const selectedRoute = routes.find(r => r.name === routeName);
+                        if (selectedRoute) {
+                          const period = getRouteActivePeriod(selectedRoute, tripForm.date);
+                          const price = period ? period.price : selectedRoute.price;
+                          setTripForm(p => ({ ...p, route: routeName, price }));
+                        } else {
+                          setTripForm(p => ({ ...p, route: routeName }));
+                        }
+                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
-                        {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                        {routes.filter(r => isRouteValidForDate(r, tripForm.date)).map(r => {
+                          const period = getRouteActivePeriod(r, tripForm.date);
+                          return <option key={r.id} value={r.name}>{formatRouteOption(r, period, language)}</option>;
+                        })}
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
@@ -2408,7 +2561,17 @@ export default function App() {
                     <button onClick={() => setShowBatchAddTrip(false)} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={batchTripForm.date} onChange={e => setBatchTripForm(p => ({ ...p, date: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={batchTripForm.date} onChange={e => {
+                      const date = e.target.value;
+                      const selectedRoute = routes.find(r => r.name === batchTripForm.route);
+                      if (selectedRoute) {
+                        const period = getRouteActivePeriod(selectedRoute, date);
+                        const price = period ? period.price : selectedRoute.price;
+                        setBatchTripForm(p => ({ ...p, date, price }));
+                      } else {
+                        setBatchTripForm(p => ({ ...p, date }));
+                      }
+                    }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div className="col-span-2">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.select_times}</label>
                       <div className="mt-2 space-y-2">
@@ -2425,10 +2588,29 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
-                      <select value={batchTripForm.route} onChange={e => setBatchTripForm(p => ({ ...p, route: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
+                      {batchTripForm.date && (
+                        <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
+                          {language === 'vi' ? '* Chỉ hiển thị tuyến có hiệu lực vào ngày đã chọn' : '* Only showing routes valid for selected date'}
+                        </p>
+                      )}
+                      <select value={batchTripForm.route} onChange={e => {
+                        const routeName = e.target.value;
+                        const selectedRoute = routes.find(r => r.name === routeName);
+                        if (selectedRoute) {
+                          const period = getRouteActivePeriod(selectedRoute, batchTripForm.date);
+                          const price = period ? period.price : selectedRoute.price;
+                          setBatchTripForm(p => ({ ...p, route: routeName, price }));
+                        } else {
+                          setBatchTripForm(p => ({ ...p, route: routeName }));
+                        }
+                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
-                        {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                        {routes.filter(r => isRouteValidForDate(r, batchTripForm.date)).map(r => {
+                          const period = getRouteActivePeriod(r, batchTripForm.date);
+                          return <option key={r.id} value={r.name}>{formatRouteOption(r, period, language)}</option>;
+                        })}
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
