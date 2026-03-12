@@ -1116,17 +1116,16 @@ export default function App() {
                   }
                 }}
                 className={cn(
-                  "h-14 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative overflow-hidden",
-                  status === SeatStatus.PAID && "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20",
-                  status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white shadow-lg shadow-daiichi-yellow/20",
-                  isPrimarySeat && "bg-daiichi-red/20 border-2 border-daiichi-red text-daiichi-red",
-                  isExtraSeat && "bg-blue-100 border-2 border-blue-500 text-blue-600",
-                  status === SeatStatus.EMPTY && !isPrimarySeat && !isExtraSeat && "bg-white border-2 border-gray-100 text-gray-400 hover:border-daiichi-red hover:text-daiichi-red"
+                  "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative",
+                  status === SeatStatus.PAID && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
+                  status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
+                  isPrimarySeat && "bg-daiichi-red/20 border-daiichi-red text-daiichi-red",
+                  isExtraSeat && "bg-blue-100 border-blue-500 text-blue-600",
+                  status === SeatStatus.EMPTY && !isPrimarySeat && !isExtraSeat && "bg-white border-gray-200 text-gray-500 hover:border-daiichi-red hover:text-daiichi-red"
                 )}
               >
-                <span className="text-[10px] font-bold leading-none">{seatId}</span>
-                <Users size={14} />
-                {status === SeatStatus.PAID && <CheckCircle2 size={10} className="absolute top-1 right-1" />}
+                {seatId}
+                {status === SeatStatus.PAID && <CheckCircle2 size={10} className="absolute top-0.5 right-0.5" />}
                 {isExtraSeat && <span className="absolute top-0 right-0.5 text-[7px] font-bold text-blue-600">+</span>}
               </motion.button>
             );
@@ -1170,10 +1169,10 @@ export default function App() {
                         {row.map((cell, colIdx) => {
                           if (!cell) {
                             // Aisle / empty cell
-                            return <div key={colIdx} className="w-14 h-14 flex-shrink-0" />;
+                            return <div key={colIdx} className="w-10 h-10 flex-shrink-0" />;
                           }
                           return (
-                            <div key={colIdx} className="w-14 flex-shrink-0">
+                            <div key={colIdx} className="w-10 flex-shrink-0">
                               {renderSeatButton(cell.label)}
                             </div>
                           );

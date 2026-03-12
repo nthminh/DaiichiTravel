@@ -62,9 +62,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-daiichi-accent p-4 relative">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4 bg-gradient-to-br from-daiichi-red via-[#a01219] to-[#1a1a2e]">
+      {/* Decorative background shapes */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5" />
+        <div className="absolute -bottom-48 -left-48 w-[500px] h-[500px] rounded-full bg-white/5" />
+        <div className="absolute top-1/3 -left-20 w-64 h-64 rounded-full bg-white/5" />
+        <div className="absolute bottom-1/4 right-8 w-48 h-48 rounded-full bg-daiichi-yellow/10" />
+        <div className="absolute top-1/2 right-1/4 w-32 h-32 rounded-full bg-white/5" />
+      </div>
+
       {/* Language Switcher */}
-      <div className="absolute top-8 right-8 flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+      <div className="absolute top-6 right-6 flex gap-1 bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20">
         {[
           { code: 'vi', label: 'VN', flag: '🇻🇳' },
           { code: 'en', label: 'EN', flag: '🇺🇸' },
@@ -74,8 +83,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
             key={lang.code}
             onClick={() => setLanguage(lang.code as any)}
             className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
-              language === lang.code ? "bg-daiichi-red text-white" : "text-gray-500 hover:bg-gray-50"
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+              language === lang.code ? "bg-white text-daiichi-red shadow-sm" : "text-white/70 hover:text-white hover:bg-white/10"
             )}
           >
             <span>{lang.flag}</span>
@@ -84,73 +93,83 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         ))}
       </div>
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 w-full max-w-md"
-      >
-        <div className="flex flex-col items-center mb-8">
-          <img 
-            src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724" 
-            alt="Daiichi Logo" 
-            className="h-16 mb-4"
-          />
-          <h2 className="text-2xl font-bold text-gray-800">{t.login_title}</h2>
-          <p className="text-gray-500 text-sm">{t.login_subtitle}</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">{t.username}</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" 
-              placeholder="admin / agent"
+      <div className="w-full max-w-md relative z-10">
+        {/* Brand header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center mb-8"
+        >
+          <div className="bg-white rounded-3xl px-8 py-5 shadow-2xl shadow-black/30 mb-6">
+            <img
+              src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724"
+              alt="Daiichi Logo"
+              className="h-20"
             />
           </div>
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">{t.password}</label>
-            <div className="relative mt-1">
-              <input 
-                type={showPassword ? "text" : "password"} 
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" 
+          <h1 className="text-3xl font-bold text-white drop-shadow-lg">{t.login_title}</h1>
+          <p className="text-white/70 text-sm mt-1">{t.login_subtitle}</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/20 shadow-2xl"
+        >
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-white/70 uppercase">{t.username}</label>
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                className="w-full mt-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/40"
                 placeholder="admin / agent"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
             </div>
-          </div>
-          {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
-          {infoMessage && <p className="text-blue-600 text-sm font-medium">{infoMessage}</p>}
-          {agentsLoading && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <Loader2 size={14} className="animate-spin" />
-              <span>{language === 'vi' ? 'Đang kết nối hệ thống...' : 'Connecting to system...'}</span>
+            <div>
+              <label className="text-xs font-bold text-white/70 uppercase">{t.password}</label>
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/40"
+                  placeholder="admin / agent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
-          )}
-          <button type="submit" className="w-full bg-daiichi-red text-white py-4 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:bg-red-600 transition-all">
-            {t.login_btn}
-          </button>
-        </form>
+            {error && <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-sm font-medium">{error}</p>}
+            {infoMessage && <p className="text-blue-200 bg-blue-900/30 rounded-xl px-4 py-2 text-sm font-medium">{infoMessage}</p>}
+            {agentsLoading && (
+              <div className="flex items-center gap-2 text-xs text-white/50">
+                <Loader2 size={14} className="animate-spin" />
+                <span>{language === 'vi' ? 'Đang kết nối hệ thống...' : 'Connecting to system...'}</span>
+              </div>
+            )}
+            <button type="submit" className="w-full bg-white text-daiichi-red py-4 rounded-xl font-bold shadow-lg hover:bg-gray-50 transition-all text-base">
+              {t.login_btn}
+            </button>
+          </form>
 
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-          <button 
-            onClick={() => onLogin({ id: 'guest', username: 'guest', role: UserRole.CUSTOMER, name: 'Khách lẻ' })}
-            className="text-daiichi-red font-bold hover:underline"
-          >
-            {t.guest_btn}
-          </button>
-        </div>
-      </motion.div>
+          <div className="mt-6 pt-5 border-t border-white/10 text-center">
+            <button
+              onClick={() => onLogin({ id: 'guest', username: 'guest', role: UserRole.CUSTOMER, name: 'Khách lẻ' })}
+              className="text-white/80 font-bold hover:text-white transition-colors"
+            >
+              {t.guest_btn}
+            </button>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 };
