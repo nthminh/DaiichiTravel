@@ -21,6 +21,15 @@ interface TourData {
   description: string;
   price: number;
   imageUrl: string;
+  discountPercent?: number;
+  priceAdult?: number;
+  priceChild?: number;
+  duration?: string;      // e.g., "3 ngày 2 đêm"
+  nights?: number;        // number of overnight stays
+  pricePerNight?: number; // accommodation cost per person per night
+  breakfastCount?: number;    // total breakfast meals included per person
+  pricePerBreakfast?: number; // price per breakfast per person
+  itinerary?: { day: number; content: string }[];
 }
 
 export const transportService = {

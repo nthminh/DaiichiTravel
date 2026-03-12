@@ -81,6 +81,13 @@ interface TourItem {
   price: number;
   imageUrl: string;
   discountPercent?: number;
+  priceAdult?: number;
+  priceChild?: number;
+  duration?: string;
+  nights?: number;
+  pricePerNight?: number;
+  breakfastCount?: number;
+  pricePerBreakfast?: number;
 }
 
 export default function App() {
@@ -124,6 +131,7 @@ export default function App() {
   const [tourBookingSuccess, setTourBookingSuccess] = useState(false);
   const [tourBookingError, setTourBookingError] = useState<string>('');
   const [tourBookingId, setTourBookingId] = useState<string>('');
+  const [lastTourBooking, setLastTourBooking] = useState<any>(null);
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
@@ -1253,8 +1261,9 @@ export default function App() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {tours.map((tour) => {
+                  const effectiveAdultPrice = tour.priceAdult || tour.price;
                   const discountedPrice = tour.discountPercent && tour.discountPercent > 0
-                    ? Math.round(tour.price * (1 - tour.discountPercent / 100))
+                    ? Math.round(effectiveAdultPrice * (1 - tour.discountPercent / 100))
                     : null;
                   return (
                     <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
@@ -1265,19 +1274,43 @@ export default function App() {
                             -{tour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
                           </div>
                         ) : null}
+                        {tour.duration && (
+                          <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
+                            {tour.duration}
+                          </div>
+                        )}
                       </div>
                       <div className="p-6">
-                        <h4 className="text-lg font-bold mb-2">{tour.title}</h4>
-                        <p className="text-sm text-gray-500 line-clamp-2 mb-4">{tour.description}</p>
+                        <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
+                        <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>
+                        {/* Overnight & Breakfast badges */}
+                        {((tour.nights ?? 0) > 0 || (tour.breakfastCount ?? 0) > 0) && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {(tour.nights ?? 0) > 0 && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                                🌙 {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
+                              </span>
+                            )}
+                            {(tour.breakfastCount ?? 0) > 0 && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                                ☕ {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div className="flex justify-between items-end">
                           <div>
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Người lớn từ' : 'Adults from'}</p>
                             {discountedPrice ? (
                               <>
                                 <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
-                                <p className="text-xs text-gray-400 line-through">{tour.price.toLocaleString()}đ</p>
+                                <p className="text-xs text-gray-400 line-through">{effectiveAdultPrice.toLocaleString()}đ</p>
                               </>
                             ) : (
-                              <p className="text-xl font-bold text-daiichi-red">{tour.price.toLocaleString()}đ</p>
+                              <p className="text-xl font-bold text-daiichi-red">{effectiveAdultPrice.toLocaleString()}đ</p>
+                            )}
+                            {tour.priceChild && (
+                              <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {tour.priceChild.toLocaleString()}đ</p>
                             )}
                           </div>
                           <button
@@ -1298,18 +1331,38 @@ export default function App() {
       }
 
       case 'book-tour': {
-        const accommodationCosts: Record<string, number> = { none: 0, standard: 300000, deluxe: 500000, suite: 800000 };
-        const mealCosts: Record<string, number> = { none: 0, breakfast: 100000, half_board: 200000, full_board: 300000 };
         const totalPersons = tourBookingAdults + tourBookingChildren;
-        const pricePerAdult = selectedTour
-          ? (selectedTour.discountPercent
+        // Use tour-specific priceAdult if defined, else fall back to discounted/base price
+        const baseAdultPrice = selectedTour
+          ? (selectedTour.priceAdult ?? (selectedTour.discountPercent
               ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100))
-              : selectedTour.price)
+              : selectedTour.price))
           : 0;
-        const pricePerChild = Math.round(pricePerAdult * 0.5);
+        const pricePerAdult = selectedTour?.discountPercent && !selectedTour.priceAdult
+          ? Math.round(baseAdultPrice)
+          : baseAdultPrice;
+        // Use tour-specific priceChild if defined, else 50% of adult
+        const pricePerChild = selectedTour?.priceChild ?? Math.round(pricePerAdult * 0.5);
         const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
-        const accomCost = accommodationCosts[tourAccommodation] * totalPersons;
-        const mealCost = mealCosts[tourMealPlan] * totalPersons;
+        // Accommodation: use tour's pricePerNight × nights × persons if defined, else fixed costs
+        const tourNights = selectedTour?.nights ?? 1;
+        const accommodationCosts: Record<string, number> = {
+          none: 0,
+          standard: (selectedTour?.pricePerNight ?? 300000) * tourNights * totalPersons,
+          deluxe: Math.round((selectedTour?.pricePerNight ?? 300000) * 1.5) * tourNights * totalPersons,
+          suite: Math.round((selectedTour?.pricePerNight ?? 300000) * 2.5) * tourNights * totalPersons,
+        };
+        // Meals: use tour's pricePerBreakfast × breakfastCount × persons if defined, else fixed costs
+        const breakfastCount = selectedTour?.breakfastCount ?? 1;
+        const pricePerBreakfast = selectedTour?.pricePerBreakfast ?? 100000;
+        const mealCosts: Record<string, number> = {
+          none: 0,
+          breakfast: pricePerBreakfast * breakfastCount * totalPersons,
+          half_board: pricePerBreakfast * breakfastCount * totalPersons + 150000 * totalPersons,
+          full_board: pricePerBreakfast * breakfastCount * totalPersons + 300000 * totalPersons,
+        };
+        const accomCost = accommodationCosts[tourAccommodation];
+        const mealCost = mealCosts[tourMealPlan];
         const tourTotal = baseTourPrice + accomCost + mealCost;
 
         const handleTourBooking = async () => {
@@ -1328,6 +1381,8 @@ export default function App() {
             children: tourBookingChildren,
             accommodation: tourAccommodation,
             mealPlan: tourMealPlan,
+            duration: selectedTour.duration || '',
+            nights: selectedTour.nights || 0,
             notes: tourNotes,
             amount: tourTotal,
             paymentMethod: tourPaymentMethod,
@@ -1336,7 +1391,9 @@ export default function App() {
           };
           try {
             const result = await transportService.createBooking(bookingData);
+            const savedBooking = { ...bookingData, id: result.id || '' };
             setTourBookingId(result.id || '');
+            setLastTourBooking(savedBooking);
             setTourBookingSuccess(true);
           } catch (err) {
             console.error('Failed to save tour booking:', err);
@@ -1366,6 +1423,12 @@ export default function App() {
                   <span className="text-gray-400 font-medium">{language === 'vi' ? 'Tour' : 'Tour'}</span>
                   <span className="font-bold text-gray-700 text-right max-w-[180px] truncate">{selectedTour?.title}</span>
                 </div>
+                {selectedTour?.duration && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400 font-medium">{language === 'vi' ? 'Thời gian' : 'Duration'}</span>
+                    <span className="font-bold text-gray-700">{selectedTour.duration}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400 font-medium">{language === 'vi' ? 'Ngày khởi hành' : 'Departure'}</span>
                   <span className="font-bold text-gray-700">{tourBookingDate}</span>
@@ -1395,15 +1458,22 @@ export default function App() {
                   ? `Chúng tôi sẽ liên hệ qua SĐT ${tourBookingPhone} để xác nhận tour.`
                   : `We will contact you at ${tourBookingPhone} to confirm your tour.`}
               </p>
-              <div className="flex gap-4">
+              <div className="flex gap-4 flex-wrap justify-center">
                 <button
-                  onClick={() => { setTourBookingSuccess(false); setTourBookingId(''); setActiveTab('tours'); }}
+                  onClick={() => { if (lastTourBooking) { setLastBooking(lastTourBooking); setIsTicketOpen(true); } }}
+                  className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-600/20 flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  {language === 'vi' ? 'Tải vé xác nhận' : 'Download Ticket'}
+                </button>
+                <button
+                  onClick={() => { setTourBookingSuccess(false); setTourBookingId(''); setLastTourBooking(null); setActiveTab('tours'); }}
                   className="px-6 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50"
                 >
                   {language === 'vi' ? 'Xem thêm tour' : 'Browse more tours'}
                 </button>
                 <button
-                  onClick={() => { setTourBookingSuccess(false); setTourBookingId(''); setActiveTab('home'); }}
+                  onClick={() => { setTourBookingSuccess(false); setTourBookingId(''); setLastTourBooking(null); setActiveTab('home'); }}
                   className="px-6 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20"
                 >
                   {t.home}
@@ -1432,14 +1502,27 @@ export default function App() {
                 <img src={selectedTour.imageUrl} alt={selectedTour.title} className="w-24 h-24 object-cover rounded-xl flex-shrink-0" referrerPolicy="no-referrer" />
                 <div className="flex-1">
                   <h3 className="font-bold text-gray-800">{selectedTour.title}</h3>
-                  <p className="text-xs text-gray-500 line-clamp-2 mt-1">{selectedTour.description}</p>
-                  <p className="text-daiichi-red font-bold mt-2">
-                    {pricePerAdult < selectedTour.price
-                      ? <>{pricePerAdult.toLocaleString()}đ <span className="text-xs text-gray-400 line-through">{selectedTour.price.toLocaleString()}đ</span></>
+                  {selectedTour.duration && (
+                    <p className="text-xs text-indigo-600 font-medium mt-0.5">{selectedTour.duration}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {(selectedTour.nights ?? 0) > 0 && (
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">🌙 {selectedTour.nights} {language === 'vi' ? 'đêm' : 'nights'}</span>
+                    )}
+                    {(selectedTour.breakfastCount ?? 0) > 0 && (
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">☕ {selectedTour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}</span>
+                    )}
+                  </div>
+                  <p className="text-daiichi-red font-bold mt-1.5">
+                    {pricePerAdult < (selectedTour.priceAdult || selectedTour.price)
+                      ? <>{pricePerAdult.toLocaleString()}đ <span className="text-xs text-gray-400 line-through">{(selectedTour.priceAdult || selectedTour.price).toLocaleString()}đ</span></>
                       : <>{pricePerAdult.toLocaleString()}đ</>
                     }
                     <span className="text-xs font-normal text-gray-500 ml-1">/{language === 'vi' ? 'người lớn' : 'adult'}</span>
                   </p>
+                  {pricePerChild > 0 && (
+                    <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {pricePerChild.toLocaleString()}đ</p>
+                  )}
                 </div>
               </div>
             )}
