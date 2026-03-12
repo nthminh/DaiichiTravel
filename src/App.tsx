@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, FileText
+  Filter, FileText, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -134,6 +135,10 @@ export default function App() {
 
   // Vehicle seat diagram state
   const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
+
+  // Excel import refs
+  const routeExcelInputRef = useRef<HTMLInputElement>(null);
+  const vehicleExcelInputRef = useRef<HTMLInputElement>(null);
 
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
@@ -307,6 +312,85 @@ export default function App() {
     } catch (err) {
       console.error('Failed to save vehicle layout:', err);
     }
+  };
+
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa xe này?' : 'Delete this vehicle?')) return;
+    try {
+      await transportService.deleteVehicle(vehicleId);
+    } catch (err) {
+      console.error('Failed to delete vehicle:', err);
+    }
+  };
+
+  // --- Excel Import handlers ---
+  const handleImportRoutesExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        const baseStt = routes.length > 0 ? Math.max(...routes.map(r => r.stt)) : 0;
+        let added = 0;
+        for (const row of rows) {
+          const name = String(row['Tên tuyến'] ?? row['name'] ?? '').trim();
+          if (!name) continue;
+          const routeData = {
+            stt: Number(row['STT'] ?? row['stt'] ?? baseStt + added + 1),
+            name,
+            departurePoint: String(row['Bến đi'] ?? row['Điểm đi'] ?? row['departurePoint'] ?? '').trim(),
+            arrivalPoint: String(row['Bến đến'] ?? row['Điểm đến'] ?? row['arrivalPoint'] ?? '').trim(),
+            price: Number(row['Giá vé'] ?? row['price'] ?? 0),
+          };
+          await transportService.addRoute(routeData);
+          added++;
+        }
+        alert(language === 'vi' ? `Đã nhập ${added} tuyến từ Excel.` : `Imported ${added} routes from Excel.`);
+      } catch (err) {
+        console.error('Failed to import routes from Excel:', err);
+        alert(language === 'vi' ? 'Lỗi khi nhập file Excel.' : 'Error importing Excel file.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  const handleImportVehiclesExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        let added = 0;
+        for (const row of rows) {
+          const licensePlate = String(row['Biển số'] ?? row['Biển số xe'] ?? row['licensePlate'] ?? '').trim();
+          if (!licensePlate) continue;
+          const vehicleData: Record<string, unknown> = {
+            licensePlate,
+            type: String(row['Loại xe'] ?? row['type'] ?? 'Ghế ngồi').trim(),
+            seats: Number(row['Số ghế'] ?? row['seats'] ?? 16),
+            registrationExpiry: String(row['Hạn đăng kiểm'] ?? row['registrationExpiry'] ?? '').trim(),
+            status: String(row['Trạng thái'] ?? row['status'] ?? 'ACTIVE').trim(),
+          };
+          await transportService.addVehicle(vehicleData);
+          added++;
+        }
+        alert(language === 'vi' ? `Đã nhập ${added} xe từ Excel.` : `Imported ${added} vehicles from Excel.`);
+      } catch (err) {
+        console.error('Failed to import vehicles from Excel:', err);
+        alert(language === 'vi' ? 'Lỗi khi nhập file Excel.' : 'Error importing Excel file.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
   };
 
   // --- Trip CRUD handlers ---
@@ -1136,9 +1220,20 @@ export default function App() {
       case 'routes':
         return (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
-              <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+              <div className="flex gap-3">
+                <input ref={routeExcelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportRoutesExcel} />
+                <button
+                  onClick={() => routeExcelInputRef.current?.click()}
+                  className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm"
+                  title={language === 'vi' ? 'Nhập danh sách tuyến từ file Excel' : 'Import routes from Excel file'}
+                >
+                  <Upload size={15} />
+                  {language === 'vi' ? 'Nhập Excel' : 'Import Excel'}
+                </button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+              </div>
             </div>
 
             {/* Add/Edit Route Modal */}
@@ -1220,6 +1315,15 @@ export default function App() {
                     {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
                   </button>
                 )}
+                <input ref={vehicleExcelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportVehiclesExcel} />
+                <button
+                  onClick={() => vehicleExcelInputRef.current?.click()}
+                  className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm"
+                  title={language === 'vi' ? 'Nhập danh sách xe từ file Excel' : 'Import vehicles from Excel file'}
+                >
+                  <Upload size={15} />
+                  {language === 'vi' ? 'Nhập Excel' : 'Import Excel'}
+                </button>
                 <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
               </div>
             </div>
@@ -1301,6 +1405,7 @@ export default function App() {
                             {language === 'vi' ? 'Sơ đồ' : 'Diagram'}
                           </button>
                           <button onClick={() => handleStartEditVehicle(v)} className="text-gray-400 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
+                          <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-400 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
