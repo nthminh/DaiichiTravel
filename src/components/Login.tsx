@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, CheckCircle2, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
@@ -111,10 +111,47 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           <p className="text-white/70 text-sm mt-1">{t.login_subtitle}</p>
         </motion.div>
 
+        {/* Impressive slogan banner */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ delay: 0.15, type: 'spring', stiffness: 120 }}
+          className="mb-6"
+        >
+          <div className="relative overflow-hidden bg-gradient-to-r from-daiichi-yellow/30 via-white/20 to-daiichi-yellow/30 backdrop-blur-md rounded-2xl border border-daiichi-yellow/50 px-5 py-4 shadow-lg shadow-daiichi-yellow/10">
+            {/* Animated shimmer line */}
+            <motion.div
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{ repeat: Infinity, duration: 2.5, ease: 'linear', repeatDelay: 1 }}
+              className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none"
+            />
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-daiichi-yellow/30 border border-daiichi-yellow/50 flex items-center justify-center">
+                <Zap size={18} className="text-daiichi-yellow" fill="currentColor" />
+              </div>
+              <div>
+                <p className="text-daiichi-yellow font-extrabold text-sm tracking-wide uppercase leading-none mb-0.5">
+                  {language === 'vi' ? 'Không cần đăng nhập!' : language === 'ja' ? 'ログイン不要！' : 'No Login Required!'}
+                </p>
+                <p className="text-white/90 text-xs font-medium">
+                  {language === 'vi'
+                    ? 'Đặt vé ngay tức thì – Nhanh chóng & Tiện lợi'
+                    : language === 'ja'
+                    ? '今すぐ予約 – 素早く & 便利'
+                    : 'Book instantly – Fast & Convenient'}
+                </p>
+              </div>
+              <div className="ml-auto flex-shrink-0">
+                <CheckCircle2 size={22} className="text-green-300" />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.25 }}
           className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/20 shadow-2xl"
         >
           <form onSubmit={handleLogin} className="space-y-4">
