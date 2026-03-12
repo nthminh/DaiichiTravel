@@ -74,6 +74,12 @@ export const TRANSLATIONS: Record<Language, any> = {
     driver: 'Tài xế',
     seats_left: 'ghế trống',
     select_seat: 'Chọn ghế',
+    keyword_search: 'Tìm kiếm nhanh',
+    keyword_search_placeholder: 'Nhập tuyến, tài xế, biển số...',
+    price_range: 'Lọc theo giá',
+    price_min_placeholder: 'Giá từ (đ)',
+    price_max_placeholder: 'Đến (đ)',
+    no_trips_found: 'Không tìm thấy chuyến xe phù hợp',
     
     // Seat Mapping
     seat_map_title: 'Sơ đồ ghế ngồi',
@@ -419,6 +425,12 @@ export const TRANSLATIONS: Record<Language, any> = {
     driver: 'Driver',
     seats_left: 'seats left',
     select_seat: 'Select Seat',
+    keyword_search: 'Quick Search',
+    keyword_search_placeholder: 'Enter route, driver, plate...',
+    price_range: 'Filter by Price',
+    price_min_placeholder: 'Min price (đ)',
+    price_max_placeholder: 'Max price (đ)',
+    no_trips_found: 'No matching trips found',
     
     // Seat Mapping
     seat_map_title: 'Seat Map',
@@ -764,6 +776,12 @@ export const TRANSLATIONS: Record<Language, any> = {
     driver: '運転手',
     seats_left: '空席',
     select_seat: '座席を選択',
+    keyword_search: 'クイック検索',
+    keyword_search_placeholder: 'ルート、ドライバー、車番...',
+    price_range: '価格でフィルター',
+    price_min_placeholder: '最低価格 (đ)',
+    price_max_placeholder: '最高価格 (đ)',
+    no_trips_found: '条件に合う運行が見つかりません',
     
     // Seat Mapping
     seat_map_title: '座席表',

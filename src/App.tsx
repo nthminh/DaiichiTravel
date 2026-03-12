@@ -32,6 +32,7 @@ import { StopManagement } from './components/StopManagement';
 import { FinancialReport } from './components/FinancialReport';
 import { VehicleSeatDiagram, generateVehicleLayout, serializeLayout, SerializedSeat } from './components/VehicleSeatDiagram';
 import { ResizableTh } from './components/ResizableTh';
+import { matchesSearch } from './lib/searchUtils';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -136,6 +137,9 @@ export default function App() {
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
+  const [bookTicketSearch, setBookTicketSearch] = useState('');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -878,45 +882,127 @@ export default function App() {
                 <div className="flex items-end">
                   <button className="w-full py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">{t.search_btn}</button>
                 </div>
+            </div>
+            </div>
+
+            {/* Search & Price Filter Bar */}
+            <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
+              <div className="flex flex-col sm:flex-row gap-4">
+                {/* Keyword Search */}
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.keyword_search}</label>
+                  <div className="relative mt-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                      type="text"
+                      value={bookTicketSearch}
+                      onChange={e => setBookTicketSearch(e.target.value)}
+                      placeholder={t.keyword_search_placeholder}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                </div>
+                {/* Price Range Filter */}
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.price_range}</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="number"
+                        min="0"
+                        value={priceMin}
+                        onChange={e => setPriceMin(e.target.value)}
+                        placeholder={t.price_min_placeholder}
+                        className="w-36 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                      />
+                      <span className="text-gray-400 font-bold">—</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={priceMax}
+                        onChange={e => setPriceMax(e.target.value)}
+                        placeholder={t.price_max_placeholder}
+                        className="w-36 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                      />
+                    </div>
+                  </div>
+                  {(bookTicketSearch || priceMin || priceMax) && (
+                    <button
+                      onClick={() => { setBookTicketSearch(''); setPriceMin(''); setPriceMax(''); }}
+                      className="px-4 py-3 text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-2xl transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>
-              {trips.map((trip) => (
-                <div key={trip.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8">
-                  <div className="text-center md:text-left">
-                    <p className="text-3xl font-bold text-gray-800">{formatTripDisplayTime(trip)}</p>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase">{trip.route}</span>
-                      <span className="text-sm text-gray-400">•</span>
-                      <span className="text-sm font-medium text-gray-600">{trip.licensePlate}</span>
+              {(() => {
+                const filteredBookingTrips = trips.filter(trip => {
+                  if (bookTicketSearch) {
+                    const searchable = [
+                      trip.route || '',
+                      trip.driverName || '',
+                      trip.licensePlate || '',
+                      trip.time || '',
+                      trip.date || '',
+                      String(trip.price || ''),
+                    ].join(' ');
+                    if (!matchesSearch(searchable, bookTicketSearch)) return false;
+                  }
+                  if (priceMin) {
+                    const minVal = parseInt(priceMin);
+                    if (!isNaN(minVal) && trip.price < minVal) return false;
+                  }
+                  if (priceMax) {
+                    const maxVal = parseInt(priceMax);
+                    if (!isNaN(maxVal) && trip.price > maxVal) return false;
+                  }
+                  return true;
+                });
+                return filteredBookingTrips.length > 0 ? filteredBookingTrips.map((trip) => (
+                  <div key={trip.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8">
+                    <div className="text-center md:text-left">
+                      <p className="text-3xl font-bold text-gray-800">{formatTripDisplayTime(trip)}</p>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Users size={16} />
-                        <span>{t.driver}: {trip.driverName}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase">{trip.route}</span>
+                        <span className="text-sm text-gray-400">•</span>
+                        <span className="text-sm font-medium text-gray-600">{trip.licensePlate}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Bus size={16} />
-                        <span>{language === 'vi' ? 'Còn' : 'Only'} {(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
+                      <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <Users size={16} />
+                          <span>{t.driver}: {trip.driverName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <Bus size={16} />
+                          <span>{language === 'vi' ? 'Còn' : 'Only'} {(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
+                      <button 
+                        onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}
+                        className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
+                      >
+                        {t.select_seat}
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
-                    <button 
-                      onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}
-                      className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
-                    >
-                      {t.select_seat}
-                    </button>
+                )) : (
+                  <div className="text-center py-12 text-gray-400">
+                    <Search size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">{t.no_trips_found}</p>
                   </div>
-                </div>
-              ))}
+                );
+              })()}
             </div>
           </div>
         );
