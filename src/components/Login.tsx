@@ -100,11 +100,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col items-center mb-8"
         >
-          <div className="bg-white rounded-3xl px-8 py-5 shadow-2xl shadow-black/30 mb-6">
+          <div className="bg-white rounded-3xl px-5 py-3 shadow-2xl shadow-black/30 mb-6">
             <img
               src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724"
               alt="Daiichi Logo"
-              className="h-20"
+              className="h-12 sm:h-14"
             />
           </div>
           <h1 className="text-3xl font-bold text-white drop-shadow-lg">{t.login_title}</h1>

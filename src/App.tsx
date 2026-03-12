@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
@@ -137,6 +137,9 @@ export default function App() {
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
+  const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchReturnDate, setSearchReturnDate] = useState('');
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
   const [bookTicketSearch, setBookTicketSearch] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
@@ -145,6 +148,12 @@ export default function App() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
+  // Memoized unique vehicle types derived from the vehicles list
+  const uniqueVehicleTypes = useMemo(
+    () => Array.from(new Set(vehicles.map(v => v.type).filter(Boolean))).sort(),
+    [vehicles]
+  );
 
   // Consignment search/filter state
   const [consignmentSearch, setConsignmentSearch] = useState('');
@@ -843,7 +852,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
                   <div className="relative mt-1">
@@ -876,7 +885,23 @@ export default function App() {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label>
                   <div className="relative mt-1">
                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input type="date" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" defaultValue={new Date().toISOString().split('T')[0]} />
+                    <input type="date" value={searchDate} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
+                  <div className="relative mt-1">
+                    <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <select
+                      value={vehicleTypeFilter}
+                      onChange={e => setVehicleTypeFilter(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl appearance-none focus:ring-2 focus:ring-daiichi-red/10"
+                    >
+                      <option value="">{t.all_vehicle_types}</option>
+                      {uniqueVehicleTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 {tripType === 'ROUND_TRIP' && (
@@ -884,21 +909,14 @@ export default function App() {
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.return_date}</label>
                     <div className="relative mt-1">
                       <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input type="date" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                      <input type="date" value={searchReturnDate} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
                     </div>
                   </div>
                 )}
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
-                  <div className="relative mt-1">
-                    <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <select className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl appearance-none focus:ring-2 focus:ring-daiichi-red/10">
-                      <option>{t.limo_11}</option>
-                      <option>{t.bus_45}</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex gap-2">
+              </div>
+              {/* Passengers + Search button row */}
+              <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                <div className="flex gap-3 flex-1">
                   <div className="flex-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.adults}</label>
                     <div className="flex items-center gap-2 mt-1 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl">
@@ -918,10 +936,13 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-end">
-                  <button className="w-full py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">{t.search_btn}</button>
+                <div className="flex items-end sm:w-48">
+                  <button className="w-full py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+                    <Search size={18} />
+                    {t.search_btn}
+                  </button>
                 </div>
-            </div>
+              </div>
             </div>
 
             {/* Search & Price Filter Bar */}
@@ -981,6 +1002,9 @@ export default function App() {
               <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>
               {(() => {
                 const filteredBookingTrips = trips.filter(trip => {
+                  const tripVehicle = (bookTicketSearch || vehicleTypeFilter)
+                    ? vehicles.find(v => v.licensePlate === trip.licensePlate)
+                    : undefined;
                   if (bookTicketSearch) {
                     const searchable = [
                       trip.route || '',
@@ -989,9 +1013,14 @@ export default function App() {
                       trip.time || '',
                       trip.date || '',
                       String(trip.price || ''),
+                      tripVehicle?.type || '',
                     ].join(' ');
                     if (!matchesSearch(searchable, bookTicketSearch)) return false;
                   }
+                  if (searchFrom && !matchesSearch(trip.route || '', searchFrom)) return false;
+                  if (searchTo && !matchesSearch(trip.route || '', searchTo)) return false;
+                  if (searchDate && trip.date && trip.date !== searchDate) return false;
+                  if (vehicleTypeFilter && (!tripVehicle || tripVehicle.type !== vehicleTypeFilter)) return false;
                   if (priceMin) {
                     const minVal = parseInt(priceMin);
                     if (!isNaN(minVal) && trip.price < minVal) return false;
