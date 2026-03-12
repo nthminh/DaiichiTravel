@@ -111,14 +111,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           <p className="text-white/70 text-sm mt-1">{t.login_subtitle}</p>
         </motion.div>
 
-        {/* Impressive slogan banner */}
+        {/* Impressive slogan banner – tap to enter as guest */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ delay: 0.15, type: 'spring', stiffness: 120 }}
-          className="mb-6"
+          className="mb-6 cursor-pointer"
+          onClick={() => onLogin({ id: 'guest', username: 'guest', role: UserRole.CUSTOMER, name: 'Khách lẻ' })}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <div className="relative overflow-hidden bg-gradient-to-r from-daiichi-yellow/30 via-white/20 to-daiichi-yellow/30 backdrop-blur-md rounded-2xl border border-daiichi-yellow/50 px-5 py-4 shadow-lg shadow-daiichi-yellow/10">
+          <div className="relative overflow-hidden bg-gradient-to-r from-daiichi-yellow/30 via-white/20 to-daiichi-yellow/30 backdrop-blur-md rounded-2xl border border-daiichi-yellow/50 px-5 py-4 shadow-lg shadow-daiichi-yellow/10 hover:border-daiichi-yellow/80 transition-colors">
             {/* Animated shimmer line */}
             <motion.div
               animate={{ x: ['-100%', '200%'] }}

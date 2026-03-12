@@ -207,11 +207,11 @@ export default function App() {
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
-  const [tripForm, setTripForm] = useState({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
+  const [tripForm, setTripForm] = useState({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING });
 
   // Batch trip creation state
   const [showBatchAddTrip, setShowBatchAddTrip] = useState(false);
-  const [batchTripForm, setBatchTripForm] = useState({ date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11 });
+  const [batchTripForm, setBatchTripForm] = useState({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
 
@@ -430,13 +430,13 @@ export default function App() {
     try {
       const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
       if (editingTrip) {
-        await transportService.updateTrip(editingTrip.id, { time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
+        await transportService.updateTrip(editingTrip.id, { time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status });
       } else {
-        await transportService.addTrip({ time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status, seats, addons: [] });
+        await transportService.addTrip({ time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status, seats, addons: [] });
       }
       setShowAddTrip(false);
       setEditingTrip(null);
-      setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING });
+      setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING });
     } catch (err) {
       console.error('Failed to save trip:', err);
     }
@@ -444,7 +444,7 @@ export default function App() {
 
   const handleStartEditTrip = (trip: Trip) => {
     setEditingTrip(trip);
-    setTripForm({ time: trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, seatCount: trip.seats?.length || 11, status: trip.status });
+    setTripForm({ time: trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, agentPrice: trip.agentPrice || 0, seatCount: trip.seats?.length || 11, status: trip.status });
     setShowAddTrip(true);
   };
 
@@ -491,13 +491,14 @@ export default function App() {
         licensePlate: batchTripForm.licensePlate,
         driverName: batchTripForm.driverName,
         price: batchTripForm.price,
+        agentPrice: batchTripForm.agentPrice,
         status: TripStatus.WAITING,
         seats,
         addons: [] as TripAddon[],
       }));
       await transportService.addTripsBatch(tripsToCreate);
       setShowBatchAddTrip(false);
-      setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11 });
+      setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
       setBatchTimeSlots(['']);
     } catch (err) {
       console.error('Failed to batch create trips:', err);
@@ -2469,8 +2470,8 @@ export default function App() {
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">{t.operation_management}</h2>
               <div className="flex gap-2">
-                <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
-                <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
+                <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
+                <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -2490,14 +2491,18 @@ export default function App() {
                         if (selectedRoute) {
                           const period = getRouteActivePeriod(selectedRoute, date);
                           const price = period ? period.price : selectedRoute.price;
-                          setTripForm(p => ({ ...p, date, price }));
+                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
+                          setTripForm(p => ({ ...p, date, price, agentPrice }));
                         } else {
                           setTripForm(p => ({ ...p, date }));
                         }
                       }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_time}</label><input type="time" value={tripForm.time} onChange={e => setTripForm(p => ({ ...p, time: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={tripForm.agentPrice} onChange={e => setTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
+                    </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
                       {tripForm.date && (
@@ -2511,7 +2516,8 @@ export default function App() {
                         if (selectedRoute) {
                           const period = getRouteActivePeriod(selectedRoute, tripForm.date);
                           const price = period ? period.price : selectedRoute.price;
-                          setTripForm(p => ({ ...p, route: routeName, price }));
+                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
+                          setTripForm(p => ({ ...p, route: routeName, price, agentPrice }));
                         } else {
                           setTripForm(p => ({ ...p, route: routeName }));
                         }
@@ -2567,7 +2573,8 @@ export default function App() {
                       if (selectedRoute) {
                         const period = getRouteActivePeriod(selectedRoute, date);
                         const price = period ? period.price : selectedRoute.price;
-                        setBatchTripForm(p => ({ ...p, date, price }));
+                        const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
+                        setBatchTripForm(p => ({ ...p, date, price, agentPrice }));
                       } else {
                         setBatchTripForm(p => ({ ...p, date }));
                       }
@@ -2601,7 +2608,8 @@ export default function App() {
                         if (selectedRoute) {
                           const period = getRouteActivePeriod(selectedRoute, batchTripForm.date);
                           const price = period ? period.price : selectedRoute.price;
-                          setBatchTripForm(p => ({ ...p, route: routeName, price }));
+                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
+                          setBatchTripForm(p => ({ ...p, route: routeName, price, agentPrice }));
                         } else {
                           setBatchTripForm(p => ({ ...p, route: routeName }));
                         }
@@ -2620,7 +2628,10 @@ export default function App() {
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={batchTripForm.driverName} onChange={e => setBatchTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={batchTripForm.price} onChange={e => setBatchTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div className="col-span-2 grid grid-cols-2 gap-4">
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={batchTripForm.price} onChange={e => setBatchTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={batchTripForm.agentPrice} onChange={e => setBatchTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
+                    </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={batchTripForm.seatCount} onChange={e => setBatchTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                   </div>
                   {batchTripForm.date && batchTimeSlots.filter(s => s).length > 0 && (
