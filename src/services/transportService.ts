@@ -151,6 +151,22 @@ export const transportService = {
     await deleteDoc(doc(db, 'stops', stopId));
   },
 
+  // Import stops from Excel data (skips duplicates by name)
+  importStops: async (rows: Omit<Stop, 'id'>[]) => {
+    if (!db) throw new Error('Firebase not configured');
+    const existing = await getDocs(collection(db, 'stops'));
+    const existingNames = new Set(existing.docs.map(d => (d.data() as Stop).name));
+    const toAdd = rows.filter(r => r.name && !existingNames.has(r.name));
+    if (toAdd.length === 0) return 0;
+    const batch = writeBatch(db);
+    toAdd.forEach(r => {
+      const ref = doc(collection(db, 'stops'));
+      batch.set(ref, r);
+    });
+    await batch.commit();
+    return toAdd.length;
+  },
+
   // Listen to bookings
   subscribeToBookings: (callback: (bookings: any[]) => void) => {
     if (!db) return () => {};
