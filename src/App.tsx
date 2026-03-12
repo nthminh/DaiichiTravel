@@ -359,7 +359,7 @@ export default function App() {
   // --- Trip CRUD handlers ---
   const handleSaveTrip = async () => {
     try {
-      // Find the vehicle to use its saved layout for proper seat labelling
+      // Find the vehicle to use its saved layout for proper seat labeling
       const vehicle = vehicles.find(v => v.licensePlate === tripForm.licensePlate);
       let seats: { id: string; row: number; col: number; deck: number; status: SeatStatus }[];
 

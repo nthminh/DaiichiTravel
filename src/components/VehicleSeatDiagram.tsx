@@ -365,7 +365,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       seats_booked: 'Đã đặt',
       seats_discounted: 'Giảm giá',
       tip: 'Nhấp vào ghế để đánh dấu/bỏ đánh dấu giảm giá',
-      tipPosition: 'Nhấp vào ô trống để thêm ghế, nhấp vào ghế để xoá',
+      tipPosition: 'Nhấp vào ô trống để thêm ghế, nhấp vào ghế để xóa',
       front: '← Đầu xe (Tài xế bên trái)',
     },
     en: {
