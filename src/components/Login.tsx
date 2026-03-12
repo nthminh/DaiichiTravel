@@ -52,6 +52,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         username: agent.username!, 
         role: UserRole.AGENT, 
         name: agent.name, 
+        address: agent.address,
         agentCode: agent.code, 
         balance: agent.balance 
       });
