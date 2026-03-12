@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, FileText, Upload
+  Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import * as XLSX from 'xlsx';
 import { cn } from './lib/utils';
 
 // Import Constants & Types
@@ -161,9 +160,7 @@ export default function App() {
   // Vehicle seat diagram state
   const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
 
-  // Excel import refs
-  const routeImportRef = useRef<HTMLInputElement>(null);
-  const vehicleImportRef = useRef<HTMLInputElement>(null);
+  // Excel import refs removed
 
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
@@ -359,101 +356,38 @@ export default function App() {
     }
   };
 
-  // --- Excel template download handlers ---
-  const handleDownloadRoutesTemplate = () => {
-    const sample = [
-      { STT: 1, 'Tên tuyến': 'Hà Nội - Cát Bà', 'Điểm đi': '12 Nguyễn Du, Hà Nội', 'Điểm đến': 'Cảng Cát Bà, Hải Phòng', 'Giá vé': 150000 },
-      { STT: 2, 'Tên tuyến': 'Hà Nội - Hạ Long', 'Điểm đi': '12 Nguyễn Du, Hà Nội', 'Điểm đến': 'Cảng Tuần Châu, Quảng Ninh', 'Giá vé': 180000 },
-    ];
-    const ws = XLSX.utils.json_to_sheet(sample);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Tuyến');
-    XLSX.writeFile(wb, 'Mau_Import_Tuyen.xlsx');
-  };
-
-  const handleDownloadVehiclesTemplate = () => {
-    const sample = [
-      { 'Biển số': '29B-12345', 'Loại xe': 'Ghế ngồi', 'Số ghế': 45, 'Hạn đăng kiểm': '2026-12-31' },
-      { 'Biển số': '30M-67890', 'Loại xe': 'Giường nằm', 'Số ghế': 40, 'Hạn đăng kiểm': '2026-06-30' },
-    ];
-    const ws = XLSX.utils.json_to_sheet(sample);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Xe');
-    XLSX.writeFile(wb, 'Mau_Import_Xe.xlsx');
-  };
-
-  // --- Excel import handlers ---
-  const handleImportRoutesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      const routes = rows
-        .filter(r => r['Tên tuyến'] || r['name'] || r['Name'])
-        .map((r, idx) => ({
-          stt: Number(r['STT'] || r['stt'] || idx + 1),
-          name: String(r['Tên tuyến'] || r['name'] || r['Name'] || '').trim(),
-          departurePoint: String(r['Điểm đi'] || r['departurePoint'] || r['Departure'] || '').trim(),
-          arrivalPoint: String(r['Điểm đến'] || r['arrivalPoint'] || r['Arrival'] || '').trim(),
-          price: Number(r['Giá vé'] || r['price'] || r['Price'] || 0),
-        }));
-      if (routes.length === 0) {
-        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
-        return;
-      }
-      const added = await transportService.importRoutes(routes);
-      alert(language === 'vi'
-        ? added === 0 ? 'Tất cả tuyến đã tồn tại.' : `Đã nhập ${added} tuyến mới.`
-        : added === 0 ? 'All routes already exist.' : `Imported ${added} new routes.`);
-    } catch (err) {
-      console.error('Import routes error:', err);
-      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
-    }
-  };
-
-  const handleImportVehiclesFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      const vehicles = rows
-        .filter(r => r['Biển số'] || r['licensePlate'] || r['License Plate'])
-        .map(r => ({
-          licensePlate: String(r['Biển số'] || r['licensePlate'] || r['License Plate'] || '').trim(),
-          type: String(r['Loại xe'] || r['type'] || r['Type'] || 'Ghế ngồi').trim(),
-          seats: Number(r['Số ghế'] || r['seats'] || r['Seats'] || 0),
-          registrationExpiry: String(r['Hạn đăng kiểm'] || r['registrationExpiry'] || r['Registration Expiry'] || '').trim(),
-        }));
-      if (vehicles.length === 0) {
-        alert(language === 'vi' ? 'Không tìm thấy dữ liệu hợp lệ trong file.' : 'No valid data found in file.');
-        return;
-      }
-      const added = await transportService.importVehicles(vehicles);
-      alert(language === 'vi'
-        ? added === 0 ? 'Tất cả xe đã tồn tại.' : `Đã nhập ${added} xe mới.`
-        : added === 0 ? 'All vehicles already exist.' : `Imported ${added} new vehicles.`);
-    } catch (err) {
-      console.error('Import vehicles error:', err);
-      alert(language === 'vi' ? 'Lỗi khi đọc file Excel.' : 'Error reading Excel file.');
-    }
-  };
-
   // --- Trip CRUD handlers ---
   const handleSaveTrip = async () => {
     try {
-      const seats = Array.from({ length: tripForm.seatCount }, (_, i) => ({
-        id: String.fromCharCode(65 + Math.floor(i / 2)) + ((i % 2) + 1),
-        status: SeatStatus.EMPTY,
-        deck: 0,
-      }));
+      // Find the vehicle to use its saved layout for proper seat labeling
+      const vehicle = vehicles.find(v => v.licensePlate === tripForm.licensePlate);
+      let seats: { id: string; row: number; col: number; deck: number; status: SeatStatus }[];
+
+      const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
+      if (savedLayout && savedLayout.length > 0) {
+        seats = savedLayout.map(s => ({
+          id: s.label,
+          row: s.row,
+          col: s.col,
+          deck: s.deck,
+          status: SeatStatus.EMPTY,
+        }));
+      } else {
+        // Fall back to generating layout from vehicle type / seat count
+        const generatedLayout = generateVehicleLayout(
+          vehicle?.type || 'Ghế ngồi',
+          tripForm.seatCount
+        );
+        const serialized = serializeLayout(generatedLayout);
+        seats = serialized.map(s => ({
+          id: s.label,
+          row: s.row,
+          col: s.col,
+          deck: s.deck,
+          status: SeatStatus.EMPTY,
+        }));
+      }
+
       if (editingTrip) {
         await transportService.updateTrip(editingTrip.id, { time: tripForm.time, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, status: tripForm.status });
       } else {
@@ -902,17 +836,117 @@ export default function App() {
           const canConfirmBooking = extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded;
           const isSelectingExtraSeats = !!showBookingForm && childrenOver4Count > 0;
 
+          // Build seat status lookup
+          const seatStatusMap: Record<string, SeatStatus> = {};
+          selectedTrip.seats.forEach((s: any) => { seatStatusMap[s.id] = s.status; });
+
+          // Reconstruct visual layout grid from trip seats using row/col/deck
+          // Try seats with row info first; fall back to vehicle saved layout or flat list
+          const tripSeatsWithLayout = selectedTrip.seats.filter((s: any) => s.row !== undefined && s.row !== null);
+          const selectedVehicle = vehicles.find(v => v.licensePlate === selectedTrip.licensePlate);
+          const savedVehicleLayout = selectedVehicle?.layout as SerializedSeat[] | null | undefined;
+
+          // Build the layout grid to render
+          let layoutGrid: (SerializedSeat | null)[][][] = [];
+          if (tripSeatsWithLayout.length > 0) {
+            // Use trip seats' row/col/deck info
+            const deckCount = Math.max(...selectedTrip.seats.map((s: any) => s.deck || 0)) + 1;
+            const rowCount = Math.max(...selectedTrip.seats.map((s: any) => s.row ?? 0)) + 1;
+            const colCount = Math.max(...selectedTrip.seats.map((s: any) => s.col ?? 0)) + 1;
+            for (let d = 0; d < deckCount; d++) {
+              const deck: (SerializedSeat | null)[][] = [];
+              for (let r = 0; r < rowCount; r++) {
+                const row: (SerializedSeat | null)[] = [];
+                for (let c = 0; c < colCount; c++) {
+                  const seat = selectedTrip.seats.find((s: any) => (s.deck || 0) === d && (s.row ?? -1) === r && (s.col ?? -1) === c);
+                  row.push(seat ? { id: `${d}-${r}-${c}`, label: seat.id, row: r, col: c, deck: d, discounted: false, booked: false } : null);
+                }
+                deck.push(row);
+              }
+              layoutGrid.push(deck);
+            }
+          } else if (savedVehicleLayout && savedVehicleLayout.length > 0) {
+            // Use vehicle's saved layout
+            const deckCount = Math.max(...savedVehicleLayout.map(s => s.deck)) + 1;
+            const rowCount = Math.max(...savedVehicleLayout.map(s => s.row)) + 1;
+            const colCount = Math.max(...savedVehicleLayout.map(s => s.col)) + 1;
+            for (let d = 0; d < deckCount; d++) {
+              const deck: (SerializedSeat | null)[][] = [];
+              for (let r = 0; r < rowCount; r++) {
+                const row: (SerializedSeat | null)[] = [];
+                for (let c = 0; c < colCount; c++) {
+                  const s = savedVehicleLayout.find(x => x.deck === d && x.row === r && x.col === c);
+                  row.push(s ?? null);
+                }
+                deck.push(row);
+              }
+              layoutGrid.push(deck);
+            }
+          }
+
+          const hasLayoutGrid = layoutGrid.length > 0;
+          const deckCount = hasLayoutGrid ? layoutGrid.length : 1;
+          const hasDualDeck = deckCount > 1;
+          const currentGrid = hasLayoutGrid ? (layoutGrid[activeDeck] ?? []) : null;
+
+          const renderSeatButton = (seatId: string) => {
+            const status = seatStatusMap[seatId] ?? SeatStatus.EMPTY;
+            const isPrimarySeat = seatId === showBookingForm;
+            const isExtraSeat = extraSeatIds.includes(seatId);
+            return (
+              <motion.button
+                key={seatId}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  if (status !== SeatStatus.EMPTY) return;
+                  if (showBookingForm) {
+                    if (isPrimarySeat) return;
+                    if (isExtraSeat) {
+                      setExtraSeatIds(prev => prev.filter(id => id !== seatId));
+                    } else if (isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded) {
+                      setExtraSeatIds(prev => [...prev, seatId]);
+                    } else if (!isSelectingExtraSeats) {
+                      setExtraSeatIds([]);
+                      setShowBookingForm(seatId);
+                    }
+                  } else {
+                    setShowBookingForm(seatId);
+                  }
+                }}
+                className={cn(
+                  "h-14 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative overflow-hidden",
+                  status === SeatStatus.PAID && "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20",
+                  status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white shadow-lg shadow-daiichi-yellow/20",
+                  isPrimarySeat && "bg-daiichi-red/20 border-2 border-daiichi-red text-daiichi-red",
+                  isExtraSeat && "bg-blue-100 border-2 border-blue-500 text-blue-600",
+                  status === SeatStatus.EMPTY && !isPrimarySeat && !isExtraSeat && "bg-white border-2 border-gray-100 text-gray-400 hover:border-daiichi-red hover:text-daiichi-red"
+                )}
+              >
+                <span className="text-[10px] font-bold leading-none">{seatId}</span>
+                <Users size={14} />
+                {status === SeatStatus.PAID && <CheckCircle2 size={10} className="absolute top-1 right-1" />}
+                {isExtraSeat && <span className="absolute top-0 right-0.5 text-[7px] font-bold text-blue-600">+</span>}
+              </motion.button>
+            );
+          };
+
           return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold">{t.seat_map_title} - {selectedTrip.licensePlate}</h2>
-                <div className="flex bg-gray-100 p-1 rounded-xl">
-                  <button onClick={() => setActiveDeck(0)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeDeck === 0 ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500")}>{t.deck_lower}</button>
-                  <button onClick={() => setActiveDeck(1)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeDeck === 1 ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500")}>{t.deck_upper}</button>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold">{t.seat_map_title}</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{selectedTrip.licensePlate}</p>
                 </div>
+                {hasDualDeck && (
+                  <div className="flex bg-gray-100 p-1 rounded-xl">
+                    <button onClick={() => setActiveDeck(0)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeDeck === 0 ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500")}>{t.deck_lower}</button>
+                    <button onClick={() => setActiveDeck(1)} className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeDeck === 1 ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500")}>{t.deck_upper}</button>
+                  </div>
+                )}
               </div>
-              
+
               {isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded && (
                 <div className="mb-4 p-3 bg-orange-50 rounded-2xl border border-orange-200 flex items-center gap-2">
                   <span className="text-orange-500 font-bold text-sm">
@@ -921,58 +955,43 @@ export default function App() {
                 </div>
               )}
 
-              <div className="max-w-md mx-auto bg-gray-50 p-4 sm:p-8 rounded-[40px] border border-gray-100">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-3 flex justify-end mb-8">
-                    <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-gray-400 border border-gray-100">
-                      <Users size={24} />
-                    </div>
-                  </div>
-                  {selectedTrip.seats.filter(s => (s.deck || 0) === activeDeck).map((seat: any) => {
-                    const isPrimarySeat = seat.id === showBookingForm;
-                    const isExtraSeat = extraSeatIds.includes(seat.id);
-                    return (
-                    <motion.button
-                      key={seat.id}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        if (seat.status !== SeatStatus.EMPTY) return;
-                        if (showBookingForm) {
-                          if (isPrimarySeat) return;
-                          if (isExtraSeat) {
-                            // Deselect this extra seat
-                            setExtraSeatIds(prev => prev.filter(id => id !== seat.id));
-                          } else if (isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded) {
-                            // Add as extra seat
-                            setExtraSeatIds(prev => [...prev, seat.id]);
-                          } else if (!isSelectingExtraSeats) {
-                            // No extra seats needed; switch primary seat
-                            setExtraSeatIds([]);
-                            setShowBookingForm(seat.id);
-                          }
-                        } else {
-                          setShowBookingForm(seat.id);
-                        }
-                      }}
-                      className={cn(
-                        "h-20 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden",
-                        seat.status === SeatStatus.PAID && "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20",
-                        seat.status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white shadow-lg shadow-daiichi-yellow/20",
-                        isPrimarySeat && "bg-daiichi-red/20 border-2 border-daiichi-red text-daiichi-red",
-                        isExtraSeat && "bg-blue-100 border-2 border-blue-500 text-blue-600",
-                        seat.status === SeatStatus.EMPTY && !isPrimarySeat && !isExtraSeat && "bg-white border-2 border-gray-100 text-gray-400 hover:border-daiichi-red hover:text-daiichi-red"
-                      )}
-                    >
-                      <span className="text-xs font-bold">{seat.id}</span>
-                      <Users size={20} />
-                      {seat.status === SeatStatus.PAID && <CheckCircle2 size={12} className="absolute top-2 right-2" />}
-                      {isExtraSeat && <span className="absolute top-1 right-1 text-[8px] font-bold text-blue-600">+{t.extra_seat_child || 'Child seat'}</span>}
-                    </motion.button>
-                    );
-                  })}
+              <div className="max-w-lg mx-auto bg-gray-50 p-4 sm:p-6 rounded-[32px] border border-gray-100">
+                {/* Front of bus indicator */}
+                <div className="flex items-center gap-2 mb-3 text-xs text-gray-400 font-semibold">
+                  <span>← {language === 'vi' ? 'Đầu xe (Tài xế bên trái)' : 'Front (Driver on left)'}</span>
                 </div>
-                <div className="mt-12 flex justify-center gap-6 text-xs font-bold uppercase tracking-wider">
+
+                {hasLayoutGrid && currentGrid ? (
+                  // Render proper bus layout grid
+                  <div className="space-y-1.5">
+                    {currentGrid.map((row, rowIdx) => (
+                      <div key={rowIdx} className="flex gap-1.5 justify-center">
+                        {row.map((cell, colIdx) => {
+                          if (!cell) {
+                            // Aisle / empty cell
+                            return <div key={colIdx} className="w-14 h-14 flex-shrink-0" />;
+                          }
+                          return (
+                            <div key={colIdx} className="w-14 flex-shrink-0">
+                              {renderSeatButton(cell.label)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  // Fallback: flat grid (old behaviour)
+                  <div className="grid grid-cols-3 gap-3">
+                    {selectedTrip.seats.filter((s: any) => (s.deck || 0) === activeDeck).map((seat: any) => (
+                      <div key={seat.id}>
+                        {renderSeatButton(seat.id)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-6 flex justify-center gap-6 text-xs font-bold uppercase tracking-wider">
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-yellow rounded" /> {t.booked}</div>
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white border border-gray-200 rounded" /> {t.empty}</div>
@@ -1425,13 +1444,6 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <input type="file" accept=".xlsx,.xls,.csv" ref={routeImportRef} onChange={handleImportRoutesFromExcel} className="hidden" />
-                <button onClick={handleDownloadRoutesTemplate} className="flex items-center gap-2 bg-blue-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 text-sm">
-                  <FileText size={16} />{language === 'vi' ? 'Tải mẫu Excel' : 'Download Template'}
-                </button>
-                <button onClick={() => routeImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
-                  <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
-                </button>
                 <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
@@ -1515,13 +1527,6 @@ export default function App() {
                     {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
                   </button>
                 )}
-                <input type="file" accept=".xlsx,.xls,.csv" ref={vehicleImportRef} onChange={handleImportVehiclesFromExcel} className="hidden" />
-                <button onClick={handleDownloadVehiclesTemplate} className="flex items-center gap-2 bg-blue-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 text-sm">
-                  <FileText size={16} />{language === 'vi' ? 'Tải mẫu Excel' : 'Download Template'}
-                </button>
-                <button onClick={() => vehicleImportRef.current?.click()} className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 text-sm">
-                  <Upload size={16} />{language === 'vi' ? 'Nhập từ Excel' : 'Import Excel'}
-                </button>
                 <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
               </div>
             </div>
