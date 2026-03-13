@@ -542,7 +542,7 @@ export default function App() {
   // --- Batch trip creation ---
   const handleBatchAddTrips = async () => {
     const validSlots = batchTimeSlots.filter(t => t.trim() !== '');
-    if (!batchTripForm.date || !batchTripForm.route || !batchTripForm.licensePlate || validSlots.length === 0) return;
+    if (!batchTripForm.date || !batchTripForm.route || validSlots.length === 0) return;
     setBatchTripLoading(true);
     try {
       const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
@@ -829,10 +829,11 @@ export default function App() {
     });
   };
 
-  const isRouteValidForDate = (route: Route, date: string): boolean => {
-    if (!date) return true;
-    if (!route.pricePeriods || route.pricePeriods.length === 0) return true;
-    return route.pricePeriods.some(p => p.startDate <= date && p.endDate >= date);
+  const isRouteValidForDate = (_route: Route, _date: string): boolean => {
+    // Routes are always available regardless of date.
+    // The base price (set outside pricePeriods) applies year-round except during
+    // peak periods, which override it via getRouteActivePeriod.
+    return true;
   };
 
   const formatRouteOption = (r: Route, period: PricePeriod | null, lang: string): string => {
@@ -2853,9 +2854,9 @@ export default function App() {
                         })}
                       </select>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate} <span className="normal-case font-normal text-gray-400">({language === 'vi' ? 'tùy chọn' : 'optional'})</span></label>
                       <select value={tripForm.licensePlate} onChange={e => handleTripVehicleSelect(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="">{language === 'vi' ? '-- Chọn xe --' : '-- Select Vehicle --'}</option>
+                        <option value="">{language === 'vi' ? '-- Chọn xe (tùy chọn) --' : '-- Select Vehicle (optional) --'}</option>
                         {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
                       </select>
                     </div>
@@ -2873,7 +2874,7 @@ export default function App() {
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route || !tripForm.licensePlate} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
+                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
                   </div>
                 </div>
               </div>
@@ -2923,7 +2924,7 @@ export default function App() {
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
                       {batchTripForm.date && (
                         <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
-                          {language === 'vi' ? '* Chỉ hiển thị tuyến có hiệu lực vào ngày đã chọn' : '* Only showing routes valid for selected date'}
+                          {language === 'vi' ? '* Giá hiển thị theo kỳ cao điểm (nếu có), ngày thường dùng giá mặc định' : '* Price shown by peak period (if any), regular dates use default price'}
                         </p>
                       )}
                       <select value={batchTripForm.route} onChange={e => {
@@ -2945,9 +2946,9 @@ export default function App() {
                         })}
                       </select>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate} <span className="normal-case font-normal text-gray-400">({language === 'vi' ? 'tùy chọn' : 'optional'})</span></label>
                       <select value={batchTripForm.licensePlate} onChange={e => handleBatchVehicleSelect(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="">{language === 'vi' ? '-- Chọn xe --' : '-- Select Vehicle --'}</option>
+                        <option value="">{language === 'vi' ? '-- Chọn xe (tùy chọn) --' : '-- Select Vehicle (optional) --'}</option>
                         {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
                       </select>
                     </div>
@@ -2970,7 +2971,7 @@ export default function App() {
                   )}
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => setShowBatchAddTrip(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleBatchAddTrips} disabled={batchTripLoading || !batchTripForm.date || !batchTripForm.route || !batchTripForm.licensePlate || batchTimeSlots.filter(s => s).length === 0} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
+                    <button onClick={handleBatchAddTrips} disabled={batchTripLoading || !batchTripForm.date || !batchTripForm.route || batchTimeSlots.filter(s => s).length === 0} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
                       {batchTripLoading && <span className="animate-spin">⚡</span>}
                       {language === 'vi' ? `Tạo ${batchTimeSlots.filter(s => s).length} chuyến` : `Create ${batchTimeSlots.filter(s => s).length} Trips`}
                     </button>
