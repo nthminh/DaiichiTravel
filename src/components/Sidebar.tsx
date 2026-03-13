@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const daiichiItems = [
     { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
     { id: 'agents', label: t.agents, icon: Users },
-    { id: 'employees', label: (TRANSLATIONS[language] as any).employees || 'Nhân viên', icon: Users },
+    { id: 'employees', label: TRANSLATIONS[language].employees || 'Nhân viên', icon: Users },
     { id: 'routes', label: t.routes, icon: MapPin },
     { id: 'vehicles', label: t.vehicles, icon: Truck },
     { id: 'operations', label: t.operations, icon: Globe },

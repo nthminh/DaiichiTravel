@@ -127,7 +127,16 @@ export const Settings: React.FC<SettingsProps> = ({
     const load = async () => {
       try {
         const saved = await transportService.getPaymentSettings();
-        if (saved) setPaymentConfig(prev => ({ ...prev, ...(saved as typeof DEFAULT_PAYMENT_CONFIG) }));
+        if (saved && typeof saved === 'object') {
+          // Safely merge only keys that exist in DEFAULT_PAYMENT_CONFIG
+          const merged = { ...DEFAULT_PAYMENT_CONFIG };
+          (Object.keys(DEFAULT_PAYMENT_CONFIG) as (keyof typeof DEFAULT_PAYMENT_CONFIG)[]).forEach(key => {
+            if (key in saved && typeof (saved as Record<string, unknown>)[key] === typeof DEFAULT_PAYMENT_CONFIG[key]) {
+              (merged as Record<string, unknown>)[key] = (saved as Record<string, unknown>)[key];
+            }
+          });
+          setPaymentConfig(merged);
+        }
       } catch {/* ignore */}
       setPaymentConfigLoading(false);
     };
