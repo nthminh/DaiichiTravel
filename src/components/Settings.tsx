@@ -32,6 +32,7 @@ export const Settings: React.FC<SettingsProps> = ({
     { id: 'book-ticket', label: language === 'vi' ? 'Đặt vé xe' : 'Book Ticket' },
     { id: 'tours', label: language === 'vi' ? 'Tour du lịch' : 'Tours' },
     { id: 'consignments', label: language === 'vi' ? 'Gửi hàng' : 'Consignments' },
+    { id: 'user-guide', label: language === 'vi' ? 'Hướng dẫn sử dụng' : 'User Guide' },
     { id: 'dashboard', label: 'Dashboard', adminOnly: true },
     { id: 'agents', label: language === 'vi' ? 'Đại lý' : 'Agents', adminOnly: true },
     { id: 'employees', label: language === 'vi' ? 'Nhân viên' : 'Employees', adminOnly: true },
@@ -53,10 +54,10 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const defaultPerms: Record<string, Record<string, boolean>> = {
     MANAGER: Object.fromEntries(PAGE_LIST.map(p => [p.id, true])),
-    AGENT: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'settings': true },
-    STAFF: { 'home': true, 'book-ticket': true, 'consignments': true },
-    DRIVER: { 'home': true },
-    CUSTOMER: { 'home': true, 'book-ticket': true, 'tours': true },
+    AGENT: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'user-guide': true, 'settings': true },
+    STAFF: { 'home': true, 'book-ticket': true, 'consignments': true, 'user-guide': true },
+    DRIVER: { 'home': true, 'user-guide': true },
+    CUSTOMER: { 'home': true, 'book-ticket': true, 'tours': true, 'user-guide': true },
   };
 
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {

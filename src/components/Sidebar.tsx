@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, Menu, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown, CheckCircle
+  BarChart2, ChevronDown, CheckCircle, BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -47,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'book-ticket', label: t.book_ticket, icon: Bus, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
     { id: 'tours', label: t.tours, icon: Star, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
     { id: 'consignments', label: t.consignments, icon: Package, roles: [UserRole.MANAGER, UserRole.AGENT] },
+    { id: 'user-guide', label: t.user_guide ?? 'Hướng dẫn sử dụng', icon: BookOpen, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, 'STAFF', 'DRIVER'] as UserRole[] },
     { id: 'settings', label: t.settings, icon: SettingsIcon, roles: [UserRole.MANAGER, UserRole.AGENT] },
   ];
 
