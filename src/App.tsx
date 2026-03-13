@@ -55,6 +55,7 @@ export interface User {
   username: string;
   role: UserRole;
   name: string;
+  address?: string;
   agentCode?: string;
   balance?: number;
   password?: string;
@@ -242,8 +243,8 @@ export default function App() {
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
   const [tripAddonForm, setTripAddonForm] = useState({ name: '', price: 0, description: '', type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' });
   const [showAddTripAddon, setShowAddTripAddon] = useState(false);
-  // Selected addon IDs for the current booking
-  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  // Addon quantities for the current booking: addonId -> quantity (0 means unselected)
+  const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
   const [newConsignment, setNewConsignment] = useState({
     senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
     type: '', weight: '', cod: 0, notes: '',
@@ -648,7 +649,11 @@ export default function App() {
         weight: newConsignment.weight,
         cod: newConsignment.cod,
         notes: newConsignment.notes,
-      });
+        agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
+        agentName: currentUser?.role === UserRole.AGENT
+          ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
+          : undefined,
+      } as any);
       setShowCreateConsignment(false);
       setNewConsignment({ senderName: '', senderPhone: '', receiverName: '', receiverPhone: '', type: '', weight: '', cod: 0, notes: '' });
     } catch (err) {
@@ -705,9 +710,18 @@ export default function App() {
   };
 
   const handleConfirmBooking = async (seatId: string) => {
-    // Use fare-table price when available, otherwise fall back to trip price
-    const basePriceAdult = fareAmount !== null ? fareAmount : (selectedTrip.price || 0);
-    const basePriceChild = fareAmount !== null ? fareAmount : (selectedTrip.priceChild || basePriceAdult);
+    // Use fare-table price when available; for agents use agentPrice when set
+    const isAgentBooking = currentUser?.role === UserRole.AGENT;
+    const basePriceAdult = fareAmount !== null
+      ? fareAmount
+      : (isAgentBooking
+          ? (selectedTrip.agentPrice || selectedTrip.price || 0)
+          : (selectedTrip.price || 0));
+    const basePriceChild = fareAmount !== null
+      ? fareAmount
+      : (isAgentBooking
+          ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
+          : (selectedTrip.priceChild || basePriceAdult));
     
     // Children over 4 years old are charged adult price and need their own seat
     const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
@@ -725,9 +739,9 @@ export default function App() {
 
     const totalBase = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
     const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
-    // Calculate selected addons total
-    const selectedAddons = (selectedTrip.addons || []).filter((a: TripAddon) => selectedAddonIds.includes(a.id));
-    const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price, 0);
+    // Calculate selected addons total (price × quantity)
+    const selectedAddons = (selectedTrip.addons || []).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
+    const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (addonQuantities[a.id] || 1), 0);
     const totalAmount = Math.round((totalBase + totalSurcharge + addonsTotalPrice) * (1 - bookingDiscount / 100));
 
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
@@ -745,14 +759,17 @@ export default function App() {
       seatId,
       seatIds: allSeatIds,
       amount: totalAmount,
-      agent: currentUser?.role === UserRole.AGENT ? currentUser.name : 'Trực tiếp',
+      agent: currentUser?.role === UserRole.AGENT
+        ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
+        : 'Trực tiếp',
+      agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
       status: 'BOOKED',
       adults,
       children,
       pickupPoint,
       dropoffPoint,
       paymentMethod: paymentMethodInput,
-      selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price })),
+      selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: addonQuantities[a.id] || 1 })),
       // Fare-table fields (Option 2) – present only when a fare was resolved
       ...(fareAmount !== null && fromStopId && toStopId ? {
         fromStopId,
@@ -803,7 +820,7 @@ export default function App() {
     setSurchargeAmount(0);
     setBookingDiscount(0);
     setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
-    setSelectedAddonIds([]);
+    setAddonQuantities({});
     // Reset fare-table state
     setFareAmount(null);
     setFareError('');
@@ -914,7 +931,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard language={language} trips={trips} consignments={consignments} />;
+        return <Dashboard language={language} trips={trips} consignments={consignments} currentUser={currentUser} />;
       
       case 'settings':
         return (
@@ -1472,7 +1489,7 @@ export default function App() {
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold">{t.booking_title}: {showBookingForm}</h3>
-                    <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setSelectedAddonIds([]); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                    <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                   </div>
                   <form className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -1677,35 +1694,72 @@ export default function App() {
                         <p className="text-[10px] text-gray-400 mt-0.5 mb-2">{t.select_addons_hint}</p>
                         <div className="space-y-2">
                           {(selectedTrip.addons as TripAddon[]).map((addon) => {
-                            const checked = selectedAddonIds.includes(addon.id);
+                            const qty = addonQuantities[addon.id] || 0;
+                            const checked = qty > 0;
+                            const totalPassengers = adults + children;
                             return (
-                              <label
+                              <div
                                 key={addon.id}
                                 className={cn(
-                                  "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                                  "p-3 rounded-xl border transition-colors",
                                   checked
                                     ? "bg-emerald-50 border-emerald-300"
-                                    : "bg-gray-50 border-gray-100 hover:bg-emerald-50/50"
+                                    : "bg-gray-50 border-gray-100"
                                 )}
                               >
-                                <input
-                                  type="checkbox"
-                                  className="accent-daiichi-red w-4 h-4 flex-shrink-0"
-                                  checked={checked}
-                                  onChange={(e) => {
-                                    setSelectedAddonIds(prev =>
-                                      e.target.checked
-                                        ? [...prev, addon.id]
-                                        : prev.filter(id => id !== addon.id)
-                                    );
-                                  }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-sm text-gray-800">{addon.name}</p>
-                                  {addon.description && <p className="text-[10px] text-gray-500">{addon.description}</p>}
-                                </div>
-                                <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
-                              </label>
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="accent-daiichi-red w-4 h-4 flex-shrink-0"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      setAddonQuantities(prev => ({
+                                        ...prev,
+                                        [addon.id]: e.target.checked ? Math.max(1, totalPassengers) : 0,
+                                      }));
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-sm text-gray-800">{addon.name}</p>
+                                    {addon.description && <p className="text-[10px] text-gray-500">{addon.description}</p>}
+                                  </div>
+                                  <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">
+                                    +{addon.price.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '人' : 'pax'}
+                                  </span>
+                                </label>
+                                {checked && (
+                                  <div className="flex items-center gap-2 mt-2 ml-7">
+                                    <label className="text-[10px] text-gray-500 font-medium">
+                                      {language === 'vi' ? 'Số lượng:' : language === 'ja' ? '数量:' : 'Qty:'}
+                                    </label>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setAddonQuantities(prev => ({ ...prev, [addon.id]: Math.max(1, qty - 1) }))}
+                                        className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center"
+                                      >−</button>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={qty}
+                                        onChange={(e) => {
+                                          const v = parseInt(e.target.value) || 1;
+                                          setAddonQuantities(prev => ({ ...prev, [addon.id]: Math.max(1, v) }));
+                                        }}
+                                        className="w-12 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setAddonQuantities(prev => ({ ...prev, [addon.id]: qty + 1 }))}
+                                        className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center"
+                                      >+</button>
+                                    </div>
+                                    <span className="text-[10px] text-emerald-700 font-bold ml-auto">
+                                      = {(addon.price * qty).toLocaleString()}đ
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
@@ -1745,9 +1799,18 @@ export default function App() {
 
                     <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
                       {(() => {
-                        // Use fare-table price when available, otherwise fall back to trip price
-                        const basePriceAdult = fareAmount !== null ? fareAmount : (selectedTrip.price || 0);
-                        const basePriceChild = fareAmount !== null ? fareAmount : (selectedTrip.priceChild || basePriceAdult);
+                        // For agents use agentPrice when available; otherwise fall back to trip price
+                        const isAgentBookingForm = currentUser?.role === UserRole.AGENT;
+                        const basePriceAdult = fareAmount !== null
+                          ? fareAmount
+                          : (isAgentBookingForm
+                              ? (selectedTrip.agentPrice || selectedTrip.price || 0)
+                              : (selectedTrip.price || 0));
+                        const basePriceChild = fareAmount !== null
+                          ? fareAmount
+                          : (isAgentBookingForm
+                              ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
+                              : (selectedTrip.priceChild || basePriceAdult));
                         const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
                           (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
                           { childrenOver4: 0, childrenUnder4: 0 }
@@ -1757,8 +1820,8 @@ export default function App() {
                         const baseTotal = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
                         const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * (effectiveAdults + effectiveChildren), 0);
                         const allSurcharges = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
-                        const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => selectedAddonIds.includes(a.id));
-                        const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price, 0);
+                        const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
+                        const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
                         const finalTotal = Math.round((baseTotal + allSurcharges + addonsTotalInForm) * (1 - bookingDiscount / 100));
                         return (
                           <>
@@ -1767,6 +1830,9 @@ export default function App() {
                                 {fareAmount !== null
                                   ? (t.fare_based_price || 'Fare table price')
                                   : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
+                                {isAgentBookingForm && selectedTrip.agentPrice > 0 && fareAmount === null && (
+                                  <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
+                                )}
                               </span>
                               <span>{baseTotal.toLocaleString()}đ</span>
                             </div>
@@ -1796,8 +1862,8 @@ export default function App() {
                             )}
                             {selectedAddonsInForm.map(a => (
                               <div key={a.id} className="flex justify-between items-center text-xs text-emerald-600">
-                                <span>+ {a.name}</span>
-                                <span>+{a.price.toLocaleString()}đ</span>
+                                <span>+ {a.name} × {addonQuantities[a.id] || 1}</span>
+                                <span>+{(a.price * (addonQuantities[a.id] || 1)).toLocaleString()}đ</span>
                               </div>
                             ))}
                             {(allSurcharges > 0 || addonsTotalInForm > 0) && <div className="border-t border-daiichi-accent/40 pt-1" />}
@@ -1962,7 +2028,10 @@ export default function App() {
             notes: tourNotes,
             amount: tourTotal,
             paymentMethod: tourPaymentMethod,
-            agent: currentUser?.role === UserRole.AGENT ? currentUser.name : 'Trực tiếp',
+            agent: currentUser?.role === UserRole.AGENT
+              ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
+              : 'Trực tiếp',
+            agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
             status: 'BOOKED',
           };
           try {

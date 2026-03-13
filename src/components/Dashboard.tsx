@@ -9,7 +9,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
-import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../App';
+import { TRANSLATIONS, Language, TripStatus, SeatStatus, UserRole } from '../App';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
 
@@ -17,9 +17,10 @@ interface DashboardProps {
   language: Language;
   trips: any[];
   consignments: any[];
+  currentUser: any;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps, currentUser }) => {
   const t = TRANSLATIONS[language];
   const [bookings, setBookings] = useState<any[]>([]);
   const [consignments, setConsignments] = useState<any[]>([]);
@@ -58,6 +59,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   const [editingBooking, setEditingBooking] = useState<any>(null);
   // Detail View State
   const [viewingBooking, setViewingBooking] = useState<any>(null);
+
+  const isAgent = currentUser?.role === UserRole.AGENT;
+  // Effective agent identifier used in booking.agent field
+  const agentIdentifier = isAgent
+    ? (currentUser.name || currentUser.address || currentUser.agentCode || '')
+    : '';
 
   // Subscribe to bookings from Firebase
   useEffect(() => {
@@ -113,6 +120,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   };
 
   const filteredBookings = bookings.filter(b => {
+    // Agent scope: only show bookings created by this agent
+    if (isAgent) {
+      const matchesAgentId = currentUser.id && b.agentId === currentUser.id;
+      const matchesAgentName = agentIdentifier && (b.agent || '') === agentIdentifier;
+      if (!matchesAgentId && !matchesAgentName) return false;
+    }
+
     const matchesType = filterType === 'ALL' || b.type === filterType;
     const matchesSearch = (b.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                          (b.agent || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -131,6 +145,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   const uniqueAgents = Array.from(new Set(bookings.map(b => b.agent).filter(Boolean)));
 
   const filteredConsignments = consignments.filter(c => {
+    // Agent scope: only show consignments created by this agent
+    if (isAgent) {
+      const matchesAgentId = currentUser.id && c.agentId === currentUser.id;
+      const matchesAgentName = agentIdentifier && (c.agentName || '') === agentIdentifier;
+      if (!matchesAgentId && !matchesAgentName) return false;
+    }
+
     const q = consignmentSearch.toLowerCase();
     const matchesSearch = !q ||
       (c.senderName || c.sender || '').toLowerCase().includes(q) ||
@@ -143,12 +164,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     return matchesSearch && matchesStatus;
   });
 
+  // For agents: stats are scoped to their own data; for managers: show all
+  const scopedBookings = isAgent
+    ? bookings.filter(b =>
+        (currentUser.id && b.agentId === currentUser.id) ||
+        (agentIdentifier && (b.agent || '') === agentIdentifier))
+    : bookings;
+  const scopedConsignments = isAgent
+    ? consignments.filter(c =>
+        (currentUser.id && c.agentId === currentUser.id) ||
+        (agentIdentifier && (c.agentName || '') === agentIdentifier))
+    : consignments;
+
   const totalTrips = trips.length;
   const totalSeatsBooked = trips.reduce((sum, trip) =>
     sum + (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length, 0
   );
-  const totalConsignments = consignments.length;
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.amount || 0), 0);
+  const totalConsignments = scopedConsignments.length;
+  const totalRevenue = scopedBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
 
   const formatRevenue = (amount: number) => {
     if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(1)}T`;
@@ -178,7 +211,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     }
   };
 
-  const recentActivities = bookings.slice(0, 3).map(b => ({
+  const recentActivities = scopedBookings.slice(0, 3).map(b => ({
     msg: language === 'vi'
       ? `Đặt chỗ mới: ${b.customerName || ''} - ${b.route || ''}`
       : `New booking: ${b.customerName || ''} - ${b.route || ''}`,
