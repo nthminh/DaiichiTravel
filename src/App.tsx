@@ -56,7 +56,7 @@ const PAYMENT_METHOD_TRANSLATION_KEYS: Record<PaymentMethod, string> = {
 export interface User {
   id: string;
   username: string;
-  role: UserRole;
+  role: UserRole | string; // UserRole for admin/agent/customer, employee role string for staff
   name: string;
   address?: string;
   agentCode?: string;
@@ -215,7 +215,7 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', address: '', role: 'STAFF' as Employee['role'], status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', note: '' });
+  const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', address: '', role: 'STAFF' as Employee['role'], position: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', note: '' });
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'ALL' | Employee['role']>('ALL');
   const [showEmployeeFilters, setShowEmployeeFilters] = useState(false);
@@ -244,12 +244,13 @@ export default function App() {
   // Route stops (intermediate stops for a route)
   const [routeFormStops, setRouteFormStops] = useState<RouteStop[]>([]);
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
+  const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
   const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
 
   // Fare table for route (retail + agent price per segment)
-  const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number }>>([]);
+  const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>([]);
   const [showAddRouteFare, setShowAddRouteFare] = useState(false);
-  const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0 });
+  const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
 
   // Vehicle CRUD state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -440,7 +441,7 @@ export default function App() {
       }
       setShowAddEmployee(false);
       setEditingEmployee(null);
-      setEmployeeForm({ name: '', phone: '', email: '', address: '', role: 'STAFF', status: 'ACTIVE', username: '', password: '', note: '' });
+      setEmployeeForm({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' });
     } catch (err) {
       console.error('Failed to save employee:', err);
     }
@@ -457,7 +458,7 @@ export default function App() {
 
   const handleStartEditEmployee = (employee: Employee) => {
     setEditingEmployee(employee);
-    setEmployeeForm({ name: String(employee.name ?? ''), phone: String(employee.phone ?? ''), email: String(employee.email ?? ''), address: String(employee.address ?? ''), role: employee.role, status: employee.status, username: String(employee.username ?? ''), password: String(employee.password ?? ''), note: String(employee.note ?? '') });
+    setEmployeeForm({ name: String(employee.name ?? ''), phone: String(employee.phone ?? ''), email: String(employee.email ?? ''), address: String(employee.address ?? ''), role: employee.role, position: String(employee.position ?? ''), status: employee.status, username: String(employee.username ?? ''), password: String(employee.password ?? ''), note: String(employee.note ?? '') });
     setShowAddEmployee(true);
   };
 
@@ -477,7 +478,7 @@ export default function App() {
       if (routeId && routeFormFares.length > 0) {
         for (const fare of routeFormFares) {
           try {
-            await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined);
+            await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined, 'VND', fare.startDate || undefined, fare.endDate || undefined);
           } catch (err) {
             console.error('Failed to save fare:', fare, err);
           }
@@ -493,6 +494,7 @@ export default function App() {
       setShowAddRouteSurcharge(false);
       setRouteFormStops([]);
       setShowAddRouteStop(false);
+      setEditingRouteStop(null);
       setRouteFormFares([]);
       setShowAddRouteFare(false);
     } catch (err) {
@@ -533,6 +535,8 @@ export default function App() {
           toName: loadedStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
           price: f.price,
           agentPrice: f.agentPrice || 0,
+          startDate: f.startDate || '',
+          endDate: f.endDate || '',
         })));
       }).catch((err) => { console.error('Failed to load route fares:', err); });
     }
@@ -574,6 +578,8 @@ export default function App() {
           toName: loadedStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
           price: f.price,
           agentPrice: f.agentPrice || 0,
+          startDate: f.startDate || '',
+          endDate: f.endDate || '',
         })));
       }).catch((err) => { console.error('Failed to load route fares for copy:', err); });
     }
@@ -3040,7 +3046,7 @@ export default function App() {
                 <h2 className="text-2xl font-bold">{t.employee_management || 'Quản lý Nhân viên'}</h2>
                 <p className="text-sm text-gray-500">{t.employee_desc || 'Quản lý nhân viên, tài xế và tài khoản đăng nhập'}</p>
               </div>
-              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: 'STAFF', status: 'ACTIVE', username: '', password: '', note: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
+              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
             </div>
 
             {/* Add/Edit Employee Modal */}
@@ -3056,13 +3062,33 @@ export default function App() {
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.phone_number}</label><input type="text" value={employeeForm.phone} onChange={e => setEmployeeForm(p => ({ ...p, phone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Email</label><input type="email" value={employeeForm.email} onChange={e => setEmployeeForm(p => ({ ...p, email: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Địa chỉ' : 'Address'}</label><input type="text" value={employeeForm.address} onChange={e => setEmployeeForm(p => ({ ...p, address: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_role || 'Chức vụ'}</label>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_role || 'Chức vụ'}</label>
+                      <input
+                        list="position-suggestions"
+                        type="text"
+                        value={employeeForm.position}
+                        onChange={e => setEmployeeForm(p => ({ ...p, position: e.target.value }))}
+                        placeholder={language === 'vi' ? 'Nhập hoặc chọn chức vụ...' : 'Type or select position...'}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                      />
+                      <datalist id="position-suggestions">
+                        <option value={t.role_staff || 'Nhân viên'} />
+                        <option value={t.role_driver || 'Tài xế'} />
+                        <option value={t.role_accountant || 'Kế toán'} />
+                        <option value={language === 'vi' ? 'Trợ lý' : 'Assistant'} />
+                        <option value={language === 'vi' ? 'Trưởng nhóm' : 'Team Lead'} />
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_permissions || 'Nhóm phân quyền'}</label>
                       <select value={employeeForm.role} onChange={e => setEmployeeForm(p => ({ ...p, role: e.target.value as Employee['role'] }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="STAFF">{t.role_staff || 'Nhân viên'}</option>
                         <option value="DRIVER">{t.role_driver || 'Tài xế'}</option>
                         <option value="ACCOUNTANT">{t.role_accountant || 'Kế toán'}</option>
                         <option value="OTHER">{t.role_other || 'Khác'}</option>
                       </select>
+                      <p className="text-[9px] text-gray-400 mt-1 ml-1">{language === 'vi' ? '* Xác định trang được phép truy cập (cấu hình tại Cài đặt → Phân quyền)' : '* Determines accessible pages (configure in Settings → Permissions)'}</p>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
                       <select value={employeeForm.status} onChange={e => setEmployeeForm(p => ({ ...p, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
@@ -3182,7 +3208,7 @@ export default function App() {
                         </td>
                         <td className="px-8 py-5">
                           <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
-                            {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
+                            {emp.position || EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
                           </span>
                         </td>
                         <td className="px-8 py-5 max-w-[220px]">
@@ -3471,7 +3497,7 @@ export default function App() {
                           <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Các điểm dừng trung gian để bán vé theo chặng (A→B, B→C)' : 'Intermediate stops enabling segment ticket sales (A→B, B→C)'}</p>
                         </div>
                         {!showAddRouteStop && (
-                          <button onClick={() => { setShowAddRouteStop(true); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
+                          <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
                             + {language === 'vi' ? 'Thêm điểm dừng' : 'Add stop'}
                           </button>
                         )}
@@ -3481,7 +3507,7 @@ export default function App() {
                         <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có điểm dừng – thêm điểm dừng để bán vé từng chặng' : 'No stops yet – add stops to enable per-segment ticket sales'}</p>
                       )}
 
-                      {[...routeFormStops].sort((a, b) => a.order - b.order).map((stop, idx) => (
+                      {[...routeFormStops].sort((a, b) => a.order - b.order).map((stop, idx, sortedArr) => (
                         <div key={stop.stopId || idx} className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
                           <span className="w-6 h-6 flex-shrink-0 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{stop.order}</span>
                           <div className="flex-1 min-w-0">
@@ -3489,16 +3515,40 @@ export default function App() {
                             <p className="text-[10px] text-gray-400">{stop.stopId}</p>
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => setRouteFormStops(prev => prev.map(s => s.stopId === stop.stopId ? { ...s, order: Math.max(1, s.order - 1) } : s).map((s, i, arr) => {
-                              const sorted = [...arr].sort((a, b) => a.order - b.order);
-                              const pos = sorted.findIndex(x => x.stopId === s.stopId);
-                              return { ...s, order: pos + 1 };
-                            }))} disabled={idx === 0} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold">↑</button>
-                            <button onClick={() => setRouteFormStops(prev => prev.map(s => s.stopId === stop.stopId ? { ...s, order: s.order + 1 } : s).map((s, i, arr) => {
-                              const sorted = [...arr].sort((a, b) => a.order - b.order);
-                              const pos = sorted.findIndex(x => x.stopId === s.stopId);
-                              return { ...s, order: pos + 1 };
-                            }))} disabled={idx === routeFormStops.length - 1} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold">↓</button>
+                            <button
+                              onClick={() => {
+                                if (idx === 0) return;
+                                const prevStop = sortedArr[idx - 1];
+                                setRouteFormStops(prev => prev.map(s => {
+                                  if (s.stopId === stop.stopId) return { ...s, order: prevStop.order };
+                                  if (s.stopId === prevStop.stopId) return { ...s, order: stop.order };
+                                  return s;
+                                }));
+                              }}
+                              disabled={idx === 0}
+                              className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold"
+                            >↑</button>
+                            <button
+                              onClick={() => {
+                                if (idx === sortedArr.length - 1) return;
+                                const nextStop = sortedArr[idx + 1];
+                                setRouteFormStops(prev => prev.map(s => {
+                                  if (s.stopId === stop.stopId) return { ...s, order: nextStop.order };
+                                  if (s.stopId === nextStop.stopId) return { ...s, order: stop.order };
+                                  return s;
+                                }));
+                              }}
+                              disabled={idx === routeFormStops.length - 1}
+                              className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold"
+                            >↓</button>
+                            <button
+                              onClick={() => {
+                                setEditingRouteStop(stop);
+                                setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order });
+                                setShowAddRouteStop(true);
+                              }}
+                              className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                            ><Edit3 size={12} /></button>
                             <button onClick={() => { setRouteFormStops(prev => prev.filter(s => s.stopId !== stop.stopId).map((s, i) => ({ ...s, order: i + 1 }))); setRouteFormFares(prev => prev.filter(f => f.fromStopId !== stop.stopId && f.toStopId !== stop.stopId)); }} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 size={12} /></button>
                           </div>
                         </div>
@@ -3506,6 +3556,7 @@ export default function App() {
 
                       {showAddRouteStop && (
                         <div className="border border-dashed border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/50">
+                          <p className="text-xs font-bold text-purple-600">{editingRouteStop ? (language === 'vi' ? 'Chỉnh sửa điểm dừng' : 'Edit Stop') : (language === 'vi' ? 'Thêm điểm dừng' : 'Add Stop')}</p>
                           <div className="grid grid-cols-1 gap-3">
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Chọn điểm dừng' : 'Select stop'}</label>
@@ -3518,7 +3569,7 @@ export default function App() {
                                 className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
                               >
                                 <option value="">{language === 'vi' ? '-- Chọn điểm dừng --' : '-- Select stop --'}</option>
-                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id)).map(s => (
+                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id) || (editingRouteStop && s.id === editingRouteStop.stopId)).map(s => (
                                   <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                               </select>
@@ -3529,16 +3580,28 @@ export default function App() {
                             </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowAddRouteStop(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                             <button
                               disabled={!routeStopForm.stopId}
                               onClick={() => {
                                 const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order };
-                                setRouteFormStops(prev => {
-                                  const updated = [...prev, newStop].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
-                                  return updated;
-                                });
+                                if (editingRouteStop) {
+                                  setRouteFormStops(prev => {
+                                    const updated = prev.map(s => s.stopId === editingRouteStop.stopId ? newStop : s);
+                                    return [...updated].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
+                                  });
+                                  // Update fares that referenced the old stopId if it changed
+                                  if (editingRouteStop.stopId !== newStop.stopId) {
+                                    setRouteFormFares(prev => prev.filter(f => f.fromStopId !== editingRouteStop.stopId && f.toStopId !== editingRouteStop.stopId));
+                                  }
+                                } else {
+                                  setRouteFormStops(prev => {
+                                    const updated = [...prev, newStop].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
+                                    return updated;
+                                  });
+                                }
                                 setShowAddRouteStop(false);
+                                setEditingRouteStop(null);
                                 setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2 });
                               }}
                               className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
@@ -3556,10 +3619,10 @@ export default function App() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Bảng giá theo chặng' : language === 'ja' ? '区間別運賃表' : 'Segment Fare Table'}</p>
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá vé lẻ và đại lý cho từng cặp điểm đón/trả' : 'Retail and agent prices for each from→to stop pair'}</p>
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá vé lẻ và đại lý cho từng cặp điểm đón/trả (có thể đặt thời hạn áp dụng)' : 'Retail and agent prices for each from→to stop pair (optional date range)'}</p>
                           </div>
                           {!showAddRouteFare && (
-                            <button onClick={() => { setShowAddRouteFare(true); setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice }); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-100">
+                            <button onClick={() => { setShowAddRouteFare(true); setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-100">
                               + {language === 'vi' ? 'Thêm giá chặng' : 'Add fare'}
                             </button>
                           )}
@@ -3573,9 +3636,14 @@ export default function App() {
                           <div key={idx} className="flex items-center gap-3 bg-teal-50 rounded-xl p-3">
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-sm text-gray-800 truncate">{fare.fromName} → {fare.toName}</p>
-                              <div className="flex gap-3 mt-1">
+                              <div className="flex gap-3 mt-1 flex-wrap">
                                 <span className="text-xs font-bold text-daiichi-red">{fare.price.toLocaleString()}đ</span>
                                 {fare.agentPrice > 0 && <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {fare.agentPrice.toLocaleString()}đ</span>}
+                                {(fare.startDate || fare.endDate) && (
+                                  <span className="text-xs text-gray-400">
+                                    {fare.startDate && fare.endDate ? `${fare.startDate} → ${fare.endDate}` : fare.startDate ? `${language === 'vi' ? 'Từ' : 'From'} ${fare.startDate}` : `${language === 'vi' ? 'Đến' : 'To'} ${fare.endDate}`}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <button onClick={() => setRouteFormFares(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
@@ -3613,6 +3681,14 @@ export default function App() {
                                 <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.agent_price} (đ)</label>
                                 <input type="number" min="0" value={routeFareForm.agentPrice} onChange={e => setRouteFareForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
                               </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Áp dụng từ ngày' : 'Valid from'}</label>
+                                <input type="date" value={routeFareForm.startDate} onChange={e => setRouteFareForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày' : 'Valid until'}</label>
+                                <input type="date" value={routeFareForm.endDate} onChange={e => setRouteFareForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" />
+                              </div>
                             </div>
                             <div className="flex justify-end gap-2">
                               <button onClick={() => setShowAddRouteFare(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
@@ -3629,14 +3705,14 @@ export default function App() {
                                   }
                                   setRouteFormFares(prev => {
                                     const existing = prev.findIndex(f => f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
-                                    const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice };
+                                    const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice, startDate: routeFareForm.startDate, endDate: routeFareForm.endDate };
                                     if (existing >= 0) {
                                       return prev.map((f, i) => i === existing ? newFare : f);
                                     }
                                     return [...prev, newFare];
                                   });
                                   setShowAddRouteFare(false);
-                                  setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice });
+                                  setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' });
                                 }}
                                 className="px-4 py-1.5 bg-teal-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
                               >
@@ -4611,6 +4687,7 @@ export default function App() {
           setLanguage={setLanguage} 
           adminCredentials={adminCredentials}
           agents={agents}
+          employees={employees}
           agentsLoading={agentsLoading}
         />
       </>

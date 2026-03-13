@@ -10,10 +10,11 @@ interface LoginProps {
   setLanguage: (l: Language) => void;
   adminCredentials: any;
   agents: any[];
+  employees?: any[];
   agentsLoading?: boolean;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, agentsLoading }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, agentsLoading }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -57,6 +58,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         balance: agent.balance 
       });
       return;
+    }
+
+    // Check Employees (drivers, staff, etc.)
+    if (employees && employees.length > 0) {
+      const employee = employees.find(emp =>
+        emp.username && emp.password != null &&
+        emp.status !== 'INACTIVE' &&
+        String(emp.username).trim().toLowerCase() === normalizedUsername &&
+        String(emp.password).trim() === trimmedPassword
+      );
+      if (employee) {
+        onLogin({
+          id: employee.id,
+          username: employee.username,
+          role: employee.role, // e.g. 'DRIVER', 'STAFF', 'ACCOUNTANT'
+          name: employee.name,
+        });
+        return;
+      }
     }
 
     setError(t.login_error);
