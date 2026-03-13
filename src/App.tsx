@@ -3538,7 +3538,7 @@ export default function App() {
                                   return s;
                                 }));
                               }}
-                              disabled={idx === routeFormStops.length - 1}
+                              disabled={idx === sortedArr.length - 1}
                               className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold"
                             >↓</button>
                             <button
@@ -3569,7 +3569,7 @@ export default function App() {
                                 className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
                               >
                                 <option value="">{language === 'vi' ? '-- Chọn điểm dừng --' : '-- Select stop --'}</option>
-                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id) || (editingRouteStop && s.id === editingRouteStop.stopId)).map(s => (
+                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id) || s.id === editingRouteStop?.stopId).map(s => (
                                   <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                               </select>
@@ -3590,7 +3590,9 @@ export default function App() {
                                     const updated = prev.map(s => s.stopId === editingRouteStop.stopId ? newStop : s);
                                     return [...updated].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
                                   });
-                                  // Update fares that referenced the old stopId if it changed
+                                  // If the stop ID changed, remove fares referencing the old stopId
+                                  // because the old fare's Firestore docId encodes the original stopIds
+                                  // and cannot be remapped without creating new Firestore documents.
                                   if (editingRouteStop.stopId !== newStop.stopId) {
                                     setRouteFormFares(prev => prev.filter(f => f.fromStopId !== editingRouteStop.stopId && f.toStopId !== editingRouteStop.stopId));
                                   }
