@@ -231,6 +231,8 @@ export default function App() {
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
   const [tripAddonForm, setTripAddonForm] = useState({ name: '', price: 0, description: '', type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' });
   const [showAddTripAddon, setShowAddTripAddon] = useState(false);
+  // Selected addon IDs for the current booking
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
   const [newConsignment, setNewConsignment] = useState({
     senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
     type: '', weight: '', cod: 0, notes: '',
@@ -679,7 +681,10 @@ export default function App() {
 
     const totalBase = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
     const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
-    const totalAmount = Math.round((totalBase + totalSurcharge) * (1 - bookingDiscount / 100));
+    // Calculate selected addons total
+    const selectedAddons = (selectedTrip.addons || []).filter((a: TripAddon) => selectedAddonIds.includes(a.id));
+    const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price, 0);
+    const totalAmount = Math.round((totalBase + totalSurcharge + addonsTotalPrice) * (1 - bookingDiscount / 100));
 
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
     const extraSeatsForBooking = extraSeatIds.slice(0, (adults - 1) + childrenOver4);
@@ -703,6 +708,7 @@ export default function App() {
       pickupPoint,
       dropoffPoint,
       paymentMethod: paymentMethodInput,
+      selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price })),
     };
 
     try {
@@ -746,6 +752,7 @@ export default function App() {
     setSurchargeAmount(0);
     setBookingDiscount(0);
     setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
+    setSelectedAddonIds([]);
 
     // Send real-time notification
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1335,7 +1342,7 @@ export default function App() {
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold">{t.booking_title}: {showBookingForm}</h3>
-                    <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                    <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setSelectedAddonIds([]); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                   </div>
                   <form className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -1486,6 +1493,48 @@ export default function App() {
                       />
                     </div>
 
+                    {/* Add-on Services selection */}
+                    {(selectedTrip.addons || []).length > 0 && (
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.select_addons}</label>
+                        <p className="text-[10px] text-gray-400 mt-0.5 mb-2">{t.select_addons_hint}</p>
+                        <div className="space-y-2">
+                          {(selectedTrip.addons as TripAddon[]).map((addon) => {
+                            const checked = selectedAddonIds.includes(addon.id);
+                            return (
+                              <label
+                                key={addon.id}
+                                className={cn(
+                                  "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors",
+                                  checked
+                                    ? "bg-emerald-50 border-emerald-300"
+                                    : "bg-gray-50 border-gray-100 hover:bg-emerald-50/50"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="accent-daiichi-red w-4 h-4 flex-shrink-0"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    setSelectedAddonIds(prev =>
+                                      e.target.checked
+                                        ? [...prev, addon.id]
+                                        : prev.filter(id => id !== addon.id)
+                                    );
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm text-gray-800">{addon.name}</p>
+                                  {addon.description && <p className="text-[10px] text-gray-500">{addon.description}</p>}
+                                </div>
+                                <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Discount selector */}
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_discount}</label>
@@ -1530,7 +1579,9 @@ export default function App() {
                         const baseTotal = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
                         const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * (effectiveAdults + effectiveChildren), 0);
                         const allSurcharges = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
-                        const finalTotal = Math.round((baseTotal + allSurcharges) * (1 - bookingDiscount / 100));
+                        const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => selectedAddonIds.includes(a.id));
+                        const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price, 0);
+                        const finalTotal = Math.round((baseTotal + allSurcharges + addonsTotalInForm) * (1 - bookingDiscount / 100));
                         return (
                           <>
                             <div className="flex justify-between items-center text-xs text-gray-500">
@@ -1561,7 +1612,13 @@ export default function App() {
                                 <span>+{surchargeAmount.toLocaleString()}đ</span>
                               </div>
                             )}
-                            {allSurcharges > 0 && <div className="border-t border-daiichi-accent/40 pt-1" />}
+                            {selectedAddonsInForm.map(a => (
+                              <div key={a.id} className="flex justify-between items-center text-xs text-emerald-600">
+                                <span>+ {a.name}</span>
+                                <span>+{a.price.toLocaleString()}đ</span>
+                              </div>
+                            ))}
+                            {(allSurcharges > 0 || addonsTotalInForm > 0) && <div className="border-t border-daiichi-accent/40 pt-1" />}
                             <div className="flex justify-between items-center">
                               <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
                               <span className="text-xl font-bold text-daiichi-red">{finalTotal.toLocaleString()}đ</span>

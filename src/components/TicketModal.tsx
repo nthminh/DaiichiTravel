@@ -111,8 +111,8 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                     : t.ticket_sent_desc}
                 </p>
               </div>
-              <button onClick={onClose} className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors">
-                <X size={24} />
+              <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-white/20 hover:bg-white/40 rounded-full transition-colors">
+                <X size={20} />
               </button>
             </div>
 
@@ -318,6 +318,21 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                       <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
                     </div>
                   </div>
+
+                  {/* Selected add-on services */}
+                  {booking.selectedAddons && booking.selectedAddons.length > 0 && (
+                    <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-100">
+                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">{t.select_addons}</p>
+                      <div className="space-y-1">
+                        {booking.selectedAddons.map((a: { id: string; name: string; price: number }) => (
+                          <div key={a.id} className="flex justify-between items-center text-sm">
+                            <span className="font-medium text-gray-700">{a.name}</span>
+                            <span className="font-bold text-emerald-700">+{a.price.toLocaleString()}đ</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -334,7 +349,11 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             </div>
 
             {/* Actions */}
-            <div className="ticket-actions-print p-8 bg-gray-50 flex gap-4 shrink-0">
+            <div className="ticket-actions-print p-6 bg-gray-50 flex gap-3 shrink-0">
+              <button onClick={onClose} className="flex items-center justify-center gap-2 px-5 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
+                <X size={18} />
+                {t.close_ticket}
+              </button>
               <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
                 <Download size={20} />
                 {language === 'vi' ? 'Tải xuống' : 'Download'}
