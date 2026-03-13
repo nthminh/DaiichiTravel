@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Bus, Users, Package, ChevronRight,
+  Bus, Users, ChevronRight,
   Download, Filter, Calendar as CalendarIcon, Search,
-  TrendingUp, User,
+  User,
   MapPin, Clock, CreditCard, Tag, Edit3, Trash2, X, Check,
   Eye, Moon, Coffee, Hotel
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
-import { TRANSLATIONS, Language, TripStatus, SeatStatus, UserRole } from '../App';
+import { TRANSLATIONS, Language, TripStatus, UserRole } from '../App';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
 
@@ -83,7 +83,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Bookings");
-    XLSX.writeFile(workbook, `Daiichi_Bookings_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `Daiichi_Bookings_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`);
   };
 
   const handleDelete = async (id: string) => {
@@ -177,26 +177,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         (agentIdentifier && (c.agentName || '') === agentIdentifier))
     : consignments;
 
-  const totalTrips = trips.length;
-  const totalSeatsBooked = trips.reduce((sum, trip) =>
-    sum + (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length, 0
-  );
-  const totalConsignments = scopedConsignments.length;
-  const totalRevenue = scopedBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
 
-  const formatRevenue = (amount: number) => {
-    if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(1)}T`;
-    if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `${(amount / 1000).toFixed(0)}K`;
-    return amount.toLocaleString();
-  };
-
-  const stats = [
-    { label: t.stats_trips, value: String(totalTrips), icon: Bus, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: language === 'vi' ? 'Ghế đã đặt' : 'Seats Booked', value: String(totalSeatsBooked), icon: Users, color: 'text-daiichi-red', bg: 'bg-red-50' },
-    { label: t.stats_consignments, value: String(totalConsignments), icon: Package, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: language === 'vi' ? 'Doanh thu dự kiến' : 'Expected Revenue', value: formatRevenue(totalRevenue), icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
-  ];
 
   const formatActivityTime = (createdAt: any): string => {
     if (!createdAt) return '';
@@ -206,7 +187,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       if (diffMins < 60) return language === 'vi' ? `${diffMins} phút trước` : `${diffMins} mins ago`;
       const diffHours = Math.floor(diffMins / 60);
       if (diffHours < 24) return language === 'vi' ? `${diffHours} giờ trước` : `${diffHours} hours ago`;
-      return date.toLocaleDateString();
+      return date.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
     } catch {
       return '';
     }
@@ -243,31 +224,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className={cn("p-4 rounded-2xl", stat.bg, stat.color)}>
-                <stat.icon size={24} />
-              </div>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-              <h3 className="text-3xl font-bold mt-1 text-gray-800">{stat.value}</h3>
-            </div>
-            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500">
-              <stat.icon size={120} />
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {/* Stats Grid removed as per requirements */}
 
       <div className="space-y-8">
         {/* Main Booking List - Full Width */}
@@ -606,7 +563,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 })));
                 const workbook = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(workbook, worksheet, language === 'vi' ? 'Hàng hóa' : 'Consignments');
-                XLSX.writeFile(workbook, `Daiichi_Consignments_${new Date().toISOString().split('T')[0]}.xlsx`);
+                XLSX.writeFile(workbook, `Daiichi_Consignments_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`);
               }}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all"
             >
