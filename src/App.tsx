@@ -109,6 +109,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [language, setLanguage] = useState<Language>('vi');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>> | null>(() => {
+    try {
+      const saved = localStorage.getItem('daiichi_permissions');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [trips, setTrips] = useState<Trip[]>([]);
   const [consignments, setConsignments] = useState<Consignment[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
@@ -266,6 +272,17 @@ export default function App() {
       localStorage.removeItem('currentUser');
     }
   }, [currentUser]);
+
+  // Subscribe to permissions from Firestore in real-time
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToPermissions((perms) => {
+      if (perms) {
+        setPermissions(perms);
+        localStorage.setItem('daiichi_permissions', JSON.stringify(perms));
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, []);
 
   // Ensure agents and guests start on the home page
   useEffect(() => {
@@ -3854,7 +3871,8 @@ export default function App() {
         language={language} 
         setLanguage={setLanguage} 
         isSidebarOpen={isSidebarOpen} 
-        setIsSidebarOpen={setIsSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen}
+        permissions={permissions}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">

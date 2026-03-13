@@ -17,11 +17,12 @@ interface SidebarProps {
   setLanguage: (l: Language) => void;
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
+  permissions?: Record<string, Record<string, boolean>> | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   activeTab, setActiveTab, currentUser, onLogout, 
-  language, setLanguage, isSidebarOpen, setIsSidebarOpen 
+  language, setLanguage, isSidebarOpen, setIsSidebarOpen, permissions
 }) => {
   const t = TRANSLATIONS[language];
   const [isDaiichiOpen, setIsDaiichiOpen] = useState(false);
@@ -48,12 +49,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings', label: t.settings, icon: SettingsIcon, roles: [UserRole.MANAGER, UserRole.AGENT] },
   ];
 
-  const filteredOtherMenu = otherMenuItems.filter(item =>
-    !currentUser || item.roles.includes(currentUser.role)
-  );
-
+  const role = currentUser?.role ?? '';
+  const rolePerms = permissions?.[role];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
   const isDaiichiActive = daiichiItems.some(item => item.id === activeTab);
+
+  // For non-MANAGER: filter otherMenuItems using permissions (fallback to static role check)
+  const filteredOtherMenu = otherMenuItems.filter(item => {
+    if (!currentUser) return false;
+    if (currentUser.role === UserRole.MANAGER) return true;
+    if (rolePerms) return !!rolePerms[item.id];
+    return item.roles.includes(currentUser.role);
+  });
+
+  // For non-MANAGER: daiichi items accessible via permissions
+  const permittedDaiichiItems = !isAdmin && rolePerms
+    ? daiichiItems.filter(item => !!rolePerms[item.id])
+    : [];
 
   return (
     <div className={cn(
@@ -127,6 +139,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         <nav className="flex-1 space-y-2 overflow-y-auto">
+          {permittedDaiichiItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+              className={cn(
+                "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all",
+                activeTab === item.id
+                  ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20"
+                  : "text-gray-500 hover:bg-gray-50"
+              )}
+            >
+              <item.icon size={20} />
+              {item.label}
+            </button>
+          ))}
           {filteredOtherMenu.map((item) => (
             <button
               key={item.id}
