@@ -128,6 +128,8 @@ export default function App() {
   const [children, setChildren] = useState(0);
   const [pickupPoint, setPickupPoint] = useState('');
   const [dropoffPoint, setDropoffPoint] = useState('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [dropoffAddress, setDropoffAddress] = useState('');
   const [surchargeAmount, setSurchargeAmount] = useState(0);
   const [bookingDiscount, setBookingDiscount] = useState(0);
   const [pickupSurcharge, setPickupSurcharge] = useState(0);
@@ -1077,6 +1079,8 @@ export default function App() {
       customerPhone: bookingData.phone,
       ...(pickupPoint ? { pickupPoint } : {}),
       ...(dropoffPoint ? { dropoffPoint } : {}),
+      ...(pickupAddress ? { pickupAddress } : {}),
+      ...(dropoffAddress ? { dropoffAddress } : {}),
       ...(fromStopOrder !== undefined ? { fromStopOrder } : {}),
       ...(toStopOrder !== undefined ? { toStopOrder } : {}),
       ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
@@ -1113,6 +1117,8 @@ export default function App() {
     setExtraSeatIds([]);
     setPickupPoint('');
     setDropoffPoint('');
+    setPickupAddress('');
+    setDropoffAddress('');
     setPickupSurcharge(0);
     setDropoffSurcharge(0);
     setSurchargeAmount(0);
@@ -1574,6 +1580,8 @@ export default function App() {
           // Route-level surcharges
           const tripDate = selectedTrip.date || '';
           const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
+          // Pre-compute all stop names for pickup/dropoff address selects
+          const allStopNames = stops.map(s => s.name);
 
           // Build seat status lookup
           const seatStatusMap: Record<string, SeatStatus> = {};
@@ -1952,93 +1960,127 @@ export default function App() {
                     <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
                     <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
                     
-                    {/* Pickup Point */}
+                    {/* Departure Stop (Điểm xuất phát) + Pickup Address (Điểm đón) */}
                     {(() => {
                       const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
                       // When route has ordered stops, show them in order; otherwise show all stops
                       const pickupOptions = hasRouteFares && tripRoute?.routeStops
                         ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
                         : stops.map(s => s.name);
+                      // Default departure label from route if no stop selected
+                      const defaultDeparture = tripRoute?.departurePoint || '';
                       return (
-                        <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_point}</label>
-                          <SearchableSelect
-                            options={pickupOptions}
-                            value={pickupPoint}
-                            onChange={(val) => {
-                              setPickupPoint(val);
-                              // Determine stop ID: prefer routeStops match, fall back to global stops
-                              const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
-                              const globalStop = stops.find(s => s.name === val);
-                              const newFromId = routeStop?.stopId || globalStop?.id || '';
-                              setPickupSurcharge(globalStop?.surcharge || 0);
-                              setFromStopId(newFromId);
-                              // Reset fare and re-lookup if dropoff is already chosen
-                              setFareAmount(null);
-                              setFareError('');
-                              if (newFromId && toStopId && hasRouteFares) {
-                                lookupFare(tripRoute, newFromId, toStopId);
-                              }
-                            }}
-                            placeholder={t.select_pickup}
-                            className="mt-1"
-                          />
-                        </div>
+                        <>
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_point}</label>
+                            <SearchableSelect
+                              options={pickupOptions}
+                              value={pickupPoint}
+                              onChange={(val) => {
+                                setPickupPoint(val);
+                                // Determine stop ID: prefer routeStops match, fall back to global stops
+                                const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
+                                const globalStop = stops.find(s => s.name === val);
+                                const newFromId = routeStop?.stopId || globalStop?.id || '';
+                                setPickupSurcharge(globalStop?.surcharge || 0);
+                                setFromStopId(newFromId);
+                                // Reset fare and re-lookup if dropoff is already chosen
+                                setFareAmount(null);
+                                setFareError('');
+                                if (newFromId && toStopId && hasRouteFares) {
+                                  lookupFare(tripRoute, newFromId, toStopId);
+                                }
+                              }}
+                              placeholder={pickupPoint ? t.select_pickup : (defaultDeparture || t.select_pickup)}
+                              className="mt-1"
+                            />
+                            {!pickupPoint && defaultDeparture && (
+                              <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultDeparture}` : `Default: ${defaultDeparture}`}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
+                            <SearchableSelect
+                              options={allStopNames}
+                              value={pickupAddress}
+                              onChange={setPickupAddress}
+                              placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
+                              className="mt-1"
+                            />
+                          </div>
+                        </>
                       );
                     })()}
 
-                    {/* Dropoff Point */}
+                    {/* Destination Stop (Điểm đến) + Dropoff Address (Điểm trả) */}
                     {(() => {
                       const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
                       const dropoffOptions = hasRouteFares && tripRoute?.routeStops
                         ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
                         : stops.map(s => s.name);
+                      // Default arrival label from route if no stop selected
+                      const defaultArrival = tripRoute?.arrivalPoint || '';
                       return (
-                        <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_point}</label>
-                          <SearchableSelect
-                            options={dropoffOptions}
-                            value={dropoffPoint}
-                            onChange={(val) => {
-                              setDropoffPoint(val);
-                              // Determine stop ID: prefer routeStops match, fall back to global stops
-                              const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
-                              const globalStop = stops.find(s => s.name === val);
-                              const newToId = routeStop?.stopId || globalStop?.id || '';
-                              setDropoffSurcharge(globalStop?.surcharge || 0);
-                              setToStopId(newToId);
-                              // Reset fare and re-lookup if pickup is already chosen
-                              setFareAmount(null);
-                              setFareError('');
-                              if (fromStopId && newToId && hasRouteFares) {
-                                lookupFare(tripRoute, fromStopId, newToId);
-                              }
-                            }}
-                            placeholder={t.select_dropoff}
-                            className="mt-1"
-                          />
-                          {/* Fare lookup feedback */}
-                          {fareLoading && (
-                            <p className="mt-1 text-xs text-blue-500 animate-pulse">
-                              {t.fare_loading || 'Looking up fare...'}
-                            </p>
-                          )}
-                          {!fareLoading && fareError && (
-                            <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
-                          )}
-                          {!fareLoading && fareAmount !== null && (
-                            <div className="mt-1 space-y-0.5">
-                              <p className="text-xs text-emerald-600 font-bold">
-                                {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                        <>
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_point}</label>
+                            <SearchableSelect
+                              options={dropoffOptions}
+                              value={dropoffPoint}
+                              onChange={(val) => {
+                                setDropoffPoint(val);
+                                // Determine stop ID: prefer routeStops match, fall back to global stops
+                                const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
+                                const globalStop = stops.find(s => s.name === val);
+                                const newToId = routeStop?.stopId || globalStop?.id || '';
+                                setDropoffSurcharge(globalStop?.surcharge || 0);
+                                setToStopId(newToId);
+                                // Reset fare and re-lookup if pickup is already chosen
+                                setFareAmount(null);
+                                setFareError('');
+                                if (fromStopId && newToId && hasRouteFares) {
+                                  lookupFare(tripRoute, fromStopId, newToId);
+                                }
+                              }}
+                              placeholder={dropoffPoint ? t.select_dropoff : (defaultArrival || t.select_dropoff)}
+                              className="mt-1"
+                            />
+                            {!dropoffPoint && defaultArrival && (
+                              <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultArrival}` : `Default: ${defaultArrival}`}</p>
+                            )}
+                            {/* Fare lookup feedback */}
+                            {fareLoading && (
+                              <p className="mt-1 text-xs text-blue-500 animate-pulse">
+                                {t.fare_loading || 'Looking up fare...'}
                               </p>
-                              {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
-                                <p className="text-xs text-orange-600 font-bold">
-                                  {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                            )}
+                            {!fareLoading && fareError && (
+                              <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
+                            )}
+                            {!fareLoading && fareAmount !== null && (
+                              <div className="mt-1 space-y-0.5">
+                                <p className="text-xs text-emerald-600 font-bold">
+                                  {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
                                 </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                                {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
+                                  <p className="text-xs text-orange-600 font-bold">
+                                    {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
+                            <SearchableSelect
+                              options={allStopNames}
+                              value={dropoffAddress}
+                              onChange={setDropoffAddress}
+                              placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
+                              className="mt-1"
+                            />
+                          </div>
+                        </>
                       );
                     })()}
 
@@ -3097,6 +3139,7 @@ export default function App() {
                     <tr>
                       <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_name || 'Nhân viên'}</th>
                       <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_role || 'Chức vụ'}</th>
+                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_permissions || 'Phân quyền'}</th>
                       <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.phone_number}</th>
                       <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.username}</th>
                       <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
@@ -3106,11 +3149,32 @@ export default function App() {
                   <tbody className="divide-y divide-gray-100">
                     {filteredEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-8 py-12 text-center text-gray-400 text-sm">
+                        <td colSpan={7} className="px-8 py-12 text-center text-gray-400 text-sm">
                           {language === 'vi' ? 'Chưa có nhân viên nào. Nhấn "+ Thêm nhân viên" để bắt đầu.' : 'No employees yet. Click "+ Add Employee" to get started.'}
                         </td>
                       </tr>
-                    ) : filteredEmployees.map((emp) => (
+                    ) : filteredEmployees.map((emp) => {
+                      // Determine accessible pages for this employee's role
+                      const rolePerms = permissions?.[emp.role] || {};
+                      const PAGE_LABELS: Record<string, string> = {
+                        'home': language === 'vi' ? 'Trang chủ' : 'Home',
+                        'book-ticket': language === 'vi' ? 'Đặt vé' : 'Booking',
+                        'tours': language === 'vi' ? 'Tour' : 'Tours',
+                        'consignments': language === 'vi' ? 'Gửi hàng' : 'Consign.',
+                        'dashboard': 'Dashboard',
+                        'agents': language === 'vi' ? 'Đại lý' : 'Agents',
+                        'employees': language === 'vi' ? 'Nhân viên' : 'Staff',
+                        'routes': language === 'vi' ? 'Tuyến' : 'Routes',
+                        'vehicles': language === 'vi' ? 'Xe' : 'Vehicles',
+                        'operations': language === 'vi' ? 'Điều hành' : 'Ops',
+                        'completed-trips': language === 'vi' ? 'Hoàn thành' : 'Completed',
+                        'financial-report': language === 'vi' ? 'Tài chính' : 'Finance',
+                        'settings': language === 'vi' ? 'Cài đặt' : 'Settings',
+                      };
+                      const allowedPages = Object.entries(rolePerms)
+                        .filter(([, allowed]) => allowed)
+                        .map(([pageId]) => PAGE_LABELS[pageId] || pageId);
+                      return (
                       <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-8 py-5">
                           <p className="font-bold text-gray-800">{emp.name}</p>
@@ -3120,6 +3184,17 @@ export default function App() {
                           <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
                             {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
                           </span>
+                        </td>
+                        <td className="px-8 py-5 max-w-[220px]">
+                          {allowedPages.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {allowedPages.map(page => (
+                                <span key={page} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-semibold">{page}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-8 py-5 text-sm text-gray-700">{emp.phone || <span className="text-gray-300">—</span>}</td>
                         <td className="px-8 py-5">
@@ -3142,7 +3217,8 @@ export default function App() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -3794,6 +3870,11 @@ export default function App() {
       }
 
       case 'operations': {
+        // Pre-compute active employee names (drivers first) for driver select
+        const activeEmployeeNames = [
+          ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
+          ...employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
+        ];
         const filteredTrips = trips.filter(trip => {
           if (trip.status === TripStatus.COMPLETED) return false;
           if (!tripSearch) return true;
@@ -3881,7 +3962,16 @@ export default function App() {
                         {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
                       </select>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={tripForm.driverName} onChange={e => setTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label>
+                      <SearchableSelect
+                        options={activeEmployeeNames}
+                        value={tripForm.driverName}
+                        onChange={(val) => setTripForm(p => ({ ...p, driverName: val }))}
+                        placeholder={language === 'vi' ? 'Chọn hoặc nhập tên tài xế...' : 'Select or type driver name...'}
+                        className="mt-1"
+                      />
+                    </div>
                     {!editingTrip && (
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={tripForm.seatCount} onChange={e => setTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     )}
@@ -3973,7 +4063,16 @@ export default function App() {
                         {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
                       </select>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label><input type="text" value={batchTripForm.driverName} onChange={e => setBatchTripForm(p => ({ ...p, driverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label>
+                      <SearchableSelect
+                        options={activeEmployeeNames}
+                        value={batchTripForm.driverName}
+                        onChange={(val) => setBatchTripForm(p => ({ ...p, driverName: val }))}
+                        placeholder={language === 'vi' ? 'Chọn hoặc nhập tên tài xế...' : 'Select or type driver name...'}
+                        className="mt-1"
+                      />
+                    </div>
                     <div className="col-span-2 grid grid-cols-2 gap-4">
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={batchTripForm.price} onChange={e => setBatchTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                       <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={batchTripForm.agentPrice} onChange={e => setBatchTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
