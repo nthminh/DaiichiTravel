@@ -33,6 +33,7 @@ import { FinancialReport } from './components/FinancialReport';
 import { VehicleSeatDiagram, generateVehicleLayout, serializeLayout, SerializedSeat } from './components/VehicleSeatDiagram';
 import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
+import { NotePopover } from './components/NotePopover';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -74,6 +75,7 @@ export interface Vehicle {
   registrationExpiry: string;
   status: string;
   layout?: VehicleSeat[];
+  note?: string;
 }
 
 interface TourItem {
@@ -359,6 +361,14 @@ export default function App() {
     setShowAddAgent(true);
   };
 
+  const handleSaveAgentNote = async (agentId: string, note: string) => {
+    try {
+      await transportService.updateAgent(agentId, { note } as Partial<Agent>);
+    } catch (err) {
+      console.error('Failed to save agent note:', err);
+    }
+  };
+
   // --- Route CRUD handlers ---
   const handleSaveRoute = async () => {
     try {
@@ -399,6 +409,14 @@ export default function App() {
     setShowAddRoute(true);
   };
 
+  const handleSaveRouteNote = async (routeId: string, note: string) => {
+    try {
+      await transportService.updateRoute(routeId, { note });
+    } catch (err) {
+      console.error('Failed to save route note:', err);
+    }
+  };
+
   // --- Vehicle CRUD handlers ---
   const handleSaveVehicle = async () => {
     try {
@@ -437,6 +455,14 @@ export default function App() {
       await transportService.deleteVehicle(vehicleId);
     } catch (err) {
       console.error('Failed to delete vehicle:', err);
+    }
+  };
+
+  const handleSaveVehicleNote = async (vehicleId: string, note: string) => {
+    try {
+      await transportService.updateVehicle(vehicleId, { note } as Record<string, unknown>);
+    } catch (err) {
+      console.error('Failed to save vehicle note:', err);
     }
   };
 
@@ -482,6 +508,14 @@ export default function App() {
       await transportService.deleteTrip(tripId);
     } catch (err) {
       console.error('Failed to delete trip:', err);
+    }
+  };
+
+  const handleSaveTripNote = async (tripId: string, note: string) => {
+    try {
+      await transportService.updateTrip(tripId, { note } as Partial<Trip>);
+    } catch (err) {
+      console.error('Failed to save trip note:', err);
     }
   };
 
@@ -1301,7 +1335,7 @@ export default function App() {
               </div>
 
               {/* Route details panel */}
-              {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details) && (
+              {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details || tripRoute.note) && (
                 <div className="mt-6 bg-blue-50 border border-blue-100 rounded-[24px] p-5 space-y-3">
                   <h4 className="text-sm font-bold text-blue-800">{t.route_details_title}</h4>
                   {(tripRoute.departurePoint || tripRoute.arrivalPoint) && (
@@ -1313,6 +1347,14 @@ export default function App() {
                   )}
                   {tripRoute.details && (
                     <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.details}</p>
+                  )}
+                  {tripRoute.note && (
+                    <div className="pt-2 border-t border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 mb-1">
+                        {language === 'vi' ? 'Ghi chú' : language === 'ja' ? 'メモ' : 'Note'}
+                      </p>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.note}</p>
+                    </div>
                   )}
                 </div>
               )}
@@ -2280,7 +2322,7 @@ export default function App() {
                       <td className="px-8 py-6"><span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-xs font-bold">{agent.commissionRate}%</span></td>
                       <td className="px-8 py-6 font-bold text-gray-700">{(agent.balance || 0).toLocaleString()}đ</td>
                       <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", agent.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>{agent.status === 'ACTIVE' ? t.status_active : t.status_locked}</span></td>
-                      <td className="px-8 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditAgent(agent)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteAgent(agent.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
+                      <td className="px-8 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleStartEditAgent(agent)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteAgent(agent.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={agent.note} onSave={(note) => handleSaveAgentNote(agent.id, note)} language={language} /></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -2576,7 +2618,7 @@ export default function App() {
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
-                      <td className="px-6 py-6"><div className="flex gap-3"><button onClick={() => handleStartEditRoute(route)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button></div></td>
+                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleStartEditRoute(route)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
                     </tr>
                   ))}
                   {filteredRoutes.length === 0 && (
@@ -2720,6 +2762,7 @@ export default function App() {
                           </button>
                           <button onClick={() => handleStartEditVehicle(v)} className="text-gray-400 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
                           <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-400 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
+                          <NotePopover note={v.note} onSave={(note) => handleSaveVehicleNote(v.id, note)} language={language} />
                         </div>
                       </td>
                     </tr>
@@ -3047,7 +3090,7 @@ export default function App() {
                           <span>{t.manage_addons}</span>
                         </button>
                       </td>
-                      <td className="px-6 py-4"><div className="flex gap-3"><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
                   {filteredTrips.length === 0 && (

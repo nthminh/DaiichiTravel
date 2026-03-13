@@ -61,6 +61,7 @@ export interface Agent {
   status: 'ACTIVE' | 'INACTIVE';
   username?: string;
   password?: string;
+  note?: string;
 }
 
 export interface TourAddon {
@@ -142,6 +143,7 @@ export interface Trip {
   price: number;
   agentPrice?: number; // agent price for this trip
   addons?: TripAddon[];
+  note?: string;
 }
 
 export interface ConsignmentItem {
@@ -224,6 +226,7 @@ export interface Vehicle {
   registrationExpiry: string;
   ownerId?: string;
   layout?: VehicleSeat[];
+  note?: string;
 }
 
 export enum PaymentMethod {
@@ -241,6 +244,7 @@ export interface Stop {
   category: 'MAJOR' | 'MINOR' | 'TOLL' | 'RESTAURANT' | 'QUICK' | 'TRANSIT' | 'OFFICE';
   surcharge: number;
   distanceKm?: number; // distance from the main route stop (km), used for pickup surcharge display
+  note?: string;
 }
 
 export interface PickupPoint {
