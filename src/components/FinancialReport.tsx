@@ -438,11 +438,11 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
-                          <button onClick={() => setShowInvoiceDetail(inv)} className="text-gray-400 hover:text-daiichi-red" title={t.view_invoice || 'View'}><Eye size={16} /></button>
+                          <button onClick={() => setShowInvoiceDetail(inv)} className="text-gray-600 hover:text-daiichi-red" title={t.view_invoice || 'View'}><Eye size={16} /></button>
                           {inv.status !== 'PAID' && (
-                            <button onClick={() => { setShowPaymentModal(inv); setPaymentInput(''); }} className="text-gray-400 hover:text-green-600" title={t.record_payment || 'Record Payment'}><DollarSign size={16} /></button>
+                            <button onClick={() => { setShowPaymentModal(inv); setPaymentInput(''); }} className="text-gray-600 hover:text-green-600" title={t.record_payment || 'Record Payment'}><DollarSign size={16} /></button>
                           )}
-                          <button onClick={() => handleDeleteInvoice(inv.id)} className="text-gray-400 hover:text-red-600" title={t.delete || 'Delete'}><Trash2 size={16} /></button>
+                          <button onClick={() => handleDeleteInvoice(inv.id)} className="text-gray-600 hover:text-red-600" title={t.delete || 'Delete'}><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
