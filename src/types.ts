@@ -28,6 +28,7 @@ export interface Route {
   agentPrice?: number;     // default agent price
   pricePeriods?: PricePeriod[]; // seasonal/holiday price overrides
   surcharges?: RouteSurcharge[]; // additional surcharges (fuel, holiday, etc.)
+  details?: string;        // detailed trip information shown to customers on seat selection
 }
 
 export enum UserRole {

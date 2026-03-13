@@ -198,7 +198,7 @@ export default function App() {
   // Route CRUD state
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
-  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 });
+  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
   const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
@@ -370,7 +370,7 @@ export default function App() {
       }
       setShowAddRoute(false);
       setEditingRoute(null);
-      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 });
+      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
       setRoutePricePeriods([]);
       setShowAddPricePeriod(false);
       setRouteSurcharges([]);
@@ -391,7 +391,7 @@ export default function App() {
 
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
-    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0 });
+    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '' });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
@@ -1299,6 +1299,23 @@ export default function App() {
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white border border-gray-200 rounded" /> {t.empty}</div>
                 </div>
               </div>
+
+              {/* Route details panel */}
+              {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details) && (
+                <div className="mt-6 bg-blue-50 border border-blue-100 rounded-[24px] p-5 space-y-3">
+                  <h4 className="text-sm font-bold text-blue-800">{t.route_details_title}</h4>
+                  {(tripRoute.departurePoint || tripRoute.arrivalPoint) && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-semibold text-gray-700">{tripRoute.departurePoint}</span>
+                      <span className="text-blue-400 font-bold">→</span>
+                      <span className="font-semibold text-gray-700">{tripRoute.arrivalPoint}</span>
+                    </div>
+                  )}
+                  {tripRoute.details && (
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.details}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-6">
@@ -2289,7 +2306,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -2316,6 +2333,10 @@ export default function App() {
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label><input type="text" value={routeForm.departurePoint} onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label><input type="text" value={routeForm.arrivalPoint} onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_details}</label>
+                      <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
+                    </div>
 
                     {/* Price Periods (Seasonal Pricing) */}
                     <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
@@ -2995,6 +3016,7 @@ export default function App() {
                   <tr>
                     <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>
                     <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</th>
                     <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>
                     <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>
                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>
@@ -3006,6 +3028,17 @@ export default function App() {
                     <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{formatTripDisplayTime(trip)}</td>
                       <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
+                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>
+                        {(() => {
+                          const r = routes.find(rt => rt.name === trip.route);
+                          return r ? (
+                            <div>
+                              <p className="font-semibold text-sm text-gray-800">{r.name}</p>
+                              <p className="text-xs text-gray-500">{r.departurePoint} → {r.arrivalPoint}</p>
+                            </div>
+                          ) : <span className="text-sm text-gray-500">{trip.route}</span>;
+                        })()}
+                      </td>
                       <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
                       <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
                       <td className="px-6 py-4">
@@ -3018,7 +3051,7 @@ export default function App() {
                     </tr>
                   ))}
                   {filteredTrips.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy chuyến xe nào.' : 'No trips found.'}</td></tr>
+                    <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-400">{t.no_trips_found}</td></tr>
                   )}
                 </tbody>
               </table>
