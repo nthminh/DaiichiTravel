@@ -324,10 +324,12 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                     <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-100">
                       <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">{t.select_addons}</p>
                       <div className="space-y-1">
-                        {booking.selectedAddons.map((a: { id: string; name: string; price: number }) => (
+                        {booking.selectedAddons.map((a: { id: string; name: string; price: number; quantity?: number }) => (
                           <div key={a.id} className="flex justify-between items-center text-sm">
-                            <span className="font-medium text-gray-700">{a.name}</span>
-                            <span className="font-bold text-emerald-700">+{a.price.toLocaleString()}đ</span>
+                            <span className="font-medium text-gray-700">
+                              {a.name}{(a.quantity && a.quantity > 1) ? ` × ${a.quantity}` : ''}
+                            </span>
+                            <span className="font-bold text-emerald-700">+{((a.price || 0) * (a.quantity || 1)).toLocaleString()}đ</span>
                           </div>
                         ))}
                       </div>
