@@ -213,6 +213,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     fare_not_configured: 'Chưa cấu hình giá vé cho hành trình này',
     fare_invalid_order: 'Điểm đón phải nằm trước điểm trả trong hành trình',
     per_person: 'người',
+    booking_note: 'Ghi chú đặt vé',
+    booking_note_placeholder: 'Ghi chú của đại lý / nhà xe (cọc, thanh toán tài xế...)',
     
     // Vehicles
     vehicle_management: 'Quản lý Phương tiện',
@@ -646,6 +648,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     fare_not_configured: 'Fare not configured for this route segment',
     fare_invalid_order: 'Pickup stop must come before dropoff stop',
     per_person: 'person',
+    booking_note: 'Booking Note',
+    booking_note_placeholder: 'Agent / operator note (deposit, driver payment...)',
     
     // Vehicles
     vehicle_management: 'Vehicle Management',
@@ -1079,6 +1083,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     fare_not_configured: 'この区間の運賃が設定されていません',
     fare_invalid_order: '乗車地点は降車地点より前でなければなりません',
     per_person: '名',
+    booking_note: '予約メモ',
+    booking_note_placeholder: '代理店 / 事業者のメモ（デポジット、ドライバー支払いなど）',
     
     // Vehicles
     vehicle_management: '車両管理',

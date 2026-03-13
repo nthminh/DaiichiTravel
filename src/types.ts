@@ -173,6 +173,7 @@ export interface Seat {
   fromStopOrder?: number;   // order of pickup stop (used for segment availability)
   toStopOrder?: number;     // order of dropoff stop (used for segment availability)
   deck?: number; // 0 for lower, 1 for upper
+  bookingNote?: string;     // note from agent or bus company (e.g. partial payment info)
 }
 
 export enum TripStatus {
