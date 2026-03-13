@@ -13,7 +13,7 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge } from './types';
 import { transportService } from './services/transportService';
 
 // Import Components
@@ -137,7 +137,7 @@ export default function App() {
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
-  const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchDate, setSearchDate] = useState('');
   const [searchReturnDate, setSearchReturnDate] = useState('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
   const [bookTicketSearch, setBookTicketSearch] = useState('');
@@ -202,6 +202,9 @@ export default function App() {
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
   const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
+  const [routeSurcharges, setRouteSurcharges] = useState<RouteSurcharge[]>([]);
+  const [showAddRouteSurcharge, setShowAddRouteSurcharge] = useState(false);
+  const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id'>>({ name: '', type: 'FUEL', amount: 0, isActive: true });
 
   // Vehicle CRUD state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -357,7 +360,7 @@ export default function App() {
   // --- Route CRUD handlers ---
   const handleSaveRoute = async () => {
     try {
-      const routeData = { ...routeForm, pricePeriods: routePricePeriods };
+      const routeData = { ...routeForm, pricePeriods: routePricePeriods, surcharges: routeSurcharges };
       if (editingRoute) {
         await transportService.updateRoute(editingRoute.id, routeData);
       } else {
@@ -368,6 +371,8 @@ export default function App() {
       setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 });
       setRoutePricePeriods([]);
       setShowAddPricePeriod(false);
+      setRouteSurcharges([]);
+      setShowAddRouteSurcharge(false);
     } catch (err) {
       console.error('Failed to save route:', err);
     }
@@ -386,7 +391,9 @@ export default function App() {
     setEditingRoute(route);
     setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0 });
     setRoutePricePeriods(route.pricePeriods || []);
+    setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
+    setShowAddRouteSurcharge(false);
     setShowAddRoute(true);
   };
 
@@ -664,8 +671,14 @@ export default function App() {
     const effectiveAdults = adults + childrenOver4;
     const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
     
+    // Calculate route-level surcharges (fuel, holiday, etc.)
+    const tripRoute = routes.find(r => r.name === selectedTrip.route);
+    const tripDate = selectedTrip.date || '';
+    const appliedRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
+    const routeSurchargeTotal = appliedRouteSurcharges.reduce((sum, sc) => sum + sc.amount * (effectiveAdults + effectiveChildren), 0);
+
     const totalBase = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
-    const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount;
+    const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
     const totalAmount = Math.round((totalBase + totalSurcharge) * (1 - bookingDiscount / 100));
 
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
@@ -761,6 +774,18 @@ export default function App() {
   const getRouteActivePeriod = (route: Route, date: string): PricePeriod | null => {
     if (!date || !route.pricePeriods || route.pricePeriods.length === 0) return null;
     return route.pricePeriods.find(p => p.startDate <= date && p.endDate >= date) || null;
+  };
+
+  const getApplicableRouteSurcharges = (route: Route | undefined, tripDate: string): RouteSurcharge[] => {
+    if (!route?.surcharges) return [];
+    return route.surcharges.filter(sc => {
+      if (!sc.isActive) return false;
+      if (sc.type === 'FUEL' || sc.type === 'OTHER') return true;
+      if (sc.type === 'HOLIDAY' && sc.startDate && sc.endDate && tripDate) {
+        return tripDate >= sc.startDate && tripDate <= sc.endDate;
+      }
+      return false;
+    });
   };
 
   const isRouteValidForDate = (route: Route, date: string): boolean => {
@@ -1101,6 +1126,11 @@ export default function App() {
           const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
           const canConfirmBooking = extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded;
           const isSelectingExtraSeats = !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
+
+          // Look up route to get route-level surcharges
+          const tripRoute = routes.find(r => r.name === selectedTrip.route);
+          const tripDate = selectedTrip.date || '';
+          const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
 
           // Build seat status lookup
           const seatStatusMap: Record<string, SeatStatus> = {};
@@ -1487,27 +1517,61 @@ export default function App() {
                       </select>
                     </div>
 
-                    <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
-                        <span className="text-xl font-bold text-daiichi-red">
-                          {(() => {
-                            const basePriceAdult = selectedTrip.price || 0;
-                            const basePriceChild = selectedTrip.priceChild || basePriceAdult;
-                            const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
-                              (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
-                              { childrenOver4: 0, childrenUnder4: 0 }
-                            );
-                            const effectiveAdults = adults + childrenOver4;
-                            const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
-                            const baseTotal = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild) + pickupSurcharge + dropoffSurcharge + surchargeAmount;
-                            return Math.round(baseTotal * (1 - bookingDiscount / 100)).toLocaleString();
-                          })()}đ
-                        </span>
-                      </div>
-                      {bookingDiscount > 0 && (
-                        <p className="text-xs text-green-600 font-bold mt-1 text-right">-{bookingDiscount}% {t.booking_discount}</p>
-                      )}
+                    <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
+                      {(() => {
+                        const basePriceAdult = selectedTrip.price || 0;
+                        const basePriceChild = selectedTrip.priceChild || basePriceAdult;
+                        const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
+                          (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+                          { childrenOver4: 0, childrenUnder4: 0 }
+                        );
+                        const effectiveAdults = adults + childrenOver4;
+                        const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
+                        const baseTotal = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
+                        const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * (effectiveAdults + effectiveChildren), 0);
+                        const allSurcharges = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
+                        const finalTotal = Math.round((baseTotal + allSurcharges) * (1 - bookingDiscount / 100));
+                        return (
+                          <>
+                            <div className="flex justify-between items-center text-xs text-gray-500">
+                              <span>{language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare'}</span>
+                              <span>{baseTotal.toLocaleString()}đ</span>
+                            </div>
+                            {applicableRouteSurcharges.map(sc => (
+                              <div key={sc.id} className="flex justify-between items-center text-xs text-amber-600">
+                                <span>+ {sc.name}</span>
+                                <span>+{(sc.amount * (effectiveAdults + effectiveChildren)).toLocaleString()}đ</span>
+                              </div>
+                            ))}
+                            {pickupSurcharge > 0 && (
+                              <div className="flex justify-between items-center text-xs text-gray-500">
+                                <span>+ {language === 'vi' ? 'Phụ thu đón khách' : language === 'ja' ? '乗客ピックアップ料' : 'Pickup surcharge'}</span>
+                                <span>+{pickupSurcharge.toLocaleString()}đ</span>
+                              </div>
+                            )}
+                            {dropoffSurcharge > 0 && (
+                              <div className="flex justify-between items-center text-xs text-gray-500">
+                                <span>+ {language === 'vi' ? 'Phụ thu trả khách' : language === 'ja' ? '乗客降車料' : 'Dropoff surcharge'}</span>
+                                <span>+{dropoffSurcharge.toLocaleString()}đ</span>
+                              </div>
+                            )}
+                            {surchargeAmount > 0 && (
+                              <div className="flex justify-between items-center text-xs text-gray-500">
+                                <span>+ {language === 'vi' ? 'Phụ thu khác' : language === 'ja' ? 'その他追加料金' : 'Other surcharge'}</span>
+                                <span>+{surchargeAmount.toLocaleString()}đ</span>
+                              </div>
+                            )}
+                            {allSurcharges > 0 && <div className="border-t border-daiichi-accent/40 pt-1" />}
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
+                              <span className="text-xl font-bold text-daiichi-red">{finalTotal.toLocaleString()}đ</span>
+                            </div>
+                            {bookingDiscount > 0 && (
+                              <p className="text-xs text-green-600 font-bold text-right">-{bookingDiscount}% {t.booking_discount}</p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>{t.confirm_booking}</button>
@@ -2168,7 +2232,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 }); setRoutePricePeriods([]); setShowAddPricePeriod(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0 }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -2272,6 +2336,105 @@ export default function App() {
                                 setPricePeriodForm({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
                               }}
                               className="px-4 py-1.5 bg-blue-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
+                            >
+                              {t.save}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Route Surcharges */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Phụ thu tuyến đường' : language === 'ja' ? 'ルート追加料金' : 'Route Surcharges'}</p>
+                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Phụ thu xăng dầu, lễ tết, và các khoản phụ thu khác' : language === 'ja' ? '燃料、祝日、その他の追加料金' : 'Fuel, holiday, and other surcharges'}</p>
+                        </div>
+                        {!showAddRouteSurcharge && (
+                          <button onClick={() => { setShowAddRouteSurcharge(true); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true }); }} className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100">
+                            + {language === 'vi' ? 'Thêm phụ thu' : language === 'ja' ? '追加料金を追加' : 'Add Surcharge'}
+                          </button>
+                        )}
+                      </div>
+
+                      {routeSurcharges.length === 0 && !showAddRouteSurcharge && (
+                        <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có phụ thu nào' : language === 'ja' ? '追加料金なし' : 'No surcharges defined'}</p>
+                      )}
+
+                      {routeSurcharges.map((sc) => (
+                        <div key={sc.id} className={`flex items-center gap-3 rounded-xl p-3 ${sc.isActive ? 'bg-amber-50' : 'bg-gray-50 opacity-60'}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-sm text-gray-800 truncate">{sc.name}</p>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.type === 'FUEL' ? 'bg-orange-100 text-orange-600' : sc.type === 'HOLIDAY' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                                {sc.type === 'FUEL' ? (language === 'vi' ? 'Xăng dầu' : language === 'ja' ? '燃料' : 'Fuel') : sc.type === 'HOLIDAY' ? (language === 'vi' ? 'Lễ tết' : language === 'ja' ? '祝日' : 'Holiday') : (language === 'vi' ? 'Khác' : language === 'ja' ? 'その他' : 'Other')}
+                              </span>
+                              {!sc.isActive && <span className="text-[10px] text-gray-400 font-bold">{language === 'vi' ? '(Tạm dừng)' : '(Paused)'}</span>}
+                            </div>
+                            {sc.startDate && sc.endDate && <p className="text-xs text-gray-500">{sc.startDate} → {sc.endDate}</p>}
+                            <p className="text-xs font-bold text-amber-600">+{sc.amount.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '人' : 'person'}</p>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => setRouteSurcharges(prev => prev.map(s => s.id === sc.id ? { ...s, isActive: !s.isActive } : s))} className={`p-1.5 rounded-lg text-xs font-bold transition-all ${sc.isActive ? 'text-amber-600 hover:bg-amber-100' : 'text-gray-400 hover:bg-gray-100'}`} title={sc.isActive ? (language === 'vi' ? 'Tạm dừng' : 'Pause') : (language === 'vi' ? 'Kích hoạt' : 'Activate')}>
+                              {sc.isActive ? '✓' : '○'}
+                            </button>
+                            <button onClick={() => setRouteSurcharges(prev => prev.filter(s => s.id !== sc.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {showAddRouteSurcharge && (
+                        <div className="border border-dashed border-amber-200 rounded-xl p-4 space-y-3 bg-amber-50/50">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Tên phụ thu' : language === 'ja' ? '追加料金名' : 'Surcharge Name'}</label>
+                              <input type="text" value={routeSurchargeForm.name} onChange={e => setRouteSurchargeForm(p => ({ ...p, name: e.target.value }))} placeholder={language === 'vi' ? 'VD: Phụ thu Tết 2026, Phụ thu xăng...' : 'e.g. Tet 2026, Fuel Q1...'} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Loại phụ thu' : language === 'ja' ? '追加料金タイプ' : 'Type'}</label>
+                              <select value={routeSurchargeForm.type} onChange={e => setRouteSurchargeForm(p => ({ ...p, type: e.target.value as RouteSurcharge['type'] }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200">
+                                <option value="FUEL">{language === 'vi' ? 'Xăng dầu' : language === 'ja' ? '燃料' : 'Fuel'}</option>
+                                <option value="HOLIDAY">{language === 'vi' ? 'Lễ tết / Mùa cao điểm' : language === 'ja' ? '祝日/ピーク' : 'Holiday / Peak Season'}</option>
+                                <option value="OTHER">{language === 'vi' ? 'Khác' : language === 'ja' ? 'その他' : 'Other'}</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{language === 'vi' ? 'Số tiền/người (đ)' : language === 'ja' ? '金額/人 (đ)' : 'Amount/person (đ)'}</label>
+                              <input type="number" min="0" value={routeSurchargeForm.amount} onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                            </div>
+                            {routeSurchargeForm.type === 'HOLIDAY' && (
+                              <>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày' : 'From'}</label>
+                                  <input type="date" value={routeSurchargeForm.startDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày' : 'To'}</label>
+                                  <input type="date" value={routeSurchargeForm.endDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                              <input type="checkbox" checked={routeSurchargeForm.isActive} onChange={e => setRouteSurchargeForm(p => ({ ...p, isActive: e.target.checked }))} className="rounded" />
+                              {language === 'vi' ? 'Đang áp dụng' : language === 'ja' ? '有効' : 'Active now'}
+                            </label>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowAddRouteSurcharge(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button
+                              disabled={!routeSurchargeForm.name || (routeSurchargeForm.type === 'HOLIDAY' && (!routeSurchargeForm.startDate || !routeSurchargeForm.endDate))}
+                              onClick={() => {
+                                const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...routeSurchargeForm };
+                                setRouteSurcharges(prev => [...prev, newSurcharge]);
+                                setShowAddRouteSurcharge(false);
+                                setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true });
+                              }}
+                              className="px-4 py-1.5 bg-amber-500 text-white text-xs rounded-lg font-bold disabled:opacity-50"
                             >
                               {t.save}
                             </button>

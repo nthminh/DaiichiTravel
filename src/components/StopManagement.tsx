@@ -29,7 +29,8 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     name: '',
     address: '',
     category: 'MAJOR',
-    surcharge: 0
+    surcharge: 0,
+    distanceKm: undefined,
   });
 
   const handleAddStop = async () => {
@@ -72,13 +73,14 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
       name: stop.name,
       address: stop.address,
       category: stop.category,
-      surcharge: stop.surcharge
+      surcharge: stop.surcharge,
+      distanceKm: stop.distanceKm,
     });
     setIsAdding(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', address: '', category: 'MAJOR', surcharge: 0 });
+    setFormData({ name: '', address: '', category: 'MAJOR', surcharge: 0, distanceKm: undefined });
     setIsAdding(false);
     setEditingId(null);
   };
@@ -160,6 +162,18 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                 placeholder="0"
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Khoảng cách (km)' : language === 'ja' ? '距離 (km)' : 'Distance (km)'}</label>
+              <input 
+                type="number" 
+                min="0"
+                step="0.1"
+                value={formData.distanceKm ?? ''}
+                onChange={e => setFormData(prev => ({ ...prev, distanceKm: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                placeholder={language === 'vi' ? 'Tuỳ chọn' : 'Optional'}
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-4 pt-4">
@@ -237,6 +251,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                   <td className="px-8 py-6">
                     <span className="text-sm font-bold text-daiichi-red">
                       {stop.surcharge > 0 ? `+${stop.surcharge.toLocaleString()}đ` : '0đ'}
+                      {stop.distanceKm !== undefined && stop.distanceKm > 0 && (
+                        <span className="ml-2 text-xs font-normal text-gray-400">({stop.distanceKm}km)</span>
+                      )}
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">

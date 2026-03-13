@@ -7,6 +7,16 @@ export interface PricePeriod {
   endDate: string;     // YYYY-MM-DD
 }
 
+export interface RouteSurcharge {
+  id: string;
+  name: string;
+  type: 'HOLIDAY' | 'FUEL' | 'OTHER';
+  amount: number;      // VND per person
+  startDate?: string;  // YYYY-MM-DD, required for HOLIDAY type
+  endDate?: string;    // YYYY-MM-DD, required for HOLIDAY type
+  isActive: boolean;
+}
+
 export interface Route {
   id: string;
   stt: number;
@@ -17,6 +27,7 @@ export interface Route {
   price: number;           // default retail price
   agentPrice?: number;     // default agent price
   pricePeriods?: PricePeriod[]; // seasonal/holiday price overrides
+  surcharges?: RouteSurcharge[]; // additional surcharges (fuel, holiday, etc.)
 }
 
 export enum UserRole {
@@ -228,6 +239,7 @@ export interface Stop {
   address: string;
   category: 'MAJOR' | 'MINOR' | 'TOLL' | 'RESTAURANT' | 'QUICK' | 'TRANSIT' | 'OFFICE';
   surcharge: number;
+  distanceKm?: number; // distance from the main route stop (km), used for pickup surcharge display
 }
 
 export interface PickupPoint {
