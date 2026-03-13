@@ -74,43 +74,46 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       </div>
 
       {/* Language Switcher */}
-      <div className="absolute top-6 right-6 flex gap-1 bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20">
-        {[
-          { code: 'vi', label: 'VN', flag: '🇻🇳' },
-          { code: 'en', label: 'EN', flag: '🇺🇸' },
-          { code: 'ja', label: 'JA', flag: '🇯🇵' }
-        ].map((lang) => (
-          <button
-            key={lang.code}
-            onClick={() => setLanguage(lang.code as any)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
-              language === lang.code ? "bg-white text-daiichi-red shadow-sm" : "text-white/70 hover:text-white hover:bg-white/10"
-            )}
-          >
-            <span>{lang.flag}</span>
-            <span>{lang.label}</span>
-          </button>
-        ))}
-      </div>
 
       <div className="w-full max-w-md relative z-10">
-        {/* Brand header */}
+        {/* Brand header with logo and language selector on same row */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-start mb-8"
+          className="flex items-center justify-between mb-8 gap-4"
         >
-          <div className="bg-white rounded-3xl px-5 py-3 shadow-2xl shadow-black/30 mb-6">
+          <div className="bg-white rounded-3xl px-5 py-3 shadow-2xl shadow-black/30">
             <img
               src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724"
               alt="Daiichi Logo"
               className="h-12 sm:h-14"
             />
           </div>
+          <div className="flex gap-1 bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20">
+            {[
+              { code: 'vi', label: 'VN', flag: '🇻🇳' },
+              { code: 'en', label: 'EN', flag: '🇺🇸' },
+              { code: 'ja', label: 'JA', flag: '🇯🇵' }
+            ].map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setLanguage(lang.code as any)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                  language === lang.code ? "bg-white text-daiichi-red shadow-sm" : "text-white/70 hover:text-white hover:bg-white/10"
+                )}
+              >
+                <span>{lang.flag}</span>
+                <span>{lang.label}</span>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        <div className="mb-8">
           <h1 className="text-3xl font-bold text-white drop-shadow-lg">{t.login_title}</h1>
           <p className="text-white/70 text-sm mt-1">{t.login_subtitle}</p>
-        </motion.div>
+        </div>
 
         {/* Impressive slogan banner – tap to enter as guest */}
         <motion.div
