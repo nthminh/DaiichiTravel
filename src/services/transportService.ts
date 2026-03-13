@@ -14,7 +14,8 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare } from '../types';
+import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
   title: string;
@@ -393,6 +394,44 @@ export const transportService = {
     });
     await batch.commit();
     return toAdd.length;
+  },
+
+  // ===== FARE TABLE METHODS (Option 2: explicit fare between any two stops) =====
+
+  /** Look up the fare for a (fromStop → toStop) pair on a given route. */
+  getFare: (params: GetFareParams) => _getFareForStops(params),
+
+  /**
+   * Admin utility: create or overwrite a fare entry.
+   * Returns the Firestore document ID ("fromStopId_toStopId").
+   */
+  upsertFare: (
+    routeId: string,
+    fromStopId: string,
+    toStopId: string,
+    price: number,
+    currency = 'VND',
+  ) => _upsertFare(routeId, fromStopId, toStopId, price, currency),
+
+  /** Fetch all fares for a route (one-time read). */
+  getRouteFares: async (routeId: string): Promise<RouteFare[]> => {
+    if (!db) return [];
+    const snap = await getDocs(collection(db, 'routeFares', routeId, 'fares'));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteFare, 'id'>) }));
+  },
+
+  /** Real-time listener for all fares on a route. */
+  subscribeToRouteFares: (routeId: string, callback: (fares: RouteFare[]) => void) => {
+    if (!db) return () => {};
+    return onSnapshot(collection(db, 'routeFares', routeId, 'fares'), (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteFare, 'id'>) })));
+    });
+  },
+
+  /** Delete a fare entry. */
+  deleteFare: async (routeId: string, fareDocId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'routeFares', routeId, 'fares', fareDocId));
   },
 
   // ===== VEHICLE METHODS =====

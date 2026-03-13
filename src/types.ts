@@ -17,6 +17,13 @@ export interface RouteSurcharge {
   isActive: boolean;
 }
 
+// Ordered stop within a route, used for fare-table pricing (Option 2)
+export interface RouteStop {
+  stopId: string;
+  stopName: string;
+  order: number; // 1-based, determines boarding/alighting direction
+}
+
 export interface Route {
   id: string;
   stt: number;
@@ -29,6 +36,29 @@ export interface Route {
   pricePeriods?: PricePeriod[]; // seasonal/holiday price overrides
   surcharges?: RouteSurcharge[]; // additional surcharges (fuel, holiday, etc.)
   details?: string;        // detailed trip information shown to customers on seat selection
+  routeStops?: RouteStop[]; // ordered stops for fare-table pricing
+}
+
+// A single fare entry in the routeFares subcollection
+// Path: routeFares/{routeId}/fares/{fromStopId_toStopId}
+export interface RouteFare {
+  id: string; // "${fromStopId}_${toStopId}"
+  routeId: string;
+  fromStopId: string;
+  toStopId: string;
+  price: number;
+  currency: string; // default "VND"
+  active: boolean;
+  updatedAt: string; // ISO string
+}
+
+// Return type of getFareForStops()
+export interface FareResult {
+  price: number;
+  currency: string;
+  fareDocId: string;
+  fromStopName?: string;
+  toStopName?: string;
 }
 
 export enum UserRole {
