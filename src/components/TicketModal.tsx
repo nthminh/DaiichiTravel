@@ -31,7 +31,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
     if (isTour) {
       text = [
         `🌴 ${language === 'vi' ? 'Xác nhận đặt tour - Daiichi Travel' : 'Tour Booking Confirmation - Daiichi Travel'}`,
-        `📋 ${language === 'vi' ? 'Mã đặt tour' : 'Booking ID'}: #${booking.id}`,
+        `📋 ${language === 'vi' ? 'Mã đặt tour' : 'Booking ID'}: ${booking.ticketCode || '#' + booking.id}`,
         `🗺️ ${booking.route}`,
         booking.duration ? `⏱️ ${language === 'vi' ? 'Thời gian' : 'Duration'}: ${booking.duration}` : '',
         `📅 ${language === 'vi' ? 'Ngày khởi hành' : 'Departure'}: ${booking.date}`,
@@ -42,7 +42,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
     } else {
       text = [
         `🎫 ${language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket'}`,
-        `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: #${booking.id}`,
+        `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: ${booking.ticketCode || '#' + booking.id}`,
         `🚌 ${booking.route}`,
         `📅 ${booking.date} ${booking.time}`,
         `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`,
@@ -143,7 +143,9 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                     {isTour ? (language === 'vi' ? 'Mã đặt tour' : 'Booking ID') : t.ticket_code}
                   </p>
-                  <p className="text-xl font-mono font-bold text-daiichi-red">#{booking.id}</p>
+                  <p className="text-xl font-mono font-bold text-daiichi-red">
+                    {booking.ticketCode || `#${booking.id}`}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.payment_method}</p>

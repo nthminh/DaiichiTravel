@@ -203,29 +203,31 @@ export const transportService = {
     });
   },
 
-  // Create a new booking
+  // Generate a short unique ticket code like DT-XXXXXXXX (6 random + 2 time-based chars)
+  generateTicketCode: (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    // Use last 2 chars from timestamp (base-36) for time entropy + 6 random chars
+    const timePart = Date.now().toString(36).toUpperCase().slice(-2);
+    let randomPart = '';
+    for (let i = 0; i < 6; i++) {
+      randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `DT-${randomPart}${timePart}`;
+  },
+
+  // Create a new booking – always persists to Firestore cloud (never localStorage)
   createBooking: async (booking: any) => {
     if (!db) {
-      // If Firebase is not configured or offline, save to local storage
-      const offlineBookings = JSON.parse(localStorage.getItem('offline_bookings') || '[]');
-      offlineBookings.push({ ...booking, id: `offline_${Date.now()}`, createdAt: new Date().toISOString() });
-      localStorage.setItem('offline_bookings', JSON.stringify(offlineBookings));
-      return { id: 'offline', status: 'saved_locally' };
+      throw new Error('Không thể kết nối đến Firestore. Vui lòng kiểm tra cấu hình Firebase.');
     }
 
-    try {
-      const docRef = await addDoc(collection(db, 'bookings'), {
-        ...booking,
-        createdAt: Timestamp.now()
-      });
-      return { id: docRef.id, status: 'saved_cloud' };
-    } catch (error) {
-      console.error('Error saving to Firebase, falling back to local storage:', error);
-      const offlineBookings = JSON.parse(localStorage.getItem('offline_bookings') || '[]');
-      offlineBookings.push({ ...booking, id: `offline_${Date.now()}`, createdAt: new Date().toISOString() });
-      localStorage.setItem('offline_bookings', JSON.stringify(offlineBookings));
-      return { id: 'offline', status: 'saved_locally' };
-    }
+    const ticketCode = transportService.generateTicketCode();
+    const docRef = await addDoc(collection(db, 'bookings'), {
+      ...booking,
+      ticketCode,
+      createdAt: Timestamp.now()
+    });
+    return { id: docRef.id, ticketCode, status: 'saved_cloud' };
   },
 
   // Delete a booking
@@ -240,31 +242,6 @@ export const transportService = {
     const { id, ...data } = updates;
     const bookingRef = doc(db, 'bookings', bookingId);
     await updateDoc(bookingRef, data as Record<string, unknown>);
-  },
-
-  // Sync offline bookings to cloud
-  syncOfflineBookings: async () => {
-    if (!db) return;
-    const offlineBookings = JSON.parse(localStorage.getItem('offline_bookings') || '[]');
-    if (offlineBookings.length === 0) return;
-
-    console.log(`Syncing ${offlineBookings.length} offline bookings...`);
-    const remainingBookings = [];
-
-    for (const booking of offlineBookings) {
-      try {
-        const { id, ...bookingData } = booking;
-        await addDoc(collection(db, 'bookings'), {
-          ...bookingData,
-          syncedAt: Timestamp.now()
-        });
-      } catch (error) {
-        console.error('Failed to sync booking:', booking.id, error);
-        remainingBookings.push(booking);
-      }
-    }
-
-    localStorage.setItem('offline_bookings', JSON.stringify(remainingBookings));
   },
 
   // ===== INVOICE METHODS =====

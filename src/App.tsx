@@ -262,14 +262,8 @@ export default function App() {
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
 
-  // Offline booking state
+  // Offline state (used only for UI connectivity indicator)
   const isOffline = !db;
-  const [offlineBookingCount, setOfflineBookingCount] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('offline_bookings') || '[]').length as number;
-    } catch { return 0; }
-  });
-  const [isSyncing, setIsSyncing] = useState(false);
 
   // Trip addon management state
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
@@ -372,15 +366,6 @@ export default function App() {
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
     const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
     const unsubscribeTours = transportService.subscribeToTours(setTours);
-    // Attempt to sync any offline bookings saved while Firebase was unavailable
-    if (!isOffline) {
-      transportService.syncOfflineBookings()
-        .then(() => {
-          const remaining = JSON.parse(localStorage.getItem('offline_bookings') || '[]').length;
-          setOfflineBookingCount(remaining);
-        })
-        .catch(err => console.error('Failed to sync offline bookings on startup:', err));
-    }
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -414,20 +399,6 @@ export default function App() {
       await transportService.deleteAgent(agentId);
     } catch (err) {
       console.error('Failed to delete agent:', err);
-    }
-  };
-
-  const handleSyncOfflineBookings = async () => {
-    if (isOffline || isSyncing) return;
-    setIsSyncing(true);
-    try {
-      await transportService.syncOfflineBookings();
-      const remaining = JSON.parse(localStorage.getItem('offline_bookings') || '[]').length;
-      setOfflineBookingCount(remaining);
-    } catch (err) {
-      console.error('Failed to sync offline bookings:', err);
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -1025,7 +996,7 @@ export default function App() {
       phone: phoneInput.trim(),
       type: 'TRIP',
       route: selectedTrip.route,
-      date: new Date().toLocaleDateString('vi-VN'),
+      date: new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       time: selectedTrip.time,
       tripId: selectedTrip.id,
       seatId,
@@ -1062,7 +1033,7 @@ export default function App() {
     };
 
     try {
-      // Save booking to Firebase
+      // Save booking to Firebase (always cloud – no local fallback)
       const result = await transportService.createBooking(bookingData);
 
       // Update seat status in Firebase for all seats
@@ -1071,13 +1042,13 @@ export default function App() {
         await transportService.bookSeat(selectedTrip.id, extraSeatId, seatUpdateData);
       }
 
-      setLastBooking({ ...bookingData, id: result.id });
-      // Refresh offline count (may have incremented if Firebase was unreachable)
-      setOfflineBookingCount(JSON.parse(localStorage.getItem('offline_bookings') || '[]').length);
+      setLastBooking({ ...bookingData, id: result.id, ticketCode: result.ticketCode });
     } catch (err) {
       console.error('Failed to save booking:', err);
-      setLastBooking(bookingData);
-      setOfflineBookingCount(JSON.parse(localStorage.getItem('offline_bookings') || '[]').length);
+      alert(language === 'vi'
+        ? 'Đặt vé thất bại: Không thể kết nối đến máy chủ. Vui lòng thử lại.'
+        : 'Booking failed: Unable to connect to server. Please try again.');
+      return;
     }
 
     setIsTicketOpen(true);
@@ -2388,8 +2359,8 @@ export default function App() {
           };
           try {
             const result = await transportService.createBooking(bookingData);
-            const savedBooking = { ...bookingData, id: result.id || '' };
-            setTourBookingId(result.id || '');
+            const savedBooking = { ...bookingData, id: result.id || '', ticketCode: result.ticketCode || '' };
+            setTourBookingId(result.ticketCode || result.id || '');
             setLastTourBooking(savedBooking);
             setTourBookingSuccess(true);
           } catch (err) {
@@ -2413,7 +2384,7 @@ export default function App() {
                 {tourBookingId && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400 font-medium">{language === 'vi' ? 'Mã đặt tour' : 'Booking ID'}</span>
-                    <span className="font-bold text-daiichi-red">#{tourBookingId.slice(-8).toUpperCase()}</span>
+                    <span className="font-bold text-daiichi-red">{tourBookingId}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
@@ -4296,24 +4267,11 @@ export default function App() {
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">
-          {/* Offline mode / unsynced bookings banner */}
-          {(isOffline || offlineBookingCount > 0) && (
-            <div className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${isOffline ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+          {/* Offline mode banner */}
+          {isOffline && (
+            <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium bg-red-50 border border-red-200 text-red-700">
               <AlertTriangle size={16} className="shrink-0" />
-              <span className="flex-1">
-                {isOffline
-                  ? t.offline_mode_banner
-                  : `${offlineBookingCount} ${t.offline_bookings_count}`}
-              </span>
-              {!isOffline && offlineBookingCount > 0 && (
-                <button
-                  onClick={handleSyncOfflineBookings}
-                  disabled={isSyncing}
-                  className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {isSyncing ? '...' : t.sync_offline_bookings}
-                </button>
-              )}
+              <span className="flex-1">{t.offline_mode_banner}</span>
             </div>
           )}
           {/* Mobile Menu Button - Since Header is removed */}
