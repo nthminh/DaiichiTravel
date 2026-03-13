@@ -51,6 +51,8 @@ export interface RouteFare {
   currency: string; // default "VND"
   active: boolean;
   updatedAt: string; // ISO string
+  startDate?: string; // YYYY-MM-DD, if set fare is only valid from this date
+  endDate?: string;   // YYYY-MM-DD, if set fare is only valid until this date
 }
 
 // Return type of getFareForStops()
@@ -113,6 +115,7 @@ export interface Employee {
   email?: string;
   address?: string;
   role: 'STAFF' | 'DRIVER' | 'ACCOUNTANT' | 'OTHER';
+  position?: string; // free-text job title, separate from system role
   status: 'ACTIVE' | 'INACTIVE';
   username?: string;
   password?: string;

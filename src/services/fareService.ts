@@ -129,6 +129,8 @@ export async function upsertFare(
   price: number,
   agentPrice?: number,
   currency = 'VND',
+  startDate?: string,
+  endDate?: string,
 ): Promise<string> {
   if (!db) {
     throw new FareError('NO_DB', 'Không kết nối được cơ sở dữ liệu.');
@@ -152,6 +154,12 @@ export async function upsertFare(
   };
   if (agentPrice !== undefined) {
     fareData['agentPrice'] = agentPrice;
+  }
+  if (startDate) {
+    fareData['startDate'] = startDate;
+  }
+  if (endDate) {
+    fareData['endDate'] = endDate;
   }
 
   await setDoc(fareRef, fareData, { merge: true });
