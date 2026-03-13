@@ -1580,6 +1580,8 @@ export default function App() {
           // Route-level surcharges
           const tripDate = selectedTrip.date || '';
           const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
+          // Pre-compute all stop names for pickup/dropoff address selects
+          const allStopNames = stops.map(s => s.name);
 
           // Build seat status lookup
           const seatStatusMap: Record<string, SeatStatus> = {};
@@ -1967,7 +1969,6 @@ export default function App() {
                         : stops.map(s => s.name);
                       // Default departure label from route if no stop selected
                       const defaultDeparture = tripRoute?.departurePoint || '';
-                      const allStopNames = stops.map(s => s.name);
                       return (
                         <>
                           <div>
@@ -2019,7 +2020,6 @@ export default function App() {
                         : stops.map(s => s.name);
                       // Default arrival label from route if no stop selected
                       const defaultArrival = tripRoute?.arrivalPoint || '';
-                      const allStopNames = stops.map(s => s.name);
                       return (
                         <>
                           <div>
@@ -3870,6 +3870,11 @@ export default function App() {
       }
 
       case 'operations': {
+        // Pre-compute active employee names (drivers first) for driver select
+        const activeEmployeeNames = [
+          ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
+          ...employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
+        ];
         const filteredTrips = trips.filter(trip => {
           if (trip.status === TripStatus.COMPLETED) return false;
           if (!tripSearch) return true;
@@ -3960,7 +3965,7 @@ export default function App() {
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label>
                       <SearchableSelect
-                        options={employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name).concat(employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name))}
+                        options={activeEmployeeNames}
                         value={tripForm.driverName}
                         onChange={(val) => setTripForm(p => ({ ...p, driverName: val }))}
                         placeholder={language === 'vi' ? 'Chọn hoặc nhập tên tài xế...' : 'Select or type driver name...'}
@@ -4061,7 +4066,7 @@ export default function App() {
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label>
                       <SearchableSelect
-                        options={employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name).concat(employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name))}
+                        options={activeEmployeeNames}
                         value={batchTripForm.driverName}
                         onChange={(val) => setBatchTripForm(p => ({ ...p, driverName: val }))}
                         placeholder={language === 'vi' ? 'Chọn hoặc nhập tên tài xế...' : 'Select or type driver name...'}
