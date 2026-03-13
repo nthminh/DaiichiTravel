@@ -4,6 +4,7 @@ import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
+import { NotePopover } from './NotePopover';
 
 interface StopManagementProps {
   language: Language;
@@ -83,6 +84,16 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     setFormData({ name: '', address: '', category: 'MAJOR', surcharge: 0, distanceKm: undefined });
     setIsAdding(false);
     setEditingId(null);
+  };
+
+  const handleSaveStopNote = async (stopId: string, note: string) => {
+    try {
+      await transportService.updateStop(stopId, { note });
+    } catch (err) {
+      console.error('Failed to save stop note:', err);
+      // Fallback to local state if Firebase is unavailable
+      onUpdateStops(stops.map(s => s.id === stopId ? { ...s, note } : s));
+    }
   };
 
   const filteredStops = stops.filter(s => 
@@ -264,6 +275,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                       >
                         <Edit3 size={18} />
                       </button>
+                      <NotePopover note={stop.note} onSave={(note) => handleSaveStopNote(stop.id, note)} language={language} />
                       <button 
                         onClick={() => handleDeleteStop(stop.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
