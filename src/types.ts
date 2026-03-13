@@ -47,6 +47,7 @@ export interface RouteFare {
   fromStopId: string;
   toStopId: string;
   price: number;
+  agentPrice?: number; // agent/wholesaler price for this segment
   currency: string; // default "VND"
   active: boolean;
   updatedAt: string; // ISO string
@@ -55,6 +56,7 @@ export interface RouteFare {
 // Return type of getFareForStops()
 export interface FareResult {
   price: number;
+  agentPrice?: number; // agent price for this segment (if configured)
   currency: string;
   fareDocId: string;
   fromStopName?: string;
@@ -144,6 +146,9 @@ export interface Seat {
   customerName?: string;
   customerPhone?: string;
   pickupPoint?: string;
+  dropoffPoint?: string;    // drop-off stop name
+  fromStopOrder?: number;   // order of pickup stop (used for segment availability)
+  toStopOrder?: number;     // order of dropoff stop (used for segment availability)
   deck?: number; // 0 for lower, 1 for upper
 }
 

@@ -108,6 +108,7 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
 
   return {
     price: data['price'] as number,
+    agentPrice: data['agentPrice'] as number | undefined,
     currency: (data['currency'] as string) || 'VND',
     fareDocId,
     fromStopName: fromStop?.name,
@@ -126,6 +127,7 @@ export async function upsertFare(
   fromStopId: string,
   toStopId: string,
   price: number,
+  agentPrice?: number,
   currency = 'VND',
 ): Promise<string> {
   if (!db) {
@@ -139,19 +141,20 @@ export async function upsertFare(
   const fareDocId = `${fromStopId}_${toStopId}`;
   const fareRef = doc(db, 'routeFares', routeId, 'fares', fareDocId);
 
-  await setDoc(
-    fareRef,
-    {
-      routeId,
-      fromStopId,
-      toStopId,
-      price,
-      currency,
-      active: true,
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true },
-  );
+  const fareData: Record<string, unknown> = {
+    routeId,
+    fromStopId,
+    toStopId,
+    price,
+    currency,
+    active: true,
+    updatedAt: new Date().toISOString(),
+  };
+  if (agentPrice !== undefined) {
+    fareData['agentPrice'] = agentPrice;
+  }
+
+  await setDoc(fareRef, fareData, { merge: true });
 
   return fareDocId;
 }

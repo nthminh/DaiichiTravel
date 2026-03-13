@@ -14,7 +14,7 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 
@@ -108,6 +108,7 @@ export default function App() {
     }
   });
   const [activeTab, setActiveTab] = useState('home');
+  const [previousTab, setPreviousTab] = useState('book-ticket'); // Track tab before seat-mapping navigation
   const [language, setLanguage] = useState<Language>('vi');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>> | null>(() => {
@@ -132,6 +133,7 @@ export default function App() {
   const [dropoffSurcharge, setDropoffSurcharge] = useState(0);
   // Fare-table state (Option 2: explicit fare lookup between stops)
   const [fareAmount, setFareAmount] = useState<number | null>(null);
+  const [fareAgentAmount, setFareAgentAmount] = useState<number | null>(null); // agent-specific fare per segment
   const [fareError, setFareError] = useState<string>('');
   const [fareLoading, setFareLoading] = useState(false);
   const [fromStopId, setFromStopId] = useState('');
@@ -225,6 +227,16 @@ export default function App() {
   const [routeSurcharges, setRouteSurcharges] = useState<RouteSurcharge[]>([]);
   const [showAddRouteSurcharge, setShowAddRouteSurcharge] = useState(false);
   const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id'>>({ name: '', type: 'FUEL', amount: 0, isActive: true });
+
+  // Route stops (intermediate stops for a route)
+  const [routeFormStops, setRouteFormStops] = useState<RouteStop[]>([]);
+  const [showAddRouteStop, setShowAddRouteStop] = useState(false);
+  const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
+
+  // Fare table for route (retail + agent price per segment)
+  const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number }>>([]);
+  const [showAddRouteFare, setShowAddRouteFare] = useState(false);
+  const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0 });
 
   // Vehicle CRUD state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -401,11 +413,23 @@ export default function App() {
   // --- Route CRUD handlers ---
   const handleSaveRoute = async () => {
     try {
-      const routeData = { ...routeForm, pricePeriods: routePricePeriods, surcharges: routeSurcharges };
+      const routeData = { ...routeForm, pricePeriods: routePricePeriods, surcharges: routeSurcharges, routeStops: routeFormStops };
+      let routeId = editingRoute?.id;
       if (editingRoute) {
         await transportService.updateRoute(editingRoute.id, routeData);
       } else {
-        await transportService.addRoute(routeData);
+        const docRef = await transportService.addRoute(routeData);
+        routeId = docRef?.id;
+      }
+      // Save fare table entries if any stops are configured
+      if (routeId && routeFormFares.length > 0) {
+        for (const fare of routeFormFares) {
+          try {
+            await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined);
+          } catch (err) {
+            console.error('Failed to save fare:', fare, err);
+          }
+        }
       }
       setShowAddRoute(false);
       setEditingRoute(null);
@@ -414,6 +438,10 @@ export default function App() {
       setShowAddPricePeriod(false);
       setRouteSurcharges([]);
       setShowAddRouteSurcharge(false);
+      setRouteFormStops([]);
+      setShowAddRouteStop(false);
+      setRouteFormFares([]);
+      setShowAddRouteFare(false);
     } catch (err) {
       console.error('Failed to save route:', err);
     }
@@ -435,6 +463,25 @@ export default function App() {
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
     setShowAddRouteSurcharge(false);
+    // Load route stops
+    const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+    setRouteFormStops(loadedStops);
+    setShowAddRouteStop(false);
+    // Load existing fares from Firestore
+    setRouteFormFares([]);
+    setShowAddRouteFare(false);
+    if (route.id && (route.routeStops || []).length > 0) {
+      transportService.getRouteFares(route.id).then((fares) => {
+        setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
+          fromStopId: f.fromStopId,
+          toStopId: f.toStopId,
+          fromName: loadedStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
+          toName: loadedStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
+          price: f.price,
+          agentPrice: f.agentPrice || 0,
+        })));
+      }).catch((err) => { console.error('Failed to load route fares:', err); });
+    }
     setShowAddRoute(true);
   };
 
@@ -835,18 +882,22 @@ export default function App() {
   };
 
   const handleConfirmBooking = async (seatId: string) => {
-    // Use fare-table price when available; for agents use agentPrice when set
+    // Use fare-table price when available; for agents prefer agentPrice from fare table
     const isAgentBooking = currentUser?.role === UserRole.AGENT;
     const effectiveAgentName = isAgentBooking
       ? (currentUser!.name || currentUser!.address || currentUser!.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
       : 'Trực tiếp';
-    const basePriceAdult = fareAmount !== null
-      ? fareAmount
+    // When a fare is resolved: use agent fare price for agents (if set), otherwise retail fare
+    const effectiveFareAmount = fareAmount !== null
+      ? (isAgentBooking && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
+      : null;
+    const basePriceAdult = effectiveFareAmount !== null
+      ? effectiveFareAmount
       : (isAgentBooking
           ? (selectedTrip.agentPrice || selectedTrip.price || 0)
           : (selectedTrip.price || 0));
-    const basePriceChild = fareAmount !== null
-      ? fareAmount
+    const basePriceChild = effectiveFareAmount !== null
+      ? effectiveFareAmount
       : (isAgentBooking
           ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
           : (selectedTrip.priceChild || basePriceAdult));
@@ -876,6 +927,10 @@ export default function App() {
     const extraSeatsForBooking = extraSeatIds.slice(0, (adults - 1) + childrenOver4);
     const allSeatIds = [seatId, ...extraSeatsForBooking];
 
+    // Resolve stop orders for segment availability tracking
+    const fromStopOrder = tripRoute?.routeStops?.find(s => s.stopId === fromStopId)?.order;
+    const toStopOrder = tripRoute?.routeStops?.find(s => s.stopId === toStopId)?.order;
+
     const bookingData = {
       customerName: customerNameInput.trim() || (language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
       phone: phoneInput.trim(),
@@ -897,12 +952,24 @@ export default function App() {
       paymentMethod: paymentMethodInput,
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: addonQuantities[a.id] || 1 })),
       // Fare-table fields (Option 2) – present only when a fare was resolved
-      ...(fareAmount !== null && fromStopId && toStopId ? {
+      ...(effectiveFareAmount !== null && fromStopId && toStopId ? {
         fromStopId,
         toStopId,
         fareDocId: `${fromStopId}_${toStopId}`,
-        farePricePerPerson: fareAmount,
+        farePricePerPerson: effectiveFareAmount,
+        ...(fareAmount !== null && isAgentBooking && fareAgentAmount !== null ? { fareRetailPricePerPerson: fareAmount } : {}),
       } : {}),
+    };
+
+    // Seat update payload includes pickup/dropoff for segment availability
+    const seatUpdateData = {
+      status: SeatStatus.BOOKED,
+      customerName: bookingData.customerName,
+      customerPhone: bookingData.phone,
+      pickupPoint: pickupPoint || undefined,
+      dropoffPoint: dropoffPoint || undefined,
+      ...(fromStopOrder !== undefined ? { fromStopOrder } : {}),
+      ...(toStopOrder !== undefined ? { toStopOrder } : {}),
     };
 
     try {
@@ -910,17 +977,9 @@ export default function App() {
       const result = await transportService.createBooking(bookingData);
 
       // Update seat status in Firebase for all seats
-      await transportService.bookSeat(selectedTrip.id, seatId, {
-        status: SeatStatus.BOOKED,
-        customerName: bookingData.customerName,
-        customerPhone: bookingData.phone,
-      });
+      await transportService.bookSeat(selectedTrip.id, seatId, seatUpdateData);
       for (const extraSeatId of extraSeatsForBooking) {
-        await transportService.bookSeat(selectedTrip.id, extraSeatId, {
-          status: SeatStatus.BOOKED,
-          customerName: bookingData.customerName,
-          customerPhone: bookingData.phone,
-        });
+        await transportService.bookSeat(selectedTrip.id, extraSeatId, seatUpdateData);
       }
 
       setLastBooking({ ...bookingData, id: result.id });
@@ -949,6 +1008,7 @@ export default function App() {
     setAddonQuantities({});
     // Reset fare-table state
     setFareAmount(null);
+    setFareAgentAmount(null);
     setFareError('');
     setFareLoading(false);
     setFromStopId('');
@@ -1013,6 +1073,7 @@ export default function App() {
     setFareLoading(true);
     setFareError('');
     setFareAmount(null);
+    setFareAgentAmount(null);
 
     try {
       const result = await transportService.getFare({
@@ -1025,6 +1086,7 @@ export default function App() {
       // Discard if a newer request has been initiated
       if (requestId !== fareRequestIdRef.current) return;
       setFareAmount(result.price);
+      setFareAgentAmount(result.agentPrice ?? null);
     } catch (err) {
       if (requestId !== fareRequestIdRef.current) return;
       if (err instanceof FareError) {
@@ -1365,7 +1427,7 @@ export default function App() {
                         <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
                       )}
                       <button 
-                        onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}
+                        onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
                         className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
                       >
                         {t.select_seat}
@@ -1452,8 +1514,36 @@ export default function App() {
           const hasDualDeck = deckCount > 1;
           const currentGrid = hasLayoutGrid ? (layoutGrid[activeDeck] ?? []) : null;
 
+          // Segment-aware availability: when the route has stops and user has selected pickup/dropoff,
+          // a seat booked for a non-overlapping segment appears as available (empty).
+          const hasSegmentSelection = !!(tripRoute?.routeStops?.length && fromStopId && toStopId);
+          const currentFromOrder = hasSegmentSelection
+            ? (tripRoute!.routeStops!.find(s => s.stopId === fromStopId)?.order ?? -1)
+            : -1;
+          const currentToOrder = hasSegmentSelection
+            ? (tripRoute!.routeStops!.find(s => s.stopId === toStopId)?.order ?? -1)
+            : -1;
+
+          const getEffectiveStatus = (seatId: string): SeatStatus => {
+            const rawStatus = seatStatusMap[seatId] ?? SeatStatus.EMPTY;
+            if (!hasSegmentSelection || rawStatus === SeatStatus.EMPTY) return rawStatus;
+            if (currentFromOrder < 0 || currentToOrder < 0) return rawStatus;
+            // Look up the seat's stop orders from the trip seat data
+            const seatData = selectedTrip.seats.find((s: any) => s.id === seatId);
+            const sFrom = seatData?.fromStopOrder;
+            const sTo = seatData?.toStopOrder;
+            if (sFrom === undefined || sTo === undefined) return rawStatus;
+            // Two segments [sFrom, sTo) and [currentFromOrder, currentToOrder) overlap iff:
+            //   sFrom < currentToOrder AND currentFromOrder < sTo
+            const overlaps = sFrom < currentToOrder && currentFromOrder < sTo;
+            if (!overlaps) return SeatStatus.EMPTY; // seat is free for our segment
+            return rawStatus;
+          };
+
           const renderSeatButton = (seatId: string) => {
-            const status = seatStatusMap[seatId] ?? SeatStatus.EMPTY;
+            const status = getEffectiveStatus(seatId);
+            const rawStatus = seatStatusMap[seatId] ?? SeatStatus.EMPTY;
+            const isSegmentFree = hasSegmentSelection && status === SeatStatus.EMPTY && rawStatus !== SeatStatus.EMPTY;
             const isPrimarySeat = seatId === showBookingForm;
             const isExtraSeat = extraSeatIds.includes(seatId);
             return (
@@ -1479,16 +1569,19 @@ export default function App() {
                 }}
                 className={cn(
                   "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative",
-                  status === SeatStatus.PAID && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
-                  status === SeatStatus.BOOKED && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
+                  rawStatus === SeatStatus.PAID && !isSegmentFree && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
+                  rawStatus === SeatStatus.BOOKED && !isSegmentFree && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
+                  isSegmentFree && !isPrimarySeat && !isExtraSeat && "bg-emerald-50 border-emerald-400 text-emerald-600 hover:border-daiichi-red hover:text-daiichi-red",
                   isPrimarySeat && "bg-daiichi-red/20 border-daiichi-red text-daiichi-red",
                   isExtraSeat && "bg-blue-100 border-blue-500 text-blue-600",
-                  status === SeatStatus.EMPTY && !isPrimarySeat && !isExtraSeat && "bg-white border-gray-200 text-gray-500 hover:border-daiichi-red hover:text-daiichi-red"
+                  status === SeatStatus.EMPTY && !isSegmentFree && !isPrimarySeat && !isExtraSeat && "bg-white border-gray-200 text-gray-500 hover:border-daiichi-red hover:text-daiichi-red"
                 )}
+                title={isSegmentFree ? (language === 'vi' ? 'Trống cho chặng này' : 'Free for this segment') : undefined}
               >
                 {seatId}
-                {status === SeatStatus.PAID && <CheckCircle2 size={10} className="absolute top-0.5 right-0.5" />}
+                {rawStatus === SeatStatus.PAID && !isSegmentFree && <CheckCircle2 size={10} className="absolute top-0.5 right-0.5" />}
                 {isExtraSeat && <span className="absolute top-0 right-0.5 text-[7px] font-bold text-blue-600">+</span>}
+                {isSegmentFree && <span className="absolute top-0 right-0 text-[7px] font-bold text-emerald-600">✓</span>}
               </motion.button>
             );
           };
@@ -1497,9 +1590,19 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold">{t.seat_map_title}</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">{selectedTrip.licensePlate}</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); setActiveTab(previousTab); }}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-gray-500 hover:text-daiichi-red hover:bg-gray-50 rounded-xl transition-all"
+                    title={language === 'vi' ? 'Quay lại' : language === 'ja' ? '戻る' : 'Go back'}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                    {language === 'vi' ? 'Quay lại' : language === 'ja' ? '戻る' : 'Back'}
+                  </button>
+                  <div>
+                    <h2 className="text-2xl font-bold">{t.seat_map_title}</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">{selectedTrip.licensePlate}</p>
+                  </div>
                 </div>
                 {hasDualDeck && (
                   <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -1553,10 +1656,13 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="mt-6 flex justify-center gap-6 text-xs font-bold uppercase tracking-wider">
+                <div className="mt-6 flex justify-center flex-wrap gap-4 text-xs font-bold uppercase tracking-wider">
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-yellow rounded" /> {t.booked}</div>
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white border border-gray-200 rounded" /> {t.empty}</div>
+                  {hasSegmentSelection && (
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-emerald-50 border-2 border-emerald-400 rounded" /> {language === 'vi' ? 'Trống chặng này' : language === 'ja' ? 'この区間は空き' : 'Free for segment'}</div>
+                  )}
                 </div>
               </div>
 
@@ -1803,9 +1909,16 @@ export default function App() {
                             <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
                           )}
                           {!fareLoading && fareAmount !== null && (
-                            <p className="mt-1 text-xs text-emerald-600 font-bold">
-                              {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
-                            </p>
+                            <div className="mt-1 space-y-0.5">
+                              <p className="text-xs text-emerald-600 font-bold">
+                                {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                              </p>
+                              {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
+                                <p className="text-xs text-orange-600 font-bold">
+                                  {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
@@ -1939,13 +2052,17 @@ export default function App() {
                       {(() => {
                         // For agents use agentPrice when available; otherwise fall back to trip price
                         const isAgentBookingForm = currentUser?.role === UserRole.AGENT;
-                        const basePriceAdult = fareAmount !== null
-                          ? fareAmount
+                        // Use agent fare if available, else retail fare
+                        const effectiveFareAmount = fareAmount !== null
+                          ? (isAgentBookingForm && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
+                          : null;
+                        const basePriceAdult = effectiveFareAmount !== null
+                          ? effectiveFareAmount
                           : (isAgentBookingForm
                               ? (selectedTrip.agentPrice || selectedTrip.price || 0)
                               : (selectedTrip.price || 0));
-                        const basePriceChild = fareAmount !== null
-                          ? fareAmount
+                        const basePriceChild = effectiveFareAmount !== null
+                          ? effectiveFareAmount
                           : (isAgentBookingForm
                               ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
                               : (selectedTrip.priceChild || basePriceAdult));
@@ -1965,10 +2082,13 @@ export default function App() {
                           <>
                             <div className="flex justify-between items-center text-xs text-gray-500">
                               <span>
-                                {fareAmount !== null
+                                {effectiveFareAmount !== null
                                   ? (t.fare_based_price || 'Fare table price')
                                   : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
-                                {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && fareAmount === null && (
+                                {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && effectiveFareAmount === null && (
+                                  <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
+                                )}
+                                {isAgentBookingForm && effectiveFareAmount !== null && fareAgentAmount !== null && (
                                   <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
                                 )}
                               </span>
@@ -2680,7 +2800,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -2894,6 +3014,192 @@ export default function App() {
                         </div>
                       )}
                     </div>
+
+                    {/* Route Stops (Intermediate Stops / Sub-route) */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Điểm dừng / Tuyến phụ' : language === 'ja' ? '経由地 / サブルート' : 'Stops / Sub-routes'}</p>
+                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Các điểm dừng trung gian để bán vé theo chặng (A→B, B→C)' : 'Intermediate stops enabling segment ticket sales (A→B, B→C)'}</p>
+                        </div>
+                        {!showAddRouteStop && (
+                          <button onClick={() => { setShowAddRouteStop(true); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
+                            + {language === 'vi' ? 'Thêm điểm dừng' : 'Add stop'}
+                          </button>
+                        )}
+                      </div>
+
+                      {routeFormStops.length === 0 && !showAddRouteStop && (
+                        <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có điểm dừng – thêm điểm dừng để bán vé từng chặng' : 'No stops yet – add stops to enable per-segment ticket sales'}</p>
+                      )}
+
+                      {[...routeFormStops].sort((a, b) => a.order - b.order).map((stop, idx) => (
+                        <div key={stop.stopId || idx} className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
+                          <span className="w-6 h-6 flex-shrink-0 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{stop.order}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-800 truncate">{stop.stopName}</p>
+                            <p className="text-[10px] text-gray-400">{stop.stopId}</p>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => setRouteFormStops(prev => prev.map(s => s.stopId === stop.stopId ? { ...s, order: Math.max(1, s.order - 1) } : s).map((s, i, arr) => {
+                              const sorted = [...arr].sort((a, b) => a.order - b.order);
+                              const pos = sorted.findIndex(x => x.stopId === s.stopId);
+                              return { ...s, order: pos + 1 };
+                            }))} disabled={idx === 0} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold">↑</button>
+                            <button onClick={() => setRouteFormStops(prev => prev.map(s => s.stopId === stop.stopId ? { ...s, order: s.order + 1 } : s).map((s, i, arr) => {
+                              const sorted = [...arr].sort((a, b) => a.order - b.order);
+                              const pos = sorted.findIndex(x => x.stopId === s.stopId);
+                              return { ...s, order: pos + 1 };
+                            }))} disabled={idx === routeFormStops.length - 1} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold">↓</button>
+                            <button onClick={() => { setRouteFormStops(prev => prev.filter(s => s.stopId !== stop.stopId).map((s, i) => ({ ...s, order: i + 1 }))); setRouteFormFares(prev => prev.filter(f => f.fromStopId !== stop.stopId && f.toStopId !== stop.stopId)); }} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 size={12} /></button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {showAddRouteStop && (
+                        <div className="border border-dashed border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/50">
+                          <div className="grid grid-cols-1 gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Chọn điểm dừng' : 'Select stop'}</label>
+                              <select
+                                value={routeStopForm.stopId}
+                                onChange={e => {
+                                  const stop = stops.find(s => s.id === e.target.value);
+                                  setRouteStopForm(p => ({ ...p, stopId: e.target.value, stopName: stop?.name || '' }));
+                                }}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                              >
+                                <option value="">{language === 'vi' ? '-- Chọn điểm dừng --' : '-- Select stop --'}</option>
+                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id)).map(s => (
+                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Thứ tự (1 = đầu tiên)' : 'Order (1 = first)'}</label>
+                              <input type="number" min="1" value={routeStopForm.order} onChange={e => setRouteStopForm(p => ({ ...p, order: parseInt(e.target.value) || 1 }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowAddRouteStop(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button
+                              disabled={!routeStopForm.stopId}
+                              onClick={() => {
+                                const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order };
+                                setRouteFormStops(prev => {
+                                  const updated = [...prev, newStop].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
+                                  return updated;
+                                });
+                                setShowAddRouteStop(false);
+                                setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2 });
+                              }}
+                              className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
+                            >
+                              {t.save}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fare Table (per-segment pricing) */}
+                    {routeFormStops.length >= 2 && (
+                      <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Bảng giá theo chặng' : language === 'ja' ? '区間別運賃表' : 'Segment Fare Table'}</p>
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá vé lẻ và đại lý cho từng cặp điểm đón/trả' : 'Retail and agent prices for each from→to stop pair'}</p>
+                          </div>
+                          {!showAddRouteFare && (
+                            <button onClick={() => { setShowAddRouteFare(true); setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice }); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-100">
+                              + {language === 'vi' ? 'Thêm giá chặng' : 'Add fare'}
+                            </button>
+                          )}
+                        </div>
+
+                        {routeFormFares.length === 0 && !showAddRouteFare && (
+                          <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có giá chặng – nhấn nút để thêm' : 'No segment fares yet – click to add'}</p>
+                        )}
+
+                        {routeFormFares.map((fare, idx) => (
+                          <div key={idx} className="flex items-center gap-3 bg-teal-50 rounded-xl p-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm text-gray-800 truncate">{fare.fromName} → {fare.toName}</p>
+                              <div className="flex gap-3 mt-1">
+                                <span className="text-xs font-bold text-daiichi-red">{fare.price.toLocaleString()}đ</span>
+                                {fare.agentPrice > 0 && <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {fare.agentPrice.toLocaleString()}đ</span>}
+                              </div>
+                            </div>
+                            <button onClick={() => setRouteFormFares(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+
+                        {showAddRouteFare && (
+                          <div className="border border-dashed border-teal-200 rounded-xl p-4 space-y-3 bg-teal-50/50">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ điểm' : 'From stop'}</label>
+                                <select value={routeFareForm.fromStopId} onChange={e => setRouteFareForm(p => ({ ...p, fromStopId: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
+                                  <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
+                                  {[...routeFormStops].sort((a, b) => a.order - b.order).map(s => (
+                                    <option key={s.stopId} value={s.stopId}>{s.stopName}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến điểm' : 'To stop'}</label>
+                                <select value={routeFareForm.toStopId} onChange={e => setRouteFareForm(p => ({ ...p, toStopId: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
+                                  <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
+                                  {[...routeFormStops].sort((a, b) => a.order - b.order).filter(s => s.stopId !== routeFareForm.fromStopId).map(s => (
+                                    <option key={s.stopId} value={s.stopId}>{s.stopName}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_price} (đ)</label>
+                                <input type="number" min="0" value={routeFareForm.price} onChange={e => setRouteFareForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.agent_price} (đ)</label>
+                                <input type="number" min="0" value={routeFareForm.agentPrice} onChange={e => setRouteFareForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => setShowAddRouteFare(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                              <button
+                                disabled={!routeFareForm.fromStopId || !routeFareForm.toStopId || routeFareForm.fromStopId === routeFareForm.toStopId}
+                                onClick={() => {
+                                  const fromStop = routeFormStops.find(s => s.stopId === routeFareForm.fromStopId);
+                                  const toStop = routeFormStops.find(s => s.stopId === routeFareForm.toStopId);
+                                  if (!fromStop || !toStop) return;
+                                  // Validate order: from must come before to
+                                  if (fromStop.order >= toStop.order) {
+                                    alert(language === 'vi' ? 'Điểm đón phải nằm trước điểm trả trong hành trình' : 'From stop must come before to stop in route order');
+                                    return;
+                                  }
+                                  setRouteFormFares(prev => {
+                                    const existing = prev.findIndex(f => f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
+                                    const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice };
+                                    if (existing >= 0) {
+                                      return prev.map((f, i) => i === existing ? newFare : f);
+                                    }
+                                    return [...prev, newFare];
+                                  });
+                                  setShowAddRouteFare(false);
+                                  setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice });
+                                }}
+                                className="px-4 py-1.5 bg-teal-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
+                              >
+                                {t.save}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
@@ -2943,6 +3249,11 @@ export default function App() {
                         {(route.pricePeriods || []).length > 0 && (
                           <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
                             <Calendar size={10} /> {(route.pricePeriods || []).length} {language === 'vi' ? 'kỳ giá' : 'periods'}
+                          </span>
+                        )}
+                        {(route.routeStops || []).length > 0 && (
+                          <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[10px] font-bold">
+                            {(route.routeStops || []).length} {language === 'vi' ? 'điểm dừng' : 'stops'}
                           </span>
                         )}
                       </td>
@@ -3402,9 +3713,9 @@ export default function App() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredTrips.map((trip) => (
                     <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{formatTripDisplayTime(trip)}</td>
-                      <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
-                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>
+                      <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>{formatTripDisplayTime(trip)}</td>
+                      <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
+                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>
                         {(() => {
                           const r = routes.find(rt => rt.name === trip.route);
                           return r ? (
@@ -3415,15 +3726,15 @@ export default function App() {
                           ) : <span className="text-sm text-gray-500">{trip.route}</span>;
                         })()}
                       </td>
-                      <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
-                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
+                      <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
+                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
                       <td className="px-6 py-4">
                         <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
                           <span>{(trip.addons || []).length}</span>
                           <span>{t.manage_addons}</span>
                         </button>
                       </td>
-                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
                   {filteredTrips.length === 0 && (
@@ -3513,7 +3824,7 @@ export default function App() {
                               <button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button>
                               <button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>
                               <button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>
-                              <button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button>
+                              <button onClick={() => { setSelectedTrip(trip); setPreviousTab('completed-trips'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button>
                             </div>
                           </td>
                         </tr>

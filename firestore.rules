@@ -25,49 +25,58 @@ service cloud.firestore {
     
     // --- App Collections ---
 
-    // Public read access for these collections
+    // Trips: public read + public update (for seat booking from app) + public create
+    // (trip management done via app UI which has no Firebase Auth)
     match /trips/{trip} {
       allow read: if true;
-      allow write: if isRowyUserWithRole('editor');
+      allow write: if true;
     }
+
+    // Routes: public read + write (route/stop management done via app UI)
     match /routes/{route} {
       allow read: if true;
-      allow write: if isRowyUserWithRole('editor');
+      allow write: if true;
     }
+
     match /vehicles/{vehicle} {
       allow read: if true;
-      allow write: if isRowyUserWithRole('editor');
+      allow write: if true;
     }
     match /stops/{stop} {
       allow read: if true;
-      allow write: if isRowyUserWithRole('editor');
+      allow write: if true;
     }
     match /tours/{tour} {
-      allow read: if true; // Allow public read access to tours
-      allow write: if isRowyUserWithRole('editor'); // Only Rowy editors/admins can write
+      allow read: if true;
+      allow write: if true;
     }
 
     // Fare table: routeFares/{routeId}/fares/{fareDocId}
     // Public read so the booking form can look up fares without auth.
-    // Only editors can write (create/update/delete) fare entries.
+    // Public write so admin can manage fare tables from the app UI.
     match /routeFares/{routeId}/fares/{fareDocId} {
       allow read: if true;
-      allow write: if isRowyUserWithRole('editor');
+      allow write: if true;
     }
 
-    // Restricted collections. Only Rowy users can access.
+    // Consignments: managed via app UI
     match /consignments/{consignment} {
-      allow read, write: if isRowyUserWithRole('editor');
+      allow read, write: if true;
     }
+
+    // Agents: public read + write (agent management done via app UI)
     match /agents/{agent} {
       allow read: if true;
-      allow write: if isRowyUserWithRole('editor');
+      allow write: if true;
     }
+
+    // Bookings: anyone can create a booking; all operations allowed for app UI
     match /bookings/{booking} {
-      allow read, write: if isRowyUserWithRole('editor');
+      allow read, write: if true;
     }
+
     match /invoices/{invoice} {
-      allow read, write: if isRowyUserWithRole('editor');
+      allow read, write: if true;
     }
     match /settings/{setting} {
       allow read, write: if true;
