@@ -14,6 +14,7 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
+import { PAYMENT_METHODS, type PaymentMethod } from './constants/paymentMethods';
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
@@ -43,8 +44,6 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
 export type { Language };
 
-export const PAYMENT_METHODS = ['Tiền mặt', 'Chuyển khoản', 'Thẻ tín dụng', 'MoMo', 'Giữ vé'] as const;
-export type PaymentMethod = typeof PAYMENT_METHODS[number];
 const DEFAULT_PAYMENT_METHOD: PaymentMethod = 'Tiền mặt';
 const PAYMENT_METHOD_TRANSLATION_KEYS: Record<PaymentMethod, string> = {
   'Tiền mặt': 'payment_cash',
