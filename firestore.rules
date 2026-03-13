@@ -47,6 +47,14 @@ service cloud.firestore {
       allow write: if isRowyUserWithRole('editor'); // Only Rowy editors/admins can write
     }
 
+    // Fare table: routeFares/{routeId}/fares/{fareDocId}
+    // Public read so the booking form can look up fares without auth.
+    // Only editors can write (create/update/delete) fare entries.
+    match /routeFares/{routeId}/fares/{fareDocId} {
+      allow read: if true;
+      allow write: if isRowyUserWithRole('editor');
+    }
+
     // Restricted collections. Only Rowy users can access.
     match /consignments/{consignment} {
       allow read, write: if isRowyUserWithRole('editor');

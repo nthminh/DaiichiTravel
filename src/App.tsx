@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
@@ -15,6 +15,7 @@ import {
 } from './constants/translations';
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge } from './types';
 import { transportService } from './services/transportService';
+import { FareError } from './services/fareService';
 
 // Import Components
 import { Dashboard } from './components/Dashboard';
@@ -120,6 +121,14 @@ export default function App() {
   const [bookingDiscount, setBookingDiscount] = useState(0);
   const [pickupSurcharge, setPickupSurcharge] = useState(0);
   const [dropoffSurcharge, setDropoffSurcharge] = useState(0);
+  // Fare-table state (Option 2: explicit fare lookup between stops)
+  const [fareAmount, setFareAmount] = useState<number | null>(null);
+  const [fareError, setFareError] = useState<string>('');
+  const [fareLoading, setFareLoading] = useState(false);
+  const [fromStopId, setFromStopId] = useState('');
+  const [toStopId, setToStopId] = useState('');
+  // Ref to track the latest fare request and discard stale responses
+  const fareRequestIdRef = useRef(0);
   // Tour booking states
   const [selectedTour, setSelectedTour] = useState<TourItem | null>(null);
   const [tourBookingName, setTourBookingName] = useState('');
@@ -696,8 +705,9 @@ export default function App() {
   };
 
   const handleConfirmBooking = async (seatId: string) => {
-    const basePriceAdult = selectedTrip.price || 0;
-    const basePriceChild = selectedTrip.priceChild || basePriceAdult;
+    // Use fare-table price when available, otherwise fall back to trip price
+    const basePriceAdult = fareAmount !== null ? fareAmount : (selectedTrip.price || 0);
+    const basePriceChild = fareAmount !== null ? fareAmount : (selectedTrip.priceChild || basePriceAdult);
     
     // Children over 4 years old are charged adult price and need their own seat
     const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
@@ -743,6 +753,13 @@ export default function App() {
       dropoffPoint,
       paymentMethod: paymentMethodInput,
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price })),
+      // Fare-table fields (Option 2) – present only when a fare was resolved
+      ...(fareAmount !== null && fromStopId && toStopId ? {
+        fromStopId,
+        toStopId,
+        fareDocId: `${fromStopId}_${toStopId}`,
+        farePricePerPerson: fareAmount,
+      } : {}),
     };
 
     try {
@@ -787,6 +804,12 @@ export default function App() {
     setBookingDiscount(0);
     setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
     setSelectedAddonIds([]);
+    // Reset fare-table state
+    setFareAmount(null);
+    setFareError('');
+    setFareLoading(false);
+    setFromStopId('');
+    setToStopId('');
 
     // Send real-time notification
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -827,6 +850,50 @@ export default function App() {
       }
       return false;
     });
+  };
+
+  /**
+   * Fare-table lookup (Option 2).
+   * Called when both fromStopId and toStopId are known and the trip's route
+   * has routeStops configured.  Updates fareAmount / fareError state.
+   * Uses a request-ID guard to discard stale responses from rapid selections.
+   */
+  const lookupFare = async (
+    tripRoute: Route | undefined,
+    fFromStopId: string,
+    fToStopId: string,
+  ) => {
+    if (!tripRoute || !fFromStopId || !fToStopId) return;
+    if (!tripRoute.routeStops || tripRoute.routeStops.length === 0) return;
+
+    const requestId = ++fareRequestIdRef.current;
+    setFareLoading(true);
+    setFareError('');
+    setFareAmount(null);
+
+    try {
+      const result = await transportService.getFare({
+        routeId: tripRoute.id,
+        fromStopId: fFromStopId,
+        toStopId: fToStopId,
+        routeStops: tripRoute.routeStops,
+        stops,
+      });
+      // Discard if a newer request has been initiated
+      if (requestId !== fareRequestIdRef.current) return;
+      setFareAmount(result.price);
+    } catch (err) {
+      if (requestId !== fareRequestIdRef.current) return;
+      if (err instanceof FareError) {
+        setFareError(err.message);
+      } else {
+        setFareError(language === 'vi' ? 'Lỗi tra cứu giá vé.' : 'Fare lookup error.');
+      }
+    } finally {
+      if (requestId === fareRequestIdRef.current) {
+        setFareLoading(false);
+      }
+    }
   };
 
   const isRouteValidForDate = (_route: Route, _date: string): boolean => {
@@ -1166,11 +1233,14 @@ export default function App() {
         {
           const childrenOver4Count = childrenAges.filter(age => age > 4).length;
           const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
-          const canConfirmBooking = extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded;
+          // Look up route once for this render block (used for surcharges, fare table, and blocker check)
+          const tripRoute = routes.find(r => r.name === selectedTrip.route);
+          // Also disable confirmation when a fare lookup error exists for a route with configured stops
+          const hasFareBlocker = !!fareError && (tripRoute?.routeStops?.length ?? 0) > 0;
+          const canConfirmBooking = (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
           const isSelectingExtraSeats = !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
 
-          // Look up route to get route-level surcharges
-          const tripRoute = routes.find(r => r.name === selectedTrip.route);
+          // Route-level surcharges
           const tripDate = selectedTrip.date || '';
           const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
 
@@ -1508,36 +1578,83 @@ export default function App() {
                     <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
                     
                     {/* Pickup Point */}
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_point}</label>
-                      <SearchableSelect
-                        options={stops.map(s => s.name)}
-                        value={pickupPoint}
-                        onChange={(val) => {
-                          setPickupPoint(val);
-                          const stop = stops.find(s => s.name === val);
-                          setPickupSurcharge(stop?.surcharge || 0);
-                        }}
-                        placeholder={t.select_pickup}
-                        className="mt-1"
-                      />
-                    </div>
+                    {(() => {
+                      const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
+                      // When route has ordered stops, show them in order; otherwise show all stops
+                      const pickupOptions = hasRouteFares && tripRoute?.routeStops
+                        ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
+                        : stops.map(s => s.name);
+                      return (
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_point}</label>
+                          <SearchableSelect
+                            options={pickupOptions}
+                            value={pickupPoint}
+                            onChange={(val) => {
+                              setPickupPoint(val);
+                              const stop = stops.find(s => s.name === val);
+                              setPickupSurcharge(stop?.surcharge || 0);
+                              const newFromId = stop?.id || '';
+                              setFromStopId(newFromId);
+                              // Reset fare and re-lookup if dropoff is already chosen
+                              setFareAmount(null);
+                              setFareError('');
+                              if (newFromId && toStopId && hasRouteFares) {
+                                lookupFare(tripRoute, newFromId, toStopId);
+                              }
+                            }}
+                            placeholder={t.select_pickup}
+                            className="mt-1"
+                          />
+                        </div>
+                      );
+                    })()}
 
                     {/* Dropoff Point */}
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_point}</label>
-                      <SearchableSelect
-                        options={stops.map(s => s.name)}
-                        value={dropoffPoint}
-                        onChange={(val) => {
-                          setDropoffPoint(val);
-                          const stop = stops.find(s => s.name === val);
-                          setDropoffSurcharge(stop?.surcharge || 0);
-                        }}
-                        placeholder={t.select_dropoff}
-                        className="mt-1"
-                      />
-                    </div>
+                    {(() => {
+                      const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
+                      const dropoffOptions = hasRouteFares && tripRoute?.routeStops
+                        ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
+                        : stops.map(s => s.name);
+                      return (
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_point}</label>
+                          <SearchableSelect
+                            options={dropoffOptions}
+                            value={dropoffPoint}
+                            onChange={(val) => {
+                              setDropoffPoint(val);
+                              const stop = stops.find(s => s.name === val);
+                              setDropoffSurcharge(stop?.surcharge || 0);
+                              const newToId = stop?.id || '';
+                              setToStopId(newToId);
+                              // Reset fare and re-lookup if pickup is already chosen
+                              setFareAmount(null);
+                              setFareError('');
+                              if (fromStopId && newToId && hasRouteFares) {
+                                lookupFare(tripRoute, fromStopId, newToId);
+                              }
+                            }}
+                            placeholder={t.select_dropoff}
+                            className="mt-1"
+                          />
+                          {/* Fare lookup feedback */}
+                          {fareLoading && (
+                            <p className="mt-1 text-xs text-blue-500 animate-pulse">
+                              {t.fare_loading || 'Looking up fare...'}
+                            </p>
+                          )}
+                          {!fareLoading && fareError && (
+                            <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
+                          )}
+                          {!fareLoading && fareAmount !== null && (
+                            <p className="mt-1 text-xs text-emerald-600 font-bold">
+                              {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Surcharge (custom amount) */}
                     <div>
@@ -1628,8 +1745,9 @@ export default function App() {
 
                     <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
                       {(() => {
-                        const basePriceAdult = selectedTrip.price || 0;
-                        const basePriceChild = selectedTrip.priceChild || basePriceAdult;
+                        // Use fare-table price when available, otherwise fall back to trip price
+                        const basePriceAdult = fareAmount !== null ? fareAmount : (selectedTrip.price || 0);
+                        const basePriceChild = fareAmount !== null ? fareAmount : (selectedTrip.priceChild || basePriceAdult);
                         const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
                           (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
                           { childrenOver4: 0, childrenUnder4: 0 }
@@ -1645,7 +1763,11 @@ export default function App() {
                         return (
                           <>
                             <div className="flex justify-between items-center text-xs text-gray-500">
-                              <span>{language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare'}</span>
+                              <span>
+                                {fareAmount !== null
+                                  ? (t.fare_based_price || 'Fare table price')
+                                  : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
+                              </span>
                               <span>{baseTotal.toLocaleString()}đ</span>
                             </div>
                             {applicableRouteSurcharges.map(sc => (
