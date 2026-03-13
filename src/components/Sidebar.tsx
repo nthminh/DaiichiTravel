@@ -30,11 +30,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Admin-only pages grouped under the "Daiichi" dropdown
   const daiichiItems = [
     { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
+    { id: 'operations', label: t.operations, icon: Globe },
     { id: 'agents', label: t.agents, icon: Users },
     { id: 'employees', label: TRANSLATIONS[language].employees || 'Nhân viên', icon: Users },
     { id: 'routes', label: t.routes, icon: MapPin },
     { id: 'vehicles', label: t.vehicles, icon: Truck },
-    { id: 'operations', label: t.operations, icon: Globe },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', icon: CheckCircle },
     { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star },
     { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin },
