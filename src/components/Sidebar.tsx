@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, Menu, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown
+  BarChart2, ChevronDown, CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -33,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'routes', label: t.routes, icon: MapPin },
     { id: 'vehicles', label: t.vehicles, icon: Truck },
     { id: 'operations', label: t.operations, icon: Globe },
+    { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', icon: CheckCircle },
     { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star },
     { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin },
     { id: 'financial-report', label: TRANSLATIONS[language].financial_report || 'Financial Report', icon: BarChart2 },

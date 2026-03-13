@@ -4,8 +4,9 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift
+  Filter, Gift, Download, FileText
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
@@ -526,6 +527,110 @@ export default function App() {
       await transportService.updateTrip(tripId, { note } as Partial<Trip>);
     } catch (err) {
       console.error('Failed to save trip note:', err);
+    }
+  };
+
+  const exportTripToExcel = (trip: any) => {
+    const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
+    const routeData = routes.find(r => r.name === trip.route);
+    const headerRows = [
+      ['DANH SÁCH HÀNH KHÁCH - TRIP DETAIL'],
+      [`Số xe: ${trip.licensePlate || '—'}`],
+      [`Tài xế: ${trip.driverName || '—'}`],
+      [`Tuyến: ${trip.route || '—'}${routeData ? ` (${routeData.departurePoint} → ${routeData.arrivalPoint})` : ''}`],
+      [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
+      [`Trạng thái: ${trip.status}`],
+      [],
+      ['STT', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Trạng thái ghế', 'Giá vé (đ)'],
+    ];
+    const dataRows = bookedSeats.map((seat: any, idx: number) => [
+      idx + 1,
+      seat.id || '—',
+      seat.customerName || '—',
+      seat.customerPhone || '—',
+      seat.pickupPoint || '—',
+      seat.status === SeatStatus.PAID ? 'Đã thanh toán' : 'Đã đặt',
+      (trip.price || 0).toLocaleString(),
+    ]);
+    const summaryRows = [
+      [],
+      [`Tổng số ghế đã đặt: ${bookedSeats.length}`],
+      [`Tổng doanh thu dự kiến: ${(bookedSeats.length * (trip.price || 0)).toLocaleString()}đ`],
+    ];
+    const allRows = [...headerRows, ...dataRows, ...summaryRows];
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+    worksheet['!cols'] = [
+      { wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
+    const sanitizedPlate = (trip.licensePlate || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
+    const formattedDate = (trip.date || 'nodate').replace(/-/g, '');
+    const formattedTime = (trip.time || 'notime').replace(/:/g, '');
+    const filename = `Chuyen_${sanitizedPlate}_${formattedDate}_${formattedTime}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  const exportTripToPDF = (trip: any) => {
+    const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
+    const routeData = routes.find(r => r.name === trip.route);
+    const htmlContent = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Chuyến xe ${trip.licensePlate}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; font-size: 13px; }
+    h1 { color: #cc2222; font-size: 18px; margin-bottom: 4px; }
+    .info { margin-bottom: 16px; color: #444; }
+    .info p { margin: 2px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { background: #cc2222; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }
+    td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 12px; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .summary { margin-top: 16px; font-weight: bold; color: #cc2222; }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>DANH SÁCH HÀNH KHÁCH</h1>
+  <div class="info">
+    <p><b>Số xe:</b> ${trip.licensePlate || '—'}</p>
+    <p><b>Tài xế:</b> ${trip.driverName || '—'}</p>
+    <p><b>Tuyến:</b> ${trip.route || '—'}${routeData ? ` (${routeData.departurePoint} → ${routeData.arrivalPoint})` : ''}</p>
+    <p><b>Ngày giờ:</b> ${formatTripDisplayTime(trip)}</p>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>STT</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Trạng thái</th><th>Giá vé</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bookedSeats.map((seat: any, i: number) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${seat.id || '—'}</td>
+          <td>${seat.customerName || '—'}</td>
+          <td>${seat.customerPhone || '—'}</td>
+          <td>${seat.pickupPoint || '—'}</td>
+          <td>${seat.status === 'PAID' ? 'Đã TT' : 'Đã đặt'}</td>
+          <td>${(trip.price || 0).toLocaleString()}đ</td>
+        </tr>`).join('')}
+    </tbody>
+  </table>
+  <div class="summary">
+    <p>Tổng ghế đã đặt: ${bookedSeats.length} | Doanh thu dự kiến: ${(bookedSeats.length * (trip.price || 0)).toLocaleString()}đ</p>
+  </div>
+</body>
+</html>`;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      // Small delay to ensure the document is fully rendered before triggering print
+      setTimeout(() => { printWindow.print(); }, 500);
     }
   };
 
@@ -1228,7 +1333,19 @@ export default function App() {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
+                      {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
+                        <div className="mb-2">
+                          <p className="text-2xl font-bold text-daiichi-red">{(trip.agentPrice || 0).toLocaleString()}đ</p>
+                          <p className="text-xs text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                          <div className="flex items-center justify-end gap-1 mt-1">
+                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                              💰 {language === 'vi' ? 'Lợi nhuận' : 'Profit'}: {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ/ghế
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
+                      )}
                       <button 
                         onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }}
                         className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
@@ -2977,6 +3094,7 @@ export default function App() {
 
       case 'operations': {
         const filteredTrips = trips.filter(trip => {
+          if (trip.status === TripStatus.COMPLETED) return false;
           if (!tripSearch) return true;
           const q = tripSearch.toLowerCase();
           return (
@@ -3287,7 +3405,7 @@ export default function App() {
                           <span>{t.manage_addons}</span>
                         </button>
                       </td>
-                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
                   {filteredTrips.length === 0 && (
@@ -3303,6 +3421,96 @@ export default function App() {
 
       case 'tour-management':
         return <TourManagement language={language} />;
+
+      case 'completed-trips': {
+        const completedTrips = trips.filter(trip => {
+          if (trip.status !== TripStatus.COMPLETED) return false;
+          if (!tripSearch) return true;
+          const q = tripSearch.toLowerCase();
+          return (
+            (trip.time || '').toLowerCase().includes(q) ||
+            (trip.route || '').toLowerCase().includes(q) ||
+            (trip.licensePlate || '').toLowerCase().includes(q) ||
+            (trip.driverName || '').toLowerCase().includes(q)
+          );
+        }).sort((a, b) => compareTripDateTime(b, a));
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold">{language === 'vi' ? 'Chuyến xe đã hoàn thành' : 'Completed Trips'}</h2>
+                <p className="text-sm text-gray-500">{language === 'vi' ? 'Các chuyến đã kết thúc hoặc đã hoàn thành' : 'Trips that have ended or been completed'}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={tripSearch}
+                    onChange={e => setTripSearch(e.target.value)}
+                    placeholder={language === 'vi' ? 'Tìm chuyến...' : 'Search trips...'}
+                    className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 w-56"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế đã đặt' : 'Booked Seats'}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {completedTrips.map((trip) => {
+                      const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
+                      return (
+                        <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
+                          <td className="px-6 py-4 font-bold">{formatTripDisplayTime(trip)}</td>
+                          <td className="px-6 py-4 font-medium">{trip.licensePlate}</td>
+                          <td className="px-6 py-4">
+                            {(() => {
+                              const r = routes.find(rt => rt.name === trip.route);
+                              return r ? (
+                                <div>
+                                  <p className="font-semibold text-sm text-gray-800">{r.name}</p>
+                                  <p className="text-xs text-gray-500">{r.departurePoint} → {r.arrivalPoint}</p>
+                                </div>
+                              ) : <span className="text-sm text-gray-500">{trip.route}</span>;
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">{trip.driverName}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">{bookedSeats.length}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-3 items-center">
+                              <button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button>
+                              <button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button>
+                              <button onClick={() => handleStartEditTrip(trip)} className="text-gray-400 hover:text-daiichi-red"><Edit3 size={18} /></button>
+                              <button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
+                              <button onClick={() => { setSelectedTrip(trip); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {completedTrips.length === 0 && (
+                      <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có chuyến nào hoàn thành' : 'No completed trips yet'}</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       case 'stop-management':
         return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
