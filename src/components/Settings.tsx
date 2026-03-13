@@ -280,7 +280,7 @@ export const Settings: React.FC<SettingsProps> = ({
                         <td className="py-3">
                           <div>
                             <p className="text-sm font-medium text-gray-700">{page.label}</p>
-                            {page.adminOnly && <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Mặc định chỉ Admin' : 'Admin default — can grant to others'}</p>}
+                            {page.adminOnly && <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Mặc định chỉ Admin' : 'Admin only by default'}</p>}
                           </div>
                         </td>
                         {ROLE_LIST.map(role => (

@@ -564,7 +564,10 @@ export default function App() {
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
-    const filename = `Chuyen_${(trip.licensePlate || 'xe').replace(/[^a-zA-Z0-9]/g, '_')}_${(trip.date || 'nodate').replace(/-/g, '')}_${(trip.time || 'notime').replace(/:/g, '')}.xlsx`;
+    const sanitizedPlate = (trip.licensePlate || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
+    const formattedDate = (trip.date || 'nodate').replace(/-/g, '');
+    const formattedTime = (trip.time || 'notime').replace(/:/g, '');
+    const filename = `Chuyen_${sanitizedPlate}_${formattedDate}_${formattedTime}.xlsx`;
     XLSX.writeFile(workbook, filename);
   };
 
