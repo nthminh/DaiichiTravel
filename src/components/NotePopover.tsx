@@ -57,7 +57,7 @@ export const NotePopover: React.FC<NotePopoverProps> = ({ note, onSave, language
           className={`p-1.5 rounded-lg transition-all ${
             hasNote
               ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
-              : 'text-gray-300 hover:text-gray-400 hover:bg-gray-50'
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
           }`}
         >
           <StickyNote size={18} />

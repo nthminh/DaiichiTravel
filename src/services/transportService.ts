@@ -345,6 +345,24 @@ export const transportService = {
     await updateDoc(ref, updates as Record<string, unknown>);
   },
 
+  // ===== SETTINGS / PERMISSIONS METHODS =====
+
+  // Get role permissions from Firestore
+  getPermissions: async (): Promise<Record<string, Record<string, boolean>> | null> => {
+    if (!db) return null;
+    const ref = doc(db, 'settings', 'permissions');
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    return snap.data() as Record<string, Record<string, boolean>>;
+  },
+
+  // Save role permissions to Firestore
+  savePermissions: async (permissions: Record<string, Record<string, boolean>>) => {
+    if (!db) return;
+    const ref = doc(db, 'settings', 'permissions');
+    await setDoc(ref, permissions);
+  },
+
   // ===== AGENT METHODS =====
 
   // Add agent

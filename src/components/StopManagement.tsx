@@ -268,17 +268,17 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end gap-2">
                       <button 
                         onClick={() => startEdit(stop)}
-                        className="p-2 text-gray-400 hover:text-daiichi-red hover:bg-daiichi-red/5 rounded-lg transition-all"
+                        className="p-2 text-gray-600 hover:text-daiichi-red hover:bg-daiichi-red/5 rounded-lg transition-all"
                       >
                         <Edit3 size={18} />
                       </button>
                       <NotePopover note={stop.note} onSave={(note) => handleSaveStopNote(stop.id, note)} language={language} />
                       <button 
                         onClick={() => handleDeleteStop(stop.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 size={18} />
                       </button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings as SettingsIcon, Shield, User, Key, 
   Save, AlertCircle, CheckCircle2, Users, X, Check
@@ -6,6 +6,7 @@ import {
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, UserRole } from '../App';
+import { transportService } from '../services/transportService';
 
 interface SettingsProps {
   language: Language;
@@ -66,6 +67,20 @@ export const Settings: React.FC<SettingsProps> = ({
     } catch { return defaultPerms; }
   });
 
+  // Load permissions from Firestore on mount (overrides localStorage)
+  useEffect(() => {
+    const loadCloudPermissions = async () => {
+      try {
+        const cloudPerms = await transportService.getPermissions();
+        if (cloudPerms && typeof cloudPerms === 'object' && !Array.isArray(cloudPerms)) {
+          setPermissions(cloudPerms);
+          localStorage.setItem('daiichi_permissions', JSON.stringify(cloudPerms));
+        }
+      } catch {/* silently fall back to localStorage */}
+    };
+    loadCloudPermissions();
+  }, []);
+
   const togglePerm = (roleId: string, pageId: string) => {
     if (roleId === 'MANAGER') return;
     setPermissions(prev => {
@@ -78,8 +93,11 @@ export const Settings: React.FC<SettingsProps> = ({
     });
   };
 
-  const savePermissions = () => {
+  const savePermissions = async () => {
     localStorage.setItem('daiichi_permissions', JSON.stringify(permissions));
+    try {
+      await transportService.savePermissions(permissions);
+    } catch {/* silently ignore cloud save errors */}
     setSuccessMsg(language === 'vi' ? 'Đã lưu phân quyền' : 'Permissions saved');
     setTimeout(() => setSuccessMsg(''), 3000);
   };

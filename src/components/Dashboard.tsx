@@ -142,7 +142,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     return matchesType && matchesSearch && matchesAgent && matchesStart && matchesEnd;
   });
 
-  const uniqueAgents = Array.from(new Set(bookings.map(b => b.agent).filter(Boolean)));
+  const uniqueAgents = Array.from(new Set(bookings.filter(b => b.agentId).map(b => b.agent).filter(Boolean)));
 
   const filteredConsignments = consignments.filter(c => {
     // Agent scope: only show consignments created by this agent
@@ -441,14 +441,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <p className="text-[10px] text-gray-400 mt-0.5">{booking.date}</p>
                       </td>
                       <td className="py-5">
-                        {booking.agent ? (
+                        {booking.agentId ? (
                           <div className="flex items-center gap-2 overflow-hidden">
                             <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
                               {(booking.agent || '?').charAt(0).toUpperCase()}
                             </div>
                             <div className="overflow-hidden">
                               <p className="text-sm font-bold text-gray-700 truncate">{booking.agent}</p>
-                              {booking.agentId && <p className="text-[10px] text-gray-400 truncate font-mono">{booking.agentId.slice(-6).toUpperCase()}</p>}
+                              <p className="text-[10px] text-gray-400 truncate font-mono">{String(booking.agentId).slice(-6).toUpperCase()}</p>
                             </div>
                           </div>
                         ) : (
@@ -467,23 +467,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         </span>
                       </td>
                       <td className="py-5">
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-2">
                           <button 
                             onClick={() => handleView(booking)}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                             title={language === 'vi' ? 'Xem chi tiết' : 'View details'}
                           >
                             <Eye size={16} />
                           </button>
                           <button 
                             onClick={() => handleEdit(booking)}
-                            className="p-2 text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-lg transition-all"
+                            className="p-2 text-gray-600 hover:text-daiichi-red hover:bg-red-50 rounded-lg transition-all"
                           >
                             <Edit3 size={16} />
                           </button>
                           <button 
                             onClick={() => handleDelete(booking.id)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                           >
                             <Trash2 size={16} />
                           </button>

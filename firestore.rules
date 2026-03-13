@@ -70,7 +70,7 @@ service cloud.firestore {
       allow read, write: if isRowyUserWithRole('editor');
     }
     match /settings/{setting} {
-      allow read, write: if isRowyAdmin();
+      allow read, write: if true;
     }
   }
 }
