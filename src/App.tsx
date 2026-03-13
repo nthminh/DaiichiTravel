@@ -635,6 +635,10 @@ export default function App() {
 
   const handleCreateConsignment = async () => {
     if (!newConsignment.senderName || !newConsignment.receiverName) return;
+    // Derive the display name for the current agent
+    const effectiveAgentName = currentUser?.role === UserRole.AGENT
+      ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
+      : undefined;
     try {
       await transportService.addConsignment({
         senderName: newConsignment.senderName,
@@ -650,9 +654,7 @@ export default function App() {
         cod: newConsignment.cod,
         notes: newConsignment.notes,
         agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
-        agentName: currentUser?.role === UserRole.AGENT
-          ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
-          : undefined,
+        agentName: effectiveAgentName,
       } as any);
       setShowCreateConsignment(false);
       setNewConsignment({ senderName: '', senderPhone: '', receiverName: '', receiverPhone: '', type: '', weight: '', cod: 0, notes: '' });
@@ -712,6 +714,9 @@ export default function App() {
   const handleConfirmBooking = async (seatId: string) => {
     // Use fare-table price when available; for agents use agentPrice when set
     const isAgentBooking = currentUser?.role === UserRole.AGENT;
+    const effectiveAgentName = isAgentBooking
+      ? (currentUser!.name || currentUser!.address || currentUser!.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
+      : 'Trực tiếp';
     const basePriceAdult = fareAmount !== null
       ? fareAmount
       : (isAgentBooking
@@ -759,10 +764,8 @@ export default function App() {
       seatId,
       seatIds: allSeatIds,
       amount: totalAmount,
-      agent: currentUser?.role === UserRole.AGENT
-        ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
-        : 'Trực tiếp',
-      agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
+      agent: effectiveAgentName,
+      agentId: isAgentBooking ? currentUser!.id : undefined,
       status: 'BOOKED',
       adults,
       children,
@@ -1830,7 +1833,7 @@ export default function App() {
                                 {fareAmount !== null
                                   ? (t.fare_based_price || 'Fare table price')
                                   : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
-                                {isAgentBookingForm && selectedTrip.agentPrice > 0 && fareAmount === null && (
+                                {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && fareAmount === null && (
                                   <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
                                 )}
                               </span>
@@ -2011,6 +2014,10 @@ export default function App() {
           if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
           setIsTourBookingLoading(true);
           setTourBookingError('');
+          const isTourAgentBooking = currentUser?.role === UserRole.AGENT;
+          const tourAgentName = isTourAgentBooking
+            ? (currentUser!.name || currentUser!.address || currentUser!.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
+            : 'Trực tiếp';
           const bookingData = {
             type: 'TOUR',
             customerName: tourBookingName.trim(),
@@ -2028,10 +2035,8 @@ export default function App() {
             notes: tourNotes,
             amount: tourTotal,
             paymentMethod: tourPaymentMethod,
-            agent: currentUser?.role === UserRole.AGENT
-              ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
-              : 'Trực tiếp',
-            agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
+            agent: tourAgentName,
+            agentId: isTourAgentBooking ? currentUser!.id : undefined,
             status: 'BOOKED',
           };
           try {
