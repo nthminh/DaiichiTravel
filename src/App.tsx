@@ -366,7 +366,7 @@ export default function App() {
 
   const handleStartEditAgent = (agent: Agent) => {
     setEditingAgent(agent);
-    setAgentForm({ name: agent.name, code: agent.code, phone: agent.phone, email: agent.email, address: agent.address || '', commissionRate: agent.commissionRate, balance: agent.balance, status: agent.status, username: agent.username || '', password: agent.password || '' });
+    setAgentForm({ name: String(agent.name ?? ''), code: String(agent.code ?? ''), phone: String(agent.phone ?? ''), email: String(agent.email ?? ''), address: String(agent.address ?? ''), commissionRate: agent.commissionRate, balance: agent.balance, status: agent.status, username: String(agent.username ?? ''), password: String(agent.password ?? '') });
     setShowAddAgent(true);
   };
 
@@ -2269,11 +2269,11 @@ export default function App() {
         const filteredAgents = agents.filter(agent => {
           const q = agentSearch.toLowerCase();
           const matchSearch = !q ||
-            (agent.name || '').toLowerCase().includes(q) ||
-            (agent.code || '').toLowerCase().includes(q) ||
-            (agent.phone || '').toLowerCase().includes(q) ||
-            (agent.email || '').toLowerCase().includes(q) ||
-            (agent.address || '').toLowerCase().includes(q);
+            String(agent.name ?? '').toLowerCase().includes(q) ||
+            String(agent.code ?? '').toLowerCase().includes(q) ||
+            String(agent.phone ?? '').toLowerCase().includes(q) ||
+            String(agent.email ?? '').toLowerCase().includes(q) ||
+            String(agent.address ?? '').toLowerCase().includes(q);
           const matchStatus = agentStatusFilter === 'ALL' || agent.status === agentStatusFilter;
           return matchSearch && matchStatus;
         });

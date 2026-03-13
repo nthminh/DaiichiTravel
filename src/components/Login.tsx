@@ -42,9 +42,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
 
     const agent = agents.find(a =>
-      a.username && a.password &&
-      a.username.trim().toLowerCase() === normalizedUsername &&
-      a.password.trim() === trimmedPassword
+      a.username && a.password != null &&
+      String(a.username).trim().toLowerCase() === normalizedUsername &&
+      String(a.password).trim() === trimmedPassword
     );
     if (agent) {
       onLogin({ 
