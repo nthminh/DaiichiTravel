@@ -14,7 +14,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -582,6 +582,60 @@ export const transportService = {
     if (!db) return;
     const ref = doc(db, 'settings', 'adminConfig');
     await setDoc(ref, credentials, { merge: true });
+  },
+
+  // ===== EMPLOYEE METHODS =====
+
+  // Listen to employees
+  subscribeToEmployees: (callback: (employees: Employee[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'employees'), orderBy('name', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const employees = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Employee[];
+      callback(employees);
+    }, () => callback([]));
+  },
+
+  // Add employee
+  addEmployee: async (employee: Omit<Employee, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'employees'), employee);
+  },
+
+  // Update employee
+  updateEmployee: async (employeeId: string, updates: Partial<Employee>) => {
+    if (!db) return;
+    const ref = doc(db, 'employees', employeeId);
+    await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // Delete employee
+  deleteEmployee: async (employeeId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'employees', employeeId));
+  },
+
+  // ===== PAYMENT SETTINGS METHODS =====
+
+  // Get payment settings from Firestore
+  getPaymentSettings: async (): Promise<Record<string, unknown> | null> => {
+    if (!db) return null;
+    try {
+      const ref = doc(db, 'settings', 'paymentConfig');
+      const snap = await getDoc(ref);
+      if (snap.exists()) return snap.data() as Record<string, unknown>;
+      return null;
+    } catch { return null; }
+  },
+
+  // Save payment settings to Firestore
+  savePaymentSettings: async (settings: Record<string, unknown>) => {
+    if (!db) return;
+    const ref = doc(db, 'settings', 'paymentConfig');
+    await setDoc(ref, settings, { merge: true });
   },
 
   // ===== TRIP METHODS =====

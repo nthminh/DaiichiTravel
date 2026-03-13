@@ -94,6 +94,29 @@ export interface Agent {
   username?: string;
   password?: string;
   note?: string;
+  // Payment type: POSTPAID = được thanh toán sau, PREPAID = phải trả trước
+  paymentType?: 'POSTPAID' | 'PREPAID';
+  // Credit limit for POSTPAID agents (max debt allowed)
+  creditLimit?: number;
+  // Options for PREPAID agents (optional, agent can choose)
+  depositAmount?: number;          // tiền ký quỹ (escrow/deposit amount)
+  allowedPaymentOptions?: AgentPaymentOption[]; // payment methods this agent may use
+  holdTicketHours?: number;        // hours the agent may hold a ticket (using customer hold time)
+}
+
+export type AgentPaymentOption = 'DEPOSIT' | 'BANK_TRANSFER' | 'HOLD_WITH_CUSTOMER_TIME';
+
+export interface Employee {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  role: 'STAFF' | 'DRIVER' | 'ACCOUNTANT' | 'OTHER';
+  status: 'ACTIVE' | 'INACTIVE';
+  username?: string;
+  password?: string;
+  note?: string;
 }
 
 export interface TourAddon {
