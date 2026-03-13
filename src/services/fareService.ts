@@ -84,9 +84,11 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
   const fareRef = doc(db, 'routeFares', routeId, 'fares', fareDocId);
   const fareSnap = await getDoc(fareRef);
 
+  // Resolve stop names once for both error messages and success result
+  const fromStop = stops?.find((s) => s.id === fromStopId);
+  const toStop = stops?.find((s) => s.id === toStopId);
+
   if (!fareSnap.exists()) {
-    const fromStop = stops?.find((s) => s.id === fromStopId);
-    const toStop = stops?.find((s) => s.id === toStopId);
     const fromName = fromStop?.name ?? fromStopId;
     const toName = toStop?.name ?? toStopId;
     throw new FareError(
@@ -103,9 +105,6 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
       'Giá vé cho hành trình này hiện không khả dụng.',
     );
   }
-
-  const fromStop = stops?.find((s) => s.id === fromStopId);
-  const toStop = stops?.find((s) => s.id === toStopId);
 
   return {
     price: data['price'] as number,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Bus, Users, Package, LayoutDashboard, ChevronRight, 
   MapPin, Calendar, Truck, Star, Phone, Search, 
@@ -127,6 +127,8 @@ export default function App() {
   const [fareLoading, setFareLoading] = useState(false);
   const [fromStopId, setFromStopId] = useState('');
   const [toStopId, setToStopId] = useState('');
+  // Ref to track the latest fare request and discard stale responses
+  const fareRequestIdRef = useRef(0);
   // Tour booking states
   const [selectedTour, setSelectedTour] = useState<TourItem | null>(null);
   const [tourBookingName, setTourBookingName] = useState('');
@@ -854,6 +856,7 @@ export default function App() {
    * Fare-table lookup (Option 2).
    * Called when both fromStopId and toStopId are known and the trip's route
    * has routeStops configured.  Updates fareAmount / fareError state.
+   * Uses a request-ID guard to discard stale responses from rapid selections.
    */
   const lookupFare = async (
     tripRoute: Route | undefined,
@@ -863,6 +866,7 @@ export default function App() {
     if (!tripRoute || !fFromStopId || !fToStopId) return;
     if (!tripRoute.routeStops || tripRoute.routeStops.length === 0) return;
 
+    const requestId = ++fareRequestIdRef.current;
     setFareLoading(true);
     setFareError('');
     setFareAmount(null);
@@ -875,15 +879,20 @@ export default function App() {
         routeStops: tripRoute.routeStops,
         stops,
       });
+      // Discard if a newer request has been initiated
+      if (requestId !== fareRequestIdRef.current) return;
       setFareAmount(result.price);
     } catch (err) {
+      if (requestId !== fareRequestIdRef.current) return;
       if (err instanceof FareError) {
         setFareError(err.message);
       } else {
         setFareError(language === 'vi' ? 'Lỗi tra cứu giá vé.' : 'Fare lookup error.');
       }
     } finally {
-      setFareLoading(false);
+      if (requestId === fareRequestIdRef.current) {
+        setFareLoading(false);
+      }
     }
   };
 
@@ -1224,13 +1233,14 @@ export default function App() {
         {
           const childrenOver4Count = childrenAges.filter(age => age > 4).length;
           const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
+          // Look up route once for this render block (used for surcharges, fare table, and blocker check)
+          const tripRoute = routes.find(r => r.name === selectedTrip.route);
           // Also disable confirmation when a fare lookup error exists for a route with configured stops
-          const hasFareBlocker = !!fareError && (routes.find(r => r.name === selectedTrip.route)?.routeStops?.length ?? 0) > 0;
+          const hasFareBlocker = !!fareError && (tripRoute?.routeStops?.length ?? 0) > 0;
           const canConfirmBooking = (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
           const isSelectingExtraSeats = !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
 
-          // Look up route to get route-level surcharges
-          const tripRoute = routes.find(r => r.name === selectedTrip.route);
+          // Route-level surcharges
           const tripDate = selectedTrip.date || '';
           const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
 
@@ -1569,7 +1579,6 @@ export default function App() {
                     
                     {/* Pickup Point */}
                     {(() => {
-                      const tripRoute = routes.find(r => r.name === selectedTrip.route);
                       const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
                       // When route has ordered stops, show them in order; otherwise show all stops
                       const pickupOptions = hasRouteFares && tripRoute?.routeStops
@@ -1603,7 +1612,6 @@ export default function App() {
 
                     {/* Dropoff Point */}
                     {(() => {
-                      const tripRoute = routes.find(r => r.name === selectedTrip.route);
                       const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
                       const dropoffOptions = hasRouteFares && tripRoute?.routeStops
                         ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
@@ -1641,7 +1649,7 @@ export default function App() {
                           )}
                           {!fareLoading && fareAmount !== null && (
                             <p className="mt-1 text-xs text-emerald-600 font-bold">
-                              {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '名' : 'person'}
+                              {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
                             </p>
                           )}
                         </div>

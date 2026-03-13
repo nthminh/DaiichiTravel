@@ -204,6 +204,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     fare_based_price: 'Giá vé theo bảng giá',
     fare_not_configured: 'Chưa cấu hình giá vé cho hành trình này',
     fare_invalid_order: 'Điểm đón phải nằm trước điểm trả trong hành trình',
+    per_person: 'người',
     
     // Vehicles
     vehicle_management: 'Quản lý Phương tiện',
@@ -578,6 +579,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     fare_based_price: 'Fare table price',
     fare_not_configured: 'Fare not configured for this route segment',
     fare_invalid_order: 'Pickup stop must come before dropoff stop',
+    per_person: 'person',
     
     // Vehicles
     vehicle_management: 'Vehicle Management',
@@ -952,6 +954,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     fare_based_price: '運賃表に基づく料金',
     fare_not_configured: 'この区間の運賃が設定されていません',
     fare_invalid_order: '乗車地点は降車地点より前でなければなりません',
+    per_person: '名',
     
     // Vehicles
     vehicle_management: '車両管理',
