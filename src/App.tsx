@@ -534,10 +534,12 @@ export default function App() {
   const handleCopyRoute = (route: Route) => {
     setEditingRoute(null);
     setIsCopyingRoute(true);
-    const copiedName = language === 'vi' ? `${route.name} (bản sao)` : `${route.name} (copy)`;
+    const copySuffix = language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
+    const copiedName = `${route.name}${copySuffix}`;
     setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '' });
-    setRoutePricePeriods((route.pricePeriods || []).map(p => ({ ...p, id: `pp_${Date.now()}_${Math.random().toString(36).slice(2)}` })));
-    setRouteSurcharges((route.surcharges || []).map(s => ({ ...s, id: `sc_${Date.now()}_${Math.random().toString(36).slice(2)}` })));
+    const now = Date.now();
+    setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
+    setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
     setRouteFormStops((route.routeStops || []).slice().sort((a, b) => a.order - b.order));
     setShowAddPricePeriod(false);
     setShowAddRouteSurcharge(false);
@@ -2903,7 +2905,7 @@ export default function App() {
                       {editingRoute
                         ? (language === 'vi' ? 'Chỉnh sửa tuyến' : 'Edit Route')
                         : isCopyingRoute
-                          ? (language === 'vi' ? '📋 Sao chép tuyến' : '📋 Copy Route')
+                          ? `📋 ${t.copy_route_title}`
                           : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}
                     </h3>
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
@@ -3299,7 +3301,7 @@ export default function App() {
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? (language === 'vi' ? 'Tạo bản sao' : 'Create Copy') : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
+                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
                   </div>
                 </div>
               </div>
@@ -3548,7 +3550,7 @@ export default function App() {
                       {editingTrip
                         ? (language === 'vi' ? 'Chỉnh sửa chuyến' : 'Edit Trip')
                         : isCopyingTrip
-                          ? (language === 'vi' ? '📋 Sao chép chuyến' : '📋 Copy Trip')
+                          ? `📋 ${t.copy_trip}`
                           : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Trip')}
                     </h3>
                     <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
@@ -3619,7 +3621,7 @@ export default function App() {
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : isCopyingTrip ? (language === 'vi' ? 'Tạo bản sao' : 'Create Copy') : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
+                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : isCopyingTrip ? t.create_copy : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
                   </div>
                 </div>
               </div>
