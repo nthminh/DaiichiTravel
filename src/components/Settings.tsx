@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Settings as SettingsIcon, Shield, User, Key, 
-  Save, AlertCircle, CheckCircle2, Users, X
+  Save, AlertCircle, CheckCircle2, Users, X, Check
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -19,11 +19,70 @@ export const Settings: React.FC<SettingsProps> = ({
   language, currentUser, agents, onUpdateAgent, onUpdateAdmin 
 }) => {
   const t = TRANSLATIONS[language];
-  const [activeSection, setActiveSection] = useState<'PERSONAL' | 'AGENTS'>(
+  const [activeSection, setActiveSection] = useState<'PERSONAL' | 'AGENTS' | 'PERMISSIONS'>(
     currentUser.role === UserRole.MANAGER ? 'PERSONAL' : 'PERSONAL'
   );
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  const PAGE_LIST = [
+    { id: 'home', label: language === 'vi' ? 'Trang chủ' : 'Home' },
+    { id: 'book-ticket', label: language === 'vi' ? 'Đặt vé xe' : 'Book Ticket' },
+    { id: 'tours', label: language === 'vi' ? 'Tour du lịch' : 'Tours' },
+    { id: 'consignments', label: language === 'vi' ? 'Gửi hàng' : 'Consignments' },
+    { id: 'dashboard', label: 'Dashboard', adminOnly: true },
+    { id: 'agents', label: language === 'vi' ? 'Đại lý' : 'Agents', adminOnly: true },
+    { id: 'routes', label: language === 'vi' ? 'Tuyến đường' : 'Routes', adminOnly: true },
+    { id: 'vehicles', label: language === 'vi' ? 'Xe & Sơ đồ' : 'Vehicles', adminOnly: true },
+    { id: 'operations', label: language === 'vi' ? 'Điều hành' : 'Operations', adminOnly: true },
+    { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', adminOnly: true },
+    { id: 'financial-report', label: language === 'vi' ? 'Báo cáo tài chính' : 'Financial Report', adminOnly: true },
+    { id: 'settings', label: language === 'vi' ? 'Cài đặt' : 'Settings' },
+  ];
+
+  const ROLE_LIST = [
+    { id: 'MANAGER', label: language === 'vi' ? 'Admin (Daiichi)' : 'Admin (Daiichi)', color: 'text-red-600 bg-red-50' },
+    { id: 'AGENT', label: language === 'vi' ? 'Đại lý' : 'Agent', color: 'text-orange-600 bg-orange-50' },
+    { id: 'STAFF', label: language === 'vi' ? 'Nhân viên' : 'Staff', color: 'text-blue-600 bg-blue-50' },
+    { id: 'DRIVER', label: language === 'vi' ? 'Tài xế' : 'Driver', color: 'text-green-600 bg-green-50' },
+    { id: 'CUSTOMER', label: language === 'vi' ? 'Khách lẻ' : 'Customer', color: 'text-gray-600 bg-gray-100' },
+  ];
+
+  const defaultPerms: Record<string, Record<string, boolean>> = {
+    MANAGER: Object.fromEntries(PAGE_LIST.map(p => [p.id, true])),
+    AGENT: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'settings': true },
+    STAFF: { 'home': true, 'book-ticket': true, 'consignments': true },
+    DRIVER: { 'home': true },
+    CUSTOMER: { 'home': true, 'book-ticket': true, 'tours': true },
+  };
+
+  const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
+    try {
+      const saved = localStorage.getItem('daiichi_permissions');
+      if (!saved) return defaultPerms;
+      const parsed = JSON.parse(saved);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return defaultPerms;
+      return parsed as Record<string, Record<string, boolean>>;
+    } catch { return defaultPerms; }
+  });
+
+  const togglePerm = (roleId: string, pageId: string) => {
+    if (roleId === 'MANAGER') return;
+    setPermissions(prev => {
+      const updated = {
+        ...prev,
+        [roleId]: { ...(prev[roleId] || {}), [pageId]: !(prev[roleId]?.[pageId] ?? false) }
+      };
+      localStorage.setItem('daiichi_permissions', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const savePermissions = () => {
+    localStorage.setItem('daiichi_permissions', JSON.stringify(permissions));
+    setSuccessMsg(language === 'vi' ? 'Đã lưu phân quyền' : 'Permissions saved');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
 
   // Form states for personal password change
   const [newUsername, setNewUsername] = useState(currentUser.username);
@@ -81,6 +140,18 @@ export const Settings: React.FC<SettingsProps> = ({
           >
             <Users size={18} />
             {t.agent_credentials}
+          </button>
+        )}
+        {currentUser.role === UserRole.MANAGER && (
+          <button 
+            onClick={() => setActiveSection('PERMISSIONS')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-sm transition-all",
+              activeSection === 'PERMISSIONS' ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20" : "text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Shield size={18} />
+            {language === 'vi' ? 'Phân quyền' : 'Permissions'}
           </button>
         )}
       </div>
@@ -158,7 +229,7 @@ export const Settings: React.FC<SettingsProps> = ({
               </button>
             </form>
           </motion.div>
-        ) : (
+        ) : activeSection === 'AGENTS' ? (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -173,6 +244,84 @@ export const Settings: React.FC<SettingsProps> = ({
                 t={t}
               />
             ))}
+          </motion.div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-daiichi-accent rounded-2xl flex items-center justify-center text-daiichi-red">
+                  <Shield size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">{language === 'vi' ? 'Phân quyền truy cập' : 'Access Permissions'}</h3>
+                  <p className="text-sm text-gray-500">{language === 'vi' ? 'Chọn trang mỗi vai trò có thể xem' : 'Select which pages each role can access'}</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left pb-4 text-xs font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Trang' : 'Page'}</th>
+                      {ROLE_LIST.map(role => (
+                        <th key={role.id} className="pb-4 text-center">
+                          <span className={cn("px-3 py-1 rounded-full text-xs font-bold", role.color)}>{role.label}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {PAGE_LIST.map(page => (
+                      <tr key={page.id} className="hover:bg-gray-50/50">
+                        <td className="py-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">{page.label}</p>
+                            {page.adminOnly && <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Mặc định chỉ Admin' : 'Admin default — can grant to others'}</p>}
+                          </div>
+                        </td>
+                        {ROLE_LIST.map(role => (
+                          <td key={role.id} className="py-3 text-center">
+                            {role.id === 'MANAGER' ? (
+                              <span className="text-green-500">✓</span>
+                            ) : (
+                              <button
+                                onClick={() => togglePerm(role.id, page.id)}
+                                className={cn(
+                                  "w-6 h-6 rounded-md border-2 flex items-center justify-center mx-auto transition-all",
+                                  permissions[role.id]?.[page.id]
+                                    ? "bg-daiichi-red border-daiichi-red text-white"
+                                    : "border-gray-200 text-gray-200 hover:border-gray-300"
+                                )}
+                              >
+                                {permissions[role.id]?.[page.id] && <Check size={14} />}
+                              </button>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button onClick={savePermissions} className="flex items-center gap-2 px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20">
+                  <Save size={18} />
+                  {language === 'vi' ? 'Lưu phân quyền' : 'Save Permissions'}
+                </button>
+              </div>
+
+              {successMsg && (
+                <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 p-4 rounded-xl">
+                  <CheckCircle2 size={18} />
+                  <span className="text-sm font-bold">{successMsg}</span>
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </div>

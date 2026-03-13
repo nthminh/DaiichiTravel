@@ -441,10 +441,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <p className="text-[10px] text-gray-400 mt-0.5">{booking.date}</p>
                       </td>
                       <td className="py-5">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <Tag size={14} className="text-gray-400 shrink-0" />
-                          <span className="text-sm text-gray-600 truncate">{booking.agent}</span>
-                        </div>
+                        {booking.agent ? (
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
+                              {(booking.agent || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-sm font-bold text-gray-700 truncate">{booking.agent}</p>
+                              {booking.agentId && <p className="text-[10px] text-gray-400 truncate font-mono">{booking.agentId.slice(-6).toUpperCase()}</p>}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">{language === 'vi' ? 'Khách lẻ' : 'Direct'}</span>
+                        )}
                       </td>
                       <td className="py-5">
                         <p className="font-bold text-gray-800">{booking.amount.toLocaleString()}đ</p>
