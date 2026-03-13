@@ -361,6 +361,7 @@ export default function App() {
   const [childrenAges, setChildrenAges] = useState<number[]>([]);
   const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [extraSeatIds, setExtraSeatIds] = useState<string[]>([]);
+  const [bookingNote, setBookingNote] = useState('');
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -709,7 +710,7 @@ export default function App() {
       [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
       [`Trạng thái: ${trip.status}`],
       [],
-      ['STT', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Trạng thái ghế', 'Giá vé (đ)'],
+      ['STT', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Trạng thái ghế', 'Giá vé (đ)', 'Ghi chú'],
     ];
     const dataRows = bookedSeats.map((seat: any, idx: number) => [
       idx + 1,
@@ -717,8 +718,10 @@ export default function App() {
       seat.customerName || '—',
       seat.customerPhone || '—',
       seat.pickupPoint || '—',
+      seat.dropoffPoint || '—',
       seat.status === SeatStatus.PAID ? 'Đã thanh toán' : 'Đã đặt',
       (trip.price || 0).toLocaleString(),
+      seat.bookingNote || '',
     ]);
     const summaryRows = [
       [],
@@ -728,7 +731,7 @@ export default function App() {
     const allRows = [...headerRows, ...dataRows, ...summaryRows];
     const worksheet = XLSX.utils.aoa_to_sheet(allRows);
     worksheet['!cols'] = [
-      { wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
+      { wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
@@ -771,7 +774,7 @@ export default function App() {
   <table>
     <thead>
       <tr>
-        <th>STT</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Trạng thái</th><th>Giá vé</th>
+        <th>STT</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Điểm trả</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
       </tr>
     </thead>
     <tbody>
@@ -782,8 +785,10 @@ export default function App() {
           <td>${seat.customerName || '—'}</td>
           <td>${seat.customerPhone || '—'}</td>
           <td>${seat.pickupPoint || '—'}</td>
+          <td>${seat.dropoffPoint || '—'}</td>
           <td>${seat.status === 'PAID' ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${(trip.price || 0).toLocaleString()}đ</td>
+          <td>${seat.bookingNote || ''}</td>
         </tr>`).join('')}
     </tbody>
   </table>
@@ -1053,6 +1058,7 @@ export default function App() {
       pickupPoint,
       dropoffPoint,
       paymentMethod: paymentMethodInput,
+      ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: addonQuantities[a.id] || 1 })),
       // Fare-table fields (Option 2) – present only when a fare was resolved
       ...(effectiveFareAmount !== null && fromStopId && toStopId ? {
@@ -1073,6 +1079,7 @@ export default function App() {
       ...(dropoffPoint ? { dropoffPoint } : {}),
       ...(fromStopOrder !== undefined ? { fromStopOrder } : {}),
       ...(toStopOrder !== undefined ? { toStopOrder } : {}),
+      ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
     };
 
     try {
@@ -1112,6 +1119,7 @@ export default function App() {
     setBookingDiscount(0);
     setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
     setAddonQuantities({});
+    setBookingNote('');
     // Reset fare-table state
     setFareAmount(null);
     setFareAgentAmount(null);
@@ -1959,9 +1967,11 @@ export default function App() {
                             value={pickupPoint}
                             onChange={(val) => {
                               setPickupPoint(val);
-                              const stop = stops.find(s => s.name === val);
-                              setPickupSurcharge(stop?.surcharge || 0);
-                              const newFromId = stop?.id || '';
+                              // Determine stop ID: prefer routeStops match, fall back to global stops
+                              const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
+                              const globalStop = stops.find(s => s.name === val);
+                              const newFromId = routeStop?.stopId || globalStop?.id || '';
+                              setPickupSurcharge(globalStop?.surcharge || 0);
                               setFromStopId(newFromId);
                               // Reset fare and re-lookup if dropoff is already chosen
                               setFareAmount(null);
@@ -1991,9 +2001,11 @@ export default function App() {
                             value={dropoffPoint}
                             onChange={(val) => {
                               setDropoffPoint(val);
-                              const stop = stops.find(s => s.name === val);
-                              setDropoffSurcharge(stop?.surcharge || 0);
-                              const newToId = stop?.id || '';
+                              // Determine stop ID: prefer routeStops match, fall back to global stops
+                              const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
+                              const globalStop = stops.find(s => s.name === val);
+                              const newToId = routeStop?.stopId || globalStop?.id || '';
+                              setDropoffSurcharge(globalStop?.surcharge || 0);
                               setToStopId(newToId);
                               // Reset fare and re-lookup if pickup is already chosen
                               setFareAmount(null);
@@ -2152,6 +2164,18 @@ export default function App() {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Booking Note */}
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_note || 'Ghi chú đặt vé'}</label>
+                      <textarea
+                        value={bookingNote}
+                        onChange={(e) => setBookingNote(e.target.value)}
+                        rows={2}
+                        placeholder={t.booking_note_placeholder || 'Ghi chú của đại lý / nhà xe (cọc, thanh toán tài xế...)'}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm resize-none"
+                      />
                     </div>
 
                     <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
