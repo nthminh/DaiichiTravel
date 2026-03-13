@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText
+  Filter, Gift, Download, FileText, Copy
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,6 +17,7 @@ import {
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
+import { db } from './lib/firebase';
 
 // Import Components
 import { Dashboard } from './components/Dashboard';
@@ -220,6 +221,7 @@ export default function App() {
   // Route CRUD state
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
+  const [isCopyingRoute, setIsCopyingRoute] = useState(false);
   const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
@@ -251,6 +253,7 @@ export default function App() {
   // Trip CRUD state
   const [showAddTrip, setShowAddTrip] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [isCopyingTrip, setIsCopyingTrip] = useState(false);
   const [tripForm, setTripForm] = useState({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING });
 
   // Batch trip creation state
@@ -258,6 +261,15 @@ export default function App() {
   const [batchTripForm, setBatchTripForm] = useState({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
+
+  // Offline booking state
+  const isOffline = !db;
+  const [offlineBookingCount, setOfflineBookingCount] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('offline_bookings') || '[]').length as number;
+    } catch { return 0; }
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Trip addon management state
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
@@ -360,6 +372,15 @@ export default function App() {
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
     const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
     const unsubscribeTours = transportService.subscribeToTours(setTours);
+    // Attempt to sync any offline bookings saved while Firebase was unavailable
+    if (!isOffline) {
+      transportService.syncOfflineBookings()
+        .then(() => {
+          const remaining = JSON.parse(localStorage.getItem('offline_bookings') || '[]').length;
+          setOfflineBookingCount(remaining);
+        })
+        .catch(err => console.error('Failed to sync offline bookings on startup:', err));
+    }
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -393,6 +414,20 @@ export default function App() {
       await transportService.deleteAgent(agentId);
     } catch (err) {
       console.error('Failed to delete agent:', err);
+    }
+  };
+
+  const handleSyncOfflineBookings = async () => {
+    if (isOffline || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await transportService.syncOfflineBookings();
+      const remaining = JSON.parse(localStorage.getItem('offline_bookings') || '[]').length;
+      setOfflineBookingCount(remaining);
+    } catch (err) {
+      console.error('Failed to sync offline bookings:', err);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -433,6 +468,7 @@ export default function App() {
       }
       setShowAddRoute(false);
       setEditingRoute(null);
+      setIsCopyingRoute(false);
       setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
       setRoutePricePeriods([]);
       setShowAddPricePeriod(false);
@@ -458,6 +494,7 @@ export default function App() {
 
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
+    setIsCopyingRoute(false);
     setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '' });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
@@ -491,6 +528,39 @@ export default function App() {
     } catch (err) {
       console.error('Failed to save route note:', err);
     }
+  };
+
+  // Open the add-route modal pre-filled from an existing route (copy mode – no ID)
+  const handleCopyRoute = (route: Route) => {
+    setEditingRoute(null);
+    setIsCopyingRoute(true);
+    const copySuffix = language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
+    const copiedName = `${route.name}${copySuffix}`;
+    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '' });
+    const now = Date.now();
+    setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
+    setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
+    setRouteFormStops((route.routeStops || []).slice().sort((a, b) => a.order - b.order));
+    setShowAddPricePeriod(false);
+    setShowAddRouteSurcharge(false);
+    setShowAddRouteStop(false);
+    setRouteFormFares([]);
+    setShowAddRouteFare(false);
+    // Load fares for copy if the original route has stops
+    if (route.id && (route.routeStops || []).length > 0) {
+      const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+      transportService.getRouteFares(route.id).then((fares) => {
+        setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
+          fromStopId: f.fromStopId,
+          toStopId: f.toStopId,
+          fromName: loadedStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
+          toName: loadedStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
+          price: f.price,
+          agentPrice: f.agentPrice || 0,
+        })));
+      }).catch((err) => { console.error('Failed to load route fares for copy:', err); });
+    }
+    setShowAddRoute(true);
   };
 
   // --- Vehicle CRUD handlers ---
@@ -566,6 +636,7 @@ export default function App() {
       }
       setShowAddTrip(false);
       setEditingTrip(null);
+      setIsCopyingTrip(false);
       setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING });
     } catch (err) {
       console.error('Failed to save trip:', err);
@@ -574,8 +645,26 @@ export default function App() {
 
   const handleStartEditTrip = (trip: Trip) => {
     setEditingTrip(trip);
+    setIsCopyingTrip(false);
     setTripForm({ time: trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, agentPrice: trip.agentPrice || 0, seatCount: trip.seats?.length || 11, status: trip.status });
     setShowAddTrip(true);
+  };
+
+  // Open the add-trip modal pre-filled from an existing trip (copy mode – no ID, fresh seats)
+  const handleCopyTrip = (trip: Trip) => {
+    setEditingTrip(null);
+    setIsCopyingTrip(true);
+    setTripForm({ time: trip.time, date: '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, agentPrice: trip.agentPrice || 0, seatCount: trip.seats?.length || 11, status: TripStatus.WAITING });
+    setShowAddTrip(true);
+  };
+
+  // Open the batch-add modal pre-filled with time slots from selected trips
+  const handleCopyTripsToDate = (sourceTrips: Trip[]) => {
+    const times = sourceTrips.map(t => t.time).filter(Boolean);
+    const firstTrip = sourceTrips[0];
+    setBatchTripForm({ date: '', route: firstTrip?.route || '', licensePlate: firstTrip?.licensePlate || '', driverName: firstTrip?.driverName || '', price: firstTrip?.price || 0, agentPrice: firstTrip?.agentPrice || 0, seatCount: firstTrip?.seats?.length || 11 });
+    setBatchTimeSlots(times.length > 0 ? times : ['']);
+    setShowBatchAddTrip(true);
   };
 
   const handleDeleteTrip = async (tripId: string) => {
@@ -983,9 +1072,12 @@ export default function App() {
       }
 
       setLastBooking({ ...bookingData, id: result.id });
+      // Refresh offline count (may have incremented if Firebase was unreachable)
+      setOfflineBookingCount(JSON.parse(localStorage.getItem('offline_bookings') || '[]').length);
     } catch (err) {
       console.error('Failed to save booking:', err);
       setLastBooking(bookingData);
+      setOfflineBookingCount(JSON.parse(localStorage.getItem('offline_bookings') || '[]').length);
     }
 
     setIsTicketOpen(true);
@@ -2800,7 +2892,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -2809,8 +2901,14 @@ export default function App() {
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{editingRoute ? (language === 'vi' ? 'Chỉnh sửa tuyến' : 'Edit Route') : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}</h3>
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    <h3 className="text-xl font-bold">
+                      {editingRoute
+                        ? (language === 'vi' ? 'Chỉnh sửa tuyến' : 'Edit Route')
+                        : isCopyingRoute
+                          ? `📋 ${t.copy_route_title}`
+                          : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}
+                    </h3>
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -3202,8 +3300,8 @@ export default function App() {
 
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
                   </div>
                 </div>
               </div>
@@ -3261,7 +3359,7 @@ export default function App() {
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
-                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
+                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
                     </tr>
                   ))}
                   {filteredRoutes.length === 0 && (
@@ -3448,8 +3546,14 @@ export default function App() {
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{editingTrip ? (language === 'vi' ? 'Chỉnh sửa chuyến' : 'Edit Trip') : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Trip')}</h3>
-                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    <h3 className="text-xl font-bold">
+                      {editingTrip
+                        ? (language === 'vi' ? 'Chỉnh sửa chuyến' : 'Edit Trip')
+                        : isCopyingTrip
+                          ? `📋 ${t.copy_trip}`
+                          : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Trip')}
+                    </h3>
+                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -3516,8 +3620,8 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
+                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : isCopyingTrip ? t.create_copy : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
                   </div>
                 </div>
               </div>
@@ -3734,7 +3838,7 @@ export default function App() {
                           <span>{t.manage_addons}</span>
                         </button>
                       </td>
-                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                     </tr>
                   ))}
                   {filteredTrips.length === 0 && (
@@ -4192,6 +4296,26 @@ export default function App() {
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">
+          {/* Offline mode / unsynced bookings banner */}
+          {(isOffline || offlineBookingCount > 0) && (
+            <div className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${isOffline ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+              <AlertTriangle size={16} className="shrink-0" />
+              <span className="flex-1">
+                {isOffline
+                  ? t.offline_mode_banner
+                  : `${offlineBookingCount} ${t.offline_bookings_count}`}
+              </span>
+              {!isOffline && offlineBookingCount > 0 && (
+                <button
+                  onClick={handleSyncOfflineBookings}
+                  disabled={isSyncing}
+                  className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {isSyncing ? '...' : t.sync_offline_bookings}
+                </button>
+              )}
+            </div>
+          )}
           {/* Mobile Menu Button - Since Header is removed */}
           <button 
             onClick={() => setIsSidebarOpen(true)} 
