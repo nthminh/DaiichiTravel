@@ -79,7 +79,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   }, []);
 
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(bookings);
+    const dataToExport = isAgent ? filteredBookings : bookings;
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Bookings");
     XLSX.writeFile(workbook, `Daiichi_Bookings_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -327,19 +328,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.filter_by_agent}</label>
-                        <select 
-                          value={agentFilter}
-                          onChange={(e) => setAgentFilter(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                        >
-                          <option value="ALL">{t.all_agents}</option>
-                          {uniqueAgents.map(agent => (
-                            <option key={agent} value={agent}>{agent}</option>
-                          ))}
-                        </select>
-                      </div>
+                      {!isAgent && (
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.filter_by_agent}</label>
+                          <select 
+                            value={agentFilter}
+                            onChange={(e) => setAgentFilter(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                          >
+                            <option value="ALL">{t.all_agents}</option>
+                            {uniqueAgents.map(agent => (
+                              <option key={agent} value={agent}>{agent}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Loại dịch vụ' : 'Service Type'}</label>
                         <div className="flex bg-white p-1 rounded-xl border border-gray-200">
@@ -465,18 +468,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                           >
                             <Eye size={16} />
                           </button>
-                          <button 
-                            onClick={() => handleEdit(booking)}
-                            className="p-2 text-gray-600 hover:text-daiichi-red hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(booking.id)}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {!isAgent && (
+                            <>
+                              <button 
+                                onClick={() => handleEdit(booking)}
+                                className="p-2 text-gray-600 hover:text-daiichi-red hover:bg-red-50 rounded-lg transition-all"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(booking.id)}
+                                className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -865,13 +872,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
               {/* Footer */}
               <div className="p-6 bg-gray-50 flex gap-3 shrink-0">
-                <button 
-                  onClick={() => { setViewingBooking(null); handleEdit(viewingBooking); }}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20"
-                >
-                  <Edit3 size={18} />
-                  {language === 'vi' ? 'Chỉnh sửa' : 'Edit'}
-                </button>
+                {!isAgent && (
+                  <button 
+                    onClick={() => { setViewingBooking(null); handleEdit(viewingBooking); }}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20"
+                  >
+                    <Edit3 size={18} />
+                    {language === 'vi' ? 'Chỉnh sửa' : 'Edit'}
+                  </button>
+                )}
                 <button 
                   onClick={() => setViewingBooking(null)}
                   className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 rounded-2xl font-bold hover:bg-gray-100 transition-all"
