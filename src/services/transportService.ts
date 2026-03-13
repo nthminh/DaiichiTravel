@@ -443,8 +443,9 @@ export const transportService = {
     fromStopId: string,
     toStopId: string,
     price: number,
+    agentPrice?: number,
     currency = 'VND',
-  ) => _upsertFare(routeId, fromStopId, toStopId, price, currency),
+  ) => _upsertFare(routeId, fromStopId, toStopId, price, agentPrice, currency),
 
   /** Fetch all fares for a route (one-time read). */
   getRouteFares: async (routeId: string): Promise<RouteFare[]> => {
