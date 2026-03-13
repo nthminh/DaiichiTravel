@@ -318,3 +318,17 @@ export interface PickupPoint {
   additionalPrice: number;
   note?: string;
 }
+
+// User Guide (Hướng dẫn sử dụng)
+export interface GuideBlock {
+  type: 'text' | 'image';
+  content: string; // text content or image URL
+}
+
+export interface UserGuide {
+  id: string;
+  role: string; // 'MANAGER' | 'AGENT' | 'DRIVER' | 'STAFF' | 'ACCOUNTANT' | 'CUSTOMER'
+  title: string;
+  blocks: GuideBlock[];
+  updatedAt: number; // Unix timestamp ms
+}

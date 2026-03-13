@@ -39,6 +39,7 @@ import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
 import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { UserGuide } from './components/UserGuide';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -4673,6 +4674,9 @@ export default function App() {
           </div>
         );
       }
+
+      case 'user-guide':
+        return <UserGuide language={language} currentUser={currentUser} />;
 
       default:
         return null;

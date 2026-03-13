@@ -14,7 +14,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -669,5 +669,31 @@ export const transportService = {
   deleteTrip: async (tripId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'trips', tripId));
+  },
+
+  // ─── User Guides ───────────────────────────────────────────────────────────
+
+  subscribeToUserGuides: (callback: (guides: UserGuide[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'userGuides'), orderBy('updatedAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const guides = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as UserGuide[];
+      callback(guides);
+    });
+  },
+
+  addUserGuide: async (guide: Omit<UserGuide, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'userGuides'), guide);
+  },
+
+  updateUserGuide: async (guideId: string, updates: Partial<Omit<UserGuide, 'id'>>) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'userGuides', guideId), updates as Record<string, unknown>);
+  },
+
+  deleteUserGuide: async (guideId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'userGuides', guideId));
   },
 };
