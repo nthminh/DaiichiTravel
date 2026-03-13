@@ -120,6 +120,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     }
   };
 
+  // Sort bookings by createdAt descending (newest first)
+  const sortByCreatedDesc = (a: any, b: any) => {
+    const getTime = (v: any) => {
+      if (!v) return 0;
+      try { return (v.toDate ? v.toDate() : new Date(v)).getTime(); } catch { return 0; }
+    };
+    return getTime(b.createdAt) - getTime(a.createdAt);
+  };
+
   const filteredBookings = bookings.filter(b => {
     // Agent scope: only show bookings created by this agent
     if (isAgent) {
@@ -141,7 +150,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     const matchesEnd = !endDate || bookingDate <= new Date(endDate);
 
     return matchesType && matchesSearch && matchesAgent && matchesStart && matchesEnd;
-  });
+  }).sort(sortByCreatedDesc);
 
   const uniqueAgents = Array.from(new Set(bookings.filter(b => b.agentId).map(b => b.agent).filter(Boolean)));
 
@@ -177,7 +186,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         (agentIdentifier && (c.agentName || '') === agentIdentifier))
     : consignments;
 
-
+  const sortedScopedBookings = [...scopedBookings].sort(sortByCreatedDesc);
 
   const formatActivityTime = (createdAt: any): string => {
     if (!createdAt) return '';
@@ -193,7 +202,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     }
   };
 
-  const recentActivities = scopedBookings.slice(0, 3).map(b => ({
+  const recentActivities = sortedScopedBookings.slice(0, 3).map(b => ({
     msg: language === 'vi'
       ? `Đặt chỗ mới: ${b.customerName || ''} - ${b.route || ''}`
       : `New booking: ${b.customerName || ''} - ${b.route || ''}`,
@@ -457,7 +466,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
           <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
             <h3 className="text-xl font-bold text-gray-800 mb-6">{t.upcoming_trips}</h3>
             <div className="space-y-4">
-              {trips.filter(t => t.status === TripStatus.WAITING).slice(0, 4).map((trip, i) => (
+              {trips.filter(t => t.status === TripStatus.WAITING).sort((a, b) => {
+                const aKey = `${a.date || ''}T${a.time || ''}`;
+                const bKey = `${b.date || ''}T${b.time || ''}`;
+                return aKey.localeCompare(bKey);
+              }).slice(0, 4).map((trip, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-transparent hover:border-daiichi-red/10 hover:bg-white hover:shadow-md transition-all group">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-white rounded-2xl flex flex-col items-center justify-center font-bold text-daiichi-red border border-gray-100 shadow-sm group-hover:bg-daiichi-red group-hover:text-white transition-colors">

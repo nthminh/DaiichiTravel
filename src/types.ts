@@ -168,12 +168,14 @@ export interface Seat {
   status: SeatStatus;
   customerName?: string;
   customerPhone?: string;
-  pickupPoint?: string;
-  dropoffPoint?: string;    // drop-off stop name
-  fromStopOrder?: number;   // order of pickup stop (used for segment availability)
-  toStopOrder?: number;     // order of dropoff stop (used for segment availability)
+  pickupPoint?: string;      // departure stop name (điểm xuất phát) for fare segment
+  dropoffPoint?: string;     // destination stop name (điểm đến) for fare segment
+  pickupAddress?: string;    // physical pickup address (điểm đón)
+  dropoffAddress?: string;   // physical dropoff address (điểm trả)
+  fromStopOrder?: number;    // order of pickup stop (used for segment availability)
+  toStopOrder?: number;      // order of dropoff stop (used for segment availability)
   deck?: number; // 0 for lower, 1 for upper
-  bookingNote?: string;     // note from agent or bus company (e.g. partial payment info)
+  bookingNote?: string;      // note from agent or bus company (e.g. partial payment info)
 }
 
 export enum TripStatus {
