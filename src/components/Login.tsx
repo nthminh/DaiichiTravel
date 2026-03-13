@@ -74,7 +74,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       </div>
 
       {/* Language Switcher */}
-      <div className="absolute top-6 left-6 flex gap-1 bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20">
+      <div className="absolute top-6 right-6 flex gap-1 bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20">
         {[
           { code: 'vi', label: 'VN', flag: '🇻🇳' },
           { code: 'en', label: 'EN', flag: '🇺🇸' },
@@ -99,7 +99,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center mb-8"
+          className="flex flex-col items-start mb-8"
         >
           <div className="bg-white rounded-3xl px-5 py-3 shadow-2xl shadow-black/30 mb-6">
             <img
