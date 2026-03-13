@@ -36,6 +36,7 @@ import { VehicleSeatDiagram, generateVehicleLayout, serializeLayout, SerializedS
 import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
 import { NotePopover } from './components/NotePopover';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -3814,19 +3815,23 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <Login 
-        onLogin={setCurrentUser} 
-        language={language} 
-        setLanguage={setLanguage} 
-        adminCredentials={adminCredentials}
-        agents={agents}
-        agentsLoading={agentsLoading}
-      />
+      <>
+        <PWAInstallPrompt />
+        <Login 
+          onLogin={setCurrentUser} 
+          language={language} 
+          setLanguage={setLanguage} 
+          adminCredentials={adminCredentials}
+          agents={agents}
+          agentsLoading={agentsLoading}
+        />
+      </>
     );
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-daiichi-accent">
+      <PWAInstallPrompt />
       <UrgencyNotification language={language} />
       
       {/* Real-time Notifications */}
