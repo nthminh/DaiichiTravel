@@ -268,9 +268,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Main Booking List */}
-        <div className="xl:col-span-2 space-y-6">
+      <div className="space-y-8">
+        {/* Main Booking List - Full Width */}
+        <div className="space-y-6">
           <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
             <div className="flex flex-col gap-6 mb-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -418,14 +418,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   {filteredBookings.map((booking) => (
                     <tr key={booking.id} className="group hover:bg-gray-50/50 transition-colors cursor-pointer" onDoubleClick={() => handleView(booking)}>
                       <td className="py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-daiichi-accent rounded-full flex items-center justify-center text-daiichi-red font-bold text-sm">
-                            {booking.customerName.charAt(0)}
-                          </div>
-                          <div className="overflow-hidden">
-                            <p className="font-bold text-gray-800 truncate">{booking.customerName}</p>
-                            <p className="text-xs text-gray-400 truncate">{booking.phone}</p>
-                          </div>
+                        <div className="overflow-hidden">
+                          <p className="font-bold text-gray-800 truncate">{booking.customerName}</p>
+                          <p className="text-xs text-gray-400 truncate">{booking.phone}</p>
                         </div>
                       </td>
                       <td className="py-5">
@@ -442,14 +437,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       </td>
                       <td className="py-5">
                         {booking.agentId ? (
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
-                              {(booking.agent || '?').charAt(0).toUpperCase()}
-                            </div>
-                            <div className="overflow-hidden">
-                              <p className="text-sm font-bold text-gray-700 truncate">{booking.agent}</p>
-                              <p className="text-[10px] text-gray-400 truncate font-mono">{String(booking.agentId).slice(-6).toUpperCase()}</p>
-                            </div>
+                          <div className="overflow-hidden">
+                            <p className="text-sm font-bold text-gray-700 truncate">{booking.agent}</p>
+                            <p className="text-[10px] text-gray-400 truncate font-mono">{String(booking.agentId).slice(-6).toUpperCase()}</p>
                           </div>
                         ) : (
                           <span className="text-xs text-gray-400 italic">{language === 'vi' ? 'Khách lẻ' : 'Direct'}</span>
@@ -497,8 +487,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
           </div>
         </div>
 
-        {/* Sidebar Stats */}
-        <div className="space-y-8">
+        {/* Stats Section - horizontal grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           {/* Upcoming Trips */}
           <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
             <h3 className="text-xl font-bold text-gray-800 mb-6">{t.upcoming_trips}</h3>

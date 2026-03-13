@@ -363,6 +363,21 @@ export const transportService = {
     await setDoc(ref, permissions);
   },
 
+  // Subscribe to real-time permission changes from Firestore
+  subscribeToPermissions: (callback: (perms: Record<string, Record<string, boolean>> | null) => void) => {
+    if (!db) return () => {};
+    const ref = doc(db, 'settings', 'permissions');
+    return onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        callback(snap.data() as Record<string, Record<string, boolean>>);
+      } else {
+        callback(null);
+      }
+    }, (error) => {
+      console.error('Failed to subscribe to permissions:', error);
+    });
+  },
+
   // ===== AGENT METHODS =====
 
   // Add agent
