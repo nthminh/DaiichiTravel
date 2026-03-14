@@ -259,6 +259,9 @@ export default function App() {
 
   // Fare table for route (retail + agent price per segment)
   const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>([]);
+  // Tracks the fareDocIds (fromStopId_toStopId) that exist in Firestore for the route being edited.
+  // Used in handleSaveRoute to delete fares the user removed from the local list.
+  const originalFareDocIdsRef = useRef<Set<string>>(new Set());
   const [showAddRouteFare, setShowAddRouteFare] = useState(false);
   const [editingRouteFareIdx, setEditingRouteFareIdx] = useState<number | null>(null);
   const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
@@ -310,7 +313,7 @@ export default function App() {
   const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
   const [editingPassengerSeatId, setEditingPassengerSeatId] = useState<string | null>(null);
   const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
-  const [passengerColVisibility, setPassengerColVisibility] = useState({ seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, note: true });
+  const [passengerColVisibility, setPassengerColVisibility] = useState({ ticketCode: true, seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, note: true });
   const [showPassengerColPanel, setShowPassengerColPanel] = useState(false);
   const [consignMgmtColWidths, setConsignMgmtColWidths] = useState({ code: 130, sender: 180, receiver: 180, goodsType: 130, weight: 100, cod: 130, notes: 160, status: 130, options: 100 });
 
@@ -422,8 +425,16 @@ export default function App() {
   const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
   useEffect(() => {
     if (!routeModalEditingId) return;
+    // Reset tracked original IDs for this editing session
+    originalFareDocIdsRef.current = new Set();
+    let initialLoadDone = false;
     const unsubFares = transportService.subscribeToRouteFares(routeModalEditingId, (fares) => {
       const currentStops = routeFormStopsRef.current;
+      // On first callback, record which fareDocIds exist in Firestore
+      if (!initialLoadDone) {
+        originalFareDocIdsRef.current = new Set(fares.map(f => `${f.fromStopId}_${f.toStopId}`));
+        initialLoadDone = true;
+      }
       setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
         fromStopId: f.fromStopId,
         toStopId: f.toStopId,
@@ -550,8 +561,9 @@ export default function App() {
         const docRef = await transportService.addRoute(routeData);
         routeId = docRef?.id;
       }
-      // Save fare table entries if any stops are configured
-      if (routeId && routeFormFares.length > 0) {
+      // Save fare table entries: upsert current fares and delete removed ones
+      if (routeId) {
+        // Upsert all current fares
         for (const fare of routeFormFares) {
           try {
             await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined, 'VND', fare.startDate || undefined, fare.endDate || undefined);
@@ -559,6 +571,18 @@ export default function App() {
             console.error('Failed to save fare:', fare, err);
           }
         }
+        // Delete fares that existed in Firestore but were removed by the user
+        const currentFareDocIds = new Set(routeFormFares.map(f => `${f.fromStopId}_${f.toStopId}`));
+        for (const originalId of originalFareDocIdsRef.current) {
+          if (!currentFareDocIds.has(originalId)) {
+            try {
+              await transportService.deleteFare(routeId, originalId);
+            } catch (err) {
+              console.error('Failed to delete fare:', originalId, err);
+            }
+          }
+        }
+        originalFareDocIdsRef.current = new Set();
       }
       setShowAddRoute(false);
       setEditingRoute(null);
@@ -4507,7 +4531,19 @@ export default function App() {
             )}
 
             {/* Passenger List Modal */}
-            {showTripPassengers && (
+            {showTripPassengers && (() => {
+              // Pre-compute a map from seatId -> ticketCode for O(1) lookup in each row
+              const seatTicketCodeMap = new Map<string, string>();
+              for (const bk of bookings) {
+                if (bk.tripId !== showTripPassengers.id) continue;
+                if (bk.ticketCode) {
+                  if (bk.seatId) seatTicketCodeMap.set(bk.seatId, bk.ticketCode);
+                  if (bk.seatIds) {
+                    for (const sid of bk.seatIds) seatTicketCodeMap.set(sid, bk.ticketCode);
+                  }
+                }
+              }
+              return (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
                   {/* Header */}
@@ -4533,6 +4569,7 @@ export default function App() {
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
                       <div className="flex flex-wrap gap-2">
                         {([
+                          { key: 'ticketCode', label: language === 'vi' ? 'Mã vé' : 'Ticket Code' },
                           { key: 'seat', label: language === 'vi' ? 'Ghế' : 'Seat' },
                           { key: 'name', label: language === 'vi' ? 'Tên khách' : 'Name' },
                           { key: 'phone', label: language === 'vi' ? 'Số điện thoại' : 'Phone' },
@@ -4577,6 +4614,7 @@ export default function App() {
                       <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-10">STT</th>
+                          {passengerColVisibility.ticketCode && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Mã vé' : 'Ticket Code'}</th>}
                           {passengerColVisibility.seat && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>}
                           {passengerColVisibility.name && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>}
                           {passengerColVisibility.phone && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>}
@@ -4592,6 +4630,7 @@ export default function App() {
                           editingPassengerSeatId === seat.id ? (
                             <tr key={seat.id} className="bg-blue-50">
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{seatTicketCodeMap.get(seat.id) || '—'}</td>}
                               {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seat.id}</td>}
                               {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                               {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
@@ -4614,6 +4653,7 @@ export default function App() {
                           ) : (
                             <tr key={seat.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{seatTicketCodeMap.get(seat.id) || '—'}</td>}
                               {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seat.id}</td>}
                               {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{seat.customerName || '—'}</td>}
                               {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{seat.customerPhone || '—'}</td>}
@@ -4664,7 +4704,8 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
