@@ -11,7 +11,7 @@ admin.initializeApp();
  * environment variable or Firebase Functions params.
  */
 const recaptchaSiteKey = defineString('RECAPTCHA_SITE_KEY', {
-  default: '6LfaI4osAAAAALZbvyZnRddXaeb112xIo985XGYz',
+  default: '6LegNoosAAAAAHY8lia-ztljjlNGLQYvXYLHVHEE',
   description: 'reCAPTCHA Enterprise site key used to verify client-side tokens.',
 });
 
