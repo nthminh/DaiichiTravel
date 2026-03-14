@@ -15,7 +15,7 @@ import {
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
 import { PAYMENT_METHODS, type PaymentMethod } from './constants/paymentMethods';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { db } from './lib/firebase';
@@ -121,6 +121,9 @@ export default function App() {
   });
   const [trips, setTrips] = useState<Trip[]>([]);
   const [consignments, setConsignments] = useState<Consignment[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [userGuides, setUserGuides] = useState<UserGuideType[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [showBookingForm, setShowBookingForm] = useState<string | null>(null);
   const [activeDeck, setActiveDeck] = useState(0);
@@ -244,6 +247,8 @@ export default function App() {
 
   // Route stops (intermediate stops for a route)
   const [routeFormStops, setRouteFormStops] = useState<RouteStop[]>([]);
+  const routeFormStopsRef = useRef<RouteStop[]>([]);
+  useEffect(() => { routeFormStopsRef.current = routeFormStops; }, [routeFormStops]);
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
   const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
   const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
@@ -359,11 +364,12 @@ export default function App() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
 
-  // Load admin credentials from Firebase on mount
+  // Subscribe to admin credentials changes in real-time
   useEffect(() => {
-    transportService.getAdminSettings()
-      .then(saved => { if (saved) setAdminCredentials(saved); })
-      .catch(err => console.error('Failed to load admin settings:', err));
+    const unsubscribe = transportService.subscribeToAdminSettings((saved) => {
+      if (saved) setAdminCredentials(saved);
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   // Booking form inputs
@@ -388,6 +394,9 @@ export default function App() {
     const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
     const unsubscribeTours = transportService.subscribeToTours(setTours);
     const unsubscribeEmployees = transportService.subscribeToEmployees(setEmployees);
+    const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
+    const unsubscribeInvoices = transportService.subscribeToInvoices(setInvoices);
+    const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -397,8 +406,31 @@ export default function App() {
       unsubscribeVehicles();
       unsubscribeTours();
       unsubscribeEmployees();
+      unsubscribeBookings();
+      unsubscribeInvoices();
+      unsubscribeUserGuides();
     };
   }, []);
+
+  // Subscribe to route fares in real-time when the route edit modal is open
+  const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!routeModalEditingId) return;
+    const unsubFares = transportService.subscribeToRouteFares(routeModalEditingId, (fares) => {
+      const currentStops = routeFormStopsRef.current;
+      setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
+        fromStopId: f.fromStopId,
+        toStopId: f.toStopId,
+        fromName: currentStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
+        toName: currentStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
+        price: f.price,
+        agentPrice: f.agentPrice || 0,
+        startDate: f.startDate || '',
+        endDate: f.endDate || '',
+      })));
+    });
+    return () => unsubFares();
+  }, [routeModalEditingId]);
 
   // --- Agent CRUD handlers ---
   const handleSaveAgent = async () => {
@@ -506,6 +538,7 @@ export default function App() {
       setRouteFormFares([]);
       setShowAddRouteFare(false);
       setEditingRouteFareIdx(null);
+      setRouteModalEditingId(null);
     } catch (err) {
       console.error('Failed to save route:', err);
     }
@@ -532,24 +565,11 @@ export default function App() {
     const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
     setRouteFormStops(loadedStops);
     setShowAddRouteStop(false);
-    // Load existing fares from Firestore
+    // Clear fares and subscribe to real-time updates for this route
     setRouteFormFares([]);
     setShowAddRouteFare(false);
     setEditingRouteFareIdx(null);
-    if (route.id && (route.routeStops || []).length > 0) {
-      transportService.getRouteFares(route.id).then((fares) => {
-        setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
-          fromStopId: f.fromStopId,
-          toStopId: f.toStopId,
-          fromName: loadedStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
-          toName: loadedStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
-          price: f.price,
-          agentPrice: f.agentPrice || 0,
-          startDate: f.startDate || '',
-          endDate: f.endDate || '',
-        })));
-      }).catch((err) => { console.error('Failed to load route fares:', err); });
-    }
+    setRouteModalEditingId(route.id && (route.routeStops || []).length > 0 ? route.id : null);
     setShowAddRoute(true);
   };
 
@@ -571,16 +591,17 @@ export default function App() {
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
     setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
-    setRouteFormStops((route.routeStops || []).slice().sort((a, b) => a.order - b.order));
+    const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+    setRouteFormStops(loadedStops);
     setShowAddPricePeriod(false);
     setShowAddRouteSurcharge(false);
     setShowAddRouteStop(false);
     setRouteFormFares([]);
     setShowAddRouteFare(false);
     setEditingRouteFareIdx(null);
-    // Load fares for copy if the original route has stops
-    if (route.id && (route.routeStops || []).length > 0) {
-      const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+    // No real-time subscription for copy (no ID yet); load fares once as initial values
+    setRouteModalEditingId(null);
+    if (route.id && loadedStops.length > 0) {
       transportService.getRouteFares(route.id).then((fares) => {
         setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
           fromStopId: f.fromStopId,
@@ -1336,7 +1357,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard language={language} trips={trips} consignments={consignments} currentUser={currentUser} setActiveTab={setActiveTab} />;
+        return <Dashboard language={language} trips={trips} consignments={consignments} bookings={bookings} currentUser={currentUser} setActiveTab={setActiveTab} />;
       
       case 'settings':
         return (
@@ -3375,7 +3396,7 @@ export default function App() {
                           ? `📋 ${t.copy_route_title}`
                           : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}
                     </h3>
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -3835,7 +3856,7 @@ export default function App() {
 
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
                     <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
                   </div>
                 </div>
@@ -4700,7 +4721,7 @@ export default function App() {
         return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
 
       case 'financial-report':
-        return <FinancialReport language={language} agents={agents} />;
+        return <FinancialReport language={language} agents={agents} bookings={bookings} invoices={invoices} />;
 
       case 'consignments': {
         const filteredConsignments = consignments.filter(c => {
@@ -4975,7 +4996,7 @@ export default function App() {
       }
 
       case 'user-guide':
-        return <UserGuide language={language} currentUser={currentUser} />;
+        return <UserGuide language={language} currentUser={currentUser} userGuides={userGuides} />;
 
       default:
         return null;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Bus, Users, ChevronRight,
   Download, Filter, Calendar as CalendarIcon, Search,
@@ -17,14 +17,13 @@ interface DashboardProps {
   language: Language;
   trips: any[];
   consignments: any[];
+  bookings: any[];
   currentUser: any;
   setActiveTab?: (tab: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps, currentUser, setActiveTab }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments, bookings, currentUser, setActiveTab }) => {
   const t = TRANSLATIONS[language];
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [consignments, setConsignments] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<'ALL' | 'TRIP' | 'TOUR'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -67,18 +66,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     ? (currentUser.name || currentUser.address || currentUser.agentCode || '')
     : '';
 
-  // Subscribe to bookings from Firebase
-  useEffect(() => {
-    const unsubscribe = transportService.subscribeToBookings(setBookings);
-    return () => unsubscribe();
-  }, []);
-
-  // Subscribe to consignments from Firebase
-  useEffect(() => {
-    const unsubscribe = transportService.subscribeToConsignments(setConsignments);
-    return () => unsubscribe();
-  }, []);
-
   const exportToExcel = () => {
     const dataToExport = isAgent ? filteredBookings : bookings;
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -89,13 +76,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const handleDelete = async (id: string) => {
     if (window.confirm(t.confirm_delete)) {
-      // Optimistic local update for immediate feedback
-      setBookings(prev => prev.filter(b => b.id !== id));
       try {
         await transportService.deleteBooking(id);
       } catch (err) {
         console.error('Failed to delete booking:', err);
-        // Firebase subscription will restore correct state on next update
       }
     }
   };
@@ -110,14 +94,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const saveEdit = async () => {
     const updated = editingBooking;
-    // Optimistic local update for immediate feedback
-    setBookings(prev => prev.map(b => b.id === updated.id ? updated : b));
     setEditingBooking(null);
     try {
       await transportService.updateBooking(updated.id, updated);
     } catch (err) {
       console.error('Failed to update booking:', err);
-      // Firebase subscription will restore correct state on next update
     }
   };
 

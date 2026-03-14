@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   FileText, TrendingUp, AlertCircle, CheckCircle2, Clock,
   Download, Plus, Search, Filter, DollarSign, Users,
@@ -15,6 +15,8 @@ import { ResizableTh } from './ResizableTh';
 interface FinancialReportProps {
   language: Language;
   agents: { id: string; name: string; code: string; balance: number; address?: string }[];
+  bookings: any[];
+  invoices: Invoice[];
 }
 
 type Period = 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
@@ -27,10 +29,8 @@ const emptyInvoiceItem = (): InvoiceItem => ({
   type: 'TICKET',
 });
 
-export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agents }) => {
+export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agents, bookings, invoices }) => {
   const t = TRANSLATIONS[language];
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [bookings, setBookings] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState<'overview' | 'invoices' | 'debt'>('overview');
   const [period, setPeriod] = useState<Period>('this_month');
   const [customFrom, setCustomFrom] = useState('');
@@ -67,12 +67,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     status: 'UNPAID',
     paymentMethod: 'CASH',
   });
-
-  useEffect(() => {
-    const unsubInvoices = transportService.subscribeToInvoices(setInvoices);
-    const unsubBookings = transportService.subscribeToBookings(setBookings);
-    return () => { unsubInvoices(); unsubBookings(); };
-  }, []);
 
   const getPeriodRange = useCallback((): { from: Date; to: Date } => {
     const now = new Date();
