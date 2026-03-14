@@ -18,9 +18,10 @@ interface DashboardProps {
   trips: any[];
   consignments: any[];
   currentUser: any;
+  setActiveTab?: (tab: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps, currentUser }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments: _consignmentsFromProps, currentUser, setActiveTab }) => {
   const t = TRANSLATIONS[language];
   const [bookings, setBookings] = useState<any[]>([]);
   const [consignments, setConsignments] = useState<any[]>([]);
@@ -226,7 +227,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
             <Download size={20} />
             {language === 'vi' ? 'Xuất Excel' : 'Export Excel'}
           </button>
-          <button className="flex items-center gap-2 px-6 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">
+          <button 
+            onClick={() => setActiveTab?.('operations')}
+            className="flex items-center gap-2 px-6 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">
             <CalendarIcon size={20} />
             {language === 'vi' ? 'Lịch trình' : 'Schedule'}
           </button>
