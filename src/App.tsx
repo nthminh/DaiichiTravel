@@ -1260,7 +1260,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard language={language} trips={trips} consignments={consignments} currentUser={currentUser} />;
+        return <Dashboard language={language} trips={trips} consignments={consignments} currentUser={currentUser} setActiveTab={setActiveTab} />;
       
       case 'settings':
         return (
