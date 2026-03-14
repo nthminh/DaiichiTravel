@@ -28,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({ language, setIsSidebarOpen, acti
         {/* Hotline pill */}
         <a
           href="tel:+84961004709"
+          aria-label={language === 'vi' ? 'Gọi hotline Daiichi Travel' : language === 'ja' ? 'Daiichiホットラインに電話' : 'Call Daiichi Travel hotline'}
           className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-daiichi-red/8 text-daiichi-red rounded-xl font-bold text-xs transition-all hover:bg-daiichi-red hover:text-white group"
         >
           <Phone size={14} className="group-hover:animate-pulse" />

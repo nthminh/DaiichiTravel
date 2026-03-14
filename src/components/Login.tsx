@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -14,6 +14,17 @@ interface LoginProps {
   agentsLoading?: boolean;
 }
 
+// Particle configuration constants
+const PARTICLE_COUNT = 18;
+const PARTICLE_MIN_SIZE = 6;
+const PARTICLE_SIZE_STEP = 5;
+const PARTICLE_SIZE_VARIANTS = 5;
+const PARTICLE_X_SPREAD = 95;
+const PARTICLE_Y_SPREAD = 90;
+const PARTICLE_MIN_DURATION = 3.5;
+const PARTICLE_DURATION_STEP = 0.8;
+const PARTICLE_MAX_DELAY = 4;
+
 /** Small floating particle dot */
 const Particle: React.FC<{ style: React.CSSProperties }> = ({ style }) => (
   <span
@@ -22,13 +33,13 @@ const Particle: React.FC<{ style: React.CSSProperties }> = ({ style }) => (
   />
 );
 
-const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
-  width: `${6 + (i % 5) * 5}px`,
-  height: `${6 + (i % 5) * 5}px`,
-  left: `${(i * 17 + 5) % 95}%`,
-  top: `${(i * 23 + 10) % 90}%`,
-  animationDelay: `${(i * 0.4) % 4}s`,
-  animationDuration: `${3.5 + (i % 4) * 0.8}s`,
+const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+  width: `${PARTICLE_MIN_SIZE + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_SIZE_STEP}px`,
+  height: `${PARTICLE_MIN_SIZE + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_SIZE_STEP}px`,
+  left: `${(i * 17 + 5) % PARTICLE_X_SPREAD}%`,
+  top: `${(i * 23 + 10) % PARTICLE_Y_SPREAD}%`,
+  animationDelay: `${(i * 0.4) % PARTICLE_MAX_DELAY}s`,
+  animationDuration: `${PARTICLE_MIN_DURATION + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_DURATION_STEP}s`,
 }));
 
 export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, agentsLoading }) => {
@@ -37,16 +48,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [infoMessage, setInfoMessage] = useState('');
-  const [showLoginForm, setShowLoginForm] = useState(false);
-  const [tapCount, setTapCount] = useState(0);
 
   const t = TRANSLATIONS[language];
-
-  // Subtle tap indicator pulse
-  useEffect(() => {
-    const id = setInterval(() => setTapCount(c => c + 1), 2200);
-    return () => clearInterval(id);
-  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,17 +208,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
             <span className="absolute inset-0 rounded-2xl animate-pulse-ring pointer-events-none" />
 
             <div className="relative flex items-center gap-4 px-6 py-5">
-              {/* Animated hand pointer emoji */}
+              {/* Animated hand pointer emoji - pure CSS animation, no remounting */}
               <div className="relative flex-shrink-0">
-                <motion.span
-                  key={tapCount}
-                  initial={{ scale: 1.2 }}
-                  animate={{ scale: 1 }}
+                <span
                   className="text-4xl leading-none select-none animate-hand-bounce inline-block"
                   style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}
                 >
                   👆
-                </motion.span>
+                </span>
               </div>
 
               <div className="flex-1 text-left">
