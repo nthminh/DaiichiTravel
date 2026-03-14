@@ -150,10 +150,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
       // Step 3: Create a custom ApplicationVerifier that returns the reCAPTCHA token,
       //         then call signInWithPhoneNumber with it.
-      const appVerifier: ApplicationVerifier = {
+      // Note: Firebase SDK (v10+) internally calls _reset() on the verifier after use,
+      //       so we provide a no-op to prevent "n._reset is not a function" errors.
+      const appVerifier = {
         type: 'recaptcha',
         verify: () => Promise.resolve(recaptchaToken),
-      };
+        _reset: () => {},
+      } as unknown as ApplicationVerifier;
 
       const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       confirmationResultRef.current = result;
