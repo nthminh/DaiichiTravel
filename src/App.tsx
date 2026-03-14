@@ -257,6 +257,7 @@ export default function App() {
   // Vehicle CRUD state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [isCopyingVehicle, setIsCopyingVehicle] = useState(false);
   const [vehicleForm, setVehicleForm] = useState({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
 
   // Vehicle seat diagram state
@@ -601,6 +602,7 @@ export default function App() {
       }
       setShowAddVehicle(false);
       setEditingVehicle(null);
+      setIsCopyingVehicle(false);
       setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
     } catch (err) {
       console.error('Failed to save vehicle:', err);
@@ -609,7 +611,15 @@ export default function App() {
 
   const handleStartEditVehicle = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
+    setIsCopyingVehicle(false);
     setVehicleForm({ licensePlate: vehicle.licensePlate, type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE' });
+    setShowAddVehicle(true);
+  };
+
+  const handleCopyVehicle = (vehicle: Vehicle) => {
+    setEditingVehicle(null);
+    setIsCopyingVehicle(true);
+    setVehicleForm({ licensePlate: '', type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE' });
     setShowAddVehicle(true);
   };
 
@@ -3853,7 +3863,7 @@ export default function App() {
                     {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
                   </button>
                 )}
-                <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+                <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
               </div>
             </div>
 
@@ -3862,8 +3872,14 @@ export default function App() {
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{editingVehicle ? (language === 'vi' ? 'Chỉnh sửa phương tiện' : 'Edit Vehicle') : (language === 'vi' ? 'Thêm phương tiện mới' : 'Add New Vehicle')}</h3>
-                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    <h3 className="text-xl font-bold">
+                      {editingVehicle
+                        ? (language === 'vi' ? 'Chỉnh sửa phương tiện' : language === 'en' ? 'Edit Vehicle' : '車両を編集')
+                        : isCopyingVehicle
+                          ? `📋 ${t.copy_vehicle_title}`
+                          : (language === 'vi' ? 'Thêm phương tiện mới' : language === 'en' ? 'Add New Vehicle' : '新しい車両を追加')}
+                    </h3>
+                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); setIsCopyingVehicle(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -3881,8 +3897,8 @@ export default function App() {
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.registration_expiry}</label><input type="date" value={vehicleForm.registrationExpiry} onChange={e => setVehicleForm(p => ({ ...p, registrationExpiry: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveVehicle} disabled={!vehicleForm.licensePlate} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingVehicle ? t.save : (language === 'vi' ? 'Thêm xe' : 'Add Vehicle')}</button>
+                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); setIsCopyingVehicle(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={handleSaveVehicle} disabled={!vehicleForm.licensePlate} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingVehicle ? t.save : isCopyingVehicle ? t.create_copy : (language === 'vi' ? 'Thêm xe' : language === 'en' ? 'Add Vehicle' : '車両を追加')}</button>
                   </div>
                 </div>
               </div>
@@ -3951,6 +3967,7 @@ export default function App() {
                             {language === 'vi' ? 'Sơ đồ' : 'Diagram'}
                           </button>
                           <button onClick={() => handleStartEditVehicle(v)} className="text-gray-600 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
+                          <button onClick={() => handleCopyVehicle(v)} title={t.copy_vehicle} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1.5 rounded"><Copy size={16} /></button>
                           <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-600 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
                           <NotePopover note={v.note} onSave={(note) => handleSaveVehicleNote(v.id, note)} language={language} />
                         </div>

@@ -14,7 +14,7 @@ import { ResizableTh } from './ResizableTh';
 
 interface FinancialReportProps {
   language: Language;
-  agents: { id: string; name: string; code: string; balance: number }[];
+  agents: { id: string; name: string; code: string; balance: number; address?: string }[];
 }
 
 type Period = 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
@@ -42,6 +42,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
   const [showInvoiceDetail, setShowInvoiceDetail] = useState<Invoice | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState<Invoice | null>(null);
   const [paymentInput, setPaymentInput] = useState('');
+  const [agentSearch, setAgentSearch] = useState('');
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
 
   const [colWidths, setColWidths] = useState({
     invoiceNo: 150,
@@ -178,6 +180,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     await transportService.createInvoice(invoice);
     setShowCreateModal(false);
     setNewInvoice({ type: 'RETAIL', customerName: '', customerPhone: '', items: [emptyInvoiceItem()], discount: 0, tax: 0, status: 'UNPAID', paymentMethod: 'CASH' });
+    setAgentSearch('');
+    setShowAgentDropdown(false);
   };
 
   const handleRecordPayment = async () => {
@@ -561,14 +565,14 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold">{t.create_invoice || 'Create Invoice'}</h3>
-                  <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+                  <button onClick={() => { setShowCreateModal(false); setAgentSearch(''); setShowAgentDropdown(false); }} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                 </div>
 
                 <div className="space-y-4">
                   {/* Type */}
                   <div className="flex gap-3">
                     {(['RETAIL', 'AGENT'] as const).map(tp => (
-                      <button key={tp} onClick={() => setNewInvoice(p => ({ ...p, type: tp }))}
+                      <button key={tp} onClick={() => { setNewInvoice(p => ({ ...p, type: tp, agentId: tp === 'RETAIL' ? undefined : p.agentId, agentName: tp === 'RETAIL' ? undefined : p.agentName })); if (tp === 'RETAIL') { setAgentSearch(''); setShowAgentDropdown(false); } }}
                         className={cn("flex-1 py-3 rounded-xl font-bold text-sm transition-all", newInvoice.type === tp ? "bg-daiichi-red text-white" : "bg-gray-50 text-gray-500 hover:bg-gray-100")}>
                         {tp === 'RETAIL' ? (t.invoice_retail || 'Retail') : (t.invoice_agent || 'Agent')}
                       </button>
@@ -591,15 +595,74 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
 
                   {/* Agent Selector */}
                   {newInvoice.type === 'AGENT' && (
-                    <div>
+                    <div className="relative">
                       <label className="text-xs font-bold text-gray-500 uppercase">{t.agents || 'Agent'}</label>
-                      <select value={newInvoice.agentId || ''} onChange={e => {
-                        const ag = agents.find(a => a.id === e.target.value);
-                        setNewInvoice(p => ({ ...p, agentId: e.target.value, agentName: ag?.name, customerName: ag?.name || p.customerName }));
-                      }} className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none text-sm">
-                        <option value="">{language === 'vi' ? 'Chọn đại lý' : language === 'en' ? 'Select agent' : '代理店を選択'}</option>
-                        {agents.map(ag => <option key={ag.id} value={ag.id}>{ag.name} ({ag.code})</option>)}
-                      </select>
+                      <div className="relative mt-1">
+                        <input
+                          type="text"
+                          value={agentSearch}
+                          onChange={e => {
+                            setAgentSearch(e.target.value);
+                            setShowAgentDropdown(true);
+                            if (!e.target.value) {
+                              setNewInvoice(p => ({ ...p, agentId: '', agentName: undefined }));
+                            }
+                          }}
+                          onFocus={() => setShowAgentDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowAgentDropdown(false), 150)}
+                          placeholder={language === 'vi' ? 'Tìm đại lý theo tên, mã, địa chỉ...' : language === 'en' ? 'Search agent by name, code, address...' : '代理店を検索...'}
+                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
+                        />
+                        {newInvoice.agentId && (
+                          <button
+                            type="button"
+                            onMouseDown={e => { e.preventDefault(); setNewInvoice(p => ({ ...p, agentId: '', agentName: undefined })); setAgentSearch(''); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                      {showAgentDropdown && (
+                        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                          {(() => {
+                            const q = agentSearch.toLowerCase();
+                            const filtered = agents.filter(ag =>
+                              !q ||
+                              ag.name.toLowerCase().includes(q) ||
+                              ag.code.toLowerCase().includes(q) ||
+                              (ag.address || '').toLowerCase().includes(q)
+                            );
+                            if (filtered.length === 0) return (
+                              <div className="px-4 py-3 text-sm text-gray-400">
+                                {language === 'vi' ? 'Không tìm thấy đại lý.' : language === 'en' ? 'No agents found.' : '代理店が見つかりません。'}
+                              </div>
+                            );
+                            return filtered.map(ag => (
+                              <button
+                                key={ag.id}
+                                type="button"
+                                onMouseDown={e => {
+                                  e.preventDefault();
+                                  setNewInvoice(p => ({ ...p, agentId: ag.id, agentName: ag.name, customerName: ag.name || p.customerName }));
+                                  setAgentSearch(ag.name);
+                                  setShowAgentDropdown(false);
+                                }}
+                                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors ${newInvoice.agentId === ag.id ? 'bg-daiichi-red/5' : ''}`}
+                              >
+                                <div className="text-sm font-semibold text-gray-800">{ag.name} <span className="text-xs font-normal text-gray-500">({ag.code})</span></div>
+                                {ag.address && <div className="text-xs text-gray-400 truncate">{ag.address}</div>}
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      )}
+                      {newInvoice.agentId && (() => {
+                        const ag = agents.find(a => a.id === newInvoice.agentId);
+                        return ag?.address ? (
+                          <p className="mt-1 text-xs text-gray-400 pl-1">{ag.address}</p>
+                        ) : null;
+                      })()}
                     </div>
                   )}
 
@@ -679,7 +742,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => setShowCreateModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all">
+                    <button onClick={() => { setShowCreateModal(false); setAgentSearch(''); setShowAgentDropdown(false); }} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all">
                       {t.cancel || 'Cancel'}
                     </button>
                     <button onClick={handleCreateInvoice} className="flex-1 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">
