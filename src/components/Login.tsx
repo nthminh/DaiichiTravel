@@ -89,12 +89,23 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
   const t = TRANSLATIONS[language];
 
+  /**
+   * Helper: set an OTP-related error in both the OTP step panel and the login form
+   * so the message is always visible regardless of which step is currently rendered.
+   */
+  const setOtpSendError = (msg: string) => {
+    setOtpError(msg);
+    // If we haven't transitioned to the OTP step yet the error panel is hidden,
+    // so also surface the message on the login form via the shared `error` state.
+    if (!otpStep) setError(msg);
+  };
+
   const sendOtp = async (user: User, phoneNumber: string) => {
     setOtpLoading(true);
     setOtpError('');
     try {
       if (!auth || !app) {
-        setOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+        setOtpSendError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
         return false;
       }
 
@@ -104,7 +115,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         recaptchaToken = await getRecaptchaToken();
       } catch (captchaErr: any) {
         console.error('[reCAPTCHA] token error:', captchaErr);
-        setOtpError(
+        setOtpSendError(
           language === 'vi'
             ? `reCAPTCHA chưa sẵn sàng, thử lại sau (${captchaErr?.message ?? 'unknown error'})`
             : `reCAPTCHA not ready, please try again (${captchaErr?.message ?? 'unknown error'})`
@@ -123,7 +134,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         const verifyResult = await verifyRecaptcha({ token: recaptchaToken, action: 'LOGIN' });
         if (!verifyResult.data.success) {
           console.warn('[reCAPTCHA] server verification failed:', verifyResult.data);
-          setOtpError(
+          setOtpSendError(
             language === 'vi'
               ? `Xác minh reCAPTCHA thất bại: ${verifyResult.data.message}`
               : `reCAPTCHA verification failed: ${verifyResult.data.message}`
@@ -151,14 +162,33 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       setOtpStep(true);
       return true;
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.includes('invalid-phone-number')) {
-        setOtpError(language === 'vi' ? 'Số điện thoại không hợp lệ' : 'Invalid phone number');
-      } else if (msg.includes('too-many-requests')) {
-        setOtpError(language === 'vi' ? 'Quá nhiều yêu cầu, thử lại sau' : 'Too many requests, try again later');
+      const code: string = (err as any)?.code ?? '';
+      const msg: string = err?.message ?? '';
+      let errMsg: string;
+      if (code === 'auth/invalid-phone-number' || msg.includes('invalid-phone-number')) {
+        errMsg = language === 'vi'
+          ? 'Số điện thoại không hợp lệ. Vui lòng kiểm tra cài đặt bảo mật.'
+          : 'Invalid phone number. Please check the security settings.';
+      } else if (code === 'auth/too-many-requests' || msg.includes('too-many-requests')) {
+        errMsg = language === 'vi'
+          ? 'Quá nhiều yêu cầu, vui lòng thử lại sau vài phút'
+          : 'Too many requests, please try again in a few minutes';
+      } else if (code === 'auth/quota-exceeded' || msg.includes('quota-exceeded')) {
+        errMsg = language === 'vi'
+          ? 'Đã vượt quá hạn ngạch SMS. Vui lòng thử lại sau.'
+          : 'SMS quota exceeded. Please try again later.';
+      } else if (code === 'auth/app-not-authorized' || msg.includes('app-not-authorized')) {
+        errMsg = language === 'vi'
+          ? 'Xác thực số điện thoại chưa được bật trong Firebase. Vui lòng liên hệ quản trị viên.'
+          : 'Phone authentication is not enabled in Firebase. Please contact the administrator.';
+      } else if (code === 'auth/captcha-check-failed' || msg.includes('captcha-check-failed')) {
+        errMsg = language === 'vi'
+          ? 'Xác minh bảo mật thất bại, vui lòng tải lại trang và thử lại'
+          : 'Security check failed, please reload the page and try again';
       } else {
-        setOtpError(language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`);
+        errMsg = language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`;
       }
+      setOtpSendError(errMsg);
       return false;
     } finally {
       setOtpLoading(false);
