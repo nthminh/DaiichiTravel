@@ -46,6 +46,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const ROLE_LIST = [
     { id: 'MANAGER', label: language === 'vi' ? 'Admin (Daiichi)' : 'Admin (Daiichi)', color: 'text-red-600 bg-red-50' },
+    { id: 'SUPERVISOR', label: language === 'vi' ? 'Quản lý' : 'Supervisor', color: 'text-purple-600 bg-purple-50' },
     { id: 'AGENT', label: language === 'vi' ? 'Đại lý' : 'Agent', color: 'text-orange-600 bg-orange-50' },
     { id: 'STAFF', label: language === 'vi' ? 'Nhân viên' : 'Staff', color: 'text-blue-600 bg-blue-50' },
     { id: 'DRIVER', label: language === 'vi' ? 'Tài xế' : 'Driver', color: 'text-green-600 bg-green-50' },
@@ -54,6 +55,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const defaultPerms: Record<string, Record<string, boolean>> = {
     MANAGER: Object.fromEntries(PAGE_LIST.map(p => [p.id, true])),
+    SUPERVISOR: Object.fromEntries(PAGE_LIST.filter(p => p.id !== 'financial-report').map(p => [p.id, true])),
     AGENT: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'user-guide': true, 'settings': true },
     STAFF: { 'home': true, 'book-ticket': true, 'consignments': true, 'user-guide': true },
     DRIVER: { 'home': true, 'user-guide': true },
