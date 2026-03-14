@@ -115,7 +115,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       // Step 2: Verify the reCAPTCHA token server-side via Cloud Function.
       //         This ensures the token is valid and the score is high enough (human).
       try {
-        const functions = getFunctions(app, 'asia-southeast1');
+        const functions = getFunctions(app, 'us-central1');
         const verifyRecaptcha = httpsCallable<
           { token: string; action: string },
           { success: boolean; score: number; message: string }
