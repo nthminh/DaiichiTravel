@@ -70,18 +70,15 @@ export const Settings: React.FC<SettingsProps> = ({
     } catch { return defaultPerms; }
   });
 
-  // Load permissions from Firestore on mount (overrides localStorage)
+  // Subscribe to permissions from Firestore in real-time (overrides localStorage)
   useEffect(() => {
-    const loadCloudPermissions = async () => {
-      try {
-        const cloudPerms = await transportService.getPermissions();
-        if (cloudPerms && typeof cloudPerms === 'object' && !Array.isArray(cloudPerms)) {
-          setPermissions(cloudPerms);
-          localStorage.setItem('daiichi_permissions', JSON.stringify(cloudPerms));
-        }
-      } catch {/* silently fall back to localStorage */}
-    };
-    loadCloudPermissions();
+    const unsubscribe = transportService.subscribeToPermissions((cloudPerms) => {
+      if (cloudPerms && typeof cloudPerms === 'object' && !Array.isArray(cloudPerms)) {
+        setPermissions(cloudPerms);
+        localStorage.setItem('daiichi_permissions', JSON.stringify(cloudPerms));
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   const togglePerm = (roleId: string, pageId: string) => {
@@ -125,23 +122,20 @@ export const Settings: React.FC<SettingsProps> = ({
   const [paymentConfigLoading, setPaymentConfigLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const saved = await transportService.getPaymentSettings();
-        if (saved && typeof saved === 'object') {
-          // Safely merge only keys that exist in DEFAULT_PAYMENT_CONFIG
-          const merged = { ...DEFAULT_PAYMENT_CONFIG };
-          (Object.keys(DEFAULT_PAYMENT_CONFIG) as (keyof typeof DEFAULT_PAYMENT_CONFIG)[]).forEach(key => {
-            if (key in saved && typeof (saved as Record<string, unknown>)[key] === typeof DEFAULT_PAYMENT_CONFIG[key]) {
-              (merged as Record<string, unknown>)[key] = (saved as Record<string, unknown>)[key];
-            }
-          });
-          setPaymentConfig(merged);
-        }
-      } catch {/* ignore */}
+    const unsubscribe = transportService.subscribeToPaymentSettings((saved) => {
+      if (saved && typeof saved === 'object') {
+        // Safely merge only keys that exist in DEFAULT_PAYMENT_CONFIG
+        const merged = { ...DEFAULT_PAYMENT_CONFIG };
+        (Object.keys(DEFAULT_PAYMENT_CONFIG) as (keyof typeof DEFAULT_PAYMENT_CONFIG)[]).forEach(key => {
+          if (key in saved && typeof (saved as Record<string, unknown>)[key] === typeof DEFAULT_PAYMENT_CONFIG[key]) {
+            (merged as Record<string, unknown>)[key] = (saved as Record<string, unknown>)[key];
+          }
+        });
+        setPaymentConfig(merged);
+      }
       setPaymentConfigLoading(false);
-    };
-    load();
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   const savePaymentConfig = async () => {

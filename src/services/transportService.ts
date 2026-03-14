@@ -586,6 +586,22 @@ export const transportService = {
     await setDoc(ref, credentials, { merge: true });
   },
 
+  // Subscribe to admin credentials changes in real-time
+  subscribeToAdminSettings: (callback: (settings: { username: string; password: string } | null) => void) => {
+    if (!db) return () => {};
+    const ref = doc(db, 'settings', 'adminConfig');
+    return onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (typeof data.username === 'string' && typeof data.password === 'string') {
+          callback({ username: data.username, password: data.password });
+          return;
+        }
+      }
+      callback(null);
+    }, () => callback(null));
+  },
+
   // ===== EMPLOYEE METHODS =====
 
   // Listen to employees
@@ -638,6 +654,15 @@ export const transportService = {
     if (!db) return;
     const ref = doc(db, 'settings', 'paymentConfig');
     await setDoc(ref, settings, { merge: true });
+  },
+
+  // Subscribe to payment settings changes in real-time
+  subscribeToPaymentSettings: (callback: (settings: Record<string, unknown> | null) => void) => {
+    if (!db) return () => {};
+    const ref = doc(db, 'settings', 'paymentConfig');
+    return onSnapshot(ref, (snap) => {
+      callback(snap.exists() ? snap.data() as Record<string, unknown> : null);
+    }, () => callback(null));
   },
 
   // ===== TRIP METHODS =====

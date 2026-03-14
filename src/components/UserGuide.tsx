@@ -15,6 +15,7 @@ import { UserGuide as UserGuideType, GuideBlock } from '../types';
 interface UserGuideProps {
   language: Language;
   currentUser: { role: string; name: string } | null;
+  userGuides: UserGuideType[];
 }
 
 const ROLE_OPTIONS = [
@@ -33,11 +34,10 @@ const emptyGuide = (): Omit<UserGuideType, 'id'> => ({
   updatedAt: Date.now(),
 });
 
-export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser }) => {
+export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser, userGuides: guides }) => {
   const t = TRANSLATIONS[language];
   const isManager = currentUser?.role === UserRole.MANAGER;
 
-  const [guides, setGuides] = useState<UserGuideType[]>([]);
   const [selectedGuideId, setSelectedGuideId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -47,11 +47,6 @@ export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser }) =
   const [activeRoleFilter, setActiveRoleFilter] = useState<string>('ALL');
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pendingImageBlockIdx = useRef<number | null>(null);
-
-  useEffect(() => {
-    const unsub = transportService.subscribeToUserGuides(setGuides);
-    return unsub;
-  }, []);
 
   // Auto-set role filter for non-managers to show their own guide
   useEffect(() => {
