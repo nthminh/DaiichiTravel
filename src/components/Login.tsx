@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
 import { auth } from '../lib/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { signInWithPhoneNumber, ConfirmationResult, ApplicationVerifier } from 'firebase/auth';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -17,7 +17,27 @@ interface LoginProps {
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
 }
 
-// Particle configuration constants
+const RECAPTCHA_ENTERPRISE_SITE_KEY = '6LfaI4osAAAAALZbvyZnRddXaeb112xIo985XGYz';
+
+/** Executes reCAPTCHA Enterprise and returns a token for use with Firebase phone auth. */
+const getEnterpriseToken = (): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const g = (window as any).grecaptcha?.enterprise;
+    if (!g) {
+      reject(new Error('reCAPTCHA Enterprise not loaded'));
+      return;
+    }
+    g.ready(async () => {
+      try {
+        const token: string = await g.execute(RECAPTCHA_ENTERPRISE_SITE_KEY, { action: 'LOGIN' });
+        resolve(token);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+
+
 const PARTICLE_COUNT = 18;
 const PARTICLE_MIN_SIZE = 6;
 const PARTICLE_SIZE_STEP = 5;
@@ -60,35 +80,40 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [pendingUser, setPendingUser] = useState<User | null>(null);
   const [otpPhone, setOtpPhone] = useState('');
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   const t = TRANSLATIONS[language];
-
-  const initRecaptcha = () => {
-    if (!auth) return null;
-    if (recaptchaVerifierRef.current) {
-      try { recaptchaVerifierRef.current.clear(); } catch { /* ignore */ }
-      recaptchaVerifierRef.current = null;
-    }
-    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-    const params: Record<string, unknown> = { size: 'invisible' };
-    if (siteKey) params['sitekey'] = siteKey;
-    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', params);
-    recaptchaVerifierRef.current = verifier;
-    return verifier;
-  };
 
   const sendOtp = async (user: User, phoneNumber: string) => {
     setOtpLoading(true);
     setOtpError('');
     try {
-      const verifier = initRecaptcha();
-      if (!verifier || !auth) {
+      if (!auth) {
         setOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
-        setOtpLoading(false);
         return false;
       }
-      const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+
+      // Step 1: Execute reCAPTCHA Enterprise to obtain a verification token.
+      let enterpriseToken: string;
+      try {
+        enterpriseToken = await getEnterpriseToken();
+      } catch (captchaErr: any) {
+        console.error('[reCAPTCHA Enterprise] token error:', captchaErr);
+        setOtpError(
+          language === 'vi'
+            ? `reCAPTCHA Enterprise chưa sẵn sàng, thử lại sau (${captchaErr?.message ?? 'unknown error'})`
+            : `reCAPTCHA Enterprise not ready, please try again (${captchaErr?.message ?? 'unknown error'})`
+        );
+        return false;
+      }
+
+      // Step 2: Create a custom ApplicationVerifier that returns the enterprise token,
+      //         then call signInWithPhoneNumber with it.
+      const appVerifier: ApplicationVerifier = {
+        type: 'recaptcha',
+        verify: () => Promise.resolve(enterpriseToken),
+      };
+
+      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       confirmationResultRef.current = result;
       setPendingUser(user);
       setOtpPhone(phoneNumber);
@@ -334,9 +359,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           transition={{ delay: 0.28 }}
           className="glass-card p-7 rounded-3xl shadow-2xl"
         >
-          {/* Invisible reCAPTCHA container */}
-          <div id="recaptcha-container" />
-
           {otpStep ? (
             /* ── OTP Verification Step ── */
             <div className="space-y-5">
