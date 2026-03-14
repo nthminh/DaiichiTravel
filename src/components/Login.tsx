@@ -18,19 +18,19 @@ interface LoginProps {
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
 }
 
-const RECAPTCHA_ENTERPRISE_SITE_KEY = '6LegNoosAAAAAHY8lia-ztljjlNGLQYvXYLHVHEE';
+const RECAPTCHA_SITE_KEY = '6LegNoosAAAAAHY8lia-ztljjlNGLQYvXYLHVHEE';
 
-/** Executes reCAPTCHA Enterprise and returns a token for use with Firebase phone auth. */
-const getEnterpriseToken = (): Promise<string> =>
+/** Executes reCAPTCHA v3 and returns a token for use with Firebase phone auth. */
+const getRecaptchaToken = (): Promise<string> =>
   new Promise((resolve, reject) => {
-    const g = (window as any).grecaptcha?.enterprise;
+    const g = (window as any).grecaptcha;
     if (!g) {
-      reject(new Error('reCAPTCHA Enterprise not loaded'));
+      reject(new Error('reCAPTCHA not loaded'));
       return;
     }
     g.ready(async () => {
       try {
-        const token: string = await g.execute(RECAPTCHA_ENTERPRISE_SITE_KEY, { action: 'LOGIN' });
+        const token: string = await g.execute(RECAPTCHA_SITE_KEY, { action: 'LOGIN' });
         resolve(token);
       } catch (err) {
         reject(err);
@@ -93,21 +93,21 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         return false;
       }
 
-      // Step 1: Execute reCAPTCHA Enterprise to obtain a verification token.
-      let enterpriseToken: string;
+      // Step 1: Execute reCAPTCHA v3 to obtain a verification token.
+      let recaptchaToken: string;
       try {
-        enterpriseToken = await getEnterpriseToken();
+        recaptchaToken = await getRecaptchaToken();
       } catch (captchaErr: any) {
-        console.error('[reCAPTCHA Enterprise] token error:', captchaErr);
+        console.error('[reCAPTCHA] token error:', captchaErr);
         setOtpError(
           language === 'vi'
-            ? `reCAPTCHA Enterprise chưa sẵn sàng, thử lại sau (${captchaErr?.message ?? 'unknown error'})`
-            : `reCAPTCHA Enterprise not ready, please try again (${captchaErr?.message ?? 'unknown error'})`
+            ? `reCAPTCHA chưa sẵn sàng, thử lại sau (${captchaErr?.message ?? 'unknown error'})`
+            : `reCAPTCHA not ready, please try again (${captchaErr?.message ?? 'unknown error'})`
         );
         return false;
       }
 
-      // Step 2: Verify the reCAPTCHA Enterprise token server-side via Cloud Function.
+      // Step 2: Verify the reCAPTCHA token server-side via Cloud Function.
       //         This ensures the token is valid and the score is high enough (human).
       try {
         const functions = getFunctions(app, 'asia-southeast1');
@@ -115,9 +115,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           { token: string; action: string },
           { success: boolean; score: number; message: string }
         >(functions, 'verifyRecaptchaAndSendOtp');
-        const verifyResult = await verifyRecaptcha({ token: enterpriseToken, action: 'LOGIN' });
+        const verifyResult = await verifyRecaptcha({ token: recaptchaToken, action: 'LOGIN' });
         if (!verifyResult.data.success) {
-          console.warn('[reCAPTCHA Enterprise] server verification failed:', verifyResult.data);
+          console.warn('[reCAPTCHA] server verification failed:', verifyResult.data);
           setOtpError(
             language === 'vi'
               ? `Xác minh reCAPTCHA thất bại: ${verifyResult.data.message}`
@@ -125,18 +125,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           );
           return false;
         }
-        console.info('[reCAPTCHA Enterprise] score:', verifyResult.data.score);
+        console.info('[reCAPTCHA] score:', verifyResult.data.score);
       } catch (verifyErr: any) {
         // If the Cloud Function is unavailable (e.g. not deployed yet), log the error
         // but allow the flow to continue so phone auth still works in development.
-        console.warn('[reCAPTCHA Enterprise] server-side verify unavailable, continuing:', verifyErr?.message);
+        console.warn('[reCAPTCHA] server-side verify unavailable, continuing:', verifyErr?.message);
       }
 
-      // Step 3: Create a custom ApplicationVerifier that returns the enterprise token,
+      // Step 3: Create a custom ApplicationVerifier that returns the reCAPTCHA token,
       //         then call signInWithPhoneNumber with it.
       const appVerifier: ApplicationVerifier = {
         type: 'recaptcha',
-        verify: () => Promise.resolve(enterpriseToken),
+        verify: () => Promise.resolve(recaptchaToken),
       };
 
       const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
