@@ -249,6 +249,16 @@ export default function App() {
   const [routeFormStops, setRouteFormStops] = useState<RouteStop[]>([]);
   const routeFormStopsRef = useRef<RouteStop[]>([]);
   useEffect(() => { routeFormStopsRef.current = routeFormStops; }, [routeFormStops]);
+  // Ref to track current routeForm values (used in fare subscription to resolve stop names)
+  const routeFormRef = useRef(routeForm);
+  useEffect(() => { routeFormRef.current = routeForm; }, [routeForm]);
+  // All route stops including auto-generated departure (__departure__) and arrival (__arrival__) entries.
+  // Intermediate stops (routeFormStops) are re-numbered 1..N; departure is order 0, arrival is order N+1.
+  const allRouteStops: RouteStop[] = useMemo(() => [
+    ...(routeForm.departurePoint ? [{ stopId: '__departure__', stopName: routeForm.departurePoint, order: 0 }] : []),
+    ...routeFormStops.map((s, i) => ({ ...s, order: i + 1 })),
+    ...(routeForm.arrivalPoint ? [{ stopId: '__arrival__', stopName: routeForm.arrivalPoint, order: routeFormStops.length + 1 }] : []),
+  ], [routeForm.departurePoint, routeForm.arrivalPoint, routeFormStops]);
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
   const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
   const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
@@ -435,11 +445,16 @@ export default function App() {
         originalFareDocIdsRef.current = new Set(fares.map(f => `${f.fromStopId}_${f.toStopId}`));
         initialLoadDone = true;
       }
+      const resolveStopName = (stopId: string) => {
+        if (stopId === '__departure__') return routeFormRef.current.departurePoint || stopId;
+        if (stopId === '__arrival__') return routeFormRef.current.arrivalPoint || stopId;
+        return currentStops.find(s => s.stopId === stopId)?.stopName || stopId;
+      };
       setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
         fromStopId: f.fromStopId,
         toStopId: f.toStopId,
-        fromName: currentStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
-        toName: currentStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
+        fromName: resolveStopName(f.fromStopId),
+        toName: resolveStopName(f.toStopId),
         price: f.price,
         agentPrice: f.agentPrice || 0,
         startDate: f.startDate || '',
@@ -553,7 +568,14 @@ export default function App() {
   // --- Route CRUD handlers ---
   const handleSaveRoute = async () => {
     try {
-      const routeData = { ...routeForm, pricePeriods: routePricePeriods, surcharges: routeSurcharges, routeStops: routeFormStops };
+      // Build full routeStops: auto-generated departure/arrival + user-defined intermediate stops
+      const intermediateStops = routeFormStops.map((s, i) => ({ ...s, order: i + 1 }));
+      const fullRouteStops: RouteStop[] = [
+        ...(routeForm.departurePoint ? [{ stopId: '__departure__', stopName: routeForm.departurePoint, order: 0 }] : []),
+        ...intermediateStops,
+        ...(routeForm.arrivalPoint ? [{ stopId: '__arrival__', stopName: routeForm.arrivalPoint, order: intermediateStops.length + 1 }] : []),
+      ];
+      const routeData = { ...routeForm, pricePeriods: routePricePeriods, surcharges: routeSurcharges, routeStops: fullRouteStops };
       let routeId = editingRoute?.id;
       if (editingRoute) {
         await transportService.updateRoute(editingRoute.id, routeData);
@@ -623,15 +645,18 @@ export default function App() {
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
     setShowAddRouteSurcharge(false);
-    // Load route stops
-    const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+    // Load route stops – filter out auto-generated departure/arrival stops so only intermediate stops are editable
+    const loadedStops = (route.routeStops || [])
+      .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
+      .slice().sort((a, b) => a.order - b.order)
+      .map((s, i) => ({ ...s, order: i + 1 }));
     setRouteFormStops(loadedStops);
     setShowAddRouteStop(false);
     // Clear fares and subscribe to real-time updates for this route
     setRouteFormFares([]);
     setShowAddRouteFare(false);
     setEditingRouteFareIdx(null);
-    setRouteModalEditingId(route.id && (route.routeStops || []).length > 0 ? route.id : null);
+    setRouteModalEditingId(route.id || null);
     setRouteFormStopsHistory([]);
     setRouteFormFaresHistory([]);
     setShowAddRoute(true);
@@ -655,7 +680,10 @@ export default function App() {
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
     setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
-    const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+    const loadedStops = (route.routeStops || [])
+      .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
+      .slice().sort((a, b) => a.order - b.order)
+      .map((s, i) => ({ ...s, order: i + 1 }));
     setRouteFormStops(loadedStops);
     setShowAddPricePeriod(false);
     setShowAddRouteSurcharge(false);
@@ -667,13 +695,18 @@ export default function App() {
     setRouteModalEditingId(null);
     setRouteFormStopsHistory([]);
     setRouteFormFaresHistory([]);
-    if (route.id && loadedStops.length > 0) {
+    if (route.id) {
       transportService.getRouteFares(route.id).then((fares) => {
+        const allStops = [
+          ...(route.departurePoint ? [{ stopId: '__departure__', stopName: route.departurePoint }] : []),
+          ...loadedStops,
+          ...(route.arrivalPoint ? [{ stopId: '__arrival__', stopName: route.arrivalPoint }] : []),
+        ];
         setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
           fromStopId: f.fromStopId,
           toStopId: f.toStopId,
-          fromName: loadedStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
-          toName: loadedStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
+          fromName: allStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
+          toName: allStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
           price: f.price,
           agentPrice: f.agentPrice || 0,
           startDate: f.startDate || '',
@@ -3726,7 +3759,7 @@ export default function App() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Điểm dừng / Tuyến phụ' : language === 'ja' ? '経由地 / サブルート' : 'Stops / Sub-routes'}</p>
-                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Các điểm dừng trung gian để bán vé theo chặng (A→B, B→C)' : 'Intermediate stops enabling segment ticket sales (A→B, B→C)'}</p>
+                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Điểm xuất phát và điểm đến được tạo tự động. Thêm điểm dừng trung gian nếu cần.' : 'Departure and arrival are auto-generated. Add intermediate stops as needed.'}</p>
                         </div>
                         {!showAddRouteStop && (
                           <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
@@ -3735,13 +3768,24 @@ export default function App() {
                         )}
                       </div>
 
+                      {/* Auto-generated departure stop */}
+                      {routeForm.departurePoint && (
+                        <div className="flex items-center gap-3 bg-green-50 rounded-xl p-3">
+                          <span className="w-6 h-6 flex-shrink-0 bg-green-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">A</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-800 truncate">{routeForm.departurePoint}</p>
+                            <p className="text-[10px] text-green-600">{language === 'vi' ? 'Điểm xuất phát (tự động)' : 'Departure (auto-generated)'}</p>
+                          </div>
+                        </div>
+                      )}
+
                       {routeFormStops.length === 0 && !showAddRouteStop && (
-                        <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có điểm dừng – thêm điểm dừng để bán vé từng chặng' : 'No stops yet – add stops to enable per-segment ticket sales'}</p>
+                        <p className="text-xs text-gray-400 text-center py-1">{language === 'vi' ? 'Không có điểm dừng trung gian – nhấn "Thêm điểm dừng" để thêm' : 'No intermediate stops – click "Add stop" to add one'}</p>
                       )}
 
                       {[...routeFormStops].sort((a, b) => a.order - b.order).map((stop, idx, sortedArr) => (
                         <div key={stop.stopId || idx} className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
-                          <span className="w-6 h-6 flex-shrink-0 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{stop.order}</span>
+                          <span className="w-6 h-6 flex-shrink-0 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm text-gray-800 truncate">{stop.stopName}</p>
                             <p className="text-[10px] text-gray-400">{stop.stopId}</p>
@@ -3790,6 +3834,17 @@ export default function App() {
                         </div>
                       ))}
 
+                      {/* Auto-generated arrival stop */}
+                      {routeForm.arrivalPoint && (
+                        <div className="flex items-center gap-3 bg-blue-50 rounded-xl p-3">
+                          <span className="w-6 h-6 flex-shrink-0 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">B</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-800 truncate">{routeForm.arrivalPoint}</p>
+                            <p className="text-[10px] text-blue-600">{language === 'vi' ? 'Điểm đến (tự động)' : 'Destination (auto-generated)'}</p>
+                          </div>
+                        </div>
+                      )}
+
                       {showAddRouteStop && (
                         <div className="border border-dashed border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/50">
                           <p className="text-xs font-bold text-purple-600">{editingRouteStop ? (language === 'vi' ? 'Chỉnh sửa điểm dừng' : 'Edit Stop') : (language === 'vi' ? 'Thêm điểm dừng' : 'Add Stop')}</p>
@@ -3809,10 +3864,6 @@ export default function App() {
                                   <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                               </select>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Thứ tự (1 = đầu tiên)' : 'Order (1 = first)'}</label>
-                              <input type="number" min="1" value={routeStopForm.order} onChange={e => setRouteStopForm(p => ({ ...p, order: parseInt(e.target.value) || 1 }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" />
                             </div>
                           </div>
                           <div className="flex justify-end gap-2">
@@ -3854,7 +3905,7 @@ export default function App() {
                     </div>
 
                     {/* Fare Table (per-segment pricing) */}
-                    {routeFormStops.length >= 2 && (
+                    {(routeForm.departurePoint && routeForm.arrivalPoint) && (
                       <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
@@ -3903,7 +3954,7 @@ export default function App() {
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ điểm' : 'From stop'}</label>
                                 <select value={routeFareForm.fromStopId} onChange={e => setRouteFareForm(p => ({ ...p, fromStopId: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
                                   <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
-                                  {[...routeFormStops].sort((a, b) => a.order - b.order).map(s => (
+                                  {allRouteStops.map(s => (
                                     <option key={s.stopId} value={s.stopId}>{s.stopName}</option>
                                   ))}
                                 </select>
@@ -3912,7 +3963,7 @@ export default function App() {
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến điểm' : 'To stop'}</label>
                                 <select value={routeFareForm.toStopId} onChange={e => setRouteFareForm(p => ({ ...p, toStopId: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
                                   <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
-                                  {[...routeFormStops].sort((a, b) => a.order - b.order).filter(s => s.stopId !== routeFareForm.fromStopId).map(s => (
+                                  {allRouteStops.filter(s => s.stopId !== routeFareForm.fromStopId).map(s => (
                                     <option key={s.stopId} value={s.stopId}>{s.stopName}</option>
                                   ))}
                                 </select>
@@ -3939,8 +3990,8 @@ export default function App() {
                               <button
                                 disabled={!routeFareForm.fromStopId || !routeFareForm.toStopId || routeFareForm.fromStopId === routeFareForm.toStopId}
                                 onClick={() => {
-                                  const fromStop = routeFormStops.find(s => s.stopId === routeFareForm.fromStopId);
-                                  const toStop = routeFormStops.find(s => s.stopId === routeFareForm.toStopId);
+                                  const fromStop = allRouteStops.find(s => s.stopId === routeFareForm.fromStopId);
+                                  const toStop = allRouteStops.find(s => s.stopId === routeFareForm.toStopId);
                                   if (!fromStop || !toStop) return;
                                   // Validate order: from must come before to
                                   if (fromStop.order >= toStop.order) {
