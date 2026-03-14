@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
-  MapPin, Truck, Star, LogOut, Menu, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown, CheckCircle, BookOpen
+  MapPin, Truck, Star, LogOut, X, Globe, Settings as SettingsIcon,
+  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -69,156 +69,180 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? daiichiItems.filter(item => !!rolePerms[item.id])
     : [];
 
+  const renderNavItem = (item: { id: string; label: any; icon: React.ComponentType<any> }, indent = false) => {
+    const isActive = activeTab === item.id;
+    return (
+      <motion.button
+        key={item.id}
+        onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+        whileHover={{ x: 3 }}
+        whileTap={{ scale: 0.97 }}
+        className={cn(
+          "w-full flex items-center gap-3 rounded-xl text-sm font-bold transition-all duration-200 group",
+          indent ? "px-3 py-2.5" : "px-4 py-3",
+          isActive
+            ? "sidebar-active text-white"
+            : "text-gray-500 hover:bg-red-50 hover:text-daiichi-red"
+        )}
+      >
+        <item.icon size={indent ? 16 : 18} className={cn("transition-transform duration-200", !isActive && "group-hover:scale-110")} />
+        <span className="flex-1 text-left">{item.label}</span>
+        {isActive && <ChevronRight size={14} className="opacity-70" />}
+      </motion.button>
+    );
+  };
+
   return (
-    <div className={cn(
-      "fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-100 transition-transform duration-300 transform lg:relative lg:translate-x-0",
-      isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-    )}>
-      <div className="flex flex-col h-full p-6">
-        <div className="flex items-center justify-between mb-6">
-          <img 
+    <>
+      {/* Mobile overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-100/80 transition-transform duration-300 transform lg:relative lg:translate-x-0 flex flex-col shadow-2xl shadow-gray-200/60",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        {/* Top header with logo */}
+        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100">
+          <motion.img
+            whileHover={{ scale: 1.04 }}
             src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724" 
             alt="Daiichi Logo" 
             className="h-10"
           />
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-gray-400">
-            <X size={24} />
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-daiichi-red hover:bg-red-50 transition-all"
+          >
+            <X size={20} />
           </button>
         </div>
 
-        {/* Daiichi admin dropdown – only visible for MANAGER */}
-        {isAdmin && (
-          <div className="mb-4">
-            <button
-              onClick={() => setIsDaiichiOpen(p => !p)}
-              className={cn(
-                "w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-bold transition-all",
-                isDaiichiActive
-                  ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20"
-                  : "bg-daiichi-accent text-daiichi-red hover:bg-red-100"
-              )}
-            >
-              <span className="flex items-center gap-3">
-                <Menu size={18} />
-                Daiichi
-              </span>
-              <ChevronDown
-                size={16}
-                className={cn("transition-transform duration-200", isDaiichiOpen ? "rotate-180" : "")}
-              />
-            </button>
+        {/* Scrollable nav */}
+        <div className="flex-1 overflow-y-auto py-4 px-3">
 
-            <AnimatePresence initial={false}>
-              {isDaiichiOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
+          {/* Daiichi admin dropdown – only visible for MANAGER */}
+          {isAdmin && (
+            <div className="mb-3">
+              <motion.button
+                onClick={() => setIsDaiichiOpen(p => !p)}
+                whileTap={{ scale: 0.97 }}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200",
+                  isDaiichiActive
+                    ? "sidebar-active text-white"
+                    : "bg-gray-50 text-gray-700 hover:bg-red-50 hover:text-daiichi-red"
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  <LayoutDashboard size={18} />
+                  Daiichi Admin
+                </span>
+                <motion.span
+                  animate={{ rotate: isDaiichiOpen ? 180 : 0 }}
                   transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
                 >
-                  <div className="mt-1 ml-3 pl-3 border-l-2 border-daiichi-red/20 space-y-1">
-                    {daiichiItems.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
-                          activeTab === item.id
-                            ? "bg-daiichi-red text-white shadow-md shadow-daiichi-red/20"
-                            : "text-gray-500 hover:bg-gray-50"
-                        )}
-                      >
-                        <item.icon size={17} />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <ChevronDown size={15} />
+                </motion.span>
+              </motion.button>
+
+              <AnimatePresence initial={false}>
+                {isDaiichiOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-1 ml-3 pl-3 border-l-2 border-daiichi-red/20 space-y-0.5 py-1">
+                    {daiichiItems.map((item) =>
+                        renderNavItem(item, true)
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Divider for admin */}
+          {isAdmin && <div className="h-px bg-gray-100 mx-2 mb-3" />}
+
+          {/* Permitted daiichi items for non-admin */}
+          {permittedDaiichiItems.map((item) =>
+            renderNavItem(item)
+          )}
+
+          {/* Other menu items */}
+          <div className="space-y-0.5">
+            {filteredOtherMenu.map((item) =>
+              renderNavItem(item)
+            )}
           </div>
-        )}
+        </div>
 
-        <nav className="flex-1 space-y-2 overflow-y-auto">
-          {permittedDaiichiItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-              className={cn(
-                "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all",
-                activeTab === item.id
-                  ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20"
-                  : "text-gray-500 hover:bg-gray-50"
-              )}
-            >
-              <item.icon size={20} />
-              {item.label}
-            </button>
-          ))}
-          {filteredOtherMenu.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-              className={cn(
-                "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all",
-                activeTab === item.id 
-                  ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20" 
-                  : "text-gray-500 hover:bg-gray-50"
-              )}
-            >
-              <item.icon size={20} />
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="pt-6 border-t border-gray-100">
-          <div className="bg-gray-50 p-4 rounded-2xl mb-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-daiichi-red font-bold border border-gray-100">
+        {/* User profile + actions at bottom */}
+        <div className="border-t border-gray-100 p-4 space-y-3">
+          {/* User card */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-3.5 rounded-xl border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-daiichi-red/10 rounded-xl flex items-center justify-center text-daiichi-red font-extrabold text-sm border border-daiichi-red/20">
                 {currentUser?.name.charAt(0)}
               </div>
-              <div>
-                <p className="text-sm font-bold text-gray-800">{currentUser?.name}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-800 truncate">{currentUser?.name}</p>
                 <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">{currentUser?.role}</p>
                 {currentUser?.role === UserRole.AGENT && currentUser.address && (
-                  <p className="text-[10px] text-gray-500 mt-0.5">{currentUser.address}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{currentUser.address}</p>
                 )}
               </div>
             </div>
             {currentUser?.role === UserRole.AGENT && (
-              <div className="bg-white p-3 rounded-xl border border-gray-100">
-                <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">{t.balance}</p>
+              <div className="mt-3 bg-white p-2.5 rounded-lg border border-gray-100">
+                <p className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">{t.balance}</p>
                 <p className="text-sm font-bold text-daiichi-red">{currentUser.balance?.toLocaleString()}đ</p>
               </div>
             )}
           </div>
 
-          <div className="flex gap-2 mb-4">
+          {/* Language switcher */}
+          <div className="flex gap-1.5">
             {['vi', 'en', 'ja'].map((lang) => (
               <button
                 key={lang}
                 onClick={() => setLanguage(lang as any)}
                 className={cn(
-                  "flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition-all",
-                  language === lang ? "bg-daiichi-red text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                  "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all duration-200",
+                  language === lang ? "bg-daiichi-red text-white shadow-sm shadow-daiichi-red/30" : "bg-gray-100 text-gray-400 hover:bg-gray-200"
                 )}
               >
-                {lang}
+                {lang === 'vi' ? '🇻🇳' : lang === 'en' ? '🇺🇸' : '🇯🇵'} {lang.toUpperCase()}
               </button>
             ))}
           </div>
 
-          <button 
+          {/* Logout */}
+          <motion.button 
             onClick={onLogout}
-            className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 transition-all"
+            whileHover={{ x: 3 }}
+            whileTap={{ scale: 0.97 }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 transition-all duration-200"
           >
-            <LogOut size={20} />
+            <LogOut size={18} />
             {t.logout}
-          </button>
+          </motion.button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
