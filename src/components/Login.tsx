@@ -18,7 +18,7 @@ interface LoginProps {
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
 }
 
-const RECAPTCHA_ENTERPRISE_SITE_KEY = '6LfaI4osAAAAALZbvyZnRddXaeb112xIo985XGYz';
+const RECAPTCHA_ENTERPRISE_SITE_KEY = '6LegNoosAAAAAHY8lia-ztljjlNGLQYvXYLHVHEE';
 
 /** Executes reCAPTCHA Enterprise and returns a token for use with Firebase phone auth. */
 const getEnterpriseToken = (): Promise<string> =>
