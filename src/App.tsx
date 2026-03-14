@@ -295,7 +295,7 @@ export default function App() {
   const [agentColWidths, setAgentColWidths] = useState({ name: 200, username: 150, address: 200, phone: 150, commission: 130, balance: 150, status: 120, options: 120 });
   const [routeColWidths, setRouteColWidths] = useState({ stt: 80, name: 200, departure: 200, arrival: 200, price: 150, agentPrice: 150, options: 120 });
   const [vehicleColWidths, setVehicleColWidths] = useState({ stt: 80, licensePlate: 150, type: 150, seats: 100, expiry: 170, options: 160 });
-  const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, driver: 180, status: 150, options: 180 });
+  const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, route: 220, driver: 180, status: 150, options: 180 });
   const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, seats: true, passengers: true, addons: true });
   const [showTripColPanel, setShowTripColPanel] = useState(false);
   const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
@@ -830,6 +830,16 @@ export default function App() {
     XLSX.writeFile(workbook, filename);
   };
 
+  const escapeHtml = (str: unknown): string => {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  };
+
   const exportTripToPDF = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
@@ -837,7 +847,8 @@ export default function App() {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Chuyến xe ${trip.licensePlate}</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <title>Chuyến xe ${escapeHtml(trip.licensePlate)}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; font-size: 13px; }
     h1 { color: #cc2222; font-size: 18px; margin-bottom: 4px; }
@@ -854,10 +865,10 @@ export default function App() {
 <body>
   <h1>DANH SÁCH HÀNH KHÁCH</h1>
   <div class="info">
-    <p><b>Số xe:</b> ${trip.licensePlate || '—'}</p>
-    <p><b>Tài xế:</b> ${trip.driverName || '—'}</p>
-    <p><b>Tuyến:</b> ${trip.route || '—'}${routeData ? ` (${routeData.departurePoint} → ${routeData.arrivalPoint})` : ''}</p>
-    <p><b>Ngày giờ:</b> ${formatTripDisplayTime(trip)}</p>
+    <p><b>Số xe:</b> ${escapeHtml(trip.licensePlate) || '—'}</p>
+    <p><b>Tài xế:</b> ${escapeHtml(trip.driverName) || '—'}</p>
+    <p><b>Tuyến:</b> ${escapeHtml(trip.route) || '—'}${routeData ? ` (${escapeHtml(routeData.departurePoint)} → ${escapeHtml(routeData.arrivalPoint)})` : ''}</p>
+    <p><b>Ngày giờ:</b> ${escapeHtml(formatTripDisplayTime(trip))}</p>
   </div>
   <table>
     <thead>
@@ -869,14 +880,14 @@ export default function App() {
       ${bookedSeats.map((seat: any, i: number) => `
         <tr>
           <td>${i + 1}</td>
-          <td>${seat.id || '—'}</td>
-          <td>${seat.customerName || '—'}</td>
-          <td>${seat.customerPhone || '—'}</td>
-          <td>${seat.pickupPoint || '—'}</td>
-          <td>${seat.dropoffPoint || '—'}</td>
+          <td>${escapeHtml(seat.id) || '—'}</td>
+          <td>${escapeHtml(seat.customerName) || '—'}</td>
+          <td>${escapeHtml(seat.customerPhone) || '—'}</td>
+          <td>${escapeHtml(seat.pickupPoint) || '—'}</td>
+          <td>${escapeHtml(seat.dropoffPoint) || '—'}</td>
           <td>${seat.status === 'PAID' ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${(trip.price || 0).toLocaleString()}đ</td>
-          <td>${seat.bookingNote || ''}</td>
+          <td>${escapeHtml(seat.bookingNote) || ''}</td>
         </tr>`).join('')}
     </tbody>
   </table>
@@ -4523,7 +4534,7 @@ export default function App() {
                   <tr>
                     {tripColVisibility.time && <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>}
                     {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
-                    {tripColVisibility.route && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</th>}
+                    {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
                     {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
                     {tripColVisibility.status && <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>}
                     {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế còn' : 'Avail.'}</th>}
@@ -4541,20 +4552,20 @@ export default function App() {
                     const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
                     return (
                       <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                        {tripColVisibility.time && <td className="px-6 py-4 font-bold" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
-                        {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium" onClick={openPassengerList}>{trip.licensePlate}</td>}
-                        {tripColVisibility.route && <td className="px-6 py-4" onClick={openPassengerList}>
+                        {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
+                        {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium whitespace-nowrap" onClick={openPassengerList}>{trip.licensePlate}</td>}
+                        {tripColVisibility.route && <td className="px-6 py-4 overflow-hidden" style={{ maxWidth: tripColWidths.route }} onClick={openPassengerList}>
                           {(() => {
                             const r = routes.find(rt => rt.name === trip.route);
                             return r ? (
                               <div>
-                                <p className="font-semibold text-sm text-gray-800">{r.name}</p>
-                                <p className="text-xs text-gray-500">{r.departurePoint} → {r.arrivalPoint}</p>
+                                <p className="font-semibold text-sm text-gray-800 truncate">{r.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{r.departurePoint} → {r.arrivalPoint}</p>
                               </div>
-                            ) : <span className="text-sm text-gray-500">{trip.route}</span>;
+                            ) : <span className="text-sm text-gray-500 truncate block">{trip.route}</span>;
                           })()}
                         </td>}
-                        {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600" onClick={openPassengerList}>{trip.driverName}</td>}
+                        {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600 whitespace-nowrap" onClick={openPassengerList}>{trip.driverName}</td>}
                         {tripColVisibility.status && <td className="px-6 py-4" onClick={openPassengerList}><StatusBadge status={trip.status} language={language} /></td>}
                         {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
                           <div className="flex flex-col gap-0.5">
