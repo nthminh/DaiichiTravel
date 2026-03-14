@@ -25,6 +25,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments, bookings, currentUser, setActiveTab }) => {
   const t = TRANSLATIONS[language];
   const [filterType, setFilterType] = useState<'ALL' | 'TRIP' | 'TOUR'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PAID' | 'BOOKED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -154,13 +155,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                          (b.id || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesAgent = agentFilter === 'ALL' || b.agent === agentFilter;
+    const matchesStatus = filterStatus === 'ALL' || b.status === filterStatus;
     
     const rawDate = b.date ? String(b.date).split(' ')[0] : '';
     const bookingDate = rawDate ? new Date(rawDate) : new Date(0);
     const matchesStart = !startDate || bookingDate >= new Date(startDate);
     const matchesEnd = !endDate || bookingDate <= new Date(endDate);
 
-    return matchesType && matchesSearch && matchesAgent && matchesStart && matchesEnd;
+    return matchesType && matchesSearch && matchesAgent && matchesStart && matchesEnd && matchesStatus;
   }).sort(sortByCreatedDesc);
 
   const uniqueAgents = Array.from(new Set(bookings.filter(b => b.agentId).map(b => b.agent).filter(Boolean)));
@@ -339,6 +341,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                           ))}
                         </div>
                       </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Trạng thái thanh toán' : 'Payment Status'}</label>
+                        <div className="flex bg-white p-1 rounded-xl border border-gray-200">
+                          {(['ALL', 'PAID', 'BOOKED'] as const).map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => setFilterStatus(s)}
+                              className={cn(
+                                "flex-1 py-1 rounded-lg text-[10px] font-bold transition-all",
+                                filterStatus === s ? "bg-daiichi-red text-white" : "text-gray-500"
+                              )}
+                            >
+                              {s === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : s === 'PAID' ? (language === 'vi' ? 'Đã trả' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -398,7 +417,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filteredBookings.map((booking) => (
-                    <tr key={booking.id} className="group hover:bg-gray-50/50 transition-colors cursor-pointer" onDoubleClick={() => handleView(booking)}>
+                    <tr key={booking.id} className="group hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => handleView(booking)}>
                       <td className="py-5">
                         <div className="overflow-hidden">
                           <p className="font-bold text-gray-800 truncate">{booking.customerName}</p>
@@ -439,7 +458,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         </span>
                       </td>
                       <td className="py-5">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                           <button 
                             onClick={() => handleView(booking)}
                             className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
@@ -658,7 +677,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         </div>
       </div>
 
-      {/* Detail View Modal (double-click) */}
+      {/* Detail View Modal */}
       <AnimatePresence>
         {viewingBooking && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -721,6 +740,49 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                     </div>
                   </div>
                 </div>
+
+                {/* Vehicle & Trip Info (TRIP bookings only) */}
+                {viewingBooking.type === 'TRIP' && viewingBooking.tripId && (() => {
+                  const trip = trips.find((tr) => tr.id === viewingBooking.tripId);
+                  if (!trip) return null;
+                  return (
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Thông tin xe & chuyến đi' : 'Vehicle & Trip Info'}</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-orange-50 rounded-2xl">
+                          <div className="flex items-center gap-2 text-orange-400 mb-1">
+                            <Bus size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Số xe' : 'Vehicle'}</span>
+                          </div>
+                          <p className="font-bold text-orange-800">{trip.licensePlate || '—'}</p>
+                        </div>
+                        <div className="p-4 bg-orange-50 rounded-2xl">
+                          <div className="flex items-center gap-2 text-orange-400 mb-1">
+                            <User size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Tài xế' : 'Driver'}</span>
+                          </div>
+                          <p className="font-bold text-orange-800">{trip.driverName || '—'}</p>
+                        </div>
+                        <div className="p-4 bg-orange-50 rounded-2xl">
+                          <div className="flex items-center gap-2 text-orange-400 mb-1">
+                            <Clock size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Giờ khởi hành' : 'Departure'}</span>
+                          </div>
+                          <p className="font-bold text-orange-800">{trip.time || '—'}</p>
+                        </div>
+                        {trip.vehicleType && (
+                          <div className="p-4 bg-orange-50 rounded-2xl">
+                            <div className="flex items-center gap-2 text-orange-400 mb-1">
+                              <Bus size={14} />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Loại xe' : 'Type'}</span>
+                            </div>
+                            <p className="font-bold text-orange-800">{trip.vehicleType}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Service Info */}
                 <div>
