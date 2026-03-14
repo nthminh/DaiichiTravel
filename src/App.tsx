@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText, Copy
+  Filter, Gift, Download, FileText, Copy, Columns
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -296,6 +296,11 @@ export default function App() {
   const [routeColWidths, setRouteColWidths] = useState({ stt: 80, name: 200, departure: 200, arrival: 200, price: 150, agentPrice: 150, options: 120 });
   const [vehicleColWidths, setVehicleColWidths] = useState({ stt: 80, licensePlate: 150, type: 150, seats: 100, expiry: 170, options: 160 });
   const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, driver: 180, status: 150, options: 180 });
+  const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, seats: true, passengers: true, addons: true });
+  const [showTripColPanel, setShowTripColPanel] = useState(false);
+  const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
+  const [editingPassengerSeatId, setEditingPassengerSeatId] = useState<string | null>(null);
+  const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupPoint: '', dropoffPoint: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
   const [consignMgmtColWidths, setConsignMgmtColWidths] = useState({ code: 130, sender: 180, receiver: 180, goodsType: 130, weight: 100, cod: 130, notes: 160, status: 130, options: 100 });
 
   // Persist user session to localStorage so F5 doesn't log out
@@ -719,6 +724,33 @@ export default function App() {
       await transportService.updateTrip(tripId, { note } as Partial<Trip>);
     } catch (err) {
       console.error('Failed to save trip note:', err);
+    }
+  };
+
+  const handleSavePassengerEdit = async () => {
+    if (!showTripPassengers || !editingPassengerSeatId) return;
+    const updates = {
+      customerName: passengerEditForm.customerName,
+      customerPhone: passengerEditForm.customerPhone,
+      pickupPoint: passengerEditForm.pickupPoint,
+      dropoffPoint: passengerEditForm.dropoffPoint,
+      status: passengerEditForm.status,
+      bookingNote: passengerEditForm.bookingNote,
+    };
+    try {
+      await transportService.bookSeat(showTripPassengers.id, editingPassengerSeatId, updates);
+      setTrips(prev => prev.map(trip => {
+        if (trip.id !== showTripPassengers.id) return trip;
+        const updatedSeats = trip.seats.map((s: any) =>
+          s.id === editingPassengerSeatId ? { ...s, ...updates } : s
+        );
+        const updatedTrip = { ...trip, seats: updatedSeats };
+        setShowTripPassengers(updatedTrip);
+        return updatedTrip;
+      }));
+      setEditingPassengerSeatId(null);
+    } catch (err) {
+      console.error('Failed to save passenger:', err);
     }
   };
 
@@ -4272,66 +4304,241 @@ export default function App() {
               </div>
             )}
 
-            {/* Search bar */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                value={tripSearch}
-                onChange={e => setTripSearch(e.target.value)}
-                placeholder={language === 'vi' ? 'Tìm kiếm chuyến xe, tuyến, biển số, tài xế...' : 'Search trips by route, plate, driver...'}
-                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
-              />
-              {tripSearch && (
-                <button onClick={() => setTripSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={14} />
-                </button>
-              )}
+            {/* Search bar + Column Toggle */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  value={tripSearch}
+                  onChange={e => setTripSearch(e.target.value)}
+                  placeholder={language === 'vi' ? 'Tìm kiếm chuyến xe, tuyến, biển số, tài xế...' : 'Search trips by route, plate, driver...'}
+                  className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
+                />
+                {tripSearch && (
+                  <button onClick={() => setTripSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setShowTripColPanel(v => !v)}
+                className={cn('flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all border whitespace-nowrap', showTripColPanel ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50')}
+              >
+                <Columns size={16} />
+                {language === 'vi' ? 'Tùy chỉnh cột' : 'Columns'}
+              </button>
             </div>
+
+            {/* Column Visibility Panel */}
+            {showTripColPanel && (
+              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { key: 'time', label: language === 'vi' ? 'Giờ khởi hành' : 'Departure Time' },
+                    { key: 'licensePlate', label: language === 'vi' ? 'Biển số xe' : 'License Plate' },
+                    { key: 'route', label: language === 'vi' ? 'Tuyến' : 'Route' },
+                    { key: 'driver', label: language === 'vi' ? 'Tài xế' : 'Driver' },
+                    { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
+                    { key: 'seats', label: language === 'vi' ? 'Ghế còn' : 'Avail. Seats' },
+                    { key: 'passengers', label: language === 'vi' ? 'Hành khách' : 'Passengers' },
+                    { key: 'addons', label: language === 'vi' ? 'Dịch vụ thêm' : 'Add-ons' },
+                  ] as { key: keyof typeof tripColVisibility; label: string }[]).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setTripColVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
+                      className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all', tripColVisibility[key] ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-400 border-gray-200')}
+                    >
+                      {tripColVisibility[key] ? '✓ ' : ''}{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Passenger List Modal */}
+            {showTripPassengers && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+                  {/* Header */}
+                  <div className="flex justify-between items-start px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0">
+                    <div>
+                      <h3 className="text-xl font-bold">{language === 'vi' ? 'Danh sách hành khách' : 'Passenger List'}</h3>
+                      <p className="text-sm text-gray-500 mt-1">{showTripPassengers.route} · {formatTripDisplayTime(showTripPassengers)}{showTripPassengers.licensePlate ? ` · ${showTripPassengers.licensePlate}` : ''}</p>
+                    </div>
+                    <button onClick={() => { setShowTripPassengers(null); setEditingPassengerSeatId(null); }} className="p-2 hover:bg-gray-50 rounded-xl ml-4 flex-shrink-0"><X size={20} /></button>
+                  </div>
+                  {/* Seat stats + export buttons */}
+                  {(() => {
+                    const allSeats = showTripPassengers.seats || [];
+                    const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
+                    const paid = allSeats.filter((s: any) => s.status === SeatStatus.PAID);
+                    const empty = allSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
+                    return (
+                      <div className="px-6 py-3 bg-gray-50 flex flex-wrap gap-3 items-center flex-shrink-0 border-b border-gray-100">
+                        <span className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Tổng' : 'Total'}: {allSeats.length}</span>
+                        <span className="text-sm font-bold text-green-600">✓ {language === 'vi' ? 'Đã thanh toán' : 'Paid'}: {paid.length}</span>
+                        <span className="text-sm font-bold text-blue-600">◉ {language === 'vi' ? 'Đã đặt' : 'Booked'}: {booked.length - paid.length}</span>
+                        <span className="text-sm font-bold text-gray-400">○ {language === 'vi' ? 'Còn trống' : 'Empty'}: {empty.length}</span>
+                        <div className="ml-auto flex gap-2">
+                          <button onClick={() => exportTripToExcel(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"><Download size={12} /> Excel</button>
+                          <button onClick={() => exportTripToPDF(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"><FileText size={12} /> PDF</button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {/* Passenger table */}
+                  <div className="flex-1 overflow-y-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-10">STT</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-20">{t.options}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).map((seat: any, idx: number) => (
+                          editingPassengerSeatId === seat.id ? (
+                            <tr key={seat.id} className="bg-blue-50">
+                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                              <td className="px-4 py-3 font-bold">{seat.id}</td>
+                              <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
+                              <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
+                              <td className="px-4 py-3"><input value={passengerEditForm.pickupPoint} onChange={e => setPassengerEditForm(p => ({ ...p, pickupPoint: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
+                              <td className="px-4 py-3"><input value={passengerEditForm.dropoffPoint} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffPoint: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
+                              <td className="px-4 py-3">
+                                <select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none">
+                                  <option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
+                                  <option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
+                                </select>
+                              </td>
+                              <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-1">
+                                  <button onClick={handleSavePassengerEdit} className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">{t.save}</button>
+                                  <button onClick={() => setEditingPassengerSeatId(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">{t.cancel}</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            <tr key={seat.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                              <td className="px-4 py-3 font-bold">{seat.id}</td>
+                              <td className="px-4 py-3 font-medium">{seat.customerName || '—'}</td>
+                              <td className="px-4 py-3 text-gray-600">{seat.customerPhone || '—'}</td>
+                              <td className="px-4 py-3 text-gray-600">{seat.pickupPoint || '—'}</td>
+                              <td className="px-4 py-3 text-gray-600">{seat.dropoffPoint || '—'}</td>
+                              <td className="px-4 py-3">
+                                <span className={cn('px-2 py-1 rounded-full text-xs font-bold', seat.status === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
+                                  {seat.status === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{seat.bookingNote || '—'}</td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => {
+                                    setEditingPassengerSeatId(seat.id);
+                                    setPassengerEditForm({
+                                      customerName: seat.customerName || '',
+                                      customerPhone: seat.customerPhone || '',
+                                      pickupPoint: seat.pickupPoint || '',
+                                      dropoffPoint: seat.dropoffPoint || '',
+                                      status: seat.status,
+                                      bookingNote: seat.bookingNote || '',
+                                    });
+                                  }}
+                                  className="text-gray-400 hover:text-daiichi-red p-1 rounded"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        ))}
+                        {(showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length === 0 && (
+                          <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>
-                    <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</th>
-                    <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>
-                    <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>
+                    {tripColVisibility.time && <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>}
+                    {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
+                    {tripColVisibility.route && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</th>}
+                    {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
+                    {tripColVisibility.status && <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>}
+                    {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế còn' : 'Avail.'}</th>}
+                    {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách' : 'Passengers'}</th>}
+                    {tripColVisibility.addons && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>}
                     <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredTrips.map((trip) => (
-                    <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-6 py-4 font-bold" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>{formatTripDisplayTime(trip)}</td>
-                      <td className="px-6 py-4 font-medium" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>{trip.licensePlate}</td>
-                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>
-                        {(() => {
-                          const r = routes.find(rt => rt.name === trip.route);
-                          return r ? (
-                            <div>
-                              <p className="font-semibold text-sm text-gray-800">{r.name}</p>
-                              <p className="text-xs text-gray-500">{r.departurePoint} → {r.arrivalPoint}</p>
-                            </div>
-                          ) : <span className="text-sm text-gray-500">{trip.route}</span>;
-                        })()}
-                      </td>
-                      <td className="px-6 py-4 text-gray-600" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}>{trip.driverName}</td>
-                      <td className="px-6 py-4" onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }}><StatusBadge status={trip.status} language={language} /></td>
-                      <td className="px-6 py-4">
-                        <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
-                          <span>{(trip.addons || []).length}</span>
-                          <span>{t.manage_addons}</span>
-                        </button>
-                      </td>
-                      <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
-                    </tr>
-                  ))}
+                  {filteredTrips.map((trip) => {
+                    const emptySeats = (trip.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
+                    const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length;
+                    const totalSeats = (trip.seats || []).length;
+                    const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
+                    return (
+                      <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
+                        {tripColVisibility.time && <td className="px-6 py-4 font-bold" onClick={goToSeatMap}>{formatTripDisplayTime(trip)}</td>}
+                        {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium" onClick={goToSeatMap}>{trip.licensePlate}</td>}
+                        {tripColVisibility.route && <td className="px-6 py-4" onClick={goToSeatMap}>
+                          {(() => {
+                            const r = routes.find(rt => rt.name === trip.route);
+                            return r ? (
+                              <div>
+                                <p className="font-semibold text-sm text-gray-800">{r.name}</p>
+                                <p className="text-xs text-gray-500">{r.departurePoint} → {r.arrivalPoint}</p>
+                              </div>
+                            ) : <span className="text-sm text-gray-500">{trip.route}</span>;
+                          })()}
+                        </td>}
+                        {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600" onClick={goToSeatMap}>{trip.driverName}</td>}
+                        {tripColVisibility.status && <td className="px-6 py-4" onClick={goToSeatMap}><StatusBadge status={trip.status} language={language} /></td>}
+                        {tripColVisibility.seats && <td className="px-6 py-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className={cn('text-sm font-bold', emptySeats === 0 ? 'text-red-500' : emptySeats <= 3 ? 'text-orange-500' : 'text-green-600')}>{emptySeats}</span>
+                            <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
+                          </div>
+                        </td>}
+                        {tripColVisibility.passengers && <td className="px-6 py-4">
+                          <button
+                            onClick={() => setShowTripPassengers(trip)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            <Users size={12} />
+                            <span>{bookedCount}</span>
+                          </button>
+                        </td>}
+                        {tripColVisibility.addons && <td className="px-6 py-4">
+                          <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
+                            <span>{(trip.addons || []).length}</span>
+                            <span>{t.manage_addons}</span>
+                          </button>
+                        </td>}
+                        <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcel(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDF(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={goToSeatMap} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                      </tr>
+                    );
+                  })}
                   {filteredTrips.length === 0 && (
-                    <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-400">{t.no_trips_found}</td></tr>
+                    <tr><td colSpan={Object.values(tripColVisibility).filter(Boolean).length + 1} className="px-6 py-10 text-center text-sm text-gray-400">{t.no_trips_found}</td></tr>
                   )}
                 </tbody>
               </table>
