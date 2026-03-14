@@ -754,6 +754,39 @@ export default function App() {
     }
   };
 
+  const handleDeletePassenger = async (seatId: string) => {
+    if (!showTripPassengers) return;
+    const confirmMsg = language === 'vi'
+      ? 'Bạn có chắc muốn xóa hành khách này khỏi ghế không?'
+      : 'Are you sure you want to remove this passenger from the seat?';
+    if (!window.confirm(confirmMsg)) return;
+    const emptyData = {
+      status: SeatStatus.EMPTY,
+      customerName: '',
+      customerPhone: '',
+      pickupPoint: '',
+      dropoffPoint: '',
+      pickupAddress: '',
+      dropoffAddress: '',
+      bookingNote: '',
+    };
+    try {
+      await transportService.bookSeat(showTripPassengers.id, seatId, emptyData);
+      setTrips(prev => prev.map(trip => {
+        if (trip.id !== showTripPassengers.id) return trip;
+        const updatedSeats = trip.seats.map((s: any) =>
+          s.id === seatId ? { ...s, ...emptyData } : s
+        );
+        const updatedTrip = { ...trip, seats: updatedSeats };
+        setShowTripPassengers(updatedTrip);
+        return updatedTrip;
+      }));
+      if (editingPassengerSeatId === seatId) setEditingPassengerSeatId(null);
+    } catch (err) {
+      console.error('Failed to delete passenger:', err);
+    }
+  };
+
   const exportTripToExcel = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
@@ -4443,22 +4476,32 @@ export default function App() {
                               </td>
                               <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{seat.bookingNote || '—'}</td>
                               <td className="px-4 py-3">
-                                <button
-                                  onClick={() => {
-                                    setEditingPassengerSeatId(seat.id);
-                                    setPassengerEditForm({
-                                      customerName: seat.customerName || '',
-                                      customerPhone: seat.customerPhone || '',
-                                      pickupPoint: seat.pickupPoint || '',
-                                      dropoffPoint: seat.dropoffPoint || '',
-                                      status: seat.status,
-                                      bookingNote: seat.bookingNote || '',
-                                    });
-                                  }}
-                                  className="text-gray-400 hover:text-daiichi-red p-1 rounded"
-                                >
-                                  <Edit3 size={14} />
-                                </button>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEditingPassengerSeatId(seat.id);
+                                      setPassengerEditForm({
+                                        customerName: seat.customerName || '',
+                                        customerPhone: seat.customerPhone || '',
+                                        pickupPoint: seat.pickupPoint || '',
+                                        dropoffPoint: seat.dropoffPoint || '',
+                                        status: seat.status,
+                                        bookingNote: seat.bookingNote || '',
+                                      });
+                                    }}
+                                    className="text-gray-400 hover:text-daiichi-red p-1 rounded"
+                                    title={language === 'vi' ? 'Chỉnh sửa' : 'Edit'}
+                                  >
+                                    <Edit3 size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePassenger(seat.id)}
+                                    className="text-gray-400 hover:text-red-600 p-1 rounded"
+                                    title={language === 'vi' ? 'Xóa hành khách' : 'Remove passenger'}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           )
@@ -4495,11 +4538,12 @@ export default function App() {
                     const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length;
                     const totalSeats = (trip.seats || []).length;
                     const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
+                    const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
                     return (
                       <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                        {tripColVisibility.time && <td className="px-6 py-4 font-bold" onClick={goToSeatMap}>{formatTripDisplayTime(trip)}</td>}
-                        {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium" onClick={goToSeatMap}>{trip.licensePlate}</td>}
-                        {tripColVisibility.route && <td className="px-6 py-4" onClick={goToSeatMap}>
+                        {tripColVisibility.time && <td className="px-6 py-4 font-bold" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
+                        {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium" onClick={openPassengerList}>{trip.licensePlate}</td>}
+                        {tripColVisibility.route && <td className="px-6 py-4" onClick={openPassengerList}>
                           {(() => {
                             const r = routes.find(rt => rt.name === trip.route);
                             return r ? (
@@ -4510,9 +4554,9 @@ export default function App() {
                             ) : <span className="text-sm text-gray-500">{trip.route}</span>;
                           })()}
                         </td>}
-                        {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600" onClick={goToSeatMap}>{trip.driverName}</td>}
-                        {tripColVisibility.status && <td className="px-6 py-4" onClick={goToSeatMap}><StatusBadge status={trip.status} language={language} /></td>}
-                        {tripColVisibility.seats && <td className="px-6 py-4">
+                        {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600" onClick={openPassengerList}>{trip.driverName}</td>}
+                        {tripColVisibility.status && <td className="px-6 py-4" onClick={openPassengerList}><StatusBadge status={trip.status} language={language} /></td>}
+                        {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
                           <div className="flex flex-col gap-0.5">
                             <span className={cn('text-sm font-bold', emptySeats === 0 ? 'text-red-500' : emptySeats <= 3 ? 'text-orange-500' : 'text-green-600')}>{emptySeats}</span>
                             <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
@@ -4520,7 +4564,7 @@ export default function App() {
                         </td>}
                         {tripColVisibility.passengers && <td className="px-6 py-4">
                           <button
-                            onClick={() => setShowTripPassengers(trip)}
+                            onClick={openPassengerList}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors"
                           >
                             <Users size={12} />
