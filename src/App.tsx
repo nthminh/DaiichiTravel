@@ -911,9 +911,24 @@ export default function App() {
     }
   };
 
+  const buildSeatTicketCodeMap = (tripId: string): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const bk of bookings) {
+      if (bk.tripId !== tripId) continue;
+      if (bk.ticketCode) {
+        if (bk.seatId) map.set(bk.seatId, bk.ticketCode);
+        if (bk.seatIds) {
+          for (const sid of bk.seatIds) map.set(sid, bk.ticketCode);
+        }
+      }
+    }
+    return map;
+  };
+
   const exportTripToExcel = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
+    const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id);
     const headerRows = [
       ['DANH SÁCH HÀNH KHÁCH - TRIP DETAIL'],
       [`Số xe: ${trip.licensePlate || '—'}`],
@@ -922,10 +937,11 @@ export default function App() {
       [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
       [`Trạng thái: ${trip.status}`],
       [],
-      ['STT', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Trạng thái ghế', 'Giá vé (đ)', 'Ghi chú'],
+      ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Trạng thái ghế', 'Giá vé (đ)', 'Ghi chú'],
     ];
     const dataRows = bookedSeats.map((seat: any, idx: number) => [
       idx + 1,
+      seatTicketCodeMap.get(seat.id) || '—',
       seat.id || '—',
       seat.customerName || '—',
       seat.customerPhone || '—',
@@ -943,7 +959,7 @@ export default function App() {
     const allRows = [...headerRows, ...dataRows, ...summaryRows];
     const worksheet = XLSX.utils.aoa_to_sheet(allRows);
     worksheet['!cols'] = [
-      { wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
+      { wch: 5 }, { wch: 14 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
@@ -967,6 +983,7 @@ export default function App() {
   const exportTripToPDF = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
+    const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id);
     const htmlContent = `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -997,13 +1014,14 @@ export default function App() {
   <table>
     <thead>
       <tr>
-        <th>STT</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Điểm trả</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
+        <th>STT</th><th>Mã vé</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Điểm trả</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
       </tr>
     </thead>
     <tbody>
       ${bookedSeats.map((seat: any, i: number) => `
         <tr>
           <td>${i + 1}</td>
+          <td>${escapeHtml(seatTicketCodeMap.get(seat.id)) || '—'}</td>
           <td>${escapeHtml(seat.id) || '—'}</td>
           <td>${escapeHtml(seat.customerName) || '—'}</td>
           <td>${escapeHtml(seat.customerPhone) || '—'}</td>
