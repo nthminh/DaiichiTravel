@@ -42,7 +42,7 @@ interface VerifyRecaptchaResponse {
  *   const result = await verifyRecaptcha({ token, action: 'LOGIN' });
  */
 export const verifyRecaptchaAndSendOtp = https.onCall(
-  { region: 'asia-southeast1', secrets: ['RECAPTCHA_SECRET_KEY'] },
+  { region: 'us-central1', secrets: ['RECAPTCHA_SECRET_KEY'] },
   async (request): Promise<VerifyRecaptchaResponse> => {
     const data = request.data as VerifyRecaptchaRequest;
 
