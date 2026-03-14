@@ -3339,26 +3339,6 @@ export default function App() {
                         </td>
                       </tr>
                     ) : filteredEmployees.map((emp) => {
-                      // Determine accessible pages for this employee's role
-                      const rolePerms = permissions?.[emp.role] || {};
-                      const PAGE_LABELS: Record<string, string> = {
-                        'home': language === 'vi' ? 'Trang chủ' : 'Home',
-                        'book-ticket': language === 'vi' ? 'Đặt vé' : 'Booking',
-                        'tours': language === 'vi' ? 'Tour' : 'Tours',
-                        'consignments': language === 'vi' ? 'Gửi hàng' : 'Consign.',
-                        'dashboard': 'Dashboard',
-                        'agents': language === 'vi' ? 'Đại lý' : 'Agents',
-                        'employees': language === 'vi' ? 'Nhân viên' : 'Staff',
-                        'routes': language === 'vi' ? 'Tuyến' : 'Routes',
-                        'vehicles': language === 'vi' ? 'Xe' : 'Vehicles',
-                        'operations': language === 'vi' ? 'Điều hành' : 'Ops',
-                        'completed-trips': language === 'vi' ? 'Hoàn thành' : 'Completed',
-                        'financial-report': language === 'vi' ? 'Tài chính' : 'Finance',
-                        'settings': language === 'vi' ? 'Cài đặt' : 'Settings',
-                      };
-                      const allowedPages = Object.entries(rolePerms)
-                        .filter(([, allowed]) => allowed)
-                        .map(([pageId]) => PAGE_LABELS[pageId] || pageId);
                       return (
                       <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-8 py-5">
@@ -3370,13 +3350,11 @@ export default function App() {
                             {emp.position || EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
                           </span>
                         </td>
-                        <td className="px-8 py-5 max-w-[220px]">
-                          {allowedPages.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {allowedPages.map(page => (
-                                <span key={page} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-semibold">{page}</span>
-                              ))}
-                            </div>
+                        <td className="px-8 py-5">
+                          {emp.role ? (
+                            <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
+                              {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
+                            </span>
                           ) : (
                             <span className="text-gray-300 text-xs">—</span>
                           )}
