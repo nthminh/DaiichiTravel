@@ -3,8 +3,9 @@ import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound } from '
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
-import { auth } from '../lib/firebase';
+import { app, auth } from '../lib/firebase';
 import { signInWithPhoneNumber, ConfirmationResult, ApplicationVerifier } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -87,7 +88,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setOtpLoading(true);
     setOtpError('');
     try {
-      if (!auth) {
+      if (!auth || !app) {
         setOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
         return false;
       }
@@ -106,7 +107,32 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         return false;
       }
 
-      // Step 2: Create a custom ApplicationVerifier that returns the enterprise token,
+      // Step 2: Verify the reCAPTCHA Enterprise token server-side via Cloud Function.
+      //         This ensures the token is valid and the score is high enough (human).
+      try {
+        const functions = getFunctions(app, 'asia-southeast1');
+        const verifyRecaptcha = httpsCallable<
+          { token: string; action: string },
+          { success: boolean; score: number; message: string }
+        >(functions, 'verifyRecaptchaAndSendOtp');
+        const verifyResult = await verifyRecaptcha({ token: enterpriseToken, action: 'LOGIN' });
+        if (!verifyResult.data.success) {
+          console.warn('[reCAPTCHA Enterprise] server verification failed:', verifyResult.data);
+          setOtpError(
+            language === 'vi'
+              ? `Xác minh reCAPTCHA thất bại: ${verifyResult.data.message}`
+              : `reCAPTCHA verification failed: ${verifyResult.data.message}`
+          );
+          return false;
+        }
+        console.info('[reCAPTCHA Enterprise] score:', verifyResult.data.score);
+      } catch (verifyErr: any) {
+        // If the Cloud Function is unavailable (e.g. not deployed yet), log the error
+        // but allow the flow to continue so phone auth still works in development.
+        console.warn('[reCAPTCHA Enterprise] server-side verify unavailable, continuing:', verifyErr?.message);
+      }
+
+      // Step 3: Create a custom ApplicationVerifier that returns the enterprise token,
       //         then call signInWithPhoneNumber with it.
       const appVerifier: ApplicationVerifier = {
         type: 'recaptcha',
