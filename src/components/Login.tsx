@@ -24,13 +24,18 @@ const RECAPTCHA_SITE_KEY = '6LegNoosAAAAAHY8lia-ztljjlNGLQYvXYLHVHEE';
 const getRecaptchaToken = (): Promise<string> =>
   new Promise((resolve, reject) => {
     const g = (window as any).grecaptcha;
-    if (!g) {
+    if (!g || typeof g.ready !== 'function') {
       reject(new Error('reCAPTCHA not loaded'));
       return;
     }
     g.ready(async () => {
       try {
-        const token: string = await g.execute(RECAPTCHA_SITE_KEY, { action: 'LOGIN' });
+        const execute = g.execute ?? g.enterprise?.execute?.bind(g.enterprise);
+        if (!execute) {
+          reject(new Error('reCAPTCHA not loaded'));
+          return;
+        }
+        const token: string = await execute(RECAPTCHA_SITE_KEY, { action: 'LOGIN' });
         resolve(token);
       } catch (err) {
         reject(err);
