@@ -750,6 +750,12 @@ export default function App() {
     }
   };
 
+  const handleClosePassengerModal = () => {
+    setShowTripPassengers(null);
+    setEditingPassengerSeatId(null);
+    setShowPassengerColPanel(false);
+  };
+
   const handleSavePassengerEdit = async () => {
     if (!showTripPassengers || !editingPassengerSeatId) return;
     const updates = {
@@ -4442,7 +4448,7 @@ export default function App() {
                       >
                         <SlidersHorizontal size={13} />{language === 'vi' ? 'Cột' : 'Columns'}
                       </button>
-                      <button onClick={() => { setShowTripPassengers(null); setEditingPassengerSeatId(null); setShowPassengerColPanel(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                      <button onClick={handleClosePassengerModal} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                     </div>
                   </div>
                   {/* Column visibility panel */}
