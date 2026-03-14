@@ -1466,11 +1466,12 @@ export default function App() {
     if (!route?.surcharges) return [];
     return route.surcharges.filter(sc => {
       if (!sc.isActive) return false;
-      if (sc.type === 'FUEL' || sc.type === 'OTHER') return true;
-      if (sc.type === 'HOLIDAY' && sc.startDate && sc.endDate && tripDate) {
-        return tripDate >= sc.startDate && tripDate <= sc.endDate;
+      // If a date range is configured, only apply within that range
+      if (sc.startDate && sc.endDate) {
+        return !!tripDate && tripDate >= sc.startDate && tripDate <= sc.endDate;
       }
-      return false;
+      // No date range means the surcharge applies all the time
+      return true;
     });
   };
 
@@ -3734,19 +3735,16 @@ export default function App() {
                               <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{language === 'vi' ? 'Số tiền/người (đ)' : language === 'ja' ? '金額/人 (đ)' : 'Amount/person (đ)'}</label>
                               <input type="number" min="0" value={routeSurchargeForm.amount} onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
                             </div>
-                            {routeSurchargeForm.type === 'HOLIDAY' && (
-                              <>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày' : 'From'}</label>
-                                  <input type="date" value={routeSurchargeForm.startDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày' : 'To'}</label>
-                                  <input type="date" value={routeSurchargeForm.endDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                                </div>
-                              </>
-                            )}
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày (tuỳ chọn)' : language === 'ja' ? '開始日（任意）' : 'From date (optional)'}</label>
+                              <input type="date" value={routeSurchargeForm.startDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày (tuỳ chọn)' : language === 'ja' ? '終了日（任意）' : 'To date (optional)'}</label>
+                              <input type="date" value={routeSurchargeForm.endDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                            </div>
                           </div>
+                          <p className="text-[10px] text-gray-400 italic">{language === 'vi' ? 'Để trống cả hai ngày nếu phụ thu áp dụng toàn thời gian. Phải điền cả hai ngày để giới hạn khoảng thời gian áp dụng.' : language === 'ja' ? '常時適用する場合は両方の日付を空白にしてください。期間を設定する場合は両方の日付が必要です。' : 'Leave both dates empty if the surcharge applies at all times. Both dates must be set to limit the applied period.'}</p>
                           <div className="flex items-center gap-3">
                             <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
                               <input type="checkbox" checked={routeSurchargeForm.isActive} onChange={e => setRouteSurchargeForm(p => ({ ...p, isActive: e.target.checked }))} className="rounded" />
@@ -3756,7 +3754,7 @@ export default function App() {
                           <div className="flex justify-end gap-2">
                             <button onClick={() => setShowAddRouteSurcharge(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                             <button
-                              disabled={!routeSurchargeForm.name || (routeSurchargeForm.type === 'HOLIDAY' && (!routeSurchargeForm.startDate || !routeSurchargeForm.endDate))}
+                              disabled={!routeSurchargeForm.name || (!!routeSurchargeForm.startDate !== !!routeSurchargeForm.endDate)}
                               onClick={() => {
                                 const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...routeSurchargeForm };
                                 setRouteSurcharges(prev => [...prev, newSurcharge]);
