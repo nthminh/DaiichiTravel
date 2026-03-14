@@ -1,28 +1,20 @@
 import * as admin from 'firebase-admin';
 import * as https from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions/v2';
-import { defineString } from 'firebase-functions/params';
 
 admin.initializeApp();
 
 /**
- * reCAPTCHA Enterprise site key.
- * Defaults to the production key; override via the `RECAPTCHA_SITE_KEY`
- * environment variable or Firebase Functions params.
- */
-const recaptchaSiteKey = defineString('RECAPTCHA_SITE_KEY', {
-  default: '6LegNoosAAAAAHY8lia-ztljjlNGLQYvXYLHVHEE',
-  description: 'reCAPTCHA Enterprise site key used to verify client-side tokens.',
-});
-
-/**
- * Minimum reCAPTCHA Enterprise score to treat a request as human.
+ * Minimum reCAPTCHA v3 score to treat a request as human.
  * Scores range from 0.0 (bot) to 1.0 (human). 0.5 is Google's recommended threshold.
  */
 const HUMAN_SCORE_THRESHOLD = 0.5;
 
+/** Standard reCAPTCHA v3 siteverify endpoint. */
+const RECAPTCHA_SITEVERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
+
 interface VerifyRecaptchaRequest {
-  /** reCAPTCHA Enterprise token obtained via grecaptcha.enterprise.execute() on the client */
+  /** reCAPTCHA v3 token obtained via grecaptcha.execute() on the client */
   token: string;
   /** The action name used when the token was generated, e.g. "LOGIN" */
   action?: string;
@@ -37,17 +29,20 @@ interface VerifyRecaptchaResponse {
 /**
  * HTTPS callable Cloud Function: verifyRecaptchaAndSendOtp
  *
- * Verifies a reCAPTCHA Enterprise token server-side using the Google
- * reCAPTCHA Enterprise API. If the score indicates a human user (>= 0.5),
- * it returns a success signal so the client can proceed to send the
- * Firebase SMS OTP to the whitelisted phone number.
+ * Verifies a reCAPTCHA v3 token server-side using the Google reCAPTCHA
+ * siteverify API. If the score indicates a human user (>= 0.5), it returns
+ * a success signal so the client can proceed to send the Firebase SMS OTP
+ * to the whitelisted phone number.
+ *
+ * The reCAPTCHA secret key is read from the RECAPTCHA_SECRET_KEY Firebase
+ * secret, injected into the function as process.env.RECAPTCHA_SECRET_KEY.
  *
  * Usage from the client (firebase/functions):
  *   const verifyRecaptcha = httpsCallable(functions, 'verifyRecaptchaAndSendOtp');
  *   const result = await verifyRecaptcha({ token, action: 'LOGIN' });
  */
 export const verifyRecaptchaAndSendOtp = https.onCall(
-  { region: 'asia-southeast1' },
+  { region: 'asia-southeast1', secrets: ['RECAPTCHA_SECRET_KEY'] },
   async (request): Promise<VerifyRecaptchaResponse> => {
     const data = request.data as VerifyRecaptchaRequest;
 
@@ -58,49 +53,26 @@ export const verifyRecaptchaAndSendOtp = https.onCall(
     const token = data.token.trim();
     const action = typeof data.action === 'string' ? data.action : 'LOGIN';
 
-    // Retrieve the project ID from the Firebase Admin app config (populated at runtime).
-    const projectId = admin.instanceId().app.options.projectId ?? process.env.GCLOUD_PROJECT;
-    if (!projectId) {
-      logger.error('Could not determine Firebase project ID');
-      throw new https.HttpsError('internal', 'Server configuration error: missing project ID.');
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    if (!secretKey) {
+      logger.error('RECAPTCHA_SECRET_KEY is not set');
+      throw new https.HttpsError('internal', 'Server configuration error: missing reCAPTCHA secret key.');
     }
 
-    // Call the reCAPTCHA Enterprise API using the Google APIs endpoint.
-    // We use the Application Default Credentials attached to the Cloud Function
-    // runtime service account, which is authorised to call the reCAPTCHA Enterprise API
-    // when the API is enabled in the project.
-    const apiUrl =
-      `https://recaptchaenterprise.googleapis.com/v1/projects/${projectId}/assessments`;
-
-    const body = JSON.stringify({
-      event: {
-        token,
-        siteKey: recaptchaSiteKey.value(),
-        expectedAction: action,
-      },
-    });
+    // Call the standard reCAPTCHA v3 siteverify API.
+    const body = new URLSearchParams({ secret: secretKey, response: token }).toString();
 
     let response: Response;
     try {
-      // Obtain an access token from the runtime service account.
-      const tokenResponse = await admin.app().options.credential?.getAccessToken();
-      const accessToken = tokenResponse?.access_token;
-      if (!accessToken) {
-        throw new Error('Failed to obtain access token from service account credentials.');
-      }
-
-      response = await fetch(apiUrl, {
+      response = await fetch(RECAPTCHA_SITEVERIFY_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error('[verifyRecaptchaAndSendOtp] fetch error:', msg);
-      throw new https.HttpsError('internal', `Failed to reach reCAPTCHA Enterprise API: ${msg}`);
+      throw new https.HttpsError('internal', `Failed to reach reCAPTCHA siteverify API: ${msg}`);
     }
 
     if (!response.ok) {
@@ -108,32 +80,44 @@ export const verifyRecaptchaAndSendOtp = https.onCall(
       logger.error('[verifyRecaptchaAndSendOtp] API error', response.status, text);
       throw new https.HttpsError(
         'internal',
-        `reCAPTCHA Enterprise API returned HTTP ${response.status}: ${text}`,
+        `reCAPTCHA siteverify API returned HTTP ${response.status}: ${text}`,
       );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assessment: any = await response.json();
-    const score: number = assessment?.riskAnalysis?.score ?? assessment?.score ?? 0;
-    const valid: boolean = assessment?.tokenProperties?.valid ?? false;
-    const actionMatch: boolean =
-      !assessment?.tokenProperties?.action ||
-      assessment.tokenProperties.action === action;
+    const result: any = await response.json();
+    const verified: boolean = result?.success === true;
+    // If score is absent in a successful response, default to 0 so the threshold
+    // check below always blocks the request rather than silently passing it.
+    const score: number = typeof result?.score === 'number' ? result.score : 0;
+    // When the API omits the action field (e.g. tokens generated without an action),
+    // skip action validation rather than incorrectly rejecting the request.
+    const returnedAction: string = typeof result?.action === 'string' ? result.action : '';
+    const actionMatch = !returnedAction || returnedAction === action;
 
-    logger.info('[verifyRecaptchaAndSendOtp] assessment', {
-      valid,
+    logger.info('[verifyRecaptchaAndSendOtp] siteverify result', {
+      verified,
       score,
-      actionMatch,
-      reasons: assessment?.riskAnalysis?.reasons,
+      returnedAction,
+      errorCodes: result?.['error-codes'],
     });
 
-    if (!valid || !actionMatch) {
+    if (!verified) {
+      const errorCodes: string[] = Array.isArray(result?.['error-codes'])
+        ? result['error-codes']
+        : [];
       return {
         success: false,
         score,
-        message: valid
-          ? `reCAPTCHA action mismatch (expected "${action}", got "${assessment?.tokenProperties?.action}")`
-          : `reCAPTCHA token is invalid: ${assessment?.tokenProperties?.invalidReason ?? 'unknown reason'}`,
+        message: `reCAPTCHA verification failed: ${errorCodes.join(', ') || 'unknown error'}`,
+      };
+    }
+
+    if (!actionMatch) {
+      return {
+        success: false,
+        score,
+        message: `reCAPTCHA action mismatch (expected "${action}", got "${returnedAction}")`,
       };
     }
 
