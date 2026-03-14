@@ -251,6 +251,7 @@ export default function App() {
   // Fare table for route (retail + agent price per segment)
   const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>([]);
   const [showAddRouteFare, setShowAddRouteFare] = useState(false);
+  const [editingRouteFareIdx, setEditingRouteFareIdx] = useState<number | null>(null);
   const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
 
   // Vehicle CRUD state
@@ -498,6 +499,7 @@ export default function App() {
       setEditingRouteStop(null);
       setRouteFormFares([]);
       setShowAddRouteFare(false);
+      setEditingRouteFareIdx(null);
     } catch (err) {
       console.error('Failed to save route:', err);
     }
@@ -527,6 +529,7 @@ export default function App() {
     // Load existing fares from Firestore
     setRouteFormFares([]);
     setShowAddRouteFare(false);
+    setEditingRouteFareIdx(null);
     if (route.id && (route.routeStops || []).length > 0) {
       transportService.getRouteFares(route.id).then((fares) => {
         setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
@@ -568,6 +571,7 @@ export default function App() {
     setShowAddRouteStop(false);
     setRouteFormFares([]);
     setShowAddRouteFare(false);
+    setEditingRouteFareIdx(null);
     // Load fares for copy if the original route has stops
     if (route.id && (route.routeStops || []).length > 0) {
       const loadedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
@@ -3269,7 +3273,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -3625,7 +3629,7 @@ export default function App() {
                             <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá vé lẻ và đại lý cho từng cặp điểm đón/trả (có thể đặt thời hạn áp dụng)' : 'Retail and agent prices for each from→to stop pair (optional date range)'}</p>
                           </div>
                           {!showAddRouteFare && (
-                            <button onClick={() => { setShowAddRouteFare(true); setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-100">
+                            <button onClick={() => { setShowAddRouteFare(true); setEditingRouteFareIdx(null); setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-100">
                               + {language === 'vi' ? 'Thêm giá chặng' : 'Add fare'}
                             </button>
                           )}
@@ -3649,6 +3653,9 @@ export default function App() {
                                 )}
                               </div>
                             </div>
+                            <button onClick={() => { setEditingRouteFareIdx(idx); setRouteFareForm({ fromStopId: fare.fromStopId, toStopId: fare.toStopId, price: fare.price, agentPrice: fare.agentPrice, startDate: fare.startDate, endDate: fare.endDate }); setShowAddRouteFare(true); }} className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-100 rounded-lg flex-shrink-0">
+                              <Edit3 size={14} />
+                            </button>
                             <button onClick={() => setRouteFormFares(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
                               <Trash2 size={14} />
                             </button>
@@ -3657,6 +3664,7 @@ export default function App() {
 
                         {showAddRouteFare && (
                           <div className="border border-dashed border-teal-200 rounded-xl p-4 space-y-3 bg-teal-50/50">
+                            <p className="text-xs font-bold text-teal-700">{editingRouteFareIdx !== null ? (language === 'vi' ? 'Hiệu chỉnh giá chặng' : language === 'ja' ? '区間運賃を編集' : 'Edit segment fare') : (language === 'vi' ? 'Thêm giá chặng mới' : language === 'ja' ? '区間運賃を追加' : 'Add segment fare')}</p>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ điểm' : 'From stop'}</label>
@@ -3694,7 +3702,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex justify-end gap-2">
-                              <button onClick={() => setShowAddRouteFare(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                              <button onClick={() => { setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                               <button
                                 disabled={!routeFareForm.fromStopId || !routeFareForm.toStopId || routeFareForm.fromStopId === routeFareForm.toStopId}
                                 onClick={() => {
@@ -3706,15 +3714,27 @@ export default function App() {
                                     alert(language === 'vi' ? 'Điểm đón phải nằm trước điểm trả trong hành trình' : 'From stop must come before to stop in route order');
                                     return;
                                   }
-                                  setRouteFormFares(prev => {
-                                    const existing = prev.findIndex(f => f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
-                                    const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice, startDate: routeFareForm.startDate, endDate: routeFareForm.endDate };
-                                    if (existing >= 0) {
-                                      return prev.map((f, i) => i === existing ? newFare : f);
+                                  const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice, startDate: routeFareForm.startDate, endDate: routeFareForm.endDate };
+                                  if (editingRouteFareIdx !== null) {
+                                    // Check for duplicate pair (excluding the current editing index)
+                                    const duplicate = routeFormFares.findIndex((f, i) => i !== editingRouteFareIdx && f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
+                                    if (duplicate >= 0) {
+                                      alert(language === 'vi' ? 'Giá chặng cho cặp điểm này đã tồn tại' : 'A fare for this stop pair already exists');
+                                      return;
                                     }
-                                    return [...prev, newFare];
-                                  });
+                                    // Update the fare at the editing index
+                                    setRouteFormFares(prev => prev.map((f, i) => i === editingRouteFareIdx ? newFare : f));
+                                  } else {
+                                    setRouteFormFares(prev => {
+                                      const existing = prev.findIndex(f => f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
+                                      if (existing >= 0) {
+                                        return prev.map((f, i) => i === existing ? newFare : f);
+                                      }
+                                      return [...prev, newFare];
+                                    });
+                                  }
                                   setShowAddRouteFare(false);
+                                  setEditingRouteFareIdx(null);
                                   setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' });
                                 }}
                                 className="px-4 py-1.5 bg-teal-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
