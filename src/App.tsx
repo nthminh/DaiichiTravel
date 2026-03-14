@@ -768,6 +768,27 @@ export default function App() {
     };
     try {
       await transportService.bookSeat(showTripPassengers.id, editingPassengerSeatId, updates);
+
+      // Sync changes to the corresponding booking document
+      const matchingBooking = bookings.find(b =>
+        b.tripId === showTripPassengers.id &&
+        (b.seatId === editingPassengerSeatId || (b.seatIds && b.seatIds.includes(editingPassengerSeatId)))
+      );
+      if (matchingBooking) {
+        if (passengerEditForm.status === SeatStatus.EMPTY) {
+          await transportService.deleteBooking(matchingBooking.id);
+        } else {
+          await transportService.updateBooking(matchingBooking.id, {
+            customerName: passengerEditForm.customerName,
+            phone: passengerEditForm.customerPhone,
+            pickupAddress: passengerEditForm.pickupAddress,
+            dropoffAddress: passengerEditForm.dropoffAddress,
+            bookingNote: passengerEditForm.bookingNote,
+            status: passengerEditForm.status === SeatStatus.PAID ? 'PAID' : 'BOOKED',
+          });
+        }
+      }
+
       setTrips(prev => prev.map(trip => {
         if (trip.id !== showTripPassengers.id) return trip;
         const updatedSeats = trip.seats.map((s: any) =>
@@ -801,6 +822,16 @@ export default function App() {
     };
     try {
       await transportService.bookSeat(showTripPassengers.id, seatId, emptyData);
+
+      // Sync: delete the corresponding booking document
+      const matchingBooking = bookings.find(b =>
+        b.tripId === showTripPassengers.id &&
+        (b.seatId === seatId || (b.seatIds && b.seatIds.includes(seatId)))
+      );
+      if (matchingBooking) {
+        await transportService.deleteBooking(matchingBooking.id);
+      }
+
       setTrips(prev => prev.map(trip => {
         if (trip.id !== showTripPassengers.id) return trip;
         const updatedSeats = trip.seats.map((s: any) =>

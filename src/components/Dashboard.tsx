@@ -9,7 +9,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
-import { TRANSLATIONS, Language, TripStatus, UserRole } from '../App';
+import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
 
@@ -76,8 +76,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const handleDelete = async (id: string) => {
     if (window.confirm(t.confirm_delete)) {
+      const booking = bookings.find(b => b.id === id);
       try {
         await transportService.deleteBooking(id);
+        // Sync: clear seat(s) in trip for TRIP bookings
+        if (booking && booking.type !== 'TOUR' && booking.tripId) {
+          const emptyData = {
+            status: SeatStatus.EMPTY,
+            customerName: '',
+            customerPhone: '',
+            pickupPoint: '',
+            dropoffPoint: '',
+            pickupAddress: '',
+            dropoffAddress: '',
+            bookingNote: '',
+          };
+          const allSeats: string[] = booking.seatIds || (booking.seatId ? [booking.seatId] : []);
+          await Promise.all(allSeats.map(seatId => transportService.bookSeat(booking.tripId, seatId, emptyData)));
+        }
       } catch (err) {
         console.error('Failed to delete booking:', err);
       }
@@ -97,6 +113,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     setEditingBooking(null);
     try {
       await transportService.updateBooking(updated.id, updated);
+      // Sync: update seat data in trip for TRIP bookings
+      if (updated.type !== 'TOUR' && updated.tripId) {
+        const seatUpdates = {
+          customerName: updated.customerName || '',
+          customerPhone: updated.phone || '',
+          pickupAddress: updated.pickupAddress || '',
+          dropoffAddress: updated.dropoffAddress || '',
+          bookingNote: updated.bookingNote || updated.notes || '',
+          status: updated.status === 'PAID' ? SeatStatus.PAID : SeatStatus.BOOKED,
+        };
+        const allSeats: string[] = updated.seatIds || (updated.seatId ? [updated.seatId] : []);
+        await Promise.all(allSeats.map(seatId => transportService.bookSeat(updated.tripId, seatId, seatUpdates)));
+      }
     } catch (err) {
       console.error('Failed to update booking:', err);
     }
