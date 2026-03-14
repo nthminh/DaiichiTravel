@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
 import { app, auth } from '../lib/firebase';
-import { signInWithPhoneNumber, ConfirmationResult, ApplicationVerifier } from 'firebase/auth';
+import { signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface LoginProps {
@@ -87,6 +87,32 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [otpPhone, setOtpPhone] = useState('');
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
 
+  // Holds the RecaptchaVerifier instance for Firebase phone auth (invisible mode).
+  // Kept in a ref so it persists across renders without triggering re-renders.
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  // Clean up the reCAPTCHA widget when the component unmounts.
+  useEffect(() => {
+    return () => {
+      recaptchaVerifierRef.current?.clear();
+      recaptchaVerifierRef.current = null;
+    };
+  }, []);
+
+  /**
+   * Returns the existing RecaptchaVerifier or creates a new invisible one.
+   * The verifier is attached to the hidden #recaptcha-container div in the DOM.
+   */
+  const getOrCreateRecaptchaVerifier = (): RecaptchaVerifier => {
+    if (!auth) throw new Error('Firebase not configured');
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+      });
+    }
+    return recaptchaVerifierRef.current;
+  };
+
   const t = TRANSLATIONS[language];
 
   /**
@@ -148,15 +174,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         console.warn('[reCAPTCHA] server-side verify unavailable, continuing:', verifyErr?.message);
       }
 
-      // Step 3: Create a custom ApplicationVerifier that returns the reCAPTCHA token,
-      //         then call signInWithPhoneNumber with it.
-      // Note: Firebase SDK (v10+) internally calls _reset() on the verifier after use,
-      //       so we provide a no-op to prevent "n._reset is not a function" errors.
-      const appVerifier = {
-        type: 'recaptcha',
-        verify: () => Promise.resolve(recaptchaToken),
-        _reset: () => {},
-      } as unknown as ApplicationVerifier;
+      // Step 3: Use a proper invisible RecaptchaVerifier so Firebase can validate
+      //         the reCAPTCHA response server-side. The fake verifier previously used
+      //         here caused Firebase to log "[reCAPTCHA] server-side verify unavailable,
+      //         continuing: internal" and eventually trigger auth/too-many-requests.
+      const appVerifier = getOrCreateRecaptchaVerifier();
 
       const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       confirmationResultRef.current = result;
@@ -165,6 +187,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       setOtpStep(true);
       return true;
     } catch (err: any) {
+      // Reset the RecaptchaVerifier so it can be recreated on the next attempt.
+      recaptchaVerifierRef.current?.clear();
+      recaptchaVerifierRef.current = null;
       const code: string = (err as any)?.code ?? '';
       const msg: string = err?.message ?? '';
       let errMsg: string;
@@ -610,6 +635,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           )}
         </motion.div>
       </div>
+      {/* Hidden container required by Firebase RecaptchaVerifier (invisible mode) */}
+      <div id="recaptcha-container" />
     </div>
   );
 };
