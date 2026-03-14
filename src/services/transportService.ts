@@ -665,6 +665,22 @@ export const transportService = {
     }, () => callback(null));
   },
 
+  // Save security config to Firestore
+  saveSecurityConfig: async (config: Record<string, unknown>) => {
+    if (!db) return;
+    const ref = doc(db, 'settings', 'securityConfig');
+    await setDoc(ref, config, { merge: true });
+  },
+
+  // Subscribe to security config changes in real-time
+  subscribeToSecurityConfig: (callback: (config: Record<string, unknown> | null) => void) => {
+    if (!db) return () => {};
+    const ref = doc(db, 'settings', 'securityConfig');
+    return onSnapshot(ref, (snap) => {
+      callback(snap.exists() ? snap.data() as Record<string, unknown> : null);
+    }, () => callback(null));
+  },
+
   // ===== TRIP METHODS =====
 
   // Add trip

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
+import { auth } from '../lib/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -12,6 +14,7 @@ interface LoginProps {
   agents: any[];
   employees?: any[];
   agentsLoading?: boolean;
+  securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
 }
 
 // Particle configuration constants
@@ -42,16 +45,88 @@ const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   animationDuration: `${PARTICLE_MIN_DURATION + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_DURATION_STEP}s`,
 }));
 
-export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, agentsLoading }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, agentsLoading, securityConfig }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [infoMessage, setInfoMessage] = useState('');
 
+  // OTP / phone verification state
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [pendingUser, setPendingUser] = useState<User | null>(null);
+  const [otpPhone, setOtpPhone] = useState('');
+  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
   const t = TRANSLATIONS[language];
 
-  const handleLogin = (e: React.FormEvent) => {
+  const initRecaptcha = () => {
+    if (!auth) return null;
+    if (recaptchaVerifierRef.current) {
+      try { recaptchaVerifierRef.current.clear(); } catch { /* ignore */ }
+      recaptchaVerifierRef.current = null;
+    }
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+    recaptchaVerifierRef.current = verifier;
+    return verifier;
+  };
+
+  const sendOtp = async (user: User, phoneNumber: string) => {
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const verifier = initRecaptcha();
+      if (!verifier || !auth) {
+        setOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+        setOtpLoading(false);
+        return false;
+      }
+      const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+      confirmationResultRef.current = result;
+      setPendingUser(user);
+      setOtpPhone(phoneNumber);
+      setOtpStep(true);
+      return true;
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('invalid-phone-number')) {
+        setOtpError(language === 'vi' ? 'Số điện thoại không hợp lệ' : 'Invalid phone number');
+      } else if (msg.includes('too-many-requests')) {
+        setOtpError(language === 'vi' ? 'Quá nhiều yêu cầu, thử lại sau' : 'Too many requests, try again later');
+      } else {
+        setOtpError(language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`);
+      }
+      return false;
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmationResultRef.current || !pendingUser) return;
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      await confirmationResultRef.current.confirm(otpCode.trim());
+      onLogin(pendingUser);
+    } catch {
+      setOtpError(language === 'vi' ? 'Mã OTP không đúng, vui lòng thử lại' : 'Incorrect OTP code, please try again');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingUser) return;
+    await sendOtp(pendingUser, otpPhone);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setInfoMessage('');
 
@@ -60,7 +135,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     
     // Check Admin
     if (normalizedUsername === adminCredentials.username.toLowerCase() && trimmedPassword === adminCredentials.password) {
-      onLogin({ id: '1', username: adminCredentials.username, role: UserRole.MANAGER, name: 'Quản lý nhà xe' });
+      const user: User = { id: '1', username: adminCredentials.username, role: UserRole.MANAGER, name: 'Quản lý nhà xe' };
+      // If phone verification is enabled and phone numbers are configured, send OTP
+      if (securityConfig?.phoneVerificationEnabled && securityConfig.phoneNumbers.length > 0) {
+        setError('');
+        await sendOtp(user, securityConfig.phoneNumbers[0]);
+        return;
+      }
+      onLogin(user);
       return;
     }
 
@@ -249,6 +331,90 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           transition={{ delay: 0.28 }}
           className="glass-card p-7 rounded-3xl shadow-2xl"
         >
+          {/* Invisible reCAPTCHA container */}
+          <div id="recaptcha-container" />
+
+          {otpStep ? (
+            /* ── OTP Verification Step ── */
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+                  <Phone size={16} className="text-white/80" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-sm">
+                    {language === 'vi' ? 'Xác thực điện thoại' : 'Phone Verification'}
+                  </p>
+                  <p className="text-white/60 text-xs">
+                    {language === 'vi'
+                      ? `Nhập mã OTP đã gửi đến ${otpPhone}`
+                      : `Enter the OTP sent to ${otpPhone}`}
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleOtpVerify} className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                    {language === 'vi' ? 'Mã OTP' : 'OTP Code'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-full mt-1.5 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200 text-center text-2xl tracking-[0.5em] font-mono"
+                    placeholder="------"
+                    autoFocus
+                    autoComplete="one-time-code"
+                  />
+                </div>
+
+                <AnimatePresence>
+                  {otpError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-red-400/20"
+                    >
+                      {otpError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+
+                <motion.button
+                  type="submit"
+                  disabled={otpLoading || otpCode.length !== 6}
+                  whileHover={{ scale: 1.015 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {otpLoading ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                  {language === 'vi' ? 'Xác nhận OTP' : 'Verify OTP'}
+                </motion.button>
+              </form>
+
+              <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                <button
+                  onClick={() => { setOtpStep(false); setOtpCode(''); setOtpError(''); setPendingUser(null); }}
+                  className="text-white/60 text-xs font-bold hover:text-white transition-colors"
+                >
+                  ← {language === 'vi' ? 'Quay lại' : 'Back'}
+                </button>
+                <button
+                  onClick={handleResendOtp}
+                  disabled={otpLoading}
+                  className="text-white/60 text-xs font-bold hover:text-white transition-colors disabled:opacity-40"
+                >
+                  {language === 'vi' ? 'Gửi lại OTP' : 'Resend OTP'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Staff/agent toggle header */}
           <div className="flex items-center gap-2 mb-5">
             <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
@@ -324,10 +490,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
             <motion.button
               type="submit"
+              disabled={otpLoading}
               whileHover={{ scale: 1.015 }}
               whileTap={{ scale: 0.97 }}
-              className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide"
+              className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-70"
             >
+              {otpLoading && <Loader2 size={16} className="animate-spin" />}
               {t.login_btn}
             </motion.button>
           </form>
@@ -341,6 +509,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
               <span>{t.guest_btn}</span>
             </button>
           </div>
+            </>
+          )}
         </motion.div>
       </div>
     </div>

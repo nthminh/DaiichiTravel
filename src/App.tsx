@@ -245,6 +245,10 @@ export default function App() {
   const [showAddRouteSurcharge, setShowAddRouteSurcharge] = useState(false);
   const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id'>>({ name: '', type: 'FUEL', amount: 0, isActive: true });
 
+  // Auto-generated stop IDs for departure and arrival (not real stops from the stops collection)
+  const STOP_ID_DEPARTURE = '__departure__';
+  const STOP_ID_ARRIVAL = '__arrival__';
+
   // Route stops (intermediate stops for a route)
   const [routeFormStops, setRouteFormStops] = useState<RouteStop[]>([]);
   const routeFormStopsRef = useRef<RouteStop[]>([]);
@@ -255,9 +259,9 @@ export default function App() {
   // All route stops including auto-generated departure (__departure__) and arrival (__arrival__) entries.
   // Intermediate stops (routeFormStops) are re-numbered 1..N; departure is order 0, arrival is order N+1.
   const allRouteStops: RouteStop[] = useMemo(() => [
-    ...(routeForm.departurePoint ? [{ stopId: '__departure__', stopName: routeForm.departurePoint, order: 0 }] : []),
+    ...(routeForm.departurePoint ? [{ stopId: STOP_ID_DEPARTURE, stopName: routeForm.departurePoint, order: 0 }] : []),
     ...routeFormStops.map((s, i) => ({ ...s, order: i + 1 })),
-    ...(routeForm.arrivalPoint ? [{ stopId: '__arrival__', stopName: routeForm.arrivalPoint, order: routeFormStops.length + 1 }] : []),
+    ...(routeForm.arrivalPoint ? [{ stopId: STOP_ID_ARRIVAL, stopName: routeForm.arrivalPoint, order: routeFormStops.length + 1 }] : []),
   ], [routeForm.departurePoint, routeForm.arrivalPoint, routeFormStops]);
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
   const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
@@ -382,11 +386,25 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
+  const [securityConfig, setSecurityConfig] = useState<{ phoneVerificationEnabled: boolean; phoneNumbers: string[] }>({ phoneVerificationEnabled: false, phoneNumbers: [] });
 
   // Subscribe to admin credentials changes in real-time
   useEffect(() => {
     const unsubscribe = transportService.subscribeToAdminSettings((saved) => {
       if (saved) setAdminCredentials(saved);
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, []);
+
+  // Subscribe to security config changes in real-time
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToSecurityConfig((saved) => {
+      if (saved && typeof saved === 'object') {
+        setSecurityConfig({
+          phoneVerificationEnabled: typeof saved.phoneVerificationEnabled === 'boolean' ? saved.phoneVerificationEnabled : false,
+          phoneNumbers: Array.isArray(saved.phoneNumbers) ? (saved.phoneNumbers as string[]) : [],
+        });
+      }
     });
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
@@ -4082,11 +4100,14 @@ export default function App() {
                             <Calendar size={10} /> {(route.pricePeriods || []).length} {language === 'vi' ? 'kỳ giá' : 'periods'}
                           </span>
                         )}
-                        {(route.routeStops || []).length > 0 && (
-                          <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[10px] font-bold">
-                            {(route.routeStops || []).length} {language === 'vi' ? 'điểm dừng' : 'stops'}
-                          </span>
-                        )}
+                        {(() => {
+                          const intermediateStops = (route.routeStops || []).filter(s => s.stopId !== STOP_ID_DEPARTURE && s.stopId !== STOP_ID_ARRIVAL);
+                          return intermediateStops.length > 0 ? (
+                            <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[10px] font-bold">
+                              {intermediateStops.length} {language === 'vi' ? 'điểm dừng' : 'stops'}
+                            </span>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.departurePoint}</p></td>
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
@@ -5243,6 +5264,7 @@ export default function App() {
           agents={agents}
           employees={employees}
           agentsLoading={agentsLoading}
+          securityConfig={securityConfig}
         />
       </>
     );
