@@ -70,7 +70,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       try { recaptchaVerifierRef.current.clear(); } catch { /* ignore */ }
       recaptchaVerifierRef.current = null;
     }
-    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+    const params: Record<string, unknown> = { size: 'invisible' };
+    if (siteKey) params['sitekey'] = siteKey;
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', params);
     recaptchaVerifierRef.current = verifier;
     return verifier;
   };
