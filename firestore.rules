@@ -18,6 +18,48 @@ service cloud.firestore {
              get(userDocPath).data.roles.hasAny(['admin']);
     }
 
+    // Field validation helpers – defend against oversized or malformed data.
+    function isShortString(val) {
+      return val is string && val.size() <= 200;
+    }
+
+    function isNonNegativeNumber(val) {
+      return val is number && val >= 0;
+    }
+
+    function isValidBooking(data) {
+      return isShortString(data.customerName)
+          && isShortString(data.customerPhone)
+          && isNonNegativeNumber(data.totalAmount)
+          && isShortString(data.status);
+    }
+
+    function isValidTrip(data) {
+      return isShortString(data.route)
+          && isShortString(data.time)
+          && isShortString(data.date)
+          && isNonNegativeNumber(data.price);
+    }
+
+    function isValidRoute(data) {
+      return isShortString(data.name)
+          && isShortString(data.departurePoint)
+          && isShortString(data.arrivalPoint)
+          && isNonNegativeNumber(data.price);
+    }
+
+    function isValidAgent(data) {
+      return isShortString(data.name)
+          && isShortString(data.code)
+          && isShortString(data.status);
+    }
+
+    function isValidConsignment(data) {
+      return isShortString(data.senderName)
+          && isShortString(data.receiverName)
+          && isShortString(data.status);
+    }
+
     // Rules for Rowy's internal collections.
     match /_rowy_/{collection}/{document=**} {
       allow read, write: if isRowyAdmin();
@@ -25,17 +67,24 @@ service cloud.firestore {
     
     // --- App Collections ---
 
-    // Trips: public read + public update (for seat booking from app) + public create
-    // (trip management done via app UI which has no Firebase Auth)
+    // Trips: public read + validated write (for seat booking from app)
     match /trips/{trip} {
       allow read: if true;
-      allow write: if true;
+      allow create: if request.resource.data.keys().size() <= 30
+                    && isValidTrip(request.resource.data);
+      allow update: if request.resource.data.keys().size() <= 30
+                    && isValidTrip(request.resource.data);
+      allow delete: if true;
     }
 
-    // Routes: public read + write (route/stop management done via app UI)
+    // Routes: public read + validated write
     match /routes/{route} {
       allow read: if true;
-      allow write: if true;
+      allow create: if request.resource.data.keys().size() <= 30
+                    && isValidRoute(request.resource.data);
+      allow update: if request.resource.data.keys().size() <= 30
+                    && isValidRoute(request.resource.data);
+      allow delete: if true;
     }
 
     match /vehicles/{vehicle} {
@@ -59,20 +108,34 @@ service cloud.firestore {
       allow write: if true;
     }
 
-    // Consignments: managed via app UI
+    // Consignments: validated write
     match /consignments/{consignment} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if request.resource.data.keys().size() <= 30
+                    && isValidConsignment(request.resource.data);
+      allow update: if request.resource.data.keys().size() <= 30
+                    && isValidConsignment(request.resource.data);
+      allow delete: if true;
     }
 
-    // Agents: public read + write (agent management done via app UI)
+    // Agents: public read + validated write
     match /agents/{agent} {
       allow read: if true;
-      allow write: if true;
+      allow create: if request.resource.data.keys().size() <= 30
+                    && isValidAgent(request.resource.data);
+      allow update: if request.resource.data.keys().size() <= 30
+                    && isValidAgent(request.resource.data);
+      allow delete: if true;
     }
 
-    // Bookings: anyone can create a booking; all operations allowed for app UI
+    // Bookings: validated create/update; all operations for app UI
     match /bookings/{booking} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if request.resource.data.keys().size() <= 30
+                    && isValidBooking(request.resource.data);
+      allow update: if request.resource.data.keys().size() <= 30
+                    && isValidBooking(request.resource.data);
+      allow delete: if true;
     }
 
     match /invoices/{invoice} {
@@ -80,6 +143,11 @@ service cloud.firestore {
     }
     match /settings/{setting} {
       allow read, write: if true;
+    }
+
+    // Block all other paths not explicitly listed above (recursive wildcard)
+    match /{path=**} {
+      allow read, write: if false;
     }
   }
 }

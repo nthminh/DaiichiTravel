@@ -15,6 +15,30 @@ async function startServer() {
 
   const PORT = 3000;
 
+  // Security headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com https://*.gstatic.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https://*.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com",
+        "connect-src 'self' wss: https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com https://*.cloudfunctions.net",
+        "frame-src 'none'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; ')
+    );
+    next();
+  });
+
   // WebSocket connection handling
   wss.on("connection", (ws) => {
     console.log("Client connected to WebSocket");
