@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText, Copy, Columns
+  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -305,7 +305,9 @@ export default function App() {
   const [showTripColPanel, setShowTripColPanel] = useState(false);
   const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
   const [editingPassengerSeatId, setEditingPassengerSeatId] = useState<string | null>(null);
-  const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupPoint: '', dropoffPoint: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
+  const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
+  const [passengerColVisibility, setPassengerColVisibility] = useState({ seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, note: true });
+  const [showPassengerColPanel, setShowPassengerColPanel] = useState(false);
   const [consignMgmtColWidths, setConsignMgmtColWidths] = useState({ code: 130, sender: 180, receiver: 180, goodsType: 130, weight: 100, cod: 130, notes: 160, status: 130, options: 100 });
 
   // Persist user session to localStorage so F5 doesn't log out
@@ -748,13 +750,19 @@ export default function App() {
     }
   };
 
+  const handleClosePassengerModal = () => {
+    setShowTripPassengers(null);
+    setEditingPassengerSeatId(null);
+    setShowPassengerColPanel(false);
+  };
+
   const handleSavePassengerEdit = async () => {
     if (!showTripPassengers || !editingPassengerSeatId) return;
     const updates = {
       customerName: passengerEditForm.customerName,
       customerPhone: passengerEditForm.customerPhone,
-      pickupPoint: passengerEditForm.pickupPoint,
-      dropoffPoint: passengerEditForm.dropoffPoint,
+      pickupAddress: passengerEditForm.pickupAddress,
+      dropoffAddress: passengerEditForm.dropoffAddress,
       status: passengerEditForm.status,
       bookingNote: passengerEditForm.bookingNote,
     };
@@ -826,8 +834,8 @@ export default function App() {
       seat.id || '—',
       seat.customerName || '—',
       seat.customerPhone || '—',
-      seat.pickupPoint || '—',
-      seat.dropoffPoint || '—',
+      seat.pickupAddress || '—',
+      seat.dropoffAddress || '—',
       seat.status === SeatStatus.PAID ? 'Đã thanh toán' : 'Đã đặt',
       (trip.price || 0).toLocaleString(),
       seat.bookingNote || '',
@@ -904,8 +912,8 @@ export default function App() {
           <td>${escapeHtml(seat.id) || '—'}</td>
           <td>${escapeHtml(seat.customerName) || '—'}</td>
           <td>${escapeHtml(seat.customerPhone) || '—'}</td>
-          <td>${escapeHtml(seat.pickupPoint) || '—'}</td>
-          <td>${escapeHtml(seat.dropoffPoint) || '—'}</td>
+          <td>${escapeHtml(seat.pickupAddress) || '—'}</td>
+          <td>${escapeHtml(seat.dropoffAddress) || '—'}</td>
           <td>${seat.status === 'PAID' ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${(trip.price || 0).toLocaleString()}đ</td>
           <td>${escapeHtml(seat.bookingNote) || ''}</td>
@@ -4432,8 +4440,42 @@ export default function App() {
                       <h3 className="text-xl font-bold">{language === 'vi' ? 'Danh sách hành khách' : 'Passenger List'}</h3>
                       <p className="text-sm text-gray-500 mt-1">{showTripPassengers.route} · {formatTripDisplayTime(showTripPassengers)}{showTripPassengers.licensePlate ? ` · ${showTripPassengers.licensePlate}` : ''}</p>
                     </div>
-                    <button onClick={() => { setShowTripPassengers(null); setEditingPassengerSeatId(null); }} className="p-2 hover:bg-gray-50 rounded-xl ml-4 flex-shrink-0"><X size={20} /></button>
+                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                      <button
+                        onClick={() => setShowPassengerColPanel(v => !v)}
+                        className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all', showPassengerColPanel ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100')}
+                        title={language === 'vi' ? 'Tùy chỉnh cột' : 'Customize columns'}
+                      >
+                        <SlidersHorizontal size={13} />{language === 'vi' ? 'Cột' : 'Columns'}
+                      </button>
+                      <button onClick={handleClosePassengerModal} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    </div>
                   </div>
+                  {/* Column visibility panel */}
+                  {showPassengerColPanel && (
+                    <div className="px-6 py-3 bg-white border-b border-gray-100 flex-shrink-0">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {([
+                          { key: 'seat', label: language === 'vi' ? 'Ghế' : 'Seat' },
+                          { key: 'name', label: language === 'vi' ? 'Tên khách' : 'Name' },
+                          { key: 'phone', label: language === 'vi' ? 'Số điện thoại' : 'Phone' },
+                          { key: 'pickup', label: language === 'vi' ? 'Điểm đón' : 'Pickup' },
+                          { key: 'dropoff', label: language === 'vi' ? 'Điểm trả' : 'Dropoff' },
+                          { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
+                          { key: 'note', label: language === 'vi' ? 'Ghi chú' : 'Note' },
+                        ] as { key: keyof typeof passengerColVisibility; label: string }[]).map(({ key, label }) => (
+                          <button
+                            key={key}
+                            onClick={() => setPassengerColVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
+                            className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all', passengerColVisibility[key] ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-400 border-gray-200')}
+                          >
+                            {passengerColVisibility[key] ? '✓ ' : ''}{label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Seat stats + export buttons */}
                   {(() => {
                     const allSeats = showTripPassengers.seats || [];
@@ -4459,13 +4501,13 @@ export default function App() {
                       <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-10">STT</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>
+                          {passengerColVisibility.seat && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>}
+                          {passengerColVisibility.name && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>}
+                          {passengerColVisibility.phone && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>}
+                          {passengerColVisibility.pickup && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>}
+                          {passengerColVisibility.dropoff && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>}
+                          {passengerColVisibility.status && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>}
+                          {passengerColVisibility.note && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>}
                           <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-20">{t.options}</th>
                         </tr>
                       </thead>
@@ -4474,18 +4516,18 @@ export default function App() {
                           editingPassengerSeatId === seat.id ? (
                             <tr key={seat.id} className="bg-blue-50">
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              <td className="px-4 py-3 font-bold">{seat.id}</td>
-                              <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
-                              <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
-                              <td className="px-4 py-3"><input value={passengerEditForm.pickupPoint} onChange={e => setPassengerEditForm(p => ({ ...p, pickupPoint: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
-                              <td className="px-4 py-3"><input value={passengerEditForm.dropoffPoint} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffPoint: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
-                              <td className="px-4 py-3">
+                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seat.id}</td>}
+                              {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
+                              {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
+                              {passengerColVisibility.pickup && <td className="px-4 py-3"><input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
+                              {passengerColVisibility.dropoff && <td className="px-4 py-3"><input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
+                              {passengerColVisibility.status && <td className="px-4 py-3">
                                 <select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none">
                                   <option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
                                   <option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
                                 </select>
-                              </td>
-                              <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>
+                              </td>}
+                              {passengerColVisibility.note && <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                               <td className="px-4 py-3">
                                 <div className="flex gap-1">
                                   <button onClick={handleSavePassengerEdit} className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">{t.save}</button>
@@ -4496,17 +4538,17 @@ export default function App() {
                           ) : (
                             <tr key={seat.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              <td className="px-4 py-3 font-bold">{seat.id}</td>
-                              <td className="px-4 py-3 font-medium">{seat.customerName || '—'}</td>
-                              <td className="px-4 py-3 text-gray-600">{seat.customerPhone || '—'}</td>
-                              <td className="px-4 py-3 text-gray-600">{seat.pickupPoint || '—'}</td>
-                              <td className="px-4 py-3 text-gray-600">{seat.dropoffPoint || '—'}</td>
-                              <td className="px-4 py-3">
+                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seat.id}</td>}
+                              {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{seat.customerName || '—'}</td>}
+                              {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{seat.customerPhone || '—'}</td>}
+                              {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{seat.pickupAddress || '—'}</td>}
+                              {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{seat.dropoffAddress || '—'}</td>}
+                              {passengerColVisibility.status && <td className="px-4 py-3">
                                 <span className={cn('px-2 py-1 rounded-full text-xs font-bold', seat.status === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
                                   {seat.status === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{seat.bookingNote || '—'}</td>
+                              </td>}
+                              {passengerColVisibility.note && <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{seat.bookingNote || '—'}</td>}
                               <td className="px-4 py-3">
                                 <div className="flex gap-1">
                                   <button
@@ -4515,8 +4557,8 @@ export default function App() {
                                       setPassengerEditForm({
                                         customerName: seat.customerName || '',
                                         customerPhone: seat.customerPhone || '',
-                                        pickupPoint: seat.pickupPoint || '',
-                                        dropoffPoint: seat.dropoffPoint || '',
+                                        pickupAddress: seat.pickupAddress || '',
+                                        dropoffAddress: seat.dropoffAddress || '',
                                         status: seat.status,
                                         bookingNote: seat.bookingNote || '',
                                       });
@@ -4539,7 +4581,7 @@ export default function App() {
                           )
                         ))}
                         {(showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length === 0 && (
-                          <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
+                          <tr><td colSpan={2 + Object.values(passengerColVisibility).filter(Boolean).length} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
                         )}
                       </tbody>
                     </table>
