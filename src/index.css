@@ -114,6 +114,9 @@
   transition: transform 0.55s ease;
 }
 
+/* ─── Hide reCAPTCHA badge (disclaimer shown near login button instead) ─── */
+.grecaptcha-badge { visibility: hidden; }
+
 @media print {
   body > * {
     visibility: hidden !important;

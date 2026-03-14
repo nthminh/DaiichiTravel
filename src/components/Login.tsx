@@ -554,6 +554,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
               {otpLoading && <Loader2 size={16} className="animate-spin" />}
               {t.login_btn}
             </motion.button>
+
+            <p className="text-white/40 text-[10px] text-center mt-3 leading-relaxed px-2">
+              {t.recaptcha_disclaimer}
+              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" aria-label="Google Privacy Policy" className="underline hover:text-white/60 transition-colors">{t.recaptcha_privacy}</a>
+              {t.recaptcha_and}
+              <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" aria-label="Google Terms of Service" className="underline hover:text-white/60 transition-colors">{t.recaptcha_terms}</a>
+              {t.recaptcha_of_google}
+            </p>
           </form>
 
           <div className="mt-5 pt-5 border-t border-white/10 text-center">
