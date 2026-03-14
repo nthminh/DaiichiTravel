@@ -241,9 +241,11 @@ export default function App() {
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
   const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
+  const [editingPricePeriodId, setEditingPricePeriodId] = useState<string | null>(null);
   const [routeSurcharges, setRouteSurcharges] = useState<RouteSurcharge[]>([]);
   const [showAddRouteSurcharge, setShowAddRouteSurcharge] = useState(false);
   const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id'>>({ name: '', type: 'FUEL', amount: 0, isActive: true });
+  const [editingRouteSurchargeId, setEditingRouteSurchargeId] = useState<string | null>(null);
 
   // Auto-generated stop IDs for departure and arrival (not real stops from the stops collection)
   const STOP_ID_DEPARTURE = '__departure__';
@@ -630,8 +632,10 @@ export default function App() {
       setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
       setRoutePricePeriods([]);
       setShowAddPricePeriod(false);
+      setEditingPricePeriodId(null);
       setRouteSurcharges([]);
       setShowAddRouteSurcharge(false);
+      setEditingRouteSurchargeId(null);
       setRouteFormStops([]);
       setShowAddRouteStop(false);
       setEditingRouteStop(null);
@@ -662,7 +666,9 @@ export default function App() {
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
+    setEditingPricePeriodId(null);
     setShowAddRouteSurcharge(false);
+    setEditingRouteSurchargeId(null);
     // Load route stops – filter out auto-generated departure/arrival stops so only intermediate stops are editable
     const loadedStops = (route.routeStops || [])
       .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
@@ -704,7 +710,9 @@ export default function App() {
       .map((s, i) => ({ ...s, order: i + 1 }));
     setRouteFormStops(loadedStops);
     setShowAddPricePeriod(false);
+    setEditingPricePeriodId(null);
     setShowAddRouteSurcharge(false);
+    setEditingRouteSurchargeId(null);
     setShowAddRouteStop(false);
     setRouteFormFares([]);
     setShowAddRouteFare(false);
@@ -3552,7 +3560,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -3618,14 +3626,20 @@ export default function App() {
                               <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {period.agentPrice.toLocaleString()}đ</span>
                             </div>
                           </div>
-                          <button onClick={() => setRoutePricePeriods(prev => prev.filter(p => p.id !== period.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => { setEditingPricePeriodId(period.id); setPricePeriodForm({ name: period.name || '', price: period.price, agentPrice: period.agentPrice, startDate: period.startDate, endDate: period.endDate }); setShowAddPricePeriod(true); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg flex-shrink-0">
+                              <Edit3 size={14} />
+                            </button>
+                            <button onClick={() => setRoutePricePeriods(prev => prev.filter(p => p.id !== period.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                       ))}
 
                       {showAddPricePeriod && (
                         <div className="border border-dashed border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/50">
+                          <p className="text-xs font-bold text-blue-700">{editingPricePeriodId ? (language === 'vi' ? 'Hiệu chỉnh kỳ giá' : language === 'ja' ? '価格期間を編集' : 'Edit price period') : (language === 'vi' ? 'Thêm kỳ giá mới' : language === 'ja' ? '価格期間を追加' : 'Add price period')}</p>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="col-span-2">
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_name}</label>
@@ -3649,19 +3663,24 @@ export default function App() {
                             </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowAddPricePeriod(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button onClick={() => { setShowAddPricePeriod(false); setEditingPricePeriodId(null); setPricePeriodForm({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                             <button
                               disabled={!pricePeriodForm.startDate || !pricePeriodForm.endDate}
                               onClick={() => {
-                                const newPeriod: PricePeriod = {
-                                  id: crypto.randomUUID(),
-                                  name: pricePeriodForm.name,
-                                  price: pricePeriodForm.price,
-                                  agentPrice: pricePeriodForm.agentPrice,
-                                  startDate: pricePeriodForm.startDate,
-                                  endDate: pricePeriodForm.endDate,
-                                };
-                                setRoutePricePeriods(prev => [...prev, newPeriod]);
+                                if (editingPricePeriodId) {
+                                  setRoutePricePeriods(prev => prev.map(p => p.id === editingPricePeriodId ? { ...p, name: pricePeriodForm.name, price: pricePeriodForm.price, agentPrice: pricePeriodForm.agentPrice, startDate: pricePeriodForm.startDate, endDate: pricePeriodForm.endDate } : p));
+                                  setEditingPricePeriodId(null);
+                                } else {
+                                  const newPeriod: PricePeriod = {
+                                    id: crypto.randomUUID(),
+                                    name: pricePeriodForm.name,
+                                    price: pricePeriodForm.price,
+                                    agentPrice: pricePeriodForm.agentPrice,
+                                    startDate: pricePeriodForm.startDate,
+                                    endDate: pricePeriodForm.endDate,
+                                  };
+                                  setRoutePricePeriods(prev => [...prev, newPeriod]);
+                                }
                                 setShowAddPricePeriod(false);
                                 setPricePeriodForm({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
                               }}
@@ -3709,6 +3728,9 @@ export default function App() {
                             <button onClick={() => setRouteSurcharges(prev => prev.map(s => s.id === sc.id ? { ...s, isActive: !s.isActive } : s))} className={`p-1.5 rounded-lg text-xs font-bold transition-all ${sc.isActive ? 'text-amber-600 hover:bg-amber-100' : 'text-gray-400 hover:bg-gray-100'}`} title={sc.isActive ? (language === 'vi' ? 'Tạm dừng' : 'Pause') : (language === 'vi' ? 'Kích hoạt' : 'Activate')}>
                               {sc.isActive ? '✓' : '○'}
                             </button>
+                            <button onClick={() => { setEditingRouteSurchargeId(sc.id); setRouteSurchargeForm({ name: sc.name, type: sc.type, amount: sc.amount, isActive: sc.isActive, startDate: sc.startDate, endDate: sc.endDate }); setShowAddRouteSurcharge(true); }} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-100 rounded-lg flex-shrink-0">
+                              <Edit3 size={14} />
+                            </button>
                             <button onClick={() => setRouteSurcharges(prev => prev.filter(s => s.id !== sc.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
                               <Trash2 size={14} />
                             </button>
@@ -3718,6 +3740,7 @@ export default function App() {
 
                       {showAddRouteSurcharge && (
                         <div className="border border-dashed border-amber-200 rounded-xl p-4 space-y-3 bg-amber-50/50">
+                          <p className="text-xs font-bold text-amber-700">{editingRouteSurchargeId ? (language === 'vi' ? 'Hiệu chỉnh phụ thu' : language === 'ja' ? '追加料金を編集' : 'Edit surcharge') : (language === 'vi' ? 'Thêm phụ thu mới' : language === 'ja' ? '追加料金を追加' : 'Add surcharge')}</p>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="col-span-2">
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Tên phụ thu' : language === 'ja' ? '追加料金名' : 'Surcharge Name'}</label>
@@ -3752,12 +3775,17 @@ export default function App() {
                             </label>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowAddRouteSurcharge(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button onClick={() => { setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                             <button
                               disabled={!routeSurchargeForm.name || (!!routeSurchargeForm.startDate !== !!routeSurchargeForm.endDate)}
                               onClick={() => {
-                                const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...routeSurchargeForm };
-                                setRouteSurcharges(prev => [...prev, newSurcharge]);
+                                if (editingRouteSurchargeId) {
+                                  setRouteSurcharges(prev => prev.map(s => s.id === editingRouteSurchargeId ? { ...s, ...routeSurchargeForm } : s));
+                                  setEditingRouteSurchargeId(null);
+                                } else {
+                                  const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...routeSurchargeForm };
+                                  setRouteSurcharges(prev => [...prev, newSurcharge]);
+                                }
                                 setShowAddRouteSurcharge(false);
                                 setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true });
                               }}
