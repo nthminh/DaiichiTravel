@@ -692,7 +692,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{viewingBooking.type === 'TOUR' ? (language === 'vi' ? 'Đặt tour' : 'Tour Booking') : (language === 'vi' ? 'Vé xe' : 'Bus Ticket')}</span>
-                    <h3 className="text-2xl font-bold mt-1">#{viewingBooking.id?.slice(-8).toUpperCase() || viewingBooking.id}</h3>
+                    <h3 className="text-2xl font-bold mt-1">{viewingBooking.ticketCode || `#${viewingBooking.id?.slice(-8).toUpperCase() || viewingBooking.id}`}</h3>
                     <p className="text-white/80 text-sm mt-1">{viewingBooking.route}</p>
                   </div>
                   <button onClick={() => setViewingBooking(null)} className="text-white/60 hover:text-white transition-colors p-2">

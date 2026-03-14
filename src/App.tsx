@@ -252,6 +252,10 @@ export default function App() {
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
   const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
   const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
+  // Undo history for route stop list and seat selection
+  const [routeFormStopsHistory, setRouteFormStopsHistory] = useState<RouteStop[][]>([]);
+  const [routeFormFaresHistory, setRouteFormFaresHistory] = useState<Array<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>>([]);
+  const [seatSelectionHistory, setSeatSelectionHistory] = useState<{primarySeat: string | null; extraSeats: string[]}[]>([]);
 
   // Fare table for route (retail + agent price per segment)
   const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>([]);
@@ -434,6 +438,36 @@ export default function App() {
     return () => unsubFares();
   }, [routeModalEditingId]);
 
+  // Global Ctrl+Z / Cmd+Z undo handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== 'z') return;
+      // Undo in route form (when adding or editing a route)
+      if (showAddRoute) {
+        e.preventDefault();
+        if (routeFormStopsHistory.length > 0) {
+          const lastStops = routeFormStopsHistory[routeFormStopsHistory.length - 1];
+          const lastFares = routeFormFaresHistory[routeFormFaresHistory.length - 1] ?? [];
+          setRouteFormStops(lastStops);
+          setRouteFormFares(lastFares);
+          setRouteFormStopsHistory(prev => prev.slice(0, -1));
+          setRouteFormFaresHistory(prev => prev.slice(0, -1));
+        }
+        return;
+      }
+      // Undo in seat booking (when on seat-mapping tab with booking form open)
+      if (activeTab === 'seat-mapping' && !isTicketOpen && seatSelectionHistory.length > 0) {
+        e.preventDefault();
+        const last = seatSelectionHistory[seatSelectionHistory.length - 1];
+        setShowBookingForm(last.primarySeat);
+        setExtraSeatIds(last.extraSeats);
+        setSeatSelectionHistory(prev => prev.slice(0, -1));
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showAddRoute, activeTab, isTicketOpen, routeFormStopsHistory, routeFormFaresHistory, seatSelectionHistory]);
+
   // --- Agent CRUD handlers ---
   const handleSaveAgent = async () => {
     try {
@@ -541,6 +575,8 @@ export default function App() {
       setShowAddRouteFare(false);
       setEditingRouteFareIdx(null);
       setRouteModalEditingId(null);
+      setRouteFormStopsHistory([]);
+      setRouteFormFaresHistory([]);
     } catch (err) {
       console.error('Failed to save route:', err);
     }
@@ -572,6 +608,8 @@ export default function App() {
     setShowAddRouteFare(false);
     setEditingRouteFareIdx(null);
     setRouteModalEditingId(route.id && (route.routeStops || []).length > 0 ? route.id : null);
+    setRouteFormStopsHistory([]);
+    setRouteFormFaresHistory([]);
     setShowAddRoute(true);
   };
 
@@ -603,6 +641,8 @@ export default function App() {
     setEditingRouteFareIdx(null);
     // No real-time subscription for copy (no ID yet); load fares once as initial values
     setRouteModalEditingId(null);
+    setRouteFormStopsHistory([]);
+    setRouteFormFaresHistory([]);
     if (route.id && loadedStops.length > 0) {
       transportService.getRouteFares(route.id).then((fares) => {
         setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
@@ -1290,6 +1330,7 @@ export default function App() {
     setFareLoading(false);
     setFromStopId('');
     setToStopId('');
+    setSeatSelectionHistory([]);
 
     // Send real-time notification
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1312,6 +1353,14 @@ export default function App() {
       }
       return trip;
     }));
+    // Also update selectedTrip immediately so the seat diagram reflects the new status
+    setSelectedTrip((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        seats: prev.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
+      };
+    });
   };
 
   // --- Route price period helpers ---
@@ -1835,14 +1884,18 @@ export default function App() {
                   if (showBookingForm) {
                     if (isPrimarySeat) return;
                     if (isExtraSeat) {
+                      setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
                       setExtraSeatIds(prev => prev.filter(id => id !== seatId));
                     } else if (isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded) {
+                      setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
                       setExtraSeatIds(prev => [...prev, seatId]);
                     } else if (!isSelectingExtraSeats) {
+                      setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
                       setExtraSeatIds([]);
                       setShowBookingForm(seatId);
                     }
                   } else {
+                    setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
                     setShowBookingForm(seatId);
                   }
                 }}
@@ -3656,6 +3709,8 @@ export default function App() {
                               onClick={() => {
                                 if (idx === 0) return;
                                 const prevStop = sortedArr[idx - 1];
+                                setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
+                                setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
                                 setRouteFormStops(prev => prev.map(s => {
                                   if (s.stopId === stop.stopId) return { ...s, order: prevStop.order };
                                   if (s.stopId === prevStop.stopId) return { ...s, order: stop.order };
@@ -3669,6 +3724,8 @@ export default function App() {
                               onClick={() => {
                                 if (idx === sortedArr.length - 1) return;
                                 const nextStop = sortedArr[idx + 1];
+                                setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
+                                setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
                                 setRouteFormStops(prev => prev.map(s => {
                                   if (s.stopId === stop.stopId) return { ...s, order: nextStop.order };
                                   if (s.stopId === nextStop.stopId) return { ...s, order: stop.order };
@@ -3686,7 +3743,7 @@ export default function App() {
                               }}
                               className="p-1 text-gray-400 hover:text-blue-600 rounded"
                             ><Edit3 size={12} /></button>
-                            <button onClick={() => { setRouteFormStops(prev => prev.filter(s => s.stopId !== stop.stopId).map((s, i) => ({ ...s, order: i + 1 }))); setRouteFormFares(prev => prev.filter(f => f.fromStopId !== stop.stopId && f.toStopId !== stop.stopId)); }} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 size={12} /></button>
+                            <button onClick={() => { setRouteFormStopsHistory(prev => [...prev, routeFormStops]); setRouteFormFaresHistory(prev => [...prev, routeFormFares]); setRouteFormStops(prev => prev.filter(s => s.stopId !== stop.stopId).map((s, i) => ({ ...s, order: i + 1 }))); setRouteFormFares(prev => prev.filter(f => f.fromStopId !== stop.stopId && f.toStopId !== stop.stopId)); }} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 size={12} /></button>
                           </div>
                         </div>
                       ))}
@@ -3722,6 +3779,8 @@ export default function App() {
                               disabled={!routeStopForm.stopId}
                               onClick={() => {
                                 const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order };
+                                setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
+                                setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
                                 if (editingRouteStop) {
                                   setRouteFormStops(prev => {
                                     const updated = prev.map(s => s.stopId === editingRouteStop.stopId ? newStop : s);
