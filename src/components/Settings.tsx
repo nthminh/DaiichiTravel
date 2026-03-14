@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Settings as SettingsIcon, Shield, User, Key, 
+  Shield, User,
   Save, AlertCircle, CheckCircle2, Users, X, Check,
-  CreditCard, Clock, ToggleLeft, ToggleRight
+  CreditCard, Clock, ToggleLeft, ToggleRight, Phone, Plus, Trash2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -21,7 +21,7 @@ export const Settings: React.FC<SettingsProps> = ({
   language, currentUser, agents, onUpdateAgent, onUpdateAdmin 
 }) => {
   const t = TRANSLATIONS[language];
-  const [activeSection, setActiveSection] = useState<'PERSONAL' | 'AGENTS' | 'PERMISSIONS' | 'PAYMENT'>(
+  const [activeSection, setActiveSection] = useState<'PERSONAL' | 'AGENTS' | 'PERMISSIONS' | 'PAYMENT' | 'SECURITY'>(
     currentUser.role === UserRole.MANAGER ? 'PERSONAL' : 'PERSONAL'
   );
   const [successMsg, setSuccessMsg] = useState('');
@@ -151,6 +151,68 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   };
 
+  // Security config state
+  const DEFAULT_SECURITY_CONFIG = {
+    phoneVerificationEnabled: false,
+    phoneNumbers: [] as string[],
+  };
+  const [securityConfig, setSecurityConfig] = useState(DEFAULT_SECURITY_CONFIG);
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToSecurityConfig((saved) => {
+      if (saved && typeof saved === 'object') {
+        setSecurityConfig({
+          phoneVerificationEnabled: typeof saved.phoneVerificationEnabled === 'boolean' ? saved.phoneVerificationEnabled : false,
+          phoneNumbers: Array.isArray(saved.phoneNumbers) ? (saved.phoneNumbers as string[]) : [],
+        });
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, []);
+
+  const addPhoneNumber = () => {
+    const trimmed = newPhoneNumber.trim();
+    if (!trimmed) return;
+    // Normalize: convert leading 0 to +84 for Vietnamese numbers; other formats must already start with +
+    const normalized = trimmed.startsWith('0') ? '+84' + trimmed.slice(1) : trimmed;
+    // Validate E.164 format: starts with + followed by 7-15 digits
+    if (!/^\+\d{7,15}$/.test(normalized)) {
+      setErrorMsg(language === 'vi'
+        ? 'Số điện thoại không hợp lệ. Dùng định dạng 0912345678 hoặc +84912345678'
+        : 'Invalid phone number. Use 0912345678 or +84912345678 format');
+      setTimeout(() => setErrorMsg(''), 4000);
+      return;
+    }
+    if (securityConfig.phoneNumbers.length >= 5) {
+      setErrorMsg(language === 'vi' ? 'Tối đa 5 số điện thoại' : 'Maximum 5 phone numbers');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+    if (securityConfig.phoneNumbers.includes(normalized)) {
+      setErrorMsg(language === 'vi' ? 'Số điện thoại đã tồn tại' : 'Phone number already exists');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+    setSecurityConfig(prev => ({ ...prev, phoneNumbers: [...prev.phoneNumbers, normalized] }));
+    setNewPhoneNumber('');
+  };
+
+  const removePhoneNumber = (index: number) => {
+    setSecurityConfig(prev => ({ ...prev, phoneNumbers: prev.phoneNumbers.filter((_, i) => i !== index) }));
+  };
+
+  const saveSecurityConfig = async () => {
+    try {
+      await transportService.saveSecurityConfig(securityConfig as unknown as Record<string, unknown>);
+      setSuccessMsg(language === 'vi' ? 'Đã lưu cài đặt bảo mật' : 'Security settings saved');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch {
+      setErrorMsg(language === 'vi' ? 'Lưu thất bại' : 'Save failed');
+      setTimeout(() => setErrorMsg(''), 3000);
+    }
+  };
+
   // Form states for personal password change
   const [newUsername, setNewUsername] = useState(currentUser.username);
   const [currentPass, setCurrentPass] = useState('');
@@ -231,6 +293,18 @@ export const Settings: React.FC<SettingsProps> = ({
           >
             <CreditCard size={18} />
             {t.payment_settings || 'Cài đặt Thanh toán'}
+          </button>
+        )}
+        {currentUser.role === UserRole.MANAGER && (
+          <button 
+            onClick={() => setActiveSection('SECURITY')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-sm transition-all",
+              activeSection === 'SECURITY' ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20" : "text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Phone size={18} />
+            {language === 'vi' ? 'Bảo mật' : 'Security'}
           </button>
         )}
       </div>
@@ -567,6 +641,120 @@ export const Settings: React.FC<SettingsProps> = ({
 
               <div className="mt-6 flex justify-end">
                 <button onClick={savePaymentConfig} className="flex items-center gap-2 px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20">
+                  <Save size={18} />
+                  {language === 'vi' ? 'Lưu cài đặt' : 'Save Settings'}
+                </button>
+              </div>
+
+              {successMsg && (
+                <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 p-4 rounded-xl">
+                  <CheckCircle2 size={18} />
+                  <span className="text-sm font-bold">{successMsg}</span>
+                </div>
+              )}
+              {errorMsg && (
+                <div className="mt-4 flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-xl">
+                  <AlertCircle size={18} />
+                  <span className="text-sm font-bold">{errorMsg}</span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ) : activeSection === 'SECURITY' ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-daiichi-accent rounded-2xl flex items-center justify-center text-daiichi-red">
+                  <Phone size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">{language === 'vi' ? 'Xác thực hai bước qua điện thoại' : 'Phone Two-Factor Verification'}</h3>
+                  <p className="text-sm text-gray-500">{language === 'vi' ? 'Yêu cầu xác nhận OTP qua SMS khi admin đăng nhập' : 'Require OTP confirmation via SMS when admin logs in'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-6 max-w-lg">
+                {/* Toggle */}
+                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                  <div>
+                    <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Bật xác thực điện thoại' : 'Enable phone verification'}</p>
+                    <p className="text-xs text-gray-400">{language === 'vi' ? 'Khi bật, admin cần nhập mã OTP sau khi đăng nhập' : 'When enabled, admin must enter OTP after login'}</p>
+                  </div>
+                  <button
+                    onClick={() => setSecurityConfig(prev => ({ ...prev, phoneVerificationEnabled: !prev.phoneVerificationEnabled }))}
+                    className={cn("transition-colors", securityConfig.phoneVerificationEnabled ? "text-green-500" : "text-gray-300")}
+                  >
+                    {securityConfig.phoneVerificationEnabled ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+                  </button>
+                </div>
+
+                {/* Phone numbers list */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                      {language === 'vi' ? `Số điện thoại nhận OTP (${securityConfig.phoneNumbers.length}/5)` : `Phone numbers for OTP (${securityConfig.phoneNumbers.length}/5)`}
+                    </label>
+                  </div>
+
+                  <div className="space-y-2 mb-3">
+                    {securityConfig.phoneNumbers.map((phone, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                        <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                        <span className="flex-1 text-sm font-mono text-gray-700">{phone}</span>
+                        {idx === 0 && (
+                          <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                            {language === 'vi' ? 'Chính' : 'Primary'}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => removePhoneNumber(idx)}
+                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {securityConfig.phoneNumbers.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-3 border border-dashed border-gray-200 rounded-xl">
+                        {language === 'vi' ? 'Chưa có số điện thoại nào' : 'No phone numbers added yet'}
+                      </p>
+                    )}
+                  </div>
+
+                  {securityConfig.phoneNumbers.length < 5 && (
+                    <div className="flex gap-2">
+                      <input
+                        type="tel"
+                        value={newPhoneNumber}
+                        onChange={e => setNewPhoneNumber(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addPhoneNumber())}
+                        placeholder={language === 'vi' ? '0912345678 hoặc +84912345678' : '0912345678 or +84912345678'}
+                        className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                      />
+                      <button
+                        onClick={addPhoneNumber}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-daiichi-red text-white rounded-xl font-bold text-sm shadow-sm hover:scale-[1.02] transition-all"
+                      >
+                        <Plus size={16} />
+                        {language === 'vi' ? 'Thêm' : 'Add'}
+                      </button>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-gray-400 mt-2">
+                    {language === 'vi'
+                      ? '* Số điện thoại đầu tiên trong danh sách sẽ là số nhận OTP mặc định khi đăng nhập. Sử dụng Firebase Authentication (10.000 SMS miễn phí/tháng).'
+                      : '* The first phone number will receive the OTP by default on login. Uses Firebase Authentication (10,000 free SMS/month).'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button onClick={saveSecurityConfig} className="flex items-center gap-2 px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20">
                   <Save size={18} />
                   {language === 'vi' ? 'Lưu cài đặt' : 'Save Settings'}
                 </button>
