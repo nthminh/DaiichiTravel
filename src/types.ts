@@ -114,7 +114,7 @@ export interface Employee {
   phone?: string;
   email?: string;
   address?: string;
-  role: 'STAFF' | 'DRIVER' | 'ACCOUNTANT' | 'OTHER';
+  role: string; // permission group ID from settings (e.g. SUPERVISOR, STAFF, DRIVER)
   position?: string; // free-text job title, separate from system role
   status: 'ACTIVE' | 'INACTIVE';
   username?: string;

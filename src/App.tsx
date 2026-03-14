@@ -219,9 +219,9 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', address: '', role: 'STAFF' as Employee['role'], position: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', note: '' });
+  const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', note: '' });
   const [employeeSearch, setEmployeeSearch] = useState('');
-  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'ALL' | Employee['role']>('ALL');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
   const [showEmployeeFilters, setShowEmployeeFilters] = useState(false);
 
   // Route search state
@@ -3178,17 +3178,26 @@ export default function App() {
         });
 
         const EMPLOYEE_ROLE_LABELS: Record<string, string> = {
+          SUPERVISOR: language === 'vi' ? 'Quản lý' : 'Supervisor',
           STAFF: t.role_staff || 'Nhân viên',
           DRIVER: t.role_driver || 'Tài xế',
           ACCOUNTANT: t.role_accountant || 'Kế toán',
           OTHER: t.role_other || 'Khác',
+          AGENT: language === 'vi' ? 'Đại lý' : 'Agent',
         };
         const EMPLOYEE_ROLE_COLORS: Record<string, string> = {
+          SUPERVISOR: 'bg-indigo-50 text-indigo-600',
           STAFF: 'bg-blue-50 text-blue-600',
           DRIVER: 'bg-green-50 text-green-600',
           ACCOUNTANT: 'bg-purple-50 text-purple-600',
           OTHER: 'bg-gray-100 text-gray-500',
+          AGENT: 'bg-orange-50 text-orange-600',
         };
+
+        // Derive available permission groups from the permissions config (exclude MANAGER and CUSTOMER)
+        const availableRoles = permissions
+          ? Object.keys(permissions).filter(r => r !== 'MANAGER' && r !== 'CUSTOMER')
+          : [];
 
         return (
           <div className="space-y-6">
@@ -3197,7 +3206,7 @@ export default function App() {
                 <h2 className="text-2xl font-bold">{t.employee_management || 'Quản lý Nhân viên'}</h2>
                 <p className="text-sm text-gray-500">{t.employee_desc || 'Quản lý nhân viên, tài xế và tài khoản đăng nhập'}</p>
               </div>
-              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
+              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: availableRoles[0] || 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
             </div>
 
             {/* Add/Edit Employee Modal */}
@@ -3233,11 +3242,10 @@ export default function App() {
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_permissions || 'Nhóm phân quyền'}</label>
-                      <select value={employeeForm.role} onChange={e => setEmployeeForm(p => ({ ...p, role: e.target.value as Employee['role'] }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="STAFF">{t.role_staff || 'Nhân viên'}</option>
-                        <option value="DRIVER">{t.role_driver || 'Tài xế'}</option>
-                        <option value="ACCOUNTANT">{t.role_accountant || 'Kế toán'}</option>
-                        <option value="OTHER">{t.role_other || 'Khác'}</option>
+                      <select value={employeeForm.role} onChange={e => setEmployeeForm(p => ({ ...p, role: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        {availableRoles.map(roleId => (
+                          <option key={roleId} value={roleId}>{EMPLOYEE_ROLE_LABELS[roleId] || roleId}</option>
+                        ))}
                       </select>
                       <p className="text-[9px] text-gray-400 mt-1 ml-1">{language === 'vi' ? '* Xác định trang được phép truy cập (cấu hình tại Cài đặt → Phân quyền)' : '* Determines accessible pages (configure in Settings → Permissions)'}</p>
                     </div>
@@ -3299,9 +3307,9 @@ export default function App() {
               </div>
               {showEmployeeFilters && (
                 <div className="flex gap-2 flex-wrap pt-1 border-t border-gray-100">
-                  {(['ALL', 'STAFF', 'DRIVER', 'ACCOUNTANT', 'OTHER'] as const).map(r => (
+                  {(['ALL', ...availableRoles]).map(r => (
                     <button key={r} onClick={() => setEmployeeRoleFilter(r)} className={cn('px-3 py-1.5 rounded-lg text-xs font-bold transition-all', employeeRoleFilter === r ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
-                      {r === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : EMPLOYEE_ROLE_LABELS[r]}
+                      {r === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : (EMPLOYEE_ROLE_LABELS[r] || r)}
                     </button>
                   ))}
                 </div>
