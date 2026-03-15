@@ -118,12 +118,16 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       return;
     }
     setSaving(true);
+    // Filter out undefined values so Firestore updateDoc does not reject them
+    const cleanForm = Object.fromEntries(
+      Object.entries(form).filter(([, v]) => v !== undefined)
+    ) as Omit<CustomerProfile, 'id'>;
     try {
       if (editingId) {
-        await transportService.updateCustomer(editingId, form);
+        await transportService.updateCustomer(editingId, cleanForm);
         showSuccess(language === 'vi' ? 'Đã cập nhật khách hàng' : 'Customer updated');
       } else {
-        await transportService.addCustomer({ ...form, registeredAt: new Date().toISOString() });
+        await transportService.addCustomer({ ...cleanForm, registeredAt: new Date().toISOString() });
         showSuccess(language === 'vi' ? 'Đã thêm khách hàng' : 'Customer added');
       }
       setShowForm(false);

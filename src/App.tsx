@@ -347,7 +347,7 @@ export default function App() {
   const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
   const [editingPassengerSeatId, setEditingPassengerSeatId] = useState<string | null>(null);
   const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
-  const [passengerColVisibility, setPassengerColVisibility] = useState({ ticketCode: true, seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, note: true });
+  const [passengerColVisibility, setPassengerColVisibility] = useState({ ticketCode: true, seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, price: true, note: true });
   const [showPassengerColPanel, setShowPassengerColPanel] = useState(false);
   const [consignMgmtColWidths, setConsignMgmtColWidths] = useState({ code: 130, sender: 180, receiver: 180, goodsType: 130, weight: 100, cod: 130, notes: 160, status: 130, options: 100 });
 
@@ -925,13 +925,19 @@ export default function App() {
       bookingNote: passengerEditForm.bookingNote,
     };
     try {
-      await transportService.bookSeat(showTripPassengers.id, editingPassengerSeatId, updates);
-
       // Sync changes to the corresponding booking document
       const matchingBooking = bookings.find(b =>
         b.tripId === showTripPassengers.id &&
         (b.seatId === editingPassengerSeatId || (b.seatIds && b.seatIds.includes(editingPassengerSeatId)))
       );
+      // All seat IDs in this booking group (for group bookings)
+      const groupSeatIds = getBookingGroupSeatIds(matchingBooking, editingPassengerSeatId);
+
+      // Update all seats in the group
+      await Promise.all(groupSeatIds.map((sid: string) =>
+        transportService.bookSeat(showTripPassengers.id, sid, updates)
+      ));
+
       if (matchingBooking) {
         if (passengerEditForm.status === SeatStatus.EMPTY) {
           await transportService.deleteBooking(matchingBooking.id);
@@ -950,7 +956,7 @@ export default function App() {
       setTrips(prev => prev.map(trip => {
         if (trip.id !== showTripPassengers.id) return trip;
         const updatedSeats = trip.seats.map((s: any) =>
-          s.id === editingPassengerSeatId ? { ...s, ...updates } : s
+          groupSeatIds.includes(s.id) ? { ...s, ...updates } : s
         );
         const updatedTrip = { ...trip, seats: updatedSeats };
         setShowTripPassengers(updatedTrip);
@@ -979,13 +985,18 @@ export default function App() {
       bookingNote: '',
     };
     try {
-      await transportService.bookSeat(showTripPassengers.id, seatId, emptyData);
-
       // Sync: delete the corresponding booking document
       const matchingBooking = bookings.find(b =>
         b.tripId === showTripPassengers.id &&
         (b.seatId === seatId || (b.seatIds && b.seatIds.includes(seatId)))
       );
+      // All seat IDs in this booking group (clear all for group bookings)
+      const groupSeatIds = getBookingGroupSeatIds(matchingBooking, seatId);
+
+      await Promise.all(groupSeatIds.map((sid: string) =>
+        transportService.bookSeat(showTripPassengers.id, sid, emptyData)
+      ));
+
       if (matchingBooking) {
         await transportService.deleteBooking(matchingBooking.id);
       }
@@ -993,13 +1004,13 @@ export default function App() {
       setTrips(prev => prev.map(trip => {
         if (trip.id !== showTripPassengers.id) return trip;
         const updatedSeats = trip.seats.map((s: any) =>
-          s.id === seatId ? { ...s, ...emptyData } : s
+          groupSeatIds.includes(s.id) ? { ...s, ...emptyData } : s
         );
         const updatedTrip = { ...trip, seats: updatedSeats };
         setShowTripPassengers(updatedTrip);
         return updatedTrip;
       }));
-      if (editingPassengerSeatId === seatId) setEditingPassengerSeatId(null);
+      if (editingPassengerSeatId && groupSeatIds.includes(editingPassengerSeatId)) setEditingPassengerSeatId(null);
     } catch (err) {
       console.error('Failed to delete passenger:', err);
     }
@@ -1019,10 +1030,35 @@ export default function App() {
     return map;
   };
 
-  const exportTripToExcel = (trip: any) => {
+  // Helper: get all seat IDs in the same booking group as the given seatId
+  const getBookingGroupSeatIds = (matchingBooking: any, fallbackSeatId: string): string[] => {
+    if (!matchingBooking) return [fallbackSeatId];
+    return matchingBooking.seatIds || (matchingBooking.seatId ? [matchingBooking.seatId] : [fallbackSeatId]);
+  };
+
+  // Helper: group booked seats by booking for a trip – returns ordered list of booking groups
+  const buildPassengerGroups = (tripId: string, bookedSeats: any[]): { booking: any; seats: any[] }[] => {
+    const seatToBookingMap = new Map<string, any>();
+    for (const bk of bookings) {
+      if (bk.tripId !== tripId) continue;
+      if (bk.seatId) seatToBookingMap.set(bk.seatId, bk);
+      if (bk.seatIds) { for (const sid of bk.seatIds) seatToBookingMap.set(sid, bk); }
+    }
+    const groupMap = new Map<string, { booking: any; seats: any[] }>();
+    for (const seat of bookedSeats) {
+      const bk = seatToBookingMap.get(seat.id);
+      const key = bk?.id || bk?.ticketCode || `__${seat.id}`;
+      if (!groupMap.has(key)) groupMap.set(key, { booking: bk, seats: [] });
+      groupMap.get(key)!.seats.push(seat);
+    }
+    return [...groupMap.values()];
+  };
+
+
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
     const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id);
+    const passengerGroups = buildPassengerGroups(trip.id, bookedSeats);
     const headerRows = [
       ['DANH SÁCH HÀNH KHÁCH - TRIP DETAIL'],
       [`Số xe: ${trip.licensePlate || '—'}`],
@@ -1031,29 +1067,37 @@ export default function App() {
       [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
       [`Trạng thái: ${trip.status}`],
       [],
-      ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Trạng thái ghế', 'Giá vé (đ)', 'Ghi chú'],
+      ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
     ];
-    const dataRows = bookedSeats.map((seat: any, idx: number) => [
-      idx + 1,
-      seatTicketCodeMap.get(seat.id) || '—',
-      seat.id || '—',
-      seat.customerName || '—',
-      seat.customerPhone || '—',
-      seat.pickupAddress || '—',
-      seat.dropoffAddress || '—',
-      seat.status === SeatStatus.PAID ? 'Đã thanh toán' : 'Đã đặt',
-      (trip.price || 0).toLocaleString(),
-      seat.bookingNote || '',
-    ]);
+    const dataRows = passengerGroups.map((g, idx) => {
+      const primarySeat = g.seats[0];
+      const seatIds = g.seats.map((s: any) => s.id).join(', ');
+      const ticketCode = g.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
+      const allPaid = g.seats.every((s: any) => s.status === SeatStatus.PAID);
+      const totalAmount = g.booking?.amount ?? (trip.price || 0) * g.seats.length;
+      return [
+        idx + 1,
+        ticketCode,
+        seatIds,
+        primarySeat.customerName || '—',
+        primarySeat.customerPhone || '—',
+        primarySeat.pickupAddress || '—',
+        primarySeat.dropoffAddress || '—',
+        allPaid ? 'Đã thanh toán' : 'Đã đặt',
+        totalAmount.toLocaleString(),
+        primarySeat.bookingNote || '',
+      ];
+    });
+    const totalRevenue = passengerGroups.reduce((sum, g) => sum + (g.booking?.amount ?? (trip.price || 0) * g.seats.length), 0);
     const summaryRows = [
       [],
-      [`Tổng số ghế đã đặt: ${bookedSeats.length}`],
-      [`Tổng doanh thu dự kiến: ${(bookedSeats.length * (trip.price || 0)).toLocaleString()}đ`],
+      [`Tổng số đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)`],
+      [`Tổng doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ`],
     ];
     const allRows = [...headerRows, ...dataRows, ...summaryRows];
     const worksheet = XLSX.utils.aoa_to_sheet(allRows);
     worksheet['!cols'] = [
-      { wch: 5 }, { wch: 14 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
+      { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
@@ -1078,6 +1122,8 @@ export default function App() {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
     const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id);
+    const passengerGroups = buildPassengerGroups(trip.id, bookedSeats);
+    const totalRevenue = passengerGroups.reduce((sum, g) => sum + (g.booking?.amount ?? (trip.price || 0) * g.seats.length), 0);
     const htmlContent = `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -1093,6 +1139,7 @@ export default function App() {
     th { background: #cc2222; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }
     td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 12px; }
     tr:nth-child(even) { background: #f9f9f9; }
+    .group-row { background: #fff8e1 !important; }
     .summary { margin-top: 16px; font-weight: bold; color: #cc2222; }
     @media print { button { display: none; } }
   </style>
@@ -1112,23 +1159,31 @@ export default function App() {
       </tr>
     </thead>
     <tbody>
-      ${bookedSeats.map((seat: any, i: number) => `
-        <tr>
+      ${passengerGroups.map((g, i) => {
+        const primarySeat = g.seats[0];
+        const seatIds = g.seats.map((s: any) => s.id).join(', ');
+        const ticketCode = g.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
+        const allPaid = g.seats.every((s: any) => s.status === 'PAID');
+        const totalAmount = g.booking?.amount ?? (trip.price || 0) * g.seats.length;
+        const isGroup = g.seats.length > 1;
+        return `
+        <tr${isGroup ? ' class="group-row"' : ''}>
           <td>${i + 1}</td>
-          <td>${escapeHtml(seatTicketCodeMap.get(seat.id)) || '—'}</td>
-          <td>${escapeHtml(seat.id) || '—'}</td>
-          <td>${escapeHtml(seat.customerName) || '—'}</td>
-          <td>${escapeHtml(seat.customerPhone) || '—'}</td>
-          <td>${escapeHtml(seat.pickupAddress) || '—'}</td>
-          <td>${escapeHtml(seat.dropoffAddress) || '—'}</td>
-          <td>${seat.status === 'PAID' ? 'Đã TT' : 'Đã đặt'}</td>
-          <td>${(trip.price || 0).toLocaleString()}đ</td>
-          <td>${escapeHtml(seat.bookingNote) || ''}</td>
-        </tr>`).join('')}
+          <td>${escapeHtml(ticketCode)}</td>
+          <td>${escapeHtml(seatIds)}${isGroup ? ' 👥' : ''}</td>
+          <td>${escapeHtml(primarySeat.customerName) || '—'}</td>
+          <td>${escapeHtml(primarySeat.customerPhone) || '—'}</td>
+          <td>${escapeHtml(primarySeat.pickupAddress) || '—'}</td>
+          <td>${escapeHtml(primarySeat.dropoffAddress) || '—'}</td>
+          <td>${allPaid ? 'Đã TT' : 'Đã đặt'}</td>
+          <td>${totalAmount.toLocaleString()}đ</td>
+          <td>${escapeHtml(primarySeat.bookingNote) || ''}</td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table>
   <div class="summary">
-    <p>Tổng ghế đã đặt: ${bookedSeats.length} | Doanh thu dự kiến: ${(bookedSeats.length * (trip.price || 0)).toLocaleString()}đ</p>
+    <p>Tổng đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế) | Doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ</p>
   </div>
 </body>
 </html>`;
@@ -2285,6 +2340,11 @@ export default function App() {
                   } else {
                     setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
                     setShowBookingForm(seatId);
+                    // Pre-fill name & phone for logged-in customers
+                    if (currentUser?.role === UserRole.CUSTOMER) {
+                      if (currentUser.name) setCustomerNameInput(currentUser.name);
+                      if (currentUser.phone) setPhoneInput(currentUser.phone);
+                    }
                   }
                 }}
                 className={cn(
@@ -4938,17 +4998,10 @@ export default function App() {
 
             {/* Passenger List Modal */}
             {showTripPassengers && (() => {
-              // Pre-compute a map from seatId -> ticketCode for O(1) lookup in each row
-              const seatTicketCodeMap = new Map<string, string>();
-              for (const bk of bookings) {
-                if (bk.tripId !== showTripPassengers.id) continue;
-                if (bk.ticketCode) {
-                  if (bk.seatId) seatTicketCodeMap.set(bk.seatId, bk.ticketCode);
-                  if (bk.seatIds) {
-                    for (const sid of bk.seatIds) seatTicketCodeMap.set(sid, bk.ticketCode);
-                  }
-                }
-              }
+              // Pre-compute ticketCode map and group seats by booking
+              const seatTicketCodeMap = buildSeatTicketCodeMap(showTripPassengers.id);
+              const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
+              const passengerGroups = buildPassengerGroups(showTripPassengers.id, bookedSeats);
               return (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
@@ -4982,6 +5035,7 @@ export default function App() {
                           { key: 'pickup', label: language === 'vi' ? 'Điểm đón' : 'Pickup' },
                           { key: 'dropoff', label: language === 'vi' ? 'Điểm trả' : 'Dropoff' },
                           { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
+                          { key: 'price', label: language === 'vi' ? 'Giá vé' : 'Price' },
                           { key: 'note', label: language === 'vi' ? 'Ghi chú' : 'Note' },
                         ] as { key: keyof typeof passengerColVisibility; label: string }[]).map(({ key, label }) => (
                           <button
@@ -5014,7 +5068,7 @@ export default function App() {
                       </div>
                     );
                   })()}
-                  {/* Passenger table */}
+                  {/* Passenger table – one row per booking group */}
                   <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-gray-50 sticky top-0 z-10">
@@ -5027,17 +5081,27 @@ export default function App() {
                           {passengerColVisibility.pickup && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>}
                           {passengerColVisibility.dropoff && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>}
                           {passengerColVisibility.status && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>}
+                          {passengerColVisibility.price && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Giá vé' : 'Price'}</th>}
                           {passengerColVisibility.note && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>}
                           <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-20">{t.options}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {(showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).map((seat: any, idx: number) => (
-                          editingPassengerSeatId === seat.id ? (
-                            <tr key={seat.id} className="bg-blue-50">
+                        {passengerGroups.map((group, idx) => {
+                          const primarySeat = group.seats[0];
+                          const isGroup = group.seats.length > 1;
+                          const seatIds = group.seats.map((s: any) => s.id).join(', ');
+                          const ticketCode = group.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
+                          const allPaid = group.seats.every((s: any) => s.status === SeatStatus.PAID);
+                          const rowStatus = allPaid ? SeatStatus.PAID : SeatStatus.BOOKED;
+                          const totalAmount = group.booking?.amount ?? (showTripPassengers.price || 0) * group.seats.length;
+                          const isEditing = editingPassengerSeatId === primarySeat.id;
+                          const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
+                          return isEditing ? (
+                            <tr key={rowKey} className="bg-blue-50">
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{seatTicketCodeMap.get(seat.id) || '—'}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seat.id}</td>}
+                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{ticketCode}</td>}
+                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
                               {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                               {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                               {passengerColVisibility.pickup && <td className="px-4 py-3"><input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
@@ -5048,6 +5112,7 @@ export default function App() {
                                   <option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
                                 </select>
                               </td>}
+                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
                               {passengerColVisibility.note && <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                               <td className="px-4 py-3">
                                 <div className="flex gap-1">
@@ -5057,32 +5122,36 @@ export default function App() {
                               </td>
                             </tr>
                           ) : (
-                            <tr key={seat.id} className="hover:bg-gray-50">
+                            <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40')}>
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{seatTicketCodeMap.get(seat.id) || '—'}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seat.id}</td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{seat.customerName || '—'}</td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{seat.customerPhone || '—'}</td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{seat.pickupAddress || '—'}</td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{seat.dropoffAddress || '—'}</td>}
+                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{ticketCode}</td>}
+                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">
+                                {seatIds}
+                                {isGroup && <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold">👥 {group.seats.length}</span>}
+                              </td>}
+                              {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
+                              {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
+                              {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{primarySeat.pickupAddress || '—'}</td>}
+                              {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{primarySeat.dropoffAddress || '—'}</td>}
                               {passengerColVisibility.status && <td className="px-4 py-3">
-                                <span className={cn('px-2 py-1 rounded-full text-xs font-bold', seat.status === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
-                                  {seat.status === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
+                                <span className={cn('px-2 py-1 rounded-full text-xs font-bold', rowStatus === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
+                                  {rowStatus === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
                                 </span>
                               </td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{seat.bookingNote || '—'}</td>}
+                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
+                              {passengerColVisibility.note && <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{primarySeat.bookingNote || '—'}</td>}
                               <td className="px-4 py-3">
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => {
-                                      setEditingPassengerSeatId(seat.id);
+                                      setEditingPassengerSeatId(primarySeat.id);
                                       setPassengerEditForm({
-                                        customerName: seat.customerName || '',
-                                        customerPhone: seat.customerPhone || '',
-                                        pickupAddress: seat.pickupAddress || '',
-                                        dropoffAddress: seat.dropoffAddress || '',
-                                        status: seat.status,
-                                        bookingNote: seat.bookingNote || '',
+                                        customerName: primarySeat.customerName || '',
+                                        customerPhone: primarySeat.customerPhone || '',
+                                        pickupAddress: primarySeat.pickupAddress || '',
+                                        dropoffAddress: primarySeat.dropoffAddress || '',
+                                        status: rowStatus,
+                                        bookingNote: primarySeat.bookingNote || '',
                                       });
                                     }}
                                     className="text-gray-400 hover:text-daiichi-red p-1 rounded"
@@ -5091,7 +5160,7 @@ export default function App() {
                                     <Edit3 size={14} />
                                   </button>
                                   <button
-                                    onClick={() => handleDeletePassenger(seat.id)}
+                                    onClick={() => handleDeletePassenger(primarySeat.id)}
                                     className="text-gray-400 hover:text-red-600 p-1 rounded"
                                     title={language === 'vi' ? 'Xóa hành khách' : 'Remove passenger'}
                                   >
@@ -5100,9 +5169,9 @@ export default function App() {
                                 </div>
                               </td>
                             </tr>
-                          )
-                        ))}
-                        {(showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length === 0 && (
+                          );
+                        })}
+                        {passengerGroups.length === 0 && (
                           <tr><td colSpan={2 + Object.values(passengerColVisibility).filter(Boolean).length} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
                         )}
                       </tbody>
