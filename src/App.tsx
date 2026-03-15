@@ -852,15 +852,18 @@ export default function App() {
     trip.date ? `${trip.date} ${trip.time}` : trip.time;
 
   const getLocalDateString = (offsetDays: number = 0): string => {
-    const d = new Date();
+    // Get today in Vietnam timezone as a YYYY-MM-DD string, then offset from that date
+    const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const d = new Date(todayVN + 'T00:00:00');
     d.setDate(d.getDate() + offsetDays);
-    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   };
 
   const getOffsetDayLabel = (offsetDays: number): string => {
-    const d = new Date();
+    const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const d = new Date(todayVN + 'T00:00:00');
     d.setDate(d.getDate() + offsetDays);
-    return d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit' });
+    return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
   };
 
   const compareTripDateTime = (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => {
@@ -5690,7 +5693,7 @@ export default function App() {
                       );
                     })}
                     {completedTrips.length === 0 && (
-                      <tr><td colSpan={(tripColVisibility.time ? 1 : 0) + (tripColVisibility.licensePlate ? 1 : 0) + (tripColVisibility.route ? 1 : 0) + (tripColVisibility.driver ? 1 : 0) + (tripColVisibility.seats ? 1 : 0) + (tripColVisibility.passengers ? 1 : 0) + (tripColVisibility.addons ? 1 : 0) + 1} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có chuyến nào hoàn thành' : 'No completed trips yet'}</td></tr>
+                      <tr><td colSpan={['time','licensePlate','route','driver','seats','passengers','addons'].filter(k => tripColVisibility[k as keyof typeof tripColVisibility]).length + 1} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có chuyến nào hoàn thành' : 'No completed trips yet'}</td></tr>
                     )}
                   </tbody>
                 </table>
