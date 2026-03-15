@@ -373,7 +373,7 @@ export default function App() {
 
   // Ensure agents and guests start on the home page
   useEffect(() => {
-    if (currentUser && (currentUser.role === UserRole.AGENT || currentUser.role === UserRole.CUSTOMER)) {
+    if (currentUser && (currentUser.role === UserRole.AGENT || currentUser.role === UserRole.CUSTOMER || currentUser.role === UserRole.GUEST)) {
       setActiveTab('home');
     }
   }, [currentUser]);
@@ -3639,9 +3639,9 @@ export default function App() {
           AGENT: 'bg-orange-50 text-orange-600',
         };
 
-        // Derive available permission groups from the permissions config (exclude MANAGER and CUSTOMER)
+        // Derive available permission groups from the permissions config (exclude MANAGER, CUSTOMER and GUEST)
         const availableRoles = permissions
-          ? Object.keys(permissions).filter(r => r !== 'MANAGER' && r !== 'CUSTOMER')
+          ? Object.keys(permissions).filter(r => r !== 'MANAGER' && r !== 'CUSTOMER' && r !== 'GUEST')
           : [];
 
         return (
