@@ -984,8 +984,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   {/* Date */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày' : 'Date'}</label>
-                    <input type="text" value={editingBooking.date || ''}
+                    <input type="date" value={editingBooking.date || ''}
                       onChange={e => setEditingBooking({...editingBooking, date: e.target.value})}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                  </div>
+                  {/* Time */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giờ khởi hành' : 'Departure Time'}</label>
+                    <input type="time" value={editingBooking.time || ''}
+                      onChange={e => setEditingBooking({...editingBooking, time: e.target.value})}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                  </div>
+                  {/* Route */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tuyến/Tour' : 'Route/Tour'}</label>
+                    <input type="text" value={editingBooking.route || ''}
+                      onChange={e => setEditingBooking({...editingBooking, route: e.target.value})}
                       className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>
                   {/* Persons */}
@@ -1039,6 +1053,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-100 rounded-2xl text-gray-500 cursor-not-allowed" />
                     </div>
                   )}
+                  {/* Pickup/Dropoff for TRIP bookings */}
+                  {editingBooking.type !== 'TOUR' && (
+                    <>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm đón (địa chỉ)' : 'Pickup Address'}</label>
+                        <input type="text" value={editingBooking.pickupAddress || ''}
+                          onChange={e => setEditingBooking({...editingBooking, pickupAddress: e.target.value})}
+                          className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm trả (địa chỉ)' : 'Dropoff Address'}</label>
+                        <input type="text" value={editingBooking.dropoffAddress || ''}
+                          onChange={e => setEditingBooking({...editingBooking, dropoffAddress: e.target.value})}
+                          className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      </div>
+                    </>
+                  )}
                   {/* Notes */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</label>
@@ -1064,6 +1095,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       {uniqueAgents.filter(a => a !== 'Trực tiếp').map(a => (
                         <option key={a} value={a}>{a}</option>
                       ))}
+                    </select>
+                  </div>
+                  {/* Payment Method */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Phương thức thanh toán' : 'Payment Method'}</label>
+                    <select value={editingBooking.paymentMethod || ''}
+                      onChange={e => setEditingBooking({...editingBooking, paymentMethod: e.target.value})}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
+                      <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
+                      <option value="Tiền mặt">{language === 'vi' ? 'Tiền mặt' : 'Cash'}</option>
+                      <option value="Chuyển khoản">{language === 'vi' ? 'Chuyển khoản' : 'Bank Transfer'}</option>
+                      <option value="MoMo">MoMo</option>
+                      <option value="ZaloPay">ZaloPay</option>
+                      <option value="Giữ vé">{language === 'vi' ? 'Giữ vé' : 'Hold Ticket'}</option>
                     </select>
                   </div>
                   {/* Status */}
