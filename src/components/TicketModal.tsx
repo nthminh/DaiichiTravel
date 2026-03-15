@@ -19,7 +19,7 @@ interface TicketModalProps {
 export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, onRegisterMember }) => {
   const t = TRANSLATIONS[language];
   const [copied, setCopied] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
+  const [showRegister, setShowRegister] = useState(true);
   const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regEmail, setRegEmail] = useState('');
