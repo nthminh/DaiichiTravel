@@ -14,7 +14,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -760,5 +760,86 @@ export const transportService = {
   deleteUserGuide: async (guideId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'userGuides', guideId));
+  },
+
+  // ─── Customer Profiles ────────────────────────────────────────────────────
+
+  subscribeToCustomers: (callback: (customers: CustomerProfile[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'customers'), orderBy('registeredAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const customers = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as CustomerProfile[];
+      callback(customers);
+    }, () => callback([]));
+  },
+
+  addCustomer: async (customer: Omit<CustomerProfile, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'customers'), customer);
+  },
+
+  updateCustomer: async (customerId: string, updates: Partial<Omit<CustomerProfile, 'id'>>) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'customers', customerId), updates as Record<string, unknown>);
+  },
+
+  deleteCustomer: async (customerId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'customers', customerId));
+  },
+
+  // Record a customer's activity (viewed routes/tours, bookings) for recommendations
+  recordCustomerActivity: async (
+    customerId: string,
+    activity: {
+      viewedRoute?: string;
+      viewedTour?: string;
+      bookedRoute?: string;
+      vehicleType?: string;
+      departurePoint?: string;
+      arrivalPoint?: string;
+    }
+  ) => {
+    if (!db) return;
+    const ref = doc(db, 'customers', customerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const data = snap.data() as CustomerProfile;
+    const now = new Date().toISOString();
+    const updates: Partial<CustomerProfile> = { lastActivityAt: now };
+
+    if (activity.viewedRoute) {
+      const routes = new Set(data.viewedRoutes || []);
+      routes.add(activity.viewedRoute);
+      updates.viewedRoutes = Array.from(routes).slice(-20); // keep last 20
+    }
+    if (activity.viewedTour) {
+      const tours = new Set(data.viewedTours || []);
+      tours.add(activity.viewedTour);
+      updates.viewedTours = Array.from(tours).slice(-20);
+    }
+    if (activity.bookedRoute) {
+      const booked = new Set(data.bookedRoutes || []);
+      booked.add(activity.bookedRoute);
+      updates.bookedRoutes = Array.from(booked).slice(-20);
+    }
+    const prefs = data.preferences || {};
+    if (activity.vehicleType) {
+      const types = new Set(prefs.vehicleTypes || []);
+      types.add(activity.vehicleType);
+      updates.preferences = { ...prefs, vehicleTypes: Array.from(types) };
+    }
+    if (activity.departurePoint) {
+      const depts = new Set(prefs.departurePoints || []);
+      depts.add(activity.departurePoint);
+      updates.preferences = { ...(updates.preferences ?? prefs), departurePoints: Array.from(depts) };
+    }
+    if (activity.arrivalPoint) {
+      const arrs = new Set(prefs.arrivalPoints || []);
+      arrs.add(activity.arrivalPoint);
+      updates.preferences = { ...(updates.preferences ?? prefs), arrivalPoints: Array.from(arrs) };
+    }
+
+    await updateDoc(ref, updates as Record<string, unknown>);
   },
 };

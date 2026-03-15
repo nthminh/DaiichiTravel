@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   X, Download, Share2, CheckCircle2, 
   MapPin, Calendar, Clock, User, Users,
-  CreditCard, QrCode, Copy, Palmtree, Moon, Coffee
+  CreditCard, QrCode, Copy, Palmtree, Moon, Coffee, UserPlus, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -13,11 +13,19 @@ interface TicketModalProps {
   onClose: () => void;
   booking: any;
   language: Language;
+  onRegisterMember?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
 }
 
-export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language }) => {
+export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, onRegisterMember }) => {
   const t = TRANSLATIONS[language];
   const [copied, setCopied] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regSaving, setRegSaving] = useState(false);
+  const [regDone, setRegDone] = useState(false);
+  const [regError, setRegError] = useState('');
   if (!booking) return null;
 
   const isTour = booking.type === 'TOUR';
@@ -350,9 +358,115 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                     : (language === 'vi' ? 'Quét mã để lên xe' : 'Scan to board')}
                 </p>
               </div>
-            </div>
 
-            {/* Actions */}
+              {/* Member registration prompt */}
+              {onRegisterMember && !regDone && (
+                <div className="border border-daiichi-red/20 rounded-3xl overflow-hidden bg-gradient-to-br from-red-50 to-orange-50">
+                  <button
+                    onClick={() => setShowRegister(p => !p)}
+                    className="w-full flex items-center justify-between px-5 py-4 text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-daiichi-red/10 rounded-xl flex items-center justify-center text-daiichi-red">
+                        <UserPlus size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">{t.register_member_title || 'Trở thành thành viên Daiichi Travel!'}</p>
+                        <p className="text-[11px] text-gray-500">{t.register_member_desc || 'Đăng ký để nhận ưu đãi và gợi ý chuyến xe phù hợp.'}</p>
+                      </div>
+                    </div>
+                    {showRegister ? <ChevronUp size={16} className="text-gray-400 shrink-0" /> : <ChevronDown size={16} className="text-gray-400 shrink-0" />}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {showRegister && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-5 pb-5 space-y-3">
+                          {regError && (
+                            <p className="text-xs text-red-600 font-medium">{regError}</p>
+                          )}
+                          <input
+                            type="email"
+                            value={regEmail}
+                            onChange={e => setRegEmail(e.target.value)}
+                            placeholder={language === 'vi' ? 'Email (không bắt buộc)' : 'Email (optional)'}
+                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                          />
+                          <input
+                            type="text"
+                            value={regUsername}
+                            onChange={e => setRegUsername(e.target.value)}
+                            placeholder={language === 'vi' ? 'Tên đăng nhập (để trống dùng SĐT)' : 'Username (leave blank to use phone)'}
+                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                          />
+                          <input
+                            type="password"
+                            value={regPassword}
+                            onChange={e => setRegPassword(e.target.value)}
+                            placeholder={language === 'vi' ? 'Mật khẩu *' : 'Password *'}
+                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                          />
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowRegister(false)}
+                              className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-sm text-gray-600 bg-white hover:bg-gray-50 transition-all"
+                            >
+                              {t.register_member_skip || 'Bỏ qua'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={regSaving || !regPassword.trim()}
+                              onClick={async () => {
+                                if (!regPassword.trim()) return;
+                                setRegSaving(true);
+                                setRegError('');
+                                try {
+                                  const ok = await onRegisterMember({
+                                    name: booking.customerName,
+                                    phone: booking.phone,
+                                    email: regEmail.trim() || undefined,
+                                    username: regUsername.trim() || undefined,
+                                    password: regPassword.trim(),
+                                  });
+                                  if (ok) {
+                                    setRegDone(true);
+                                    setShowRegister(false);
+                                  } else {
+                                    setRegError(t.register_member_exists || 'Số điện thoại đã được đăng ký.');
+                                  }
+                                } catch {
+                                  setRegError(language === 'vi' ? 'Đăng ký thất bại. Vui lòng thử lại.' : 'Registration failed. Please try again.');
+                                } finally {
+                                  setRegSaving(false);
+                                }
+                              }}
+                              className="flex-1 py-2.5 bg-daiichi-red text-white rounded-xl font-bold text-sm shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all disabled:opacity-50"
+                            >
+                              {regSaving ? '...' : (t.register_member_submit || 'Đăng ký ngay')}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Registration success message */}
+              {regDone && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-100 rounded-2xl">
+                  <CheckCircle2 size={20} className="text-green-500 shrink-0" />
+                  <p className="text-sm font-bold text-green-700">{t.register_member_success || 'Đăng ký thành công! Chào mừng bạn.'}</p>
+                </div>
+              )}
+            </div>
             <div className="ticket-actions-print p-6 bg-gray-50 flex gap-3 shrink-0">
               <button onClick={onClose} className="flex items-center justify-center gap-2 px-5 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
                 <X size={18} />

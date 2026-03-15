@@ -332,3 +332,28 @@ export interface UserGuide {
   blocks: GuideBlock[];
   updatedAt: number; // Unix timestamp ms
 }
+
+// Customer profile stored in Firestore customers collection
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  username?: string;
+  password?: string;
+  note?: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  registeredAt: string;      // ISO timestamp
+  lastActivityAt?: string;   // ISO timestamp of last known activity
+  // Behavior tracking for personalised suggestions
+  viewedRoutes?: string[];   // route names the customer has searched/viewed
+  viewedTours?: string[];    // tour ids the customer has viewed
+  bookedRoutes?: string[];   // routes they have actually booked
+  preferences?: {            // inferred preference tags e.g. 'limousine', 'night-bus'
+    vehicleTypes?: string[];
+    departurePoints?: string[];
+    arrivalPoints?: string[];
+  };
+  totalBookings?: number;
+  totalSpent?: number;
+}
