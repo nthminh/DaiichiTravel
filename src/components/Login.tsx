@@ -386,6 +386,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         username: customer.username || customer.phone,
         role: UserRole.CUSTOMER,
         name: customer.name,
+        phone: customer.phone,
       });
       return;
     }
