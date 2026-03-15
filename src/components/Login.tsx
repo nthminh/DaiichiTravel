@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
@@ -14,8 +14,10 @@ interface LoginProps {
   adminCredentials: any;
   agents: any[];
   employees?: any[];
+  customers?: any[];
   agentsLoading?: boolean;
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
+  onRegister?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
 }
 
 const RECAPTCHA_SITE_KEY =
@@ -76,12 +78,31 @@ const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   animationDuration: `${PARTICLE_MIN_DURATION + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_DURATION_STEP}s`,
 }));
 
-export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, agentsLoading, securityConfig }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, customers, agentsLoading, securityConfig, onRegister }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [infoMessage, setInfoMessage] = useState('');
+
+  // Member login panel (customer accounts)
+  const [showMemberLogin, setShowMemberLogin] = useState(false);
+  const [memberUsername, setMemberUsername] = useState('');
+  const [memberPassword, setMemberPassword] = useState('');
+  const [memberLoginError, setMemberLoginError] = useState('');
+  const [showMemberPassword, setShowMemberPassword] = useState(false);
+
+  // Member registration panel
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [regSaving, setRegSaving] = useState(false);
+  const [regDone, setRegDone] = useState(false);
+  const [regError, setRegError] = useState('');
 
   // OTP / phone verification state
   const [otpStep, setOtpStep] = useState(false);
@@ -312,6 +333,62 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
 
     setError(t.login_error);
+  };
+
+  const handleMemberLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMemberLoginError('');
+    if (!customers || customers.length === 0) {
+      setMemberLoginError(t.login_error);
+      return;
+    }
+    const normalizedUsername = memberUsername.trim().toLowerCase();
+    const trimmedPassword = memberPassword.trim();
+    const customer = customers.find(c =>
+      c.status !== 'INACTIVE' &&
+      c.password != null &&
+      (
+        (c.username && String(c.username).trim().toLowerCase() === normalizedUsername) ||
+        (c.phone && String(c.phone).trim().toLowerCase() === normalizedUsername)
+      ) &&
+      String(c.password).trim() === trimmedPassword
+    );
+    if (customer) {
+      onLogin({
+        id: customer.id,
+        username: customer.username || customer.phone,
+        role: UserRole.CUSTOMER,
+        name: customer.name,
+      });
+      return;
+    }
+    setMemberLoginError(t.login_error);
+  };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onRegister) return;
+    if (!regName.trim() || !regPhone.trim() || !regPassword.trim()) return;
+    setRegSaving(true);
+    setRegError('');
+    try {
+      const ok = await onRegister({
+        name: regName.trim(),
+        phone: regPhone.trim(),
+        email: regEmail.trim() || undefined,
+        username: regUsername.trim() || undefined,
+        password: regPassword.trim(),
+      });
+      if (ok) {
+        setRegDone(true);
+      } else {
+        setRegError(t.register_member_exists || 'Số điện thoại đã được đăng ký.');
+      }
+    } catch {
+      setRegError(language === 'vi' ? 'Đăng ký thất bại. Vui lòng thử lại.' : 'Registration failed. Please try again.');
+    } finally {
+      setRegSaving(false);
+    }
   };
 
   const handleGuestLogin = () => {
@@ -638,6 +715,238 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           </div>
             </>
           )}
+        </motion.div>
+
+        {/* ── Member section: login or register ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38 }}
+          className="glass-card p-5 rounded-3xl shadow-2xl mt-4"
+        >
+          {/* Tab switcher */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => { setShowMemberLogin(true); setShowRegisterForm(false); setMemberLoginError(''); }}
+              className={cn(
+                'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
+                showMemberLogin && !showRegisterForm
+                  ? 'bg-white text-daiichi-red shadow'
+                  : 'text-white/60 hover:text-white'
+              )}
+            >
+              {t.member_login_btn || 'Đăng nhập thành viên'}
+            </button>
+            {onRegister && (
+              <button
+                onClick={() => { setShowRegisterForm(true); setShowMemberLogin(false); setRegError(''); setRegDone(false); }}
+                className={cn(
+                  'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
+                  showRegisterForm
+                    ? 'bg-white text-daiichi-red shadow'
+                    : 'text-white/60 hover:text-white'
+                )}
+              >
+                {t.member_register_btn || 'Đăng ký thành viên'}
+              </button>
+            )}
+          </div>
+
+          <AnimatePresence initial={false} mode="wait">
+            {/* Member Login form */}
+            {showMemberLogin && !showRegisterForm && (
+              <motion.div
+                key="member-login"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+              >
+                <form onSubmit={handleMemberLogin} className="space-y-3">
+                  <input
+                    type="text"
+                    value={memberUsername}
+                    onChange={e => setMemberUsername(e.target.value)}
+                    placeholder={t.member_username_placeholder || 'Tên đăng nhập hoặc SĐT'}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                    autoComplete="username"
+                  />
+                  <div className="relative">
+                    <input
+                      type={showMemberPassword ? 'text' : 'password'}
+                      value={memberPassword}
+                      onChange={e => setMemberPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMemberPassword(p => !p)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                    >
+                      {showMemberPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {memberLoginError && (
+                    <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                      {memberLoginError}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all"
+                  >
+                    {t.member_login_btn || 'Đăng nhập thành viên'}
+                  </button>
+                  {onRegister && (
+                    <p className="text-center text-white/50 text-xs pt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setShowRegisterForm(true); setShowMemberLogin(false); }}
+                        className="underline hover:text-white transition-colors"
+                      >
+                        {t.login_switch_to_register || 'Chưa có tài khoản? Đăng ký'}
+                      </button>
+                    </p>
+                  )}
+                </form>
+              </motion.div>
+            )}
+
+            {/* Registration form */}
+            {showRegisterForm && onRegister && (
+              <motion.div
+                key="register"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+              >
+                {regDone ? (
+                  <div className="flex flex-col items-center gap-3 py-4 text-center">
+                    <CheckCircle2 size={32} className="text-green-300" />
+                    <p className="text-white font-bold text-sm">{t.register_success_login || 'Đăng ký thành công! Vui lòng đăng nhập.'}</p>
+                    <button
+                      onClick={() => {
+                        // Pre-fill the member login with the stored (lowercase) username
+                        const normalizedPhone = regPhone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
+                        const storedUsername = (regUsername.trim() || normalizedPhone || regPhone).toLowerCase();
+                        setRegDone(false);
+                        setShowRegisterForm(false);
+                        setShowMemberLogin(true);
+                        setMemberUsername(storedUsername);
+                        setMemberPassword('');
+                      }}
+                      className="mt-2 px-6 py-2.5 bg-white text-daiichi-red rounded-xl font-bold text-sm shadow hover:scale-[1.02] transition-all"
+                    >
+                      {t.member_login_btn || 'Đăng nhập thành viên'}
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                    <input
+                      type="text"
+                      value={regName}
+                      onChange={e => setRegName(e.target.value)}
+                      placeholder={`${t.register_full_name || 'Họ và tên'} *`}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                      required
+                    />
+                    <input
+                      type="tel"
+                      value={regPhone}
+                      onChange={e => setRegPhone(e.target.value)}
+                      placeholder={`${t.register_phone || 'Số điện thoại'} *`}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                      required
+                    />
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={e => setRegEmail(e.target.value)}
+                      placeholder={t.register_email_hint || 'Email (không bắt buộc)'}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={regUsername}
+                      onChange={e => setRegUsername(e.target.value)}
+                      placeholder={t.register_username_hint || 'Tên đăng nhập (để trống dùng SĐT)'}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                    />
+                    <div className="relative">
+                      <input
+                        type={showRegPassword ? 'text' : 'password'}
+                        value={regPassword}
+                        onChange={e => setRegPassword(e.target.value)}
+                        placeholder={`${t.password || 'Mật khẩu'} *`}
+                        className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(p => !p)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                      >
+                        {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {regError && (
+                      <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                        {regError}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={regSaving || !regName.trim() || !regPhone.trim() || !regPassword.trim()}
+                      className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {regSaving ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                      {t.register_member_submit || 'Đăng ký ngay'}
+                    </button>
+                    <p className="text-center text-white/50 text-xs pt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setShowRegisterForm(false); setShowMemberLogin(true); }}
+                        className="underline hover:text-white transition-colors"
+                      >
+                        {t.register_switch_to_login || 'Đã có tài khoản? Đăng nhập'}
+                      </button>
+                    </p>
+                  </form>
+                )}
+              </motion.div>
+            )}
+
+            {/* Default: prompt to choose member login or register */}
+            {!showMemberLogin && !showRegisterForm && (
+              <motion.div
+                key="member-prompt"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex gap-3"
+              >
+                <button
+                  onClick={() => { setShowMemberLogin(true); setMemberLoginError(''); }}
+                  className="flex-1 py-3 rounded-xl text-white/80 border border-white/20 text-xs font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🔑</span>
+                  {t.member_login_btn || 'Đăng nhập thành viên'}
+                </button>
+                {onRegister && (
+                  <button
+                    onClick={() => { setShowRegisterForm(true); setRegError(''); setRegDone(false); }}
+                    className="flex-1 py-3 rounded-xl text-white/80 border border-white/20 text-xs font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                  >
+                    <UserPlus size={14} />
+                    {t.member_register_btn || 'Đăng ký thành viên'}
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
       {/* Hidden container required by Firebase RecaptchaVerifier (invisible mode) */}

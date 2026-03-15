@@ -361,7 +361,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
 
               {/* Member registration prompt */}
               {onRegisterMember && !regDone && (
-                <div className="border border-daiichi-red/20 rounded-3xl overflow-hidden bg-gradient-to-br from-red-50 to-orange-50">
+                <div className="ticket-no-print border border-daiichi-red/20 rounded-3xl overflow-hidden bg-gradient-to-br from-red-50 to-orange-50">
                   <button
                     onClick={() => setShowRegister(p => !p)}
                     className="w-full flex items-center justify-between px-5 py-4 text-left"
@@ -461,7 +461,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
 
               {/* Registration success message */}
               {regDone && (
-                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-100 rounded-2xl">
+                <div className="ticket-no-print flex items-center gap-3 p-4 bg-green-50 border border-green-100 rounded-2xl">
                   <CheckCircle2 size={20} className="text-green-500 shrink-0" />
                   <p className="text-sm font-bold text-green-700">{t.register_member_success || 'Đăng ký thành công! Chào mừng bạn.'}</p>
                 </div>

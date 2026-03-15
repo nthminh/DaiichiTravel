@@ -149,4 +149,7 @@
   .ticket-actions-print {
     display: none !important;
   }
+  .ticket-no-print {
+    display: none !important;
+  }
 }
