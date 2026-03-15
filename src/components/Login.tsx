@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
 import { app, auth } from '../lib/firebase';
-import { signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
+import { signInWithPhoneNumber, signInAnonymously, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface LoginProps {
@@ -140,6 +140,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       });
     }
     return recaptchaVerifierRef.current;
+  };
+
+  /**
+   * Ensures the current browser session has a Firebase Auth token.
+   * For users who log in via credentials (not phone OTP) we sign them in
+   * anonymously so that all subsequent Firestore writes include a valid
+   * auth token, satisfying the `request.auth != null` security rules.
+   * Phone-auth users are already signed-in by `signInWithPhoneNumber`.
+   */
+  const ensureFirebaseAuth = async (): Promise<void> => {
+    if (!auth) return;
+    if (auth.currentUser) return; // already signed in
+    try {
+      await signInAnonymously(auth);
+    } catch (err) {
+      // Anonymous sign-in is best-effort. If it fails (e.g. Anonymous auth not
+      // enabled in the Firebase project), the app continues – Firestore write
+      // rules will reject unauthenticated requests, but the UI logic is unchanged.
+      console.warn('[Auth] Anonymous sign-in failed:', err);
+    }
   };
 
   const t = TRANSLATIONS[language];
@@ -288,6 +308,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         await sendOtp(user, securityConfig.phoneNumbers[0]);
         return;
       }
+      await ensureFirebaseAuth();
       onLogin(user);
       return;
     }
@@ -304,6 +325,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       String(a.password).trim() === trimmedPassword
     );
     if (agent) {
+      await ensureFirebaseAuth();
       onLogin({ 
         id: agent.id, 
         username: agent.username!, 
@@ -325,6 +347,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         String(emp.password).trim() === trimmedPassword
       );
       if (employee) {
+        await ensureFirebaseAuth();
         onLogin({
           id: employee.id,
           username: employee.username,
@@ -338,7 +361,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setError(t.login_error);
   };
 
-  const handleMemberLogin = (e: React.FormEvent) => {
+  const handleMemberLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setMemberLoginError('');
     if (!customers || customers.length === 0) {
@@ -357,6 +380,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       String(c.password).trim() === trimmedPassword
     );
     if (customer) {
+      await ensureFirebaseAuth();
       onLogin({
         id: customer.id,
         username: customer.username || customer.phone,
@@ -394,7 +418,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
   };
 
-  const handleGuestLogin = () => {
+  const handleGuestLogin = async () => {
+    await ensureFirebaseAuth();
     onLogin({ id: 'guest', username: 'guest', role: UserRole.GUEST, name: 'Khách lẻ' });
   };
 
