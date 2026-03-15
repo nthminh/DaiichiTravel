@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language } from '../App';
 import { CustomerProfile } from '../types';
 import { transportService } from '../services/transportService';
@@ -42,13 +43,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const showError = (msg: string) => { setErrorMsg(msg); setTimeout(() => setErrorMsg(''), 4000); };
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    if (!q) return customers;
+    if (!search) return customers;
     return customers.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      (c.email || '').toLowerCase().includes(q) ||
-      (c.username || '').toLowerCase().includes(q)
+      matchesSearch(c.name, search) ||
+      matchesSearch(c.phone, search) ||
+      matchesSearch(c.email || '', search) ||
+      matchesSearch(c.username || '', search) ||
+      matchesSearch(c.note || '', search)
     );
   }, [customers, search]);
 

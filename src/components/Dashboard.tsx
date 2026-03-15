@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
+import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
@@ -150,9 +151,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     }
 
     const matchesType = filterType === 'ALL' || b.type === filterType;
-    const matchesSearch = (b.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (b.agent || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (b.id || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const searchMatches = !searchTerm ||
+      matchesSearch(b.customerName || '', searchTerm) ||
+      matchesSearch(b.agent || '', searchTerm) ||
+      matchesSearch(b.id || '', searchTerm) ||
+      matchesSearch(b.customerPhone || '', searchTerm) ||
+      matchesSearch(b.route || '', searchTerm);
     
     const matchesAgent = agentFilter === 'ALL' || b.agent === agentFilter;
     const matchesStatus = filterStatus === 'ALL' || b.status === filterStatus;
@@ -162,7 +166,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     const matchesStart = !startDate || bookingDate >= new Date(startDate);
     const matchesEnd = !endDate || bookingDate <= new Date(endDate);
 
-    return matchesType && matchesSearch && matchesAgent && matchesStart && matchesEnd && matchesStatus;
+    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesStatus;
   }).sort(sortByCreatedDesc);
 
   const uniqueAgents = Array.from(new Set(bookings.filter(b => b.agentId).map(b => b.agent).filter(Boolean)));
@@ -175,16 +179,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       if (!matchesAgentId && !matchesAgentName) return false;
     }
 
-    const q = consignmentSearch.toLowerCase();
-    const matchesSearch = !q ||
-      (c.senderName || c.sender || '').toLowerCase().includes(q) ||
-      (c.receiverName || c.receiver || '').toLowerCase().includes(q) ||
-      (c.senderPhone || '').toLowerCase().includes(q) ||
-      (c.receiverPhone || '').toLowerCase().includes(q) ||
-      (c.id || '').toLowerCase().includes(q) ||
-      (c.type || '').toLowerCase().includes(q);
+    const q = consignmentSearch;
+    const searchMatches = !q ||
+      matchesSearch(c.senderName || c.sender || '', q) ||
+      matchesSearch(c.receiverName || c.receiver || '', q) ||
+      matchesSearch(c.senderPhone || '', q) ||
+      matchesSearch(c.receiverPhone || '', q) ||
+      matchesSearch(c.id || '', q) ||
+      matchesSearch(c.type || '', q) ||
+      matchesSearch(c.agentName || '', q);
     const matchesStatus = consignmentStatusFilter === 'ALL' || c.status === consignmentStatusFilter;
-    return matchesSearch && matchesStatus;
+    return searchMatches && matchesStatus;
   });
 
   // For agents: stats are scoped to their own data; for managers: show all
