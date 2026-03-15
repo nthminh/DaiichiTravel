@@ -30,7 +30,7 @@ const getRecaptchaToken = (): Promise<string> =>
     }
     g.ready(async () => {
       try {
-        const execute = g.execute ?? g.enterprise?.execute?.bind(g.enterprise);
+        const execute = g.execute;
         if (!execute) {
           reject(new Error('reCAPTCHA not loaded'));
           return;
