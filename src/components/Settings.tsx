@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Shield, User,
   Save, AlertCircle, CheckCircle2, Users, X, Check,
-  CreditCard, Clock, ToggleLeft, ToggleRight, Phone, Plus, Trash2
+  CreditCard, Clock, ToggleLeft, ToggleRight, Phone, Plus, Trash2, Pencil
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -39,6 +39,7 @@ export const Settings: React.FC<SettingsProps> = ({
     { id: 'routes', label: language === 'vi' ? 'Tuyến đường' : 'Routes', adminOnly: true },
     { id: 'vehicles', label: language === 'vi' ? 'Xe & Sơ đồ' : 'Vehicles', adminOnly: true },
     { id: 'operations', label: language === 'vi' ? 'Điều hành' : 'Operations', adminOnly: true },
+    { id: 'customers', label: language === 'vi' ? 'Khách hàng' : 'Customers', adminOnly: true },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', adminOnly: true },
     { id: 'financial-report', label: language === 'vi' ? 'Báo cáo tài chính' : 'Financial Report', adminOnly: true },
     { id: 'settings', label: language === 'vi' ? 'Cài đặt' : 'Settings' },
@@ -158,6 +159,8 @@ export const Settings: React.FC<SettingsProps> = ({
   };
   const [securityConfig, setSecurityConfig] = useState(DEFAULT_SECURITY_CONFIG);
   const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [editPhoneIndex, setEditPhoneIndex] = useState<number | null>(null);
+  const [editPhoneValue, setEditPhoneValue] = useState('');
 
   useEffect(() => {
     const unsubscribe = transportService.subscribeToSecurityConfig((saved) => {
@@ -200,6 +203,42 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const removePhoneNumber = (index: number) => {
     setSecurityConfig(prev => ({ ...prev, phoneNumbers: prev.phoneNumbers.filter((_, i) => i !== index) }));
+  };
+
+  const startEditPhone = (index: number) => {
+    setEditPhoneIndex(index);
+    setEditPhoneValue(securityConfig.phoneNumbers[index]);
+  };
+
+  const cancelEditPhone = () => {
+    setEditPhoneIndex(null);
+    setEditPhoneValue('');
+  };
+
+  const saveEditPhone = () => {
+    if (editPhoneIndex === null) return;
+    const trimmed = editPhoneValue.trim();
+    if (!trimmed) return;
+    const normalized = trimmed.startsWith('0') ? '+84' + trimmed.slice(1) : trimmed;
+    if (!/^\+\d{7,15}$/.test(normalized)) {
+      setErrorMsg(language === 'vi'
+        ? 'Số điện thoại không hợp lệ. Dùng định dạng 0912345678 hoặc +84912345678'
+        : 'Invalid phone number. Use 0912345678 or +84912345678 format');
+      setTimeout(() => setErrorMsg(''), 4000);
+      return;
+    }
+    const others = securityConfig.phoneNumbers.filter((_, i) => i !== editPhoneIndex);
+    if (others.includes(normalized)) {
+      setErrorMsg(language === 'vi' ? 'Số điện thoại đã tồn tại' : 'Phone number already exists');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+    setSecurityConfig(prev => ({
+      ...prev,
+      phoneNumbers: prev.phoneNumbers.map((p, i) => (i === editPhoneIndex ? normalized : p)),
+    }));
+    setEditPhoneIndex(null);
+    setEditPhoneValue('');
   };
 
   const saveSecurityConfig = async () => {
@@ -702,20 +741,45 @@ export const Settings: React.FC<SettingsProps> = ({
 
                   <div className="space-y-2 mb-3">
                     {securityConfig.phoneNumbers.map((phone, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
-                        <Phone size={14} className="text-gray-400 flex-shrink-0" />
-                        <span className="flex-1 text-sm font-mono text-gray-700">{phone}</span>
-                        {idx === 0 && (
-                          <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                            {language === 'vi' ? 'Chính' : 'Primary'}
-                          </span>
+                      <div key={idx}>
+                        {editPhoneIndex === idx ? (
+                          <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-xl">
+                            <Phone size={14} className="text-blue-400 flex-shrink-0" />
+                            <input
+                              type="tel"
+                              value={editPhoneValue}
+                              onChange={e => setEditPhoneValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveEditPhone(); } if (e.key === 'Escape') cancelEditPhone(); }}
+                              autoFocus
+                              className="flex-1 px-2 py-1 bg-white border border-blue-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            />
+                            <button onClick={saveEditPhone} className="p-1 text-green-600 hover:text-green-700 transition-colors"><Check size={14} /></button>
+                            <button onClick={cancelEditPhone} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><X size={14} /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                            <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="flex-1 text-sm font-mono text-gray-700">{phone}</span>
+                            {idx === 0 && (
+                              <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                                {language === 'vi' ? 'Chính' : 'Primary'}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => startEditPhone(idx)}
+                              className="text-gray-400 hover:text-blue-500 transition-colors p-1"
+                              title={language === 'vi' ? 'Sửa số điện thoại' : 'Edit phone number'}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={() => removePhoneNumber(idx)}
+                              className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         )}
-                        <button
-                          onClick={() => removePhoneNumber(idx)}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                        >
-                          <Trash2 size={14} />
-                        </button>
                       </div>
                     ))}
                     {securityConfig.phoneNumbers.length === 0 && (

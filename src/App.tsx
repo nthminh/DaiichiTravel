@@ -15,7 +15,7 @@ import {
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
 import { PAYMENT_METHODS, type PaymentMethod } from './constants/paymentMethods';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { db } from './lib/firebase';
@@ -40,6 +40,7 @@ import { matchesSearch } from './lib/searchUtils';
 import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { UserGuide } from './components/UserGuide';
+import { CustomerManagement } from './components/CustomerManagement';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -218,6 +219,9 @@ export default function App() {
 
   // Tours state (for customer-facing page)
   const [tours, setTours] = useState<TourItem[]>([]);
+
+  // Customer profiles state
+  const [customers, setCustomers] = useState<CustomerProfile[]>([]);
 
   // Agent CRUD state
   const [showAddAgent, setShowAddAgent] = useState(false);
@@ -450,6 +454,7 @@ export default function App() {
     const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
     const unsubscribeInvoices = transportService.subscribeToInvoices(setInvoices);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
+    const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -462,6 +467,7 @@ export default function App() {
       unsubscribeBookings();
       unsubscribeInvoices();
       unsubscribeUserGuides();
+      unsubscribeCustomers();
     };
   }, []);
 
@@ -1240,6 +1246,25 @@ export default function App() {
     }
   };
 
+  const handleRegisterMember = async (data: { name: string; phone: string; email?: string; username?: string; password: string }): Promise<boolean> => {
+    // Check if phone already registered
+    const exists = customers.some(c => c.phone === data.phone);
+    if (exists) return false;
+    // Normalize phone for default username: strip leading + and country code prefix if needed
+    const normalizedPhone = data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
+    await transportService.addCustomer({
+      name: data.name || (language === 'vi' ? 'Khách hàng' : 'Customer'),
+      phone: data.phone,
+      email: data.email,
+      username: data.username || normalizedPhone || data.phone,
+      password: data.password,
+      status: 'ACTIVE',
+      registeredAt: new Date().toISOString(),
+      totalBookings: 1,
+    });
+    return true;
+  };
+
   const handleCreateConsignment = async () => {
     if (!newConsignment.senderName || !newConsignment.receiverName) return;
     // Derive the display name for the current agent
@@ -1623,6 +1648,9 @@ export default function App() {
             onUpdateAdmin={handleUpdateAdmin} 
           />
         );
+
+      case 'customers':
+        return <CustomerManagement language={language} customers={customers} />;
       
       case 'home':
         return (
@@ -5604,6 +5632,7 @@ export default function App() {
         }}
         booking={lastBooking}
         language={language}
+        onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
       />
       <Sidebar 
         activeTab={activeTab} 
