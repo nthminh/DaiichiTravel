@@ -149,8 +149,13 @@ export const verifyRecaptchaAndSendOtp = https.onCall(
  *   SMTP_PASS  – sender email password / app password
  *   SALES_EMAIL – recipient email (defaults to sale@daiichitravel.com)
  *
- * If SMTP_USER or SMTP_PASS are not set the function logs the inquiry
- * and exits gracefully without throwing.
+ * The inquiry is always saved to Firestore regardless of whether the email is
+ * sent. If SMTP_USER or SMTP_PASS are not set, the function logs a warning and
+ * exits gracefully without sending an email and without throwing. Administrators
+ * should configure these secrets in production to ensure the sales team receives
+ * real-time email notifications:
+ *   firebase functions:secrets:set SMTP_USER
+ *   firebase functions:secrets:set SMTP_PASS
  */
 export const notifyInquiry = onDocumentCreated(
   { document: 'inquiries/{inquiryId}', region: 'asia-southeast1' },

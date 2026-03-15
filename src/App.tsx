@@ -190,6 +190,7 @@ export default function App() {
   const [inquiryNotes, setInquiryNotes] = useState('');
   const [inquiryLoading, setInquiryLoading] = useState(false);
   const [inquirySuccess, setInquirySuccess] = useState(false);
+  const [inquiryError, setInquiryError] = useState('');
 
   // Memoized unique vehicle types derived from the vehicles list
   const uniqueVehicleTypes = useMemo(
@@ -501,6 +502,7 @@ export default function App() {
   useEffect(() => {
     setShowInquiryForm(false);
     setInquirySuccess(false);
+    setInquiryError('');
   }, [searchFrom, searchTo, searchDate, searchReturnDate, tripType]);
 
   // Reset round-trip phase when switching back to ONE_WAY
@@ -1503,6 +1505,7 @@ export default function App() {
     if (!inquiryName.trim() || !inquiryPhone.trim()) return;
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
     setInquiryLoading(true);
+    setInquiryError('');
     try {
       await transportService.createInquiry({
         name: inquiryName.trim(),
@@ -1525,7 +1528,7 @@ export default function App() {
       setInquiryNotes('');
     } catch (err) {
       console.error('Failed to save inquiry:', err);
-      alert(language === 'vi' ? 'Đã xảy ra lỗi khi gửi yêu cầu. Vui lòng thử lại.' : 'An error occurred. Please try again.');
+      setInquiryError(language === 'vi' ? 'Đã xảy ra lỗi khi gửi yêu cầu. Vui lòng thử lại.' : 'An error occurred. Please try again.');
     } finally {
       setInquiryLoading(false);
     }
@@ -1910,12 +1913,10 @@ export default function App() {
                       .filter(t => filterTrip(t, false))
                       .sort((a, b) => {
                         if (!effectiveDate) return compareTripDateTime(a, b);
-                        const target = effectiveDate;
-                        const aDate = a.date || '9999-12-31';
-                        const bDate = b.date || '9999-12-31';
-                        const aDiff = Math.abs(aDate.localeCompare(target));
-                        const bDiff = Math.abs(bDate.localeCompare(target));
-                        return aDiff - bDiff;
+                        const target = new Date(effectiveDate).getTime();
+                        const aDate = new Date(a.date || '9999-12-31').getTime();
+                        const bDate = new Date(b.date || '9999-12-31').getTime();
+                        return Math.abs(aDate - target) - Math.abs(bDate - target);
                       })
                       .slice(0, 5)
                   : [];
@@ -2021,6 +2022,12 @@ export default function App() {
                           className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 resize-none text-sm"
                           placeholder={t.inquiry_notes_ph} />
                       </div>
+                      {inquiryError && (
+                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                          <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+                          <p className="text-sm text-red-600">{inquiryError}</p>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={handleInquirySubmit}
