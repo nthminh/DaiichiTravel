@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, MapPin, Search, Save, X } from 'lucide-react';
+import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
 import { NotePopover } from './NotePopover';
 import { matchesSearch } from '../lib/searchUtils';
+import { cn } from '../lib/utils';
 
 interface StopManagementProps {
   language: Language;
@@ -18,6 +19,8 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showStopFilters, setShowStopFilters] = useState(false);
+  const [stopCategoryFilter, setStopCategoryFilter] = useState<'ALL' | Stop['category']>('ALL');
 
   const [colWidths, setColWidths] = useState({
     name: 220,
@@ -97,11 +100,14 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     }
   };
 
-  const filteredStops = stops.filter(s =>
-    matchesSearch(s.name, searchTerm) ||
-    matchesSearch(s.address, searchTerm) ||
-    matchesSearch(s.category, searchTerm)
-  );
+  const filteredStops = stops.filter(s => {
+    if (stopCategoryFilter !== 'ALL' && s.category !== stopCategoryFilter) return false;
+    return (
+      matchesSearch(s.name, searchTerm) ||
+      matchesSearch(s.address, searchTerm) ||
+      matchesSearch(s.category, searchTerm)
+    );
+  });
 
   return (
     <div className="space-y-8">
@@ -209,22 +215,72 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
       )}
 
       <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
-              placeholder={language === 'vi' ? 'Tìm kiếm điểm dừng...' : 'Search stops...'}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
-            />
-          </div>
-          <div className="flex gap-2">
-            <span className="px-4 py-2 bg-gray-50 rounded-xl text-xs font-bold text-gray-500 border border-gray-100">
+        <div className="p-6 border-b border-gray-50 space-y-3">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder={language === 'vi' ? 'Tìm kiếm điểm dừng...' : 'Search stops...'}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+              />
+            </div>
+            <button
+              onClick={() => setShowStopFilters(p => !p)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold transition-all',
+                showStopFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <Filter size={15} />
+              {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
+              {stopCategoryFilter !== 'ALL' && (
+                <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded text-[10px] font-bold">1</span>
+              )}
+            </button>
+            {(searchTerm || stopCategoryFilter !== 'ALL') && (
+              <button
+                onClick={() => { setSearchTerm(''); setStopCategoryFilter('ALL'); }}
+                className="flex items-center gap-1.5 px-4 py-3 rounded-2xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+              >
+                <X size={14} />
+                {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
+              </button>
+            )}
+            <span className="px-4 py-3 bg-gray-50 rounded-2xl text-xs font-bold text-gray-500 border border-gray-100 flex items-center">
               {filteredStops.length} {language === 'vi' ? 'điểm dừng' : 'stops'}
             </span>
           </div>
+          {showStopFilters && (
+            <div className="pt-1 border-t border-gray-100">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{language === 'vi' ? 'Loại điểm dừng' : 'Category'}</label>
+              <div className="flex gap-2 flex-wrap">
+                {(['ALL', 'MAJOR', 'MINOR', 'TOLL', 'RESTAURANT', 'QUICK', 'TRANSIT', 'OFFICE'] as const).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setStopCategoryFilter(cat)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      stopCategoryFilter === cat
+                        ? 'bg-daiichi-red text-white ring-2 ring-daiichi-red'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    )}
+                  >
+                    {cat === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All')
+                      : cat === 'MAJOR' ? t.major_stop
+                      : cat === 'MINOR' ? t.minor_stop
+                      : cat === 'TOLL' ? t.toll_booth
+                      : cat === 'RESTAURANT' ? t.restaurant
+                      : cat === 'QUICK' ? t.quick_stop
+                      : cat === 'TRANSIT' ? t.transit_point
+                      : t.ticket_office}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">

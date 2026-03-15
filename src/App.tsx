@@ -244,9 +244,15 @@ export default function App() {
 
   // Route search state
   const [routeSearch, setRouteSearch] = useState('');
+  const [showRouteFilters, setShowRouteFilters] = useState(false);
+  const [routeFilterDeparture, setRouteFilterDeparture] = useState('');
+  const [routeFilterArrival, setRouteFilterArrival] = useState('');
 
   // Vehicle search state
   const [vehicleSearch, setVehicleSearch] = useState('');
+  const [showVehicleFilters, setShowVehicleFilters] = useState(false);
+  const [vehicleFilterType, setVehicleFilterType] = useState('');
+  const [vehicleFilterStatus, setVehicleFilterStatus] = useState('ALL');
 
   // Trip / Operations search state
   const [tripSearch, setTripSearch] = useState('');
@@ -1833,7 +1839,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
                   <div className="relative mt-1">
@@ -1869,22 +1875,6 @@ export default function App() {
                     <input type="date" value={searchDate} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
-                  <div className="relative mt-1">
-                    <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <select
-                      value={vehicleTypeFilter}
-                      onChange={e => setVehicleTypeFilter(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl appearance-none focus:ring-2 focus:ring-daiichi-red/10"
-                    >
-                      <option value="">{t.all_vehicle_types}</option>
-                      {uniqueVehicleTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
                 {tripType === 'ROUND_TRIP' && (
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.return_date}</label>
@@ -1895,34 +1885,12 @@ export default function App() {
                   </div>
                 )}
               </div>
-              {/* Passengers + Search button row */}
-              <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                <div className="flex gap-3 flex-1">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.adults}</label>
-                    <div className="flex items-center gap-2 mt-1 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl">
-                      <Users className="text-gray-400 flex-shrink-0" size={18} />
-                      <button type="button" onClick={() => setAdults(Math.max(1, adults - 1))} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
-                      <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
-                      <button type="button" onClick={() => setAdults(adults + 1)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.children}</label>
-                    <div className="flex items-center gap-2 mt-1 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl">
-                      <Users className="text-gray-400 flex-shrink-0" size={18} />
-                      <button type="button" onClick={() => setChildren(Math.max(0, children - 1))} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
-                      <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
-                      <button type="button" onClick={() => setChildren(children + 1)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-end sm:w-48">
-                  <button className="w-full py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
-                    <Search size={18} />
-                    {t.search_btn}
-                  </button>
-                </div>
+              {/* Search button row */}
+              <div className="flex justify-end mt-4">
+                <button className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+                  <Search size={18} />
+                  {t.search_btn}
+                </button>
               </div>
             </div>
 
@@ -3923,6 +3891,8 @@ export default function App() {
 
       case 'routes': {
         const filteredRoutes = routes.filter(route => {
+          if (routeFilterDeparture && !(route.departurePoint || '').toLowerCase().includes(routeFilterDeparture.toLowerCase())) return false;
+          if (routeFilterArrival && !(route.arrivalPoint || '').toLowerCase().includes(routeFilterArrival.toLowerCase())) return false;
           if (!routeSearch) return true;
           const q = routeSearch.toLowerCase();
           return (
@@ -4460,20 +4430,72 @@ export default function App() {
               </div>
             )}
 
-            {/* Search bar */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                value={routeSearch}
-                onChange={e => setRouteSearch(e.target.value)}
-                placeholder={language === 'vi' ? 'Tìm kiếm tuyến đường...' : 'Search routes...'}
-                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
-              />
-              {routeSearch && (
-                <button onClick={() => setRouteSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={14} />
+            {/* Search bar + Advanced Filter Toggle */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-3">
+              <div className="flex gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={routeSearch}
+                    onChange={e => setRouteSearch(e.target.value)}
+                    placeholder={language === 'vi' ? 'Tìm kiếm tuyến đường...' : 'Search routes...'}
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                  />
+                  {routeSearch && (
+                    <button onClick={() => setRouteSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowRouteFilters(p => !p)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                    showRouteFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  )}
+                >
+                  <Filter size={15} />
+                  {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
+                  {(routeFilterDeparture || routeFilterArrival) && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded text-[10px] font-bold">
+                      {[routeFilterDeparture, routeFilterArrival].filter(Boolean).length}
+                    </span>
+                  )}
                 </button>
+                {(routeSearch || routeFilterDeparture || routeFilterArrival) && (
+                  <button
+                    onClick={() => { setRouteSearch(''); setRouteFilterDeparture(''); setRouteFilterArrival(''); }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                  >
+                    <X size={14} />
+                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
+                  </button>
+                )}
+              </div>
+              {showRouteFilters && (
+                <div className="flex gap-4 flex-wrap pt-1 border-t border-gray-100">
+                  <div className="flex-1 min-w-[180px]">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.departure_point}</label>
+                    <input
+                      type="text"
+                      value={routeFilterDeparture}
+                      onChange={e => setRouteFilterDeparture(e.target.value)}
+                      placeholder={language === 'vi' ? 'Lọc theo điểm đi...' : 'Filter by departure...'}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[180px]">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.arrival_point}</label>
+                    <input
+                      type="text"
+                      value={routeFilterArrival}
+                      onChange={e => setRouteFilterArrival(e.target.value)}
+                      placeholder={language === 'vi' ? 'Lọc theo điểm đến...' : 'Filter by arrival...'}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                </div>
               )}
             </div>
 
@@ -4531,6 +4553,8 @@ export default function App() {
 
       case 'vehicles': {
         const filteredVehicles = vehicles.filter(v => {
+          if (vehicleFilterType && (v.type || '') !== vehicleFilterType) return false;
+          if (vehicleFilterStatus !== 'ALL' && (v.status || 'ACTIVE') !== vehicleFilterStatus) return false;
           if (!vehicleSearch) return true;
           const q = vehicleSearch.toLowerCase();
           return (
@@ -4615,20 +4639,94 @@ export default function App() {
               />
             )}
 
-            {/* Search bar */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                value={vehicleSearch}
-                onChange={e => setVehicleSearch(e.target.value)}
-                placeholder={language === 'vi' ? 'Tìm kiếm theo biển số, loại xe...' : 'Search by plate, type...'}
-                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
-              />
-              {vehicleSearch && (
-                <button onClick={() => setVehicleSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={14} />
+            {/* Search bar + Advanced Filter Toggle */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-3">
+              <div className="flex gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={vehicleSearch}
+                    onChange={e => setVehicleSearch(e.target.value)}
+                    placeholder={language === 'vi' ? 'Tìm kiếm theo biển số, loại xe...' : 'Search by plate, type...'}
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                  />
+                  {vehicleSearch && (
+                    <button onClick={() => setVehicleSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowVehicleFilters(p => !p)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                    showVehicleFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  )}
+                >
+                  <Filter size={15} />
+                  {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
+                  {(vehicleFilterType || vehicleFilterStatus !== 'ALL') && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded text-[10px] font-bold">
+                      {[vehicleFilterType, vehicleFilterStatus !== 'ALL'].filter(Boolean).length}
+                    </span>
+                  )}
                 </button>
+                {(vehicleSearch || vehicleFilterType || vehicleFilterStatus !== 'ALL') && (
+                  <button
+                    onClick={() => { setVehicleSearch(''); setVehicleFilterType(''); setVehicleFilterStatus('ALL'); }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                  >
+                    <X size={14} />
+                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
+                  </button>
+                )}
+              </div>
+              {showVehicleFilters && (
+                <div className="flex gap-4 flex-wrap pt-1 border-t border-gray-100">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.vehicle_type}</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {(['', ...uniqueVehicleTypes] as string[]).map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setVehicleFilterType(type)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                            vehicleFilterType === type
+                              ? 'bg-daiichi-red text-white ring-2 ring-daiichi-red'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          )}
+                        >
+                          {type === '' ? (language === 'vi' ? 'Tất cả' : 'All') : type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.status}</label>
+                    <div className="flex gap-2">
+                      {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setVehicleFilterStatus(s)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                            vehicleFilterStatus === s
+                              ? s === 'ACTIVE' ? 'bg-green-100 text-green-700 ring-2 ring-green-400'
+                                : s === 'INACTIVE' ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-400'
+                                : 'bg-daiichi-red/10 text-daiichi-red ring-2 ring-daiichi-red/30'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          )}
+                        >
+                          {s === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All')
+                            : s === 'ACTIVE' ? (language === 'vi' ? 'Hoạt động' : 'Active')
+                            : (language === 'vi' ? 'Ngừng' : 'Inactive')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
