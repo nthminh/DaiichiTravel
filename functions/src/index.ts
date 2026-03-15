@@ -3,6 +3,22 @@ import * as https from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import * as nodemailer from 'nodemailer';
+import { sanitize } from 'isomorphic-dompurify';
+
+/**
+ * Sanitize a user-supplied value for safe inclusion in HTML content or plain-text
+ * email headers. All HTML tags are stripped (ALLOWED_TAGS: []) and newline
+ * characters are removed to prevent both XSS in the email body and SMTP
+ * header-injection in the subject line.
+ */
+function clean(value: unknown): string {
+  if (value == null) return '';
+  return sanitize(String(value), {
+    ALLOWED_TAGS: [],
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false,
+  }).replace(/[\r\n]+/g, ' ');
+}
 
 admin.initializeApp();
 
@@ -185,21 +201,21 @@ export const notifyInquiry = onDocumentCreated(
 
     const tripType = data.tripType === 'ROUND_TRIP' ? 'Khứ hồi' : 'Một chiều';
     const phase = data.phase === 'return' ? 'Chiều về' : 'Chiều đi';
-    const subject = `[Yêu cầu đặt vé] ${data.name} – ${data.from} → ${data.to} ngày ${data.date}`;
+    const subject = `[Yêu cầu đặt vé] ${clean(data.name)} – ${clean(data.from)} → ${clean(data.to)} ngày ${clean(data.date)}`;
     const html = `
 <h2>Yêu cầu tìm chuyến xe mới</h2>
 <table cellpadding="8" style="border-collapse:collapse;width:100%;max-width:600px">
-  <tr><td><b>Họ tên</b></td><td>${data.name}</td></tr>
-  <tr><td><b>Điện thoại</b></td><td>${data.phone}</td></tr>
-  ${data.email ? `<tr><td><b>Email</b></td><td>${data.email}</td></tr>` : ''}
+  <tr><td><b>Họ tên</b></td><td>${clean(data.name)}</td></tr>
+  <tr><td><b>Điện thoại</b></td><td>${clean(data.phone)}</td></tr>
+  ${data.email ? `<tr><td><b>Email</b></td><td>${clean(data.email)}</td></tr>` : ''}
   <tr><td><b>Loại vé</b></td><td>${tripType}${data.tripType === 'ROUND_TRIP' ? ` – ${phase}` : ''}</td></tr>
-  <tr><td><b>Điểm đi</b></td><td>${data.from}</td></tr>
-  <tr><td><b>Điểm đến</b></td><td>${data.to}</td></tr>
-  <tr><td><b>Ngày đi</b></td><td>${data.date}</td></tr>
-  ${data.returnDate ? `<tr><td><b>Ngày về</b></td><td>${data.returnDate}</td></tr>` : ''}
-  <tr><td><b>Người lớn</b></td><td>${data.adults}</td></tr>
-  <tr><td><b>Trẻ em</b></td><td>${data.children}</td></tr>
-  ${data.notes ? `<tr><td><b>Ghi chú</b></td><td>${data.notes}</td></tr>` : ''}
+  <tr><td><b>Điểm đi</b></td><td>${clean(data.from)}</td></tr>
+  <tr><td><b>Điểm đến</b></td><td>${clean(data.to)}</td></tr>
+  <tr><td><b>Ngày đi</b></td><td>${clean(data.date)}</td></tr>
+  ${data.returnDate ? `<tr><td><b>Ngày về</b></td><td>${clean(data.returnDate)}</td></tr>` : ''}
+  <tr><td><b>Người lớn</b></td><td>${clean(data.adults)}</td></tr>
+  <tr><td><b>Trẻ em</b></td><td>${clean(data.children)}</td></tr>
+  ${data.notes ? `<tr><td><b>Ghi chú</b></td><td>${clean(data.notes)}</td></tr>` : ''}
 </table>
 <p style="color:#888;font-size:12px">Gửi tự động từ hệ thống Daiichi Travel – ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
 `;
