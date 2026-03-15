@@ -537,6 +537,16 @@ export default function App() {
     }
   }, [tripType]);
 
+  // Auto-fill name & phone for logged-in customers whenever the booking form opens or user logs in
+  useEffect(() => {
+    if (showBookingForm && currentUser?.role === UserRole.CUSTOMER) {
+      const name = currentUser.name;
+      const phone = currentUser.phone;
+      if (name) setCustomerNameInput(prev => prev || name);
+      if (phone) setPhoneInput(prev => prev || phone);
+    }
+  }, [showBookingForm, currentUser?.role, currentUser?.name, currentUser?.phone]);
+
   // Global Ctrl+Z / Cmd+Z undo handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2711,13 +2721,13 @@ export default function App() {
                 </div>
               </div>
 
-              {(selectedTrip.addons || []).length > 0 && (
+              {!showBookingForm && (selectedTrip.addons || []).length > 0 && (
                 <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-emerald-200">
                   <div className="flex items-center gap-2 mb-3">
                     <Gift size={20} className="text-emerald-600" />
                     <h3 className="text-lg font-bold text-emerald-700">{language === 'vi' ? 'Dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}</h3>
                   </div>
-                  <p className="text-xs text-gray-500 mb-3">{language === 'vi' ? 'Các dịch vụ tùy chọn cho chuyến đi này – liên hệ để đặt thêm:' : language === 'ja' ? 'このトリップのオプションサービス – 予約時にお問い合わせください:' : 'Optional services for this trip – contact us to add them:'}</p>
+                  <p className="text-xs text-gray-500 mb-3">{language === 'vi' ? 'Chọn ghế để thêm các dịch vụ bổ sung vào vé của bạn:' : language === 'ja' ? '座席を選択してオプションサービスを追加できます:' : 'Select a seat to add these optional services to your booking:'}</p>
                   <div className="space-y-2">
                     {(selectedTrip.addons || []).map((addon: TripAddon) => (
                       <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
