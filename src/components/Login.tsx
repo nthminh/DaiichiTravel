@@ -18,7 +18,12 @@ interface LoginProps {
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
 }
 
-const RECAPTCHA_SITE_KEY = '6Lc-vIosAAAAAPJ1NRFhFu43lldk12EAjgii-8Ke';
+const RECAPTCHA_SITE_KEY =
+  import.meta.env.VITE_RECAPTCHA_SITE_KEY ?? '6Lc-vIosAAAAAPJ1NRFhFu43lldk12EAjgii-8Ke';
+
+if (import.meta.env.DEV && !import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+  console.warn('[reCAPTCHA] VITE_RECAPTCHA_SITE_KEY is not set – falling back to the hardcoded site key. Set it in your .env file.');
+}
 
 /** Executes reCAPTCHA v3 and returns a token for use with Firebase phone auth. */
 const getRecaptchaToken = (): Promise<string> =>
