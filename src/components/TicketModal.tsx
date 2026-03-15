@@ -99,39 +99,13 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="ticket-card-print bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]"
           >
-            {/* Success Header */}
-            <div className={cn("p-8 text-white text-center relative overflow-hidden", isTour ? "bg-emerald-500" : "bg-green-500")}>
-              <div className="absolute top-0 left-0 w-full h-full opacity-10">
-                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle,white_0%,transparent_70%)]" />
-              </div>
-              <div className="relative z-10">
-                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md">
-                  {isTour ? <Palmtree size={32} /> : <CheckCircle2 size={32} />}
-                </div>
-                <h3 className="text-2xl font-bold">
-                  {isTour
-                    ? (language === 'vi' ? 'Đặt tour thành công!' : 'Tour Booked!')
-                    : t.ticket_sent_title}
-                </h3>
-                <p className="text-white/80 text-sm mt-2">
-                  {isTour
-                    ? (language === 'vi' ? 'Xác nhận đặt tour của bạn' : 'Your tour booking confirmation')
-                    : t.ticket_sent_desc}
-                </p>
-              </div>
-              <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-white/20 hover:bg-white/40 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
+            {/* Close button */}
+            <button onClick={onClose} className="ticket-no-print absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">
+              <X size={20} className="text-gray-600" />
+            </button>
 
             {/* Ticket Body */}
             <div className="p-8 space-y-8 relative overflow-y-auto flex-1 ticket-print-area">
-              {/* Perforated Line */}
-              <div className="absolute top-0 left-0 w-full flex justify-between px-4 -translate-y-1/2">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className={cn("w-4 h-4 rounded-full", isTour ? "bg-emerald-500" : "bg-green-500")} />
-                ))}
-              </div>
 
               {/* Company Logo */}
               <div className="flex items-center justify-center gap-3 pb-2 border-b border-gray-100">

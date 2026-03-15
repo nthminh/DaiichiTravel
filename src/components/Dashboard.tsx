@@ -61,6 +61,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   // Edit State
   const [editingBooking, setEditingBooking] = useState<any>(null);
+  // Edit: trip change sub-state
+  const [editShowTripSearch, setEditShowTripSearch] = useState(false);
+  const [editTripDate, setEditTripDate] = useState('');
+  const [editSelectedTrip, setEditSelectedTrip] = useState<any>(null);
+  const [editSelectedSeats, setEditSelectedSeats] = useState<string[]>([]);
   // Detail View State
   const [viewingBooking, setViewingBooking] = useState<any>(null);
 
@@ -106,6 +111,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const handleEdit = (booking: any) => {
     setEditingBooking({ ...booking });
+    setEditShowTripSearch(false);
+    setEditTripDate(booking.date || '');
+    setEditSelectedTrip(null);
+    setEditSelectedSeats([]);
   };
 
   const handleView = (booking: any) => {
@@ -113,11 +122,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   };
 
   const saveEdit = async () => {
-    const updated = editingBooking;
+    const updated = { ...editingBooking };
+
+    // If a new trip and seats were selected for a TRIP booking
+    if (updated.type !== 'TOUR' && editSelectedTrip && editSelectedSeats.length > 0) {
+      // Update booking fields with the new trip info
+      updated.tripId = editSelectedTrip.id;
+      updated.route = editSelectedTrip.route;
+      updated.date = editSelectedTrip.date;
+      updated.time = editSelectedTrip.time;
+      updated.seatId = editSelectedSeats[0];
+      updated.seatIds = editSelectedSeats;
+
+      // Clear old seats in the original trip
+      if (editingBooking.tripId) {
+        const emptyData = {
+          status: SeatStatus.EMPTY,
+          customerName: '',
+          customerPhone: '',
+          pickupPoint: '',
+          dropoffPoint: '',
+          pickupAddress: '',
+          dropoffAddress: '',
+          bookingNote: '',
+        };
+        const oldSeats: string[] = editingBooking.seatIds || (editingBooking.seatId ? [editingBooking.seatId] : []);
+        await Promise.all(oldSeats.map((seatId: string) => transportService.bookSeat(editingBooking.tripId, seatId, emptyData)));
+      }
+    }
+
     setEditingBooking(null);
+    setEditShowTripSearch(false);
+    setEditSelectedTrip(null);
+    setEditSelectedSeats([]);
+
     try {
       await transportService.updateBooking(updated.id, updated);
-      // Sync: update seat data in trip for TRIP bookings
+
       if (updated.type !== 'TOUR' && updated.tripId) {
         const seatUpdates = {
           customerName: updated.customerName || '',
@@ -128,7 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
           status: updated.status === 'PAID' ? SeatStatus.PAID : SeatStatus.BOOKED,
         };
         const allSeats: string[] = updated.seatIds || (updated.seatId ? [updated.seatId] : []);
-        await Promise.all(allSeats.map(seatId => transportService.bookSeat(updated.tripId, seatId, seatUpdates)));
+        await Promise.all(allSeats.map((seatId: string) => transportService.bookSeat(updated.tripId, seatId, seatUpdates)));
       }
     } catch (err) {
       console.error('Failed to update booking:', err);
@@ -1041,27 +1082,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       onChange={e => setEditingBooking({...editingBooking, phone: e.target.value})}
                       className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>
-                  {/* Date */}
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày' : 'Date'}</label>
-                    <input type="date" value={editingBooking.date || ''}
-                      onChange={e => setEditingBooking({...editingBooking, date: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                  </div>
-                  {/* Time */}
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giờ khởi hành' : 'Departure Time'}</label>
-                    <input type="time" value={editingBooking.time || ''}
-                      onChange={e => setEditingBooking({...editingBooking, time: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                  </div>
-                  {/* Route */}
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tuyến/Tour' : 'Route/Tour'}</label>
-                    <input type="text" value={editingBooking.route || ''}
-                      onChange={e => setEditingBooking({...editingBooking, route: e.target.value})}
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                  </div>
                   {/* Persons */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1077,9 +1097,209 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                     </div>
                   </div>
+
+                  {/* ── TRIP: Change Trip & Seat Section ── */}
+                  {editingBooking.type !== 'TOUR' && (
+                    <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                      {/* Current trip summary */}
+                      <div className="p-4 bg-gray-50 flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                            {language === 'vi' ? 'Chuyến xe hiện tại' : 'Current Trip'}
+                          </p>
+                          {editSelectedTrip ? (
+                            <div>
+                              <p className="font-bold text-daiichi-red text-sm">{editSelectedTrip.route} · {editSelectedTrip.date} · {editSelectedTrip.time}</p>
+                              <p className="text-xs text-gray-500">{editSelectedTrip.licensePlate}</p>
+                              {editSelectedSeats.length > 0 && (
+                                <p className="text-xs font-bold text-blue-600 mt-0.5">
+                                  {language === 'vi' ? 'Ghế đã chọn' : 'Seats'}: {editSelectedSeats.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-bold text-gray-700 text-sm">{editingBooking.route} · {editingBooking.date} · {editingBooking.time}</p>
+                              <p className="text-xs text-gray-500">
+                                {language === 'vi' ? 'Ghế' : 'Seat'}: {editingBooking.seatIds?.join(', ') || editingBooking.seatId || '—'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditShowTripSearch(v => !v);
+                            setEditSelectedTrip(null);
+                            setEditSelectedSeats([]);
+                          }}
+                          className={cn(
+                            "shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all",
+                            editShowTripSearch
+                              ? "bg-gray-200 text-gray-600"
+                              : "bg-daiichi-red text-white shadow-sm"
+                          )}
+                        >
+                          {editShowTripSearch
+                            ? (language === 'vi' ? 'Huỷ' : 'Cancel')
+                            : (language === 'vi' ? 'Đổi chuyến' : 'Change Trip')}
+                        </button>
+                      </div>
+
+                      {/* Trip search panel */}
+                      {editShowTripSearch && (
+                        <div className="p-4 space-y-3 border-t border-gray-100">
+                          {/* Date filter */}
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày đi' : 'Travel Date'}</label>
+                            <input
+                              type="date"
+                              value={editTripDate}
+                              onChange={e => { setEditTripDate(e.target.value); setEditSelectedTrip(null); setEditSelectedSeats([]); }}
+                              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                            />
+                          </div>
+
+                          {/* Matching trips list */}
+                          {(() => {
+                            const matchingTrips = trips
+                              .filter(tr =>
+                                tr.status === TripStatus.WAITING &&
+                                (!editTripDate || tr.date === editTripDate) &&
+                                (tr.seats || []).some((s: any) => s.status === SeatStatus.EMPTY)
+                              )
+                              .sort((a: any, b: any) => {
+                                const aKey = `${a.date || ''}T${a.time || ''}`;
+                                const bKey = `${b.date || ''}T${b.time || ''}`;
+                                return aKey.localeCompare(bKey);
+                              });
+
+                            if (!editTripDate) {
+                              return (
+                                <p className="text-xs text-gray-400 text-center py-2">
+                                  {language === 'vi' ? 'Chọn ngày để tìm chuyến xe' : 'Select a date to find trips'}
+                                </p>
+                              );
+                            }
+
+                            if (matchingTrips.length === 0) {
+                              return (
+                                <p className="text-xs text-gray-400 text-center py-2">
+                                  {language === 'vi' ? 'Không có chuyến xe nào phù hợp trong ngày này' : 'No trips available on this date'}
+                                </p>
+                              );
+                            }
+
+                            return (
+                              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                {matchingTrips.map((tr: any) => {
+                                  const emptyCount = (tr.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
+                                  const isSelected = editSelectedTrip?.id === tr.id;
+                                  return (
+                                    <button
+                                      key={tr.id}
+                                      onClick={() => { setEditSelectedTrip(tr); setEditSelectedSeats([]); }}
+                                      className={cn(
+                                        "w-full text-left p-3 rounded-xl border-2 transition-all",
+                                        isSelected
+                                          ? "border-daiichi-red bg-red-50"
+                                          : "border-gray-100 bg-white hover:border-daiichi-red/30 hover:bg-gray-50"
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <p className="font-bold text-gray-800 text-sm">{tr.route}</p>
+                                          <p className="text-xs text-gray-500">{tr.date} · {tr.time} · {tr.licensePlate}</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-xs font-bold text-green-600">{emptyCount} {language === 'vi' ? 'ghế trống' : 'seats left'}</p>
+                                          <p className="text-xs text-gray-400">{tr.driverName}</p>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Seat selection for selected trip */}
+                          {editSelectedTrip && (
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                                {language === 'vi' ? 'Chọn ghế' : 'Select Seats'} — {editSelectedTrip.licensePlate}
+                              </p>
+                              {editSelectedSeats.length > 0 && (
+                                <p className="text-xs font-bold text-blue-600 mb-2">
+                                  {language === 'vi' ? 'Đã chọn' : 'Selected'}: {editSelectedSeats.join(', ')}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-gray-50 rounded-xl">
+                                {(editSelectedTrip.seats || [])
+                                  .filter((s: any) => !s.isDriver && !s.isAisle)
+                                  .sort((a: any, b: any) => {
+                                    const aNum = parseInt(a.id, 10) || 0;
+                                    const bNum = parseInt(b.id, 10) || 0;
+                                    return aNum - bNum || String(a.id).localeCompare(String(b.id));
+                                  })
+                                  .map((seat: any) => {
+                                    const isEmpty = seat.status === SeatStatus.EMPTY;
+                                    const isChosen = editSelectedSeats.includes(seat.id);
+                                    return (
+                                      <button
+                                        key={seat.id}
+                                        disabled={!isEmpty && !isChosen}
+                                        onClick={() => {
+                                          if (!isEmpty && !isChosen) return;
+                                          setEditSelectedSeats(prev =>
+                                            prev.includes(seat.id)
+                                              ? prev.filter(id => id !== seat.id)
+                                              : [...prev, seat.id]
+                                          );
+                                        }}
+                                        className={cn(
+                                          "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all",
+                                          seat.status === SeatStatus.PAID && !isChosen && "bg-daiichi-red text-white border-daiichi-red cursor-not-allowed opacity-60",
+                                          seat.status === SeatStatus.BOOKED && !isChosen && "bg-yellow-400 text-white border-yellow-400 cursor-not-allowed opacity-60",
+                                          isChosen && "bg-blue-500 text-white border-blue-500 shadow-md",
+                                          isEmpty && !isChosen && "bg-white border-gray-200 text-gray-600 hover:border-daiichi-red hover:text-daiichi-red cursor-pointer"
+                                        )}
+                                      >
+                                        {seat.id}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                              {editSelectedSeats.length === 0 && (
+                                <p className="text-xs text-orange-500 mt-1">
+                                  {language === 'vi' ? '* Vui lòng chọn ít nhất 1 ghế' : '* Please select at least 1 seat'}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TOUR: Date field */}
+                  {editingBooking.type === 'TOUR' && (
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày' : 'Date'}</label>
+                      <input type="date" value={editingBooking.date || ''}
+                        onChange={e => setEditingBooking({...editingBooking, date: e.target.value})}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                  )}
+
                   {/* Tour-specific fields */}
                   {editingBooking.type === 'TOUR' && (
                     <>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tuyến/Tour' : 'Route/Tour'}</label>
+                        <input type="text" value={editingBooking.route || ''}
+                          onChange={e => setEditingBooking({...editingBooking, route: e.target.value})}
+                          className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      </div>
                       <div>
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Phòng nghỉ' : 'Accommodation'}</label>
                         <select value={editingBooking.accommodation || 'none'}
@@ -1104,15 +1324,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       </div>
                     </>
                   )}
-                  {/* Trip-specific fields */}
-                  {editingBooking.type !== 'TOUR' && editingBooking.seatId && (
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghế' : 'Seat'}</label>
-                      <input type="text" value={editingBooking.seatIds?.join(', ') || editingBooking.seatId || ''}
-                        readOnly
-                        className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-100 rounded-2xl text-gray-500 cursor-not-allowed" />
-                    </div>
-                  )}
+
                   {/* Pickup/Dropoff for TRIP bookings */}
                   {editingBooking.type !== 'TOUR' && (
                     <>
@@ -1183,15 +1395,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   </div>
                 </div>
                 <div className="flex gap-4 mt-8">
-                  <button onClick={() => setEditingBooking(null)}
+                  <button onClick={() => { setEditingBooking(null); setEditShowTripSearch(false); setEditSelectedTrip(null); setEditSelectedSeats([]); }}
                     className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl font-bold hover:bg-gray-100 transition-all">
                     {t.cancel}
                   </button>
-                  <button onClick={saveEdit}
-                    className="flex-1 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
-                    <Check size={20} />
-                    {t.save}
-                  </button>
+                  {(() => {
+                    // Disable save when trip search is open AND a trip is selected but no seats chosen yet
+                    const isSaveDisabled = editShowTripSearch && editSelectedTrip !== null && editSelectedSeats.length === 0;
+                    return (
+                      <button
+                        onClick={saveEdit}
+                        disabled={isSaveDisabled}
+                        className="flex-1 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                        <Check size={20} />
+                        {t.save}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </motion.div>
