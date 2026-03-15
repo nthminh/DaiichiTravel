@@ -1107,6 +1107,8 @@ export default function App() {
     return [...groupMap.values()];
   };
 
+  const COMPANY_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
+
   const exportTripToExcel = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
@@ -1181,11 +1183,13 @@ export default function App() {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https://firebasestorage.googleapis.com;">
   <title>Chuyến xe ${escapeHtml(trip.licensePlate)}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; font-size: 13px; }
-    h1 { color: #cc2222; font-size: 18px; margin-bottom: 4px; }
+    .page-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 2px solid #cc2222; padding-bottom: 12px; margin-bottom: 16px; }
+    .page-header img { height: 56px; width: auto; justify-self: start; }
+    .page-header h1 { color: #cc2222; font-size: 18px; margin: 0; text-align: center; }
     .info { margin-bottom: 16px; color: #444; }
     .info p { margin: 2px 0; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
@@ -1198,7 +1202,11 @@ export default function App() {
   </style>
 </head>
 <body>
-  <h1>DANH SÁCH HÀNH KHÁCH</h1>
+  <div class="page-header">
+    <img src="${COMPANY_LOGO_URL}" alt="Daiichi Travel">
+    <h1>DANH SÁCH HÀNH KHÁCH</h1>
+    <div aria-hidden="true"></div>
+  </div>
   <div class="info">
     <p><b>Số xe:</b> ${escapeHtml(trip.licensePlate) || '—'}</p>
     <p><b>Tài xế:</b> ${escapeHtml(trip.driverName) || '—'}</p>
@@ -1287,11 +1295,13 @@ export default function App() {
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https://firebasestorage.googleapis.com;">
   <title>Tuyến đường: ${escapeHtml(route.name)}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; font-size: 13px; color: #222; }
-    h1 { color: #cc2222; font-size: 20px; margin-bottom: 4px; }
+    .page-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 2px solid #cc2222; padding-bottom: 12px; margin-bottom: 16px; }
+    .page-header img { height: 56px; width: auto; justify-self: start; }
+    .page-header h1 { color: #cc2222; font-size: 20px; margin: 0; text-align: center; }
     h2 { color: #cc2222; font-size: 14px; margin: 20px 0 6px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
     .info { margin-bottom: 16px; color: #444; }
     .info p { margin: 3px 0; }
@@ -1308,7 +1318,11 @@ export default function App() {
   </style>
 </head>
 <body>
-  <h1>THÔNG TIN TUYẾN ĐƯỜNG</h1>
+  <div class="page-header">
+    <img src="${COMPANY_LOGO_URL}" alt="Daiichi Travel">
+    <h1>THÔNG TIN TUYẾN ĐƯỜNG</h1>
+    <div aria-hidden="true"></div>
+  </div>
   <div class="info">
     <p><b>STT:</b> ${route.stt}</p>
     <p><b>Tên tuyến:</b> ${escapeHtml(route.name)}</p>
