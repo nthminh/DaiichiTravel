@@ -5096,7 +5096,7 @@ export default function App() {
                           const rowStatus = allPaid ? SeatStatus.PAID : SeatStatus.BOOKED;
                           const totalAmount = group.booking?.amount ?? (showTripPassengers.price || 0) * group.seats.length;
                           const isEditing = editingPassengerSeatId === primarySeat.id;
-                          const rowKey = group.booking?.id || primarySeat.id;
+                          const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
                           return isEditing ? (
                             <tr key={rowKey} className="bg-blue-50">
                               <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
