@@ -51,7 +51,8 @@ export const Settings: React.FC<SettingsProps> = ({
     { id: 'AGENT', label: language === 'vi' ? 'Đại lý' : 'Agent', color: 'text-orange-600 bg-orange-50' },
     { id: 'STAFF', label: language === 'vi' ? 'Nhân viên' : 'Staff', color: 'text-blue-600 bg-blue-50' },
     { id: 'DRIVER', label: language === 'vi' ? 'Tài xế' : 'Driver', color: 'text-green-600 bg-green-50' },
-    { id: 'CUSTOMER', label: language === 'vi' ? 'Khách lẻ' : 'Customer', color: 'text-gray-600 bg-gray-100' },
+    { id: 'CUSTOMER', label: language === 'vi' ? 'Thành viên' : 'Member', color: 'text-indigo-600 bg-indigo-50' },
+    { id: 'GUEST', label: language === 'vi' ? 'Khách lẻ' : 'Guest', color: 'text-gray-600 bg-gray-100' },
   ];
 
   const defaultPerms: Record<string, Record<string, boolean>> = {
@@ -60,7 +61,8 @@ export const Settings: React.FC<SettingsProps> = ({
     AGENT: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'user-guide': true, 'settings': true },
     STAFF: { 'home': true, 'book-ticket': true, 'consignments': true, 'user-guide': true },
     DRIVER: { 'home': true, 'user-guide': true },
-    CUSTOMER: { 'home': true, 'book-ticket': true, 'tours': true, 'user-guide': true },
+    CUSTOMER: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'user-guide': true },
+    GUEST: { 'home': true, 'book-ticket': true, 'tours': true, 'user-guide': true },
   };
 
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
@@ -450,7 +452,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-800">{language === 'vi' ? 'Phân quyền truy cập' : 'Access Permissions'}</h3>
-                  <p className="text-sm text-gray-500">{language === 'vi' ? 'Chọn trang mỗi vai trò có thể xem' : 'Select which pages each role can access'}</p>
+                  <p className="text-sm text-gray-500">{language === 'vi' ? 'Chọn trang mỗi vai trò có thể xem. Thành viên (đã đăng nhập) và Khách lẻ (chưa đăng nhập) có thể được cấp quyền khác nhau.' : 'Select which pages each role can access. Members (logged in) and Guests (not logged in) can have different permissions.'}</p>
                 </div>
               </div>
 

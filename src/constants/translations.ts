@@ -1,7 +1,8 @@
 export enum UserRole {
   MANAGER = 'MANAGER',
   AGENT = 'AGENT',
-  CUSTOMER = 'CUSTOMER'
+  CUSTOMER = 'CUSTOMER',
+  GUEST = 'GUEST'
 }
 
 export enum TripStatus {

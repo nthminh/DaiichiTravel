@@ -85,6 +85,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [showPassword, setShowPassword] = useState(false);
   const [infoMessage, setInfoMessage] = useState('');
 
+  // System login panel (admin/agent/staff) - hidden by default
+  const [showSystemLogin, setShowSystemLogin] = useState(false);
+
   // Member login panel (customer accounts)
   const [showMemberLogin, setShowMemberLogin] = useState(false);
   const [memberUsername, setMemberUsername] = useState('');
@@ -392,7 +395,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   };
 
   const handleGuestLogin = () => {
-    onLogin({ id: 'guest', username: 'guest', role: UserRole.CUSTOMER, name: 'Khách lẻ' });
+    onLogin({ id: 'guest', username: 'guest', role: UserRole.GUEST, name: 'Khách lẻ' });
   };
 
   return (
@@ -517,212 +520,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
           {/* Tiny label below */}
           <p className="text-center text-white/40 text-[10px] font-bold uppercase tracking-widest mt-2">
-            {language === 'vi' ? '— Hoặc đăng nhập tài khoản bên dưới —'
-              : language === 'ja' ? '— または以下でログイン —'
-              : '— Or sign in with your account below —'}
+            {language === 'vi' ? '— Hoặc đăng nhập / đăng ký thành viên bên dưới —'
+              : language === 'ja' ? '— または会員登録・ログイン —'
+              : '— Or sign in / register as a member below —'}
           </p>
         </motion.div>
 
-        {/* Login form card */}
+        {/* ── Member section: login or register (shown right below CTA) ── */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28 }}
-          className="glass-card p-7 rounded-3xl shadow-2xl"
-        >
-          {otpStep ? (
-            /* ── OTP Verification Step ── */
-            <div className="space-y-5">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
-                  <Phone size={16} className="text-white/80" />
-                </div>
-                <div>
-                  <p className="text-white font-bold text-sm">
-                    {language === 'vi' ? 'Xác thực điện thoại' : 'Phone Verification'}
-                  </p>
-                  <p className="text-white/60 text-xs">
-                    {language === 'vi'
-                      ? `Nhập mã OTP đã gửi đến ${otpPhone}`
-                      : `Enter the OTP sent to ${otpPhone}`}
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handleOtpVerify} className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                    {language === 'vi' ? 'Mã OTP' : 'OTP Code'}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    className="w-full mt-1.5 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200 text-center text-2xl tracking-[0.5em] font-mono"
-                    placeholder="------"
-                    autoFocus
-                    autoComplete="one-time-code"
-                  />
-                </div>
-
-                <AnimatePresence>
-                  {otpError && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-red-400/20"
-                    >
-                      {otpError}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-
-                <motion.button
-                  type="submit"
-                  disabled={otpLoading || otpCode.length !== 6}
-                  whileHover={{ scale: 1.015 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {otpLoading ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
-                  {language === 'vi' ? 'Xác nhận OTP' : 'Verify OTP'}
-                </motion.button>
-              </form>
-
-              <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                <button
-                  onClick={() => { setOtpStep(false); setOtpCode(''); setOtpError(''); setPendingUser(null); }}
-                  className="text-white/60 text-xs font-bold hover:text-white transition-colors"
-                >
-                  ← {language === 'vi' ? 'Quay lại' : 'Back'}
-                </button>
-                <button
-                  onClick={handleResendOtp}
-                  disabled={otpLoading}
-                  className="text-white/60 text-xs font-bold hover:text-white transition-colors disabled:opacity-40"
-                >
-                  {language === 'vi' ? 'Gửi lại OTP' : 'Resend OTP'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-          {/* Staff/agent toggle header */}
-          <div className="flex items-center gap-2 mb-5">
-            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
-              <Bus size={14} className="text-white/80" />
-            </div>
-            <span className="text-white/80 text-xs font-bold uppercase tracking-widest">
-              {language === 'vi' ? 'Đăng nhập hệ thống' : language === 'ja' ? 'システムログイン' : 'System Login'}
-            </span>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t.username}</label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                className="w-full mt-1.5 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200"
-                placeholder="admin / agent"
-                autoComplete="username"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t.password}</label>
-              <div className="relative mt-1.5">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {error && (
-                <motion.p
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-red-400/20"
-                >
-                  {error}
-                </motion.p>
-              )}
-              {infoMessage && (
-                <motion.p
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="text-blue-200 bg-blue-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-blue-400/20"
-                >
-                  {infoMessage}
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            {agentsLoading && (
-              <div className="flex items-center gap-2 text-xs text-white/50">
-                <Loader2 size={14} className="animate-spin" />
-                <span>{language === 'vi' ? 'Đang kết nối hệ thống...' : 'Connecting to system...'}</span>
-              </div>
-            )}
-
-            <motion.button
-              type="submit"
-              disabled={otpLoading}
-              whileHover={{ scale: 1.015 }}
-              whileTap={{ scale: 0.97 }}
-              className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-70"
-            >
-              {otpLoading && <Loader2 size={16} className="animate-spin" />}
-              {t.login_btn}
-            </motion.button>
-
-            <p className="text-white/40 text-[10px] text-center mt-3 leading-relaxed px-2">
-              {t.recaptcha_disclaimer}
-              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" aria-label="Google Privacy Policy" className="underline hover:text-white/60 transition-colors">{t.recaptcha_privacy}</a>
-              {t.recaptcha_and}
-              <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" aria-label="Google Terms of Service" className="underline hover:text-white/60 transition-colors">{t.recaptcha_terms}</a>
-              {t.recaptcha_of_google}
-            </p>
-          </form>
-
-          <div className="mt-5 pt-5 border-t border-white/10 text-center">
-            <button
-              onClick={handleGuestLogin}
-              className="text-white/60 text-xs font-bold hover:text-white transition-colors flex items-center gap-1.5 mx-auto"
-            >
-              <span>👤</span>
-              <span>{t.guest_btn}</span>
-            </button>
-          </div>
-            </>
-          )}
-        </motion.div>
-
-        {/* ── Member section: login or register ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.38 }}
-          className="glass-card p-5 rounded-3xl shadow-2xl mt-4"
+          className="glass-card p-5 rounded-3xl shadow-2xl"
         >
           {/* Tab switcher */}
           <div className="flex gap-2 mb-4">
@@ -948,6 +757,221 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
             )}
           </AnimatePresence>
         </motion.div>
+
+        {/* ── System login toggle (hidden by default, for staff/admin) ── */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setShowSystemLogin(v => !v)}
+            className="text-white/40 text-[11px] font-bold hover:text-white/70 transition-colors flex items-center gap-1.5 mx-auto"
+          >
+            <Bus size={13} />
+            <span>
+              {showSystemLogin
+                ? (language === 'vi' ? 'Ẩn đăng nhập hệ thống' : language === 'ja' ? 'システムログインを隠す' : 'Hide system login')
+                : (language === 'vi' ? 'Đăng nhập nhân viên / quản lý' : language === 'ja' ? 'スタッフ・管理者ログイン' : 'Staff / admin login')}
+            </span>
+          </button>
+        </div>
+
+        {/* ── System login card (collapsible) ── */}
+        <AnimatePresence>
+          {showSystemLogin && (
+            <motion.div
+              key="system-login"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22 }}
+              className="mt-3 glass-card p-7 rounded-3xl shadow-2xl"
+            >
+              {otpStep ? (
+                /* ── OTP Verification Step ── */
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+                      <Phone size={16} className="text-white/80" />
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-sm">
+                        {language === 'vi' ? 'Xác thực điện thoại' : 'Phone Verification'}
+                      </p>
+                      <p className="text-white/60 text-xs">
+                        {language === 'vi'
+                          ? `Nhập mã OTP đã gửi đến ${otpPhone}`
+                          : `Enter the OTP sent to ${otpPhone}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleOtpVerify} className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                        {language === 'vi' ? 'Mã OTP' : 'OTP Code'}
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-full mt-1.5 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200 text-center text-2xl tracking-[0.5em] font-mono"
+                        placeholder="------"
+                        autoFocus
+                        autoComplete="one-time-code"
+                      />
+                    </div>
+
+                    <AnimatePresence>
+                      {otpError && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-red-400/20"
+                        >
+                          {otpError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <motion.button
+                      type="submit"
+                      disabled={otpLoading || otpCode.length !== 6}
+                      whileHover={{ scale: 1.015 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {otpLoading ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                      {language === 'vi' ? 'Xác nhận OTP' : 'Verify OTP'}
+                    </motion.button>
+                  </form>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                    <button
+                      onClick={() => { setOtpStep(false); setOtpCode(''); setOtpError(''); setPendingUser(null); }}
+                      className="text-white/60 text-xs font-bold hover:text-white transition-colors"
+                    >
+                      ← {language === 'vi' ? 'Quay lại' : 'Back'}
+                    </button>
+                    <button
+                      onClick={handleResendOtp}
+                      disabled={otpLoading}
+                      className="text-white/60 text-xs font-bold hover:text-white transition-colors disabled:opacity-40"
+                    >
+                      {language === 'vi' ? 'Gửi lại OTP' : 'Resend OTP'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                {/* Staff/agent toggle header */}
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+                    <Bus size={14} className="text-white/80" />
+                  </div>
+                  <span className="text-white/80 text-xs font-bold uppercase tracking-widest">
+                    {language === 'vi' ? 'Đăng nhập hệ thống' : language === 'ja' ? 'システムログイン' : 'System Login'}
+                  </span>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t.username}</label>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      className="w-full mt-1.5 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200"
+                      placeholder="admin / agent"
+                      autoComplete="username"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t.password}</label>
+                    <div className="relative mt-1.5">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-200"
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {error && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-red-400/20"
+                      >
+                        {error}
+                      </motion.p>
+                    )}
+                    {infoMessage && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="text-blue-200 bg-blue-900/30 rounded-xl px-4 py-2.5 text-sm font-medium border border-blue-400/20"
+                      >
+                        {infoMessage}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+
+                  {agentsLoading && (
+                    <div className="flex items-center gap-2 text-xs text-white/50">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>{language === 'vi' ? 'Đang kết nối hệ thống...' : 'Connecting to system...'}</span>
+                    </div>
+                  )}
+
+                  <motion.button
+                    type="submit"
+                    disabled={otpLoading}
+                    whileHover={{ scale: 1.015 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="btn-shimmer w-full bg-white text-daiichi-red py-3.5 rounded-xl font-extrabold shadow-lg hover:shadow-white/20 transition-all duration-200 text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {otpLoading && <Loader2 size={16} className="animate-spin" />}
+                    {t.login_btn}
+                  </motion.button>
+
+                  <p className="text-white/40 text-[10px] text-center mt-3 leading-relaxed px-2">
+                    {t.recaptcha_disclaimer}
+                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" aria-label="Google Privacy Policy" className="underline hover:text-white/60 transition-colors">{t.recaptcha_privacy}</a>
+                    {t.recaptcha_and}
+                    <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" aria-label="Google Terms of Service" className="underline hover:text-white/60 transition-colors">{t.recaptcha_terms}</a>
+                    {t.recaptcha_of_google}
+                  </p>
+                </form>
+
+                <div className="mt-5 pt-5 border-t border-white/10 text-center">
+                  <button
+                    onClick={handleGuestLogin}
+                    className="text-white/60 text-xs font-bold hover:text-white transition-colors flex items-center gap-1.5 mx-auto"
+                  >
+                    <span>👤</span>
+                    <span>{t.guest_btn}</span>
+                  </button>
+                </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       {/* Hidden container required by Firebase RecaptchaVerifier (invisible mode) */}
       <div id="recaptcha-container" />

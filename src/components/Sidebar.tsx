@@ -44,11 +44,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Items visible to all applicable roles (non-admin-exclusive)
   const otherMenuItems = [
-    { id: 'home', label: t.home, icon: Home, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
-    { id: 'book-ticket', label: t.book_ticket, icon: Bus, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
-    { id: 'tours', label: t.tours, icon: Star, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER] },
+    { id: 'home', label: t.home, icon: Home, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
+    { id: 'book-ticket', label: t.book_ticket, icon: Bus, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
+    { id: 'tours', label: t.tours, icon: Star, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
     { id: 'consignments', label: t.consignments, icon: Package, roles: [UserRole.MANAGER, UserRole.AGENT] },
-    { id: 'user-guide', label: t.user_guide ?? 'Hướng dẫn sử dụng', icon: BookOpen, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, 'STAFF', 'DRIVER'] as UserRole[] },
+    { id: 'user-guide', label: t.user_guide ?? 'Hướng dẫn sử dụng', icon: BookOpen, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST, 'STAFF', 'DRIVER'] as UserRole[] },
     { id: 'settings', label: t.settings, icon: SettingsIcon, roles: [UserRole.MANAGER, UserRole.AGENT] },
   ];
 
