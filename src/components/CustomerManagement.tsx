@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Users, Plus, Search, X, Save, Trash2, ChevronDown, ChevronUp,
   Phone, Mail, User, Calendar, Activity, Star, Eye, CheckCircle2, AlertCircle, Pencil,
-  ShieldCheck, ShieldOff
+  ShieldCheck, ShieldOff, TrendingUp, Award, MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -51,6 +51,37 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       (c.username || '').toLowerCase().includes(q)
     );
   }, [customers, search]);
+
+  // Compute insights for the summary panel
+  const insights = useMemo(() => {
+    const total = customers.length;
+    const active = customers.filter(c => c.status === 'ACTIVE').length;
+    const thisMonth = new Date();
+    thisMonth.setDate(1); thisMonth.setHours(0, 0, 0, 0);
+    const newThisMonth = customers.filter(c => {
+      try { return new Date(c.registeredAt) >= thisMonth; } catch { return false; }
+    }).length;
+
+    // Aggregate popular routes across all customers' bookedRoutes
+    const routeCounts: Record<string, number> = {};
+    customers.forEach(c => {
+      (c.bookedRoutes || []).forEach(r => {
+        routeCounts[r] = (routeCounts[r] || 0) + 1;
+      });
+    });
+    const topRoutes = Object.entries(routeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([route, count]) => ({ route, count }));
+
+    // Top customers by bookings
+    const topCustomers = [...customers]
+      .filter(c => (c.totalBookings ?? 0) > 0)
+      .sort((a, b) => (b.totalBookings ?? 0) - (a.totalBookings ?? 0))
+      .slice(0, 5);
+
+    return { total, active, newThisMonth, topRoutes, topCustomers };
+  }, [customers]);
 
   const openAdd = () => {
     setEditingId(null);
@@ -162,6 +193,84 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Customer Insights Panel */}
+      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-6 sm:p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-daiichi-accent rounded-xl flex items-center justify-center text-daiichi-red">
+            <TrendingUp size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-800">{t.customer_insights_title || 'Phân Tích Khách Hàng'}</h3>
+            <p className="text-xs text-gray-500">{t.customer_insights_desc || 'Tổng quan nhu cầu và sở thích khách hàng để đưa ra đề xuất và khuyến mãi phù hợp.'}</p>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: t.customer_insights_total || 'Tổng thành viên', value: insights.total, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: t.customer_insights_active || 'Đang hoạt động', value: insights.active, color: 'text-green-600', bg: 'bg-green-50' },
+            { label: t.customer_insights_new || 'Mới trong tháng', value: insights.newThisMonth, color: 'text-daiichi-red', bg: 'bg-red-50' },
+          ].map((s, i) => (
+            <div key={i} className={`${s.bg} rounded-2xl p-4 text-center`}>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Popular routes */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1">
+              <MapPin size={11} />{t.customer_top_routes || 'Tuyến đường phổ biến'}
+            </p>
+            {insights.topRoutes.length > 0 ? (
+              <div className="space-y-2">
+                {insights.topRoutes.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-gray-400 w-4 shrink-0">{i + 1}</span>
+                      <span className="text-sm text-gray-700 truncate">{r.route}</span>
+                    </div>
+                    <span className="text-xs font-bold text-daiichi-red bg-red-50 px-2 py-0.5 rounded-full shrink-0 ml-2">
+                      {r.count}x
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">{t.customer_no_data || 'Chưa có dữ liệu.'}</p>
+            )}
+          </div>
+
+          {/* Top loyal customers */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1">
+              <Award size={11} />{t.customer_top_members || 'Khách hàng thân thiết'}
+            </p>
+            {insights.topCustomers.length > 0 ? (
+              <div className="space-y-2">
+                {insights.topCustomers.map((c, i) => (
+                  <div key={c.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-gray-400 w-4 shrink-0">{i + 1}</span>
+                      <span className="text-sm text-gray-700 truncate">{c.name}</span>
+                      <span className="text-xs text-gray-400 truncate hidden sm:inline">{c.phone}</span>
+                    </div>
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full shrink-0 ml-2">
+                      {c.totalBookings} {t.customer_total_bookings_unit || (language === 'vi' ? 'đơn' : 'bkgs')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">{t.customer_no_data || 'Chưa có dữ liệu.'}</p>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Add/Edit Form */}
       <AnimatePresence>

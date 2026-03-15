@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal
+  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, UserPlus
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1695,6 +1695,35 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            {/* Membership invitation banner – shown only to unregistered guests */}
+            {currentUser?.id === 'guest' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden bg-gradient-to-r from-daiichi-red to-rose-500 rounded-[32px] p-7 sm:p-12 text-white"
+              >
+                <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                      <UserPlus size={28} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl sm:text-2xl font-bold mb-1">{t.member_banner_title || 'Trở Thành Thành Viên Daiichi Travel!'}</h3>
+                      <p className="text-white/80 text-sm max-w-lg leading-relaxed">{t.member_banner_subtitle || 'Đặt vé ngay để đăng ký thành viên miễn phí – tích lũy điểm thưởng, nhận ưu đãi độc quyền và được gợi ý chuyến xe cá nhân hóa.'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('book-ticket')}
+                    className="shrink-0 px-6 py-3 sm:px-8 sm:py-4 bg-white text-daiichi-red rounded-2xl font-bold shadow-lg hover:scale-105 transition-all text-sm sm:text-base whitespace-nowrap"
+                  >
+                    {t.member_banner_cta || 'Đặt vé & Đăng ký'}
+                  </button>
+                </div>
+                <div className="absolute -right-10 -top-10 w-52 h-52 bg-white/5 rounded-full pointer-events-none" />
+                <div className="absolute -right-4 -bottom-6 w-36 h-36 bg-white/10 rounded-full pointer-events-none" />
+              </motion.div>
+            )}
 
             <Footer language={language} />
           </div>
