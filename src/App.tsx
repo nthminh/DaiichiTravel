@@ -178,6 +178,19 @@ export default function App() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
+  // Round-trip two-phase booking state
+  const [roundTripPhase, setRoundTripPhase] = useState<'outbound' | 'return'>('outbound');
+  const [outboundBookingData, setOutboundBookingData] = useState<any>(null);
+
+  // Inquiry form state (for when no trip is found)
+  const [showInquiryForm, setShowInquiryForm] = useState(false);
+  const [inquiryName, setInquiryName] = useState('');
+  const [inquiryPhone, setInquiryPhone] = useState('');
+  const [inquiryEmail, setInquiryEmail] = useState('');
+  const [inquiryNotes, setInquiryNotes] = useState('');
+  const [inquiryLoading, setInquiryLoading] = useState(false);
+  const [inquirySuccess, setInquirySuccess] = useState(false);
+
   // Memoized unique vehicle types derived from the vehicles list
   const uniqueVehicleTypes = useMemo(
     () => Array.from(new Set(vehicles.map(v => v.type).filter(Boolean))).sort(),
@@ -483,6 +496,20 @@ export default function App() {
     });
     return () => unsubFares();
   }, [routeModalEditingId]);
+
+  // Reset inquiry form state when search parameters change
+  useEffect(() => {
+    setShowInquiryForm(false);
+    setInquirySuccess(false);
+  }, [searchFrom, searchTo, searchDate, searchReturnDate, tripType]);
+
+  // Reset round-trip phase when switching back to ONE_WAY
+  useEffect(() => {
+    if (tripType === 'ONE_WAY') {
+      setRoundTripPhase('outbound');
+      setOutboundBookingData(null);
+    }
+  }, [tripType]);
 
   // Global Ctrl+Z / Cmd+Z undo handler
   useEffect(() => {
@@ -1470,6 +1497,40 @@ export default function App() {
     return route.pricePeriods.find(p => p.startDate <= date && p.endDate >= date) || null;
   };
 
+  /** Submit an inquiry when no matching trip is found – saves to Firestore and
+   * triggers the notifyInquiry Cloud Function which emails sale@daiichitravel.com. */
+  const handleInquirySubmit = async () => {
+    if (!inquiryName.trim() || !inquiryPhone.trim()) return;
+    const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+    setInquiryLoading(true);
+    try {
+      await transportService.createInquiry({
+        name: inquiryName.trim(),
+        phone: inquiryPhone.trim(),
+        ...(inquiryEmail.trim() ? { email: inquiryEmail.trim() } : {}),
+        from: isReturnPhase ? searchTo : searchFrom,
+        to: isReturnPhase ? searchFrom : searchTo,
+        date: isReturnPhase ? searchReturnDate : searchDate,
+        ...(tripType === 'ROUND_TRIP' && searchReturnDate ? { returnDate: searchReturnDate } : {}),
+        adults,
+        children,
+        ...(inquiryNotes.trim() ? { notes: inquiryNotes.trim() } : {}),
+        tripType,
+        phase: tripType === 'ROUND_TRIP' ? roundTripPhase : 'outbound',
+      });
+      setInquirySuccess(true);
+      setInquiryName('');
+      setInquiryPhone('');
+      setInquiryEmail('');
+      setInquiryNotes('');
+    } catch (err) {
+      console.error('Failed to save inquiry:', err);
+      alert(language === 'vi' ? 'Đã xảy ra lỗi khi gửi yêu cầu. Vui lòng thử lại.' : 'An error occurred. Please try again.');
+    } finally {
+      setInquiryLoading(false);
+    }
+  };
+
   const getApplicableRouteSurcharges = (route: Route | undefined, tripDate: string): RouteSurcharge[] => {
     if (!route?.surcharges) return [];
     return route.surcharges.filter(sc => {
@@ -1776,9 +1837,40 @@ export default function App() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>
+              {/* Round-trip phase indicator */}
+              {tripType === 'ROUND_TRIP' && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <h3 className="text-xl font-bold px-2">
+                    {roundTripPhase === 'outbound' ? t.round_trip_step_1 : t.round_trip_step_2}
+                  </h3>
+                  {roundTripPhase === 'return' && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {outboundBookingData && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-bold border border-green-200">
+                          <CheckCircle2 size={12} />
+                          {t.round_trip_outbound_done}: {outboundBookingData.route} · {outboundBookingData.time}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => { setRoundTripPhase('outbound'); setShowInquiryForm(false); setInquirySuccess(false); }}
+                        className="text-xs font-bold text-gray-500 hover:text-daiichi-red transition-colors"
+                      >
+                        {t.back_to_outbound}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {tripType === 'ONE_WAY' && <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>}
+
               {(() => {
-                const filteredBookingTrips = trips.filter(trip => {
+                // For round-trip return phase, swap from/to and use return date
+                const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+                const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
+                const effectiveTo = isReturnPhase ? searchFrom : searchTo;
+                const effectiveDate = isReturnPhase ? searchReturnDate : searchDate;
+
+                const filterTrip = (trip: typeof trips[0], includeDate: boolean) => {
                   if (trip.status !== TripStatus.WAITING) return false;
                   const tripVehicle = (bookTicketSearch || vehicleTypeFilter)
                     ? vehicles.find(v => v.licensePlate === trip.licensePlate)
@@ -1795,9 +1887,9 @@ export default function App() {
                     ].join(' ');
                     if (!matchesSearch(searchable, bookTicketSearch)) return false;
                   }
-                  if (searchFrom && !matchesSearch(trip.route || '', searchFrom)) return false;
-                  if (searchTo && !matchesSearch(trip.route || '', searchTo)) return false;
-                  if (searchDate && trip.date && trip.date !== searchDate) return false;
+                  if (effectiveFrom && !matchesSearch(trip.route || '', effectiveFrom)) return false;
+                  if (effectiveTo && !matchesSearch(trip.route || '', effectiveTo)) return false;
+                  if (includeDate && effectiveDate && trip.date && trip.date !== effectiveDate) return false;
                   if (vehicleTypeFilter && (!tripVehicle || tripVehicle.type !== vehicleTypeFilter)) return false;
                   if (priceMin) {
                     const minVal = parseInt(priceMin);
@@ -1808,12 +1900,34 @@ export default function App() {
                     if (!isNaN(maxVal) && trip.price > maxVal) return false;
                   }
                   return true;
-                }).sort((a, b) => compareTripDateTime(a, b));
-                return filteredBookingTrips.length > 0 ? filteredBookingTrips.map((trip) => (
-                  <div key={trip.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8">
+                };
+
+                const filteredBookingTrips = trips.filter(t => filterTrip(t, true)).sort((a, b) => compareTripDateTime(a, b));
+
+                // Nearest trips: same route/direction but without date restriction, sorted by date proximity
+                const nearestTrips = filteredBookingTrips.length === 0 && (effectiveFrom || effectiveTo)
+                  ? trips
+                      .filter(t => filterTrip(t, false))
+                      .sort((a, b) => {
+                        if (!effectiveDate) return compareTripDateTime(a, b);
+                        const target = effectiveDate;
+                        const aDate = a.date || '9999-12-31';
+                        const bDate = b.date || '9999-12-31';
+                        const aDiff = Math.abs(aDate.localeCompare(target));
+                        const bDiff = Math.abs(bDate.localeCompare(target));
+                        return aDiff - bDiff;
+                      })
+                      .slice(0, 5)
+                  : [];
+
+                const renderTripCard = (trip: typeof trips[0], isSuggestion = false) => (
+                  <div key={trip.id} className={cn("bg-white p-6 rounded-3xl border shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
                     <div className="text-center md:text-left">
                       <p className="text-3xl font-bold text-gray-800">{formatTripDisplayTime(trip)}</p>
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
+                      {isSuggestion && trip.date && (
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">{trip.date}</span>
+                      )}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -1854,7 +1968,7 @@ export default function App() {
                       ) : (
                         <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
                       )}
-                      <button 
+                      <button
                         onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
                         className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
                       >
@@ -1862,11 +1976,117 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                )) : (
-                  <div className="text-center py-12 text-gray-400">
-                    <Search size={40} className="mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">{t.no_trips_found}</p>
+                );
+
+                if (filteredBookingTrips.length > 0) {
+                  return filteredBookingTrips.map(trip => renderTripCard(trip, false));
+                }
+
+                // Inquiry form (shared for both "nearest trips available" and "no trips at all" cases)
+                const inquiryFormEl = !inquirySuccess ? (
+                  <div className="bg-white p-6 rounded-3xl border border-daiichi-red/20 shadow-sm">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-10 h-10 bg-daiichi-red/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                        <Phone size={20} className="text-daiichi-red" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-800">{t.inquiry_title}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">{t.inquiry_subtitle}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name} *</label>
+                          <input type="text" value={inquiryName} onChange={e => setInquiryName(e.target.value)}
+                            className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder={t.enter_name} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number} *</label>
+                          <input type="tel" value={inquiryPhone} onChange={e => setInquiryPhone(e.target.value)}
+                            className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder={t.enter_phone} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.inquiry_email_label}</label>
+                        <input type="email" value={inquiryEmail} onChange={e => setInquiryEmail(e.target.value)}
+                          className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                          placeholder={t.inquiry_email_ph} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.inquiry_notes_label}</label>
+                        <textarea value={inquiryNotes} onChange={e => setInquiryNotes(e.target.value)} rows={3}
+                          className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 resize-none text-sm"
+                          placeholder={t.inquiry_notes_ph} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleInquirySubmit}
+                        disabled={inquiryLoading || !inquiryName.trim() || !inquiryPhone.trim()}
+                        className={cn("w-full py-3 text-white rounded-xl font-bold shadow-lg transition-all", inquiryLoading || !inquiryName.trim() || !inquiryPhone.trim() ? "bg-gray-300 shadow-gray-200 cursor-not-allowed" : "bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]")}
+                      >
+                        {inquiryLoading ? t.inquiry_sending : t.inquiry_submit}
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-3xl p-8 text-center">
+                    <CheckCircle2 size={48} className="text-green-500 mx-auto mb-3" />
+                    <h4 className="text-xl font-bold text-gray-800 mb-2">{t.inquiry_success_title}</h4>
+                    <p className="text-sm text-gray-600 max-w-md mx-auto">{t.inquiry_success_desc}</p>
+                    <button
+                      onClick={() => { setInquirySuccess(false); setShowInquiryForm(false); }}
+                      className="mt-5 px-6 py-2.5 bg-white border border-green-200 rounded-xl font-bold text-gray-600 hover:bg-green-50 transition-colors"
+                    >
+                      {t.inquiry_search_again}
+                    </button>
+                  </div>
+                );
+
+                if (nearestTrips.length > 0) {
+                  return (
+                    <>
+                      <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                        <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
+                        <p className="text-sm font-medium text-amber-700">{t.no_exact_trips}</p>
+                      </div>
+                      {nearestTrips.map(trip => renderTripCard(trip, true))}
+                      {!showInquiryForm && !inquirySuccess && (
+                        <div className="text-center pt-2 pb-2">
+                          <p className="text-sm text-gray-500 mb-3">{t.inquiry_not_satisfied}</p>
+                          <button
+                            onClick={() => setShowInquiryForm(true)}
+                            className="px-6 py-3 border-2 border-daiichi-red text-daiichi-red rounded-2xl font-bold hover:bg-daiichi-accent transition-colors"
+                          >
+                            {t.inquiry_request_btn}
+                          </button>
+                        </div>
+                      )}
+                      {showInquiryForm && inquiryFormEl}
+                    </>
+                  );
+                }
+
+                // No trips at all
+                return (
+                  <>
+                    {!showInquiryForm && !inquirySuccess && (
+                      <div className="text-center py-10 text-gray-400">
+                        <Search size={40} className="mx-auto mb-3 opacity-30" />
+                        <p className="font-medium mb-4">{t.no_trips_found}</p>
+                        <p className="text-sm text-gray-500 mb-3">{t.no_trips_at_all_prompt}</p>
+                        <button
+                          onClick={() => setShowInquiryForm(true)}
+                          className="px-6 py-3 border-2 border-daiichi-red text-daiichi-red rounded-2xl font-bold hover:bg-daiichi-accent transition-colors"
+                        >
+                          {t.inquiry_request_btn}
+                        </button>
+                      </div>
+                    )}
+                    {(showInquiryForm || inquirySuccess) && inquiryFormEl}
+                  </>
                 );
               })()}
             </div>
@@ -2034,7 +2254,11 @@ export default function App() {
                     {language === 'vi' ? 'Quay lại' : language === 'ja' ? '戻る' : 'Back'}
                   </button>
                   <div>
-                    <h2 className="text-2xl font-bold">{t.seat_map_title}</h2>
+                    <h2 className="text-2xl font-bold">
+                      {tripType === 'ROUND_TRIP' && previousTab === 'book-ticket'
+                        ? (roundTripPhase === 'return' ? t.seat_map_return : t.seat_map_outbound)
+                        : t.seat_map_title}
+                    </h2>
                     <p className="text-sm text-gray-500 mt-0.5">{selectedTrip.licensePlate}</p>
                   </div>
                 </div>
@@ -5329,11 +5553,50 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <TicketModal 
-        isOpen={isTicketOpen} 
-        onClose={() => setIsTicketOpen(false)} 
-        booking={lastBooking} 
-        language={language} 
+      <TicketModal
+        isOpen={isTicketOpen}
+        onClose={() => {
+          setIsTicketOpen(false);
+          // Handle round-trip continuation: after outbound booking → move to return trip selection
+          if (tripType === 'ROUND_TRIP' && roundTripPhase === 'outbound' && previousTab === 'book-ticket') {
+            setOutboundBookingData(lastBooking);
+            setRoundTripPhase('return');
+            setActiveTab('book-ticket');
+            // Reset seat selection state so user starts fresh for return trip
+            setShowBookingForm(null);
+            setExtraSeatIds([]);
+            setAddonQuantities({});
+            setSelectedTrip(null);
+            setSeatSelectionHistory([]);
+            setFareAmount(null);
+            setFareAgentAmount(null);
+            setFareError('');
+            setFareLoading(false);
+            setFromStopId('');
+            setToStopId('');
+            setPickupPoint('');
+            setDropoffPoint('');
+            setPickupAddress('');
+            setDropoffAddress('');
+            setPickupSurcharge(0);
+            setDropoffSurcharge(0);
+            setSurchargeAmount(0);
+            setBookingDiscount(0);
+            setBookingNote('');
+          } else if (tripType === 'ROUND_TRIP' && roundTripPhase === 'return' && previousTab === 'book-ticket') {
+            // Both legs done – reset round-trip state and go back to book-ticket
+            setRoundTripPhase('outbound');
+            setOutboundBookingData(null);
+            setActiveTab('book-ticket');
+            setSelectedTrip(null);
+            setShowBookingForm(null);
+            setExtraSeatIds([]);
+            setAddonQuantities({});
+            setSeatSelectionHistory([]);
+          }
+        }}
+        booking={lastBooking}
+        language={language}
       />
       <Sidebar 
         activeTab={activeTab} 

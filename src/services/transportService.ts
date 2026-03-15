@@ -236,6 +236,30 @@ export const transportService = {
     await deleteDoc(doc(db, 'bookings', bookingId));
   },
 
+  // Create a customer inquiry (no trip available – sales team will follow up)
+  createInquiry: async (inquiry: {
+    name: string;
+    phone: string;
+    email?: string;
+    from: string;
+    to: string;
+    date: string;
+    returnDate?: string;
+    adults: number;
+    children: number;
+    notes?: string;
+    tripType: 'ONE_WAY' | 'ROUND_TRIP';
+    phase?: 'outbound' | 'return' | 'both';
+  }) => {
+    if (!db) throw new Error('Firebase not configured');
+    const docRef = await addDoc(collection(db, 'inquiries'), {
+      ...inquiry,
+      status: 'PENDING',
+      createdAt: Timestamp.now(),
+    });
+    return { id: docRef.id };
+  },
+
   // Update a booking
   updateBooking: async (bookingId: string, updates: any) => {
     if (!db) return;

@@ -1,6 +1,8 @@
 import * as admin from 'firebase-admin';
 import * as https from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
+import * as nodemailer from 'nodemailer';
 
 admin.initializeApp();
 
@@ -135,5 +137,79 @@ export const verifyRecaptchaAndSendOtp = https.onCall(
       score,
       message: 'reCAPTCHA verification passed. Proceed to send SMS OTP.',
     };
+  },
+);
+
+/** Sales email to notify when a new trip inquiry is created in Firestore.
+ *
+ * Reads SMTP configuration from environment variables:
+ *   SMTP_HOST  – e.g. "smtp.gmail.com"
+ *   SMTP_PORT  – e.g. "587"
+ *   SMTP_USER  – sender email address
+ *   SMTP_PASS  – sender email password / app password
+ *   SALES_EMAIL – recipient email (defaults to sale@daiichitravel.com)
+ *
+ * If SMTP_USER or SMTP_PASS are not set the function logs the inquiry
+ * and exits gracefully without throwing.
+ */
+export const notifyInquiry = onDocumentCreated(
+  { document: 'inquiries/{inquiryId}', region: 'asia-southeast1' },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const data = snapshot.data() as Record<string, unknown>;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (!smtpUser || !smtpPass) {
+      logger.warn('[notifyInquiry] SMTP credentials not configured – skipping email send.', { inquiryId: event.params.inquiryId });
+      return;
+    }
+
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+    const salesEmail = process.env.SALES_EMAIL || 'sale@daiichitravel.com';
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const tripType = data.tripType === 'ROUND_TRIP' ? 'Khứ hồi' : 'Một chiều';
+    const phase = data.phase === 'return' ? 'Chiều về' : 'Chiều đi';
+    const subject = `[Yêu cầu đặt vé] ${data.name} – ${data.from} → ${data.to} ngày ${data.date}`;
+    const html = `
+<h2>Yêu cầu tìm chuyến xe mới</h2>
+<table cellpadding="8" style="border-collapse:collapse;width:100%;max-width:600px">
+  <tr><td><b>Họ tên</b></td><td>${data.name}</td></tr>
+  <tr><td><b>Điện thoại</b></td><td>${data.phone}</td></tr>
+  ${data.email ? `<tr><td><b>Email</b></td><td>${data.email}</td></tr>` : ''}
+  <tr><td><b>Loại vé</b></td><td>${tripType}${data.tripType === 'ROUND_TRIP' ? ` – ${phase}` : ''}</td></tr>
+  <tr><td><b>Điểm đi</b></td><td>${data.from}</td></tr>
+  <tr><td><b>Điểm đến</b></td><td>${data.to}</td></tr>
+  <tr><td><b>Ngày đi</b></td><td>${data.date}</td></tr>
+  ${data.returnDate ? `<tr><td><b>Ngày về</b></td><td>${data.returnDate}</td></tr>` : ''}
+  <tr><td><b>Người lớn</b></td><td>${data.adults}</td></tr>
+  <tr><td><b>Trẻ em</b></td><td>${data.children}</td></tr>
+  ${data.notes ? `<tr><td><b>Ghi chú</b></td><td>${data.notes}</td></tr>` : ''}
+</table>
+<p style="color:#888;font-size:12px">Gửi tự động từ hệ thống Daiichi Travel – ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
+`;
+
+    try {
+      await transporter.sendMail({
+        from: `Daiichi Travel <${smtpUser}>`,
+        to: salesEmail,
+        subject,
+        html,
+      });
+      logger.info('[notifyInquiry] Email sent successfully', { inquiryId: event.params.inquiryId, to: salesEmail });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('[notifyInquiry] Failed to send email', { inquiryId: event.params.inquiryId, error: msg });
+    }
   },
 );
