@@ -5,6 +5,7 @@ import { Stop } from '../types';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from './ResizableTh';
 import { NotePopover } from './NotePopover';
+import { matchesSearch } from '../lib/searchUtils';
 
 interface StopManagementProps {
   language: Language;
@@ -96,9 +97,10 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     }
   };
 
-  const filteredStops = stops.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.address.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStops = stops.filter(s =>
+    matchesSearch(s.name, searchTerm) ||
+    matchesSearch(s.address, searchTerm) ||
+    matchesSearch(s.category, searchTerm)
   );
 
   return (

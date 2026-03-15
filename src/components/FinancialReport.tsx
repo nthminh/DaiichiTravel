@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { matchesSearch } from '../lib/searchUtils';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 import { Invoice, InvoiceItem } from '../types';
@@ -104,9 +105,10 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     })();
     const typeOk = filterType === 'ALL' || inv.type === filterType;
     const statusOk = filterStatus === 'ALL' || inv.status === filterStatus;
-    const searchOk = !searchQuery || inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.agentName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchOk = !searchQuery ||
+      matchesSearch(inv.customerName, searchQuery) ||
+      matchesSearch(inv.invoiceNumber || '', searchQuery) ||
+      matchesSearch(inv.agentName || '', searchQuery);
     return dateOk && typeOk && statusOk && searchOk;
   });
 
@@ -620,12 +622,11 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                       {showAgentDropdown && (
                         <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-56 overflow-y-auto">
                           {(() => {
-                            const q = agentSearch.toLowerCase();
                             const filtered = agents.filter(ag =>
-                              !q ||
-                              ag.name.toLowerCase().includes(q) ||
-                              ag.code.toLowerCase().includes(q) ||
-                              (ag.address || '').toLowerCase().includes(q)
+                              !agentSearch ||
+                              matchesSearch(ag.name, agentSearch) ||
+                              matchesSearch(ag.code, agentSearch) ||
+                              matchesSearch(ag.address || '', agentSearch)
                             );
                             if (filtered.length === 0) return (
                               <div className="px-4 py-3 text-sm text-gray-400">
