@@ -1252,11 +1252,13 @@ export default function App() {
     if (exists) return false;
     // Normalize phone for default username: strip leading + and country code prefix if needed
     const normalizedPhone = data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
+    // Store username in lowercase so login is case-insensitive
+    const storedUsername = (data.username || normalizedPhone || data.phone).toLowerCase();
     await transportService.addCustomer({
       name: data.name || (language === 'vi' ? 'Khách hàng' : 'Customer'),
       phone: data.phone,
       email: data.email,
-      username: data.username || normalizedPhone || data.phone,
+      username: storedUsername,
       password: data.password,
       status: 'ACTIVE',
       registeredAt: new Date().toISOString(),
@@ -5577,8 +5579,10 @@ export default function App() {
           adminCredentials={adminCredentials}
           agents={agents}
           employees={employees}
+          customers={customers}
           agentsLoading={agentsLoading}
           securityConfig={securityConfig}
+          onRegister={handleRegisterMember}
         />
       </>
     );
