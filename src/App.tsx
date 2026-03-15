@@ -857,6 +857,26 @@ export default function App() {
   const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
     trip.date ? `${trip.date} ${trip.time}` : trip.time;
 
+  const getDayOfWeekStr = (dateStr: string): string => {
+    const [y, m, day] = dateStr.split('-').map(Number);
+    const d = new Date(y, m - 1, day);
+    const days: Record<Language, string[]> = {
+      vi: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
+      en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      ja: ['日', '月', '火', '水', '木', '金', '土'],
+    };
+    return days[language][d.getDay()];
+  };
+
+  const formatTripDateDisplay = (dateStr: string): string => {
+    const [y, m, day] = dateStr.split('-').map(Number);
+    const d = new Date(y, m - 1, day);
+    const dow = getDayOfWeekStr(dateStr);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dow}, ${dd}/${mm}`;
+  };
+
   const getLocalDateString = (offsetDays: number = 0): string => {
     // Get today in Vietnam timezone as a YYYY-MM-DD string, then offset from that date
     const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -1225,6 +1245,109 @@ export default function App() {
       printWindow.document.close();
       printWindow.focus();
       // Small delay to ensure the document is fully rendered before triggering print
+      setTimeout(() => { printWindow.print(); }, 500);
+    }
+  };
+
+  const exportRouteToPDF = (route: Route) => {
+    const periodsRows = (route.pricePeriods || []).map((p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(p.name || '')}</td>
+        <td>${p.price > 0 ? `${p.price.toLocaleString()}đ` : '—'}</td>
+        <td>${(p.agentPrice || 0) > 0 ? `${(p.agentPrice || 0).toLocaleString()}đ` : '—'}</td>
+        <td>${escapeHtml(p.startDate || '')}</td>
+        <td>${escapeHtml(p.endDate || '')}</td>
+      </tr>`).join('');
+
+    const surchargeTypeLabel = (type: string) =>
+      type === 'HOLIDAY' ? 'Lễ/Tết' : type === 'FUEL' ? 'Xăng dầu' : 'Khác';
+
+    const surchargesRows = (route.surcharges || []).map((s, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(s.name)}</td>
+        <td>${surchargeTypeLabel(s.type)}</td>
+        <td>${s.amount.toLocaleString()}đ</td>
+        <td>${s.isActive ? 'Đang áp dụng' : 'Tắt'}</td>
+        <td>${escapeHtml(s.startDate || '')}${s.endDate ? ` → ${escapeHtml(s.endDate)}` : ''}</td>
+      </tr>`).join('');
+
+    const stopsRows = (route.routeStops || [])
+      .slice().sort((a, b) => a.order - b.order)
+      .map((s, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${s.order}</td>
+          <td>${escapeHtml(s.stopName)}</td>
+        </tr>`).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <title>Tuyến đường: ${escapeHtml(route.name)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; font-size: 13px; color: #222; }
+    h1 { color: #cc2222; font-size: 20px; margin-bottom: 4px; }
+    h2 { color: #cc2222; font-size: 14px; margin: 20px 0 6px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    .info { margin-bottom: 16px; color: #444; }
+    .info p { margin: 3px 0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: bold; }
+    .badge-red { background: #fee2e2; color: #cc2222; }
+    .badge-orange { background: #fff7ed; color: #d97706; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #cc2222; color: white; padding: 7px 10px; text-align: left; font-size: 12px; }
+    td { padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 12px; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .details-box { background: #f8f8f8; border: 1px solid #eee; border-radius: 8px; padding: 12px; margin-top: 8px; white-space: pre-wrap; font-size: 12px; line-height: 1.6; }
+    .no-data { color: #999; font-style: italic; font-size: 12px; }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>THÔNG TIN TUYẾN ĐƯỜNG</h1>
+  <div class="info">
+    <p><b>STT:</b> ${route.stt}</p>
+    <p><b>Tên tuyến:</b> ${escapeHtml(route.name)}</p>
+    <p><b>Điểm đi:</b> ${escapeHtml(route.departurePoint || '—')}</p>
+    <p><b>Điểm đến:</b> ${escapeHtml(route.arrivalPoint || '—')}</p>
+    <p><b>Giá vé lẻ:</b> <span class="badge badge-red">${route.price > 0 ? `${route.price.toLocaleString()}đ` : 'Liên hệ'}</span></p>
+    <p><b>Giá đại lý:</b> <span class="badge badge-orange">${(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</span></p>
+  </div>
+
+  ${route.details ? `
+  <h2>Chi tiết tuyến đường</h2>
+  <div class="details-box">${escapeHtml(route.details)}</div>` : ''}
+
+  <h2>Kỳ giá theo mùa (${(route.pricePeriods || []).length} kỳ)</h2>
+  ${(route.pricePeriods || []).length > 0 ? `
+  <table>
+    <thead><tr><th>STT</th><th>Tên kỳ giá</th><th>Giá lẻ</th><th>Giá đại lý</th><th>Từ ngày</th><th>Đến ngày</th></tr></thead>
+    <tbody>${periodsRows}</tbody>
+  </table>` : '<p class="no-data">Không có kỳ giá đặc biệt.</p>'}
+
+  <h2>Phụ thu tuyến đường (${(route.surcharges || []).length} khoản)</h2>
+  ${(route.surcharges || []).length > 0 ? `
+  <table>
+    <thead><tr><th>STT</th><th>Tên phụ thu</th><th>Loại</th><th>Mức phụ thu</th><th>Trạng thái</th><th>Thời gian áp dụng</th></tr></thead>
+    <tbody>${surchargesRows}</tbody>
+  </table>` : '<p class="no-data">Không có phụ thu.</p>'}
+
+  <h2>Điểm dừng trên tuyến (${(route.routeStops || []).length} điểm)</h2>
+  ${(route.routeStops || []).length > 0 ? `
+  <table>
+    <thead><tr><th>STT</th><th>Thứ tự</th><th>Tên điểm dừng</th></tr></thead>
+    <tbody>${stopsRows}</tbody>
+  </table>` : '<p class="no-data">Không có điểm dừng trung gian.</p>'}
+</body>
+</html>`;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
       setTimeout(() => { printWindow.print(); }, 500);
     }
   };
@@ -2032,10 +2155,12 @@ export default function App() {
                 const renderTripCard = (trip: typeof trips[0], isSuggestion = false) => (
                   <div key={trip.id} className={cn("bg-white p-6 rounded-3xl border shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
                     <div className="text-center md:text-left">
-                      <p className="text-3xl font-bold text-gray-800">{formatTripDisplayTime(trip)}</p>
+                      <p className="text-3xl font-bold text-gray-800">{trip.time}</p>
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
-                      {isSuggestion && trip.date && (
-                        <span className="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">{trip.date}</span>
+                      {trip.date && (
+                        <span className={cn("inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
+                          {formatTripDateDisplay(trip.date)}
+                        </span>
                       )}
                     </div>
                     <div className="flex-1">
@@ -4537,7 +4662,7 @@ export default function App() {
                       <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
-                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
+                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => exportRouteToPDF(route)} title={language === 'vi' ? 'Xuất PDF' : language === 'ja' ? 'PDFを出力' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={18} /></button><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
                     </tr>
                   ))}
                   {filteredRoutes.length === 0 && (
