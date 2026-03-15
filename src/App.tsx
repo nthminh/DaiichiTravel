@@ -1054,7 +1054,7 @@ export default function App() {
     return [...groupMap.values()];
   };
 
-
+  const exportTripToExcel = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
     const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id);
