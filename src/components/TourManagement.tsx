@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Search } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language, TRANSLATIONS } from '../App';
@@ -51,6 +51,17 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
   const [editUploading, setEditUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredTours = useMemo(() => {
+    if (!searchTerm.trim()) return tours;
+    const q = searchTerm.toLowerCase();
+    return tours.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q) ||
+      (t.duration || '').toLowerCase().includes(q)
+    );
+  }, [tours, searchTerm]);
 
   useEffect(() => {
     const unsubscribe = transportService.subscribeToTours(setTours);
@@ -180,18 +191,31 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{language === 'vi' ? 'Quản lý Tour' : 'Tour Management'}</h2>
           <p className="text-sm text-gray-500">{language === 'vi' ? 'Thiết kế và đăng tải các tour du lịch mới' : 'Design and publish new tours'}</p>
         </div>
-        <button 
-          onClick={() => { setIsAdding(true); setEditingTour(null); }}
-          className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 flex items-center gap-2"
-        >
-          <Plus size={20} />
-          {language === 'vi' ? 'Thêm Tour mới' : 'Add New Tour'}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder={language === 'vi' ? 'Tìm tên hoặc mô tả tour...' : 'Search tours...'}
+              className="pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 w-56"
+            />
+          </div>
+          <button 
+            onClick={() => { setIsAdding(true); setEditingTour(null); }}
+            className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 flex items-center gap-2"
+          >
+            <Plus size={20} />
+            {language === 'vi' ? 'Thêm Tour mới' : 'Add New Tour'}
+          </button>
+        </div>
       </div>
 
       {/* Add Tour Form */}
@@ -505,8 +529,14 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         </div>
       )}
 
+      {filteredTours.length === 0 && tours.length > 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <Search size={40} className="mx-auto mb-3 opacity-40" />
+          <p className="font-medium">{language === 'vi' ? 'Không tìm thấy tour phù hợp' : 'No tours match your search'}</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {tours.map(tour => {
+        {filteredTours.map(tour => {
           const effectivePrice = tour.priceAdult || tour.price;
           const discountedPrice = tour.discountPercent && tour.discountPercent > 0
             ? Math.round(effectivePrice * (1 - tour.discountPercent / 100))
@@ -587,6 +617,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
           );
         })}
       </div>
+      )}
     </div>
   );
 };

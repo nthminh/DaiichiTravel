@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Users, Plus, Search, X, Save, Trash2, ChevronDown, ChevronUp,
   Phone, Mail, User, Calendar, Activity, Star, Eye, CheckCircle2, AlertCircle, Pencil,
-  ShieldCheck, ShieldOff, TrendingUp, Award, MapPin
+  ShieldCheck, ShieldOff, TrendingUp, Award, MapPin, Filter, ArrowUpDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -31,6 +31,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const t = TRANSLATIONS[language];
 
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [sortBy, setSortBy] = useState<'name' | 'registeredAt' | 'totalBookings' | 'totalSpent'>('registeredAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<CustomerProfile, 'id'>>({ ...EMPTY_FORM });
@@ -43,15 +47,31 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const showError = (msg: string) => { setErrorMsg(msg); setTimeout(() => setErrorMsg(''), 4000); };
 
   const filtered = useMemo(() => {
-    if (!search) return customers;
-    return customers.filter(c =>
-      matchesSearch(c.name, search) ||
-      matchesSearch(c.phone, search) ||
-      matchesSearch(c.email || '', search) ||
-      matchesSearch(c.username || '', search) ||
-      matchesSearch(c.note || '', search)
-    );
-  }, [customers, search]);
+    let result = customers.filter(c => {
+      const searchMatch = !search ||
+        matchesSearch(c.name, search) ||
+        matchesSearch(c.phone, search) ||
+        matchesSearch(c.email || '', search) ||
+        matchesSearch(c.username || '', search) ||
+        matchesSearch(c.note || '', search);
+      const statusMatch = statusFilter === 'ALL' || c.status === statusFilter;
+      return searchMatch && statusMatch;
+    });
+    result = [...result].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'name') {
+        cmp = a.name.localeCompare(b.name);
+      } else if (sortBy === 'registeredAt') {
+        cmp = (new Date(a.registeredAt || 0).getTime()) - (new Date(b.registeredAt || 0).getTime());
+      } else if (sortBy === 'totalBookings') {
+        cmp = (a.totalBookings ?? 0) - (b.totalBookings ?? 0);
+      } else if (sortBy === 'totalSpent') {
+        cmp = (a.totalSpent ?? 0) - (b.totalSpent ?? 0);
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return result;
+  }, [customers, search, statusFilter, sortBy, sortDir]);
 
   // Compute insights for the summary panel
   const insights = useMemo(() => {
@@ -421,21 +441,106 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
         )}
       </AnimatePresence>
 
-      {/* Search bar + stats */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t.search_customer || 'Tìm tên, SĐT hoặc email...'}
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-          />
+      {/* Search bar + advanced filter */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t.search_customer || 'Tìm tên, SĐT hoặc email...'}
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+            />
+          </div>
+
+          {/* Status filter pills */}
+          <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+            {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  "px-3 py-1 rounded-lg text-[11px] font-bold transition-all",
+                  statusFilter === s ? "bg-daiichi-red text-white" : "text-gray-500"
+                )}
+              >
+                {s === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All')
+                  : s === 'ACTIVE' ? (t.customer_active || 'Hoạt động')
+                  : (t.customer_inactive || 'Ngừng')}
+              </button>
+            ))}
+          </div>
+
+          {/* Advanced filter toggle */}
+          <button
+            onClick={() => setShowAdvancedFilter(v => !v)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all",
+              showAdvancedFilter ? "bg-daiichi-red text-white border-daiichi-red" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+            )}
+          >
+            <Filter size={14} />
+            {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
+          </button>
+
+          <span className="text-sm text-gray-400 font-medium ml-auto">
+            {filtered.length} / {customers.length} {language === 'vi' ? 'khách hàng' : 'customers'}
+          </span>
         </div>
-        <span className="text-sm text-gray-400 font-medium">
-          {filtered.length} / {customers.length} {language === 'vi' ? 'khách hàng' : 'customers'}
-        </span>
+
+        {/* Advanced filter panel */}
+        <AnimatePresence>
+          {showAdvancedFilter && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="flex flex-wrap items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown size={14} className="text-gray-400" />
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    {language === 'vi' ? 'Sắp xếp theo' : 'Sort by'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { key: 'registeredAt', label: language === 'vi' ? 'Ngày đăng ký' : 'Registered' },
+                    { key: 'name', label: language === 'vi' ? 'Tên' : 'Name' },
+                    { key: 'totalBookings', label: language === 'vi' ? 'Số đơn' : 'Bookings' },
+                    { key: 'totalSpent', label: language === 'vi' ? 'Tổng chi' : 'Total Spent' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => {
+                        if (sortBy === opt.key) {
+                          setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy(opt.key);
+                          setSortDir('desc');
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all",
+                        sortBy === opt.key
+                          ? "bg-daiichi-red text-white border-daiichi-red"
+                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                      )}
+                    >
+                      {opt.label}
+                      {sortBy === opt.key && (
+                        <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Customer list */}
