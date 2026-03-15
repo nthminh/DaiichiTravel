@@ -18,7 +18,8 @@ import { PAYMENT_METHODS, type PaymentMethod } from './constants/paymentMethods'
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
-import { db } from './lib/firebase';
+import { auth, db } from './lib/firebase';
+import { signOut as firebaseSignOut } from 'firebase/auth';
 
 // Import Components
 import { Dashboard } from './components/Dashboard';
@@ -6315,7 +6316,10 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         currentUser={currentUser} 
-        onLogout={() => setCurrentUser(null)} 
+        onLogout={() => {
+          setCurrentUser(null);
+          if (auth) firebaseSignOut(auth).catch((err) => console.warn('[Auth] Sign-out failed:', err));
+        }} 
         language={language} 
         setLanguage={setLanguage} 
         isSidebarOpen={isSidebarOpen} 

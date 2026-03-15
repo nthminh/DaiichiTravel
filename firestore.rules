@@ -18,6 +18,13 @@ service cloud.firestore {
              get(userDocPath).data.roles.hasAny(['admin']);
     }
 
+    // Require the caller to hold a valid Firebase Auth token.
+    // Every app user (admin, agent, customer, guest) receives an anonymous token
+    // on login, so this blocks raw unauthenticated REST/SDK calls from the internet.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     // Field validation helpers – defend against oversized or malformed data.
     function isShortString(val) {
       return val is string && val.size() <= 200;
@@ -67,82 +74,116 @@ service cloud.firestore {
     
     // --- App Collections ---
 
-    // Trips: public read + validated write (for seat booking from app)
+    // Trips: public read + authenticated validated write (for seat booking from app)
     match /trips/{trip} {
       allow read: if true;
-      allow create: if request.resource.data.keys().size() <= 30
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidTrip(request.resource.data);
-      allow update: if request.resource.data.keys().size() <= 30
+      allow update: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidTrip(request.resource.data);
-      allow delete: if true;
+      allow delete: if isSignedIn();
     }
 
-    // Routes: public read + validated write
+    // Routes: public read + authenticated validated write
     match /routes/{route} {
       allow read: if true;
-      allow create: if request.resource.data.keys().size() <= 30
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidRoute(request.resource.data);
-      allow update: if request.resource.data.keys().size() <= 30
+      allow update: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidRoute(request.resource.data);
-      allow delete: if true;
+      allow delete: if isSignedIn();
     }
 
     match /vehicles/{vehicle} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isSignedIn();
     }
     match /stops/{stop} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isSignedIn();
     }
     match /tours/{tour} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isSignedIn();
     }
 
     // Fare table: routeFares/{routeId}/fares/{fareDocId}
     // Public read so the booking form can look up fares without auth.
-    // Public write so admin can manage fare tables from the app UI.
+    // Authenticated write so only app users can manage fare tables.
     match /routeFares/{routeId}/fares/{fareDocId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isSignedIn();
     }
 
-    // Consignments: validated write
+    // Consignments: authenticated validated write
     match /consignments/{consignment} {
       allow read: if true;
-      allow create: if request.resource.data.keys().size() <= 30
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidConsignment(request.resource.data);
-      allow update: if request.resource.data.keys().size() <= 30
+      allow update: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidConsignment(request.resource.data);
-      allow delete: if true;
+      allow delete: if isSignedIn();
     }
 
-    // Agents: public read + validated write
+    // Agents: public read + authenticated validated write
     match /agents/{agent} {
       allow read: if true;
-      allow create: if request.resource.data.keys().size() <= 30
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidAgent(request.resource.data);
-      allow update: if request.resource.data.keys().size() <= 30
+      allow update: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidAgent(request.resource.data);
-      allow delete: if true;
+      allow delete: if isSignedIn();
     }
 
-    // Bookings: validated create/update; all operations for app UI
+    // Bookings: authenticated validated create/update
     match /bookings/{booking} {
       allow read: if true;
-      allow create: if request.resource.data.keys().size() <= 30
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidBooking(request.resource.data);
-      allow update: if request.resource.data.keys().size() <= 30
+      allow update: if isSignedIn()
+                    && request.resource.data.keys().size() <= 30
                     && isValidBooking(request.resource.data);
-      allow delete: if true;
+      allow delete: if isSignedIn();
+    }
+
+    // Inquiries: allow authenticated creates (customers contacting about unavailable trips)
+    match /inquiries/{inquiry} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    // Employees and customers: public read (needed for login verification), authenticated write
+    match /employees/{employee} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+    match /customers/{customer} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // User guides: public read (help content), authenticated write
+    match /userGuides/{guide} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /invoices/{invoice} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
+    // Settings: public read (needed for login credential check), authenticated write
     match /settings/{setting} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     // Block all other paths not explicitly listed above (recursive wildcard)
