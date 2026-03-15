@@ -858,7 +858,8 @@ export default function App() {
     trip.date ? `${trip.date} ${trip.time}` : trip.time;
 
   const getDayOfWeekStr = (dateStr: string): string => {
-    const d = new Date(dateStr + 'T00:00:00');
+    const [y, m, day] = dateStr.split('-').map(Number);
+    const d = new Date(y, m - 1, day);
     const days: Record<Language, string[]> = {
       vi: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
       en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -868,11 +869,12 @@ export default function App() {
   };
 
   const formatTripDateDisplay = (dateStr: string): string => {
-    const d = new Date(dateStr + 'T00:00:00');
-    const day = getDayOfWeekStr(dateStr);
+    const [y, m, day] = dateStr.split('-').map(Number);
+    const d = new Date(y, m - 1, day);
+    const dow = getDayOfWeekStr(dateStr);
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${day}, ${dd}/${mm}`;
+    return `${dow}, ${dd}/${mm}`;
   };
 
   const getLocalDateString = (offsetDays: number = 0): string => {
