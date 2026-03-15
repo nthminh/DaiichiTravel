@@ -429,8 +429,8 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                                 setRegError('');
                                 try {
                                   const ok = await onRegisterMember({
-                                    name: booking.customerName,
-                                    phone: booking.phone,
+                                    name: booking.customerName || booking.name || '',
+                                    phone: booking.phone || '',
                                     email: regEmail.trim() || undefined,
                                     username: regUsername.trim() || undefined,
                                     password: regPassword.trim(),

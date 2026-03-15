@@ -801,6 +801,7 @@ export const transportService = {
     }
   ) => {
     if (!db) return;
+    const MAX_TRACKED_ITEMS = 20;
     const ref = doc(db, 'customers', customerId);
     const snap = await getDoc(ref);
     if (!snap.exists()) return;
@@ -811,17 +812,17 @@ export const transportService = {
     if (activity.viewedRoute) {
       const routes = new Set(data.viewedRoutes || []);
       routes.add(activity.viewedRoute);
-      updates.viewedRoutes = Array.from(routes).slice(-20); // keep last 20
+      updates.viewedRoutes = Array.from(routes).slice(-MAX_TRACKED_ITEMS);
     }
     if (activity.viewedTour) {
       const tours = new Set(data.viewedTours || []);
       tours.add(activity.viewedTour);
-      updates.viewedTours = Array.from(tours).slice(-20);
+      updates.viewedTours = Array.from(tours).slice(-MAX_TRACKED_ITEMS);
     }
     if (activity.bookedRoute) {
       const booked = new Set(data.bookedRoutes || []);
       booked.add(activity.bookedRoute);
-      updates.bookedRoutes = Array.from(booked).slice(-20);
+      updates.bookedRoutes = Array.from(booked).slice(-MAX_TRACKED_ITEMS);
     }
     const prefs = data.preferences || {};
     if (activity.vehicleType) {

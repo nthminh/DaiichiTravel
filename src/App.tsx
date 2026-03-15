@@ -1250,11 +1250,13 @@ export default function App() {
     // Check if phone already registered
     const exists = customers.some(c => c.phone === data.phone);
     if (exists) return false;
+    // Normalize phone for default username: strip leading + and country code prefix if needed
+    const normalizedPhone = data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
     await transportService.addCustomer({
-      name: data.name,
+      name: data.name || (language === 'vi' ? 'Khách hàng' : 'Customer'),
       phone: data.phone,
       email: data.email,
-      username: data.username || data.phone,
+      username: data.username || normalizedPhone || data.phone,
       password: data.password,
       status: 'ACTIVE',
       registeredAt: new Date().toISOString(),

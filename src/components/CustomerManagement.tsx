@@ -261,11 +261,12 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   {t.customer_password || 'Mật khẩu'}
                 </label>
                 <input
-                  type="text"
+                  type="password"
                   value={form.password}
                   onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
                   className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                   placeholder={language === 'vi' ? 'Mật khẩu đăng nhập' : 'Login password'}
+                  autoComplete="new-password"
                 />
               </div>
 
