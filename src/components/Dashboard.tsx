@@ -209,6 +209,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         (agentIdentifier && (c.agentName || '') === agentIdentifier))
     : consignments;
 
+  const getPaginationPages = (current: number, total: number): (number | '...')[] => {
+    const pages = Array.from({ length: total }, (_, i) => i + 1)
+      .filter(p => p === 1 || p === total || Math.abs(p - current) <= 2);
+    return pages.reduce<(number | '...')[]>((acc, p, idx, arr) => {
+      if (idx > 0 && typeof arr[idx - 1] === 'number' && p - (arr[idx - 1] as number) > 1) acc.push('...');
+      acc.push(p);
+      return acc;
+    }, []);
+  };
+
   const sortedScopedBookings = [...scopedBookings].sort(sortByCreatedDesc);
 
   const formatActivityTime = (createdAt: any): string => {
@@ -516,14 +526,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   >
                     {language === 'vi' ? '← Trước' : '← Prev'}
                   </button>
-                  {Array.from({ length: bookingTotalPages }, (_, i) => i + 1)
-                    .filter(p => p === 1 || p === bookingTotalPages || Math.abs(p - bookingPage) <= 2)
-                    .reduce<(number | '...')[]>((acc, p, idx, arr) => {
-                      if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((item, idx) =>
+                  {getPaginationPages(bookingPage, bookingTotalPages).map((item, idx) =>
                       item === '...' ? (
                         <span key={`ellipsis-${idx}`} className="px-2 text-xs text-gray-400">…</span>
                       ) : (

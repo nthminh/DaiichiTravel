@@ -36,6 +36,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [showForm, setShowForm] = useState(false);
+
+  const sortOptions = useMemo(() => [
+    { key: 'registeredAt' as const, label: language === 'vi' ? 'Ngày đăng ký' : 'Registered' },
+    { key: 'name' as const, label: language === 'vi' ? 'Tên' : 'Name' },
+    { key: 'totalBookings' as const, label: language === 'vi' ? 'Số đơn' : 'Bookings' },
+    { key: 'totalSpent' as const, label: language === 'vi' ? 'Tổng chi' : 'Total Spent' },
+  ], [language]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<CustomerProfile, 'id'>>({ ...EMPTY_FORM });
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -507,12 +514,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { key: 'registeredAt', label: language === 'vi' ? 'Ngày đăng ký' : 'Registered' },
-                    { key: 'name', label: language === 'vi' ? 'Tên' : 'Name' },
-                    { key: 'totalBookings', label: language === 'vi' ? 'Số đơn' : 'Bookings' },
-                    { key: 'totalSpent', label: language === 'vi' ? 'Tổng chi' : 'Total Spent' },
-                  ] as const).map(opt => (
+                  {sortOptions.map(opt => (
                     <button
                       key={opt.key}
                       onClick={() => {
