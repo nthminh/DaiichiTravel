@@ -1156,6 +1156,42 @@ export default function App() {
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
+
+    // Build addon → users map for the "Dịch vụ" sheet
+    const addonUsersMap = buildAddonUsersMap(trip, passengerGroups);
+    const addonHeaderRows = [
+      ['DANH SÁCH DỊCH VỤ BỔ SUNG'],
+      [`Số xe: ${trip.licensePlate || '—'}`],
+      [`Tuyến: ${trip.route || '—'}`],
+      [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
+      [],
+      ['STT', 'Tên dịch vụ', 'Loại', 'Giá/người (đ)', 'Số khách', 'Tên khách hàng', 'Số điện thoại', 'Số ghế', 'Số lượng'],
+    ];
+    const addonDataRows: (string | number)[][] = [];
+    let addonStt = 1;
+    for (const [, info] of addonUsersMap) {
+      if (info.users.length === 0) {
+        addonDataRows.push([addonStt++, info.name, addonTypeLabel(info.type), info.price.toLocaleString(), 0, '—', '—', '—', '—']);
+      } else {
+        info.users.forEach((u, i) => {
+          addonDataRows.push([
+            i === 0 ? addonStt : '',
+            i === 0 ? info.name : '',
+            i === 0 ? addonTypeLabel(info.type) : '',
+            i === 0 ? info.price.toLocaleString() : '',
+            i === 0 ? info.users.length : '',
+            u.name, u.phone, u.seats, u.quantity,
+          ]);
+        });
+        addonStt++;
+      }
+    }
+    const addonWorksheet = XLSX.utils.aoa_to_sheet([...addonHeaderRows, ...addonDataRows]);
+    addonWorksheet['!cols'] = [
+      { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 14 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 }
+    ];
+    XLSX.utils.book_append_sheet(workbook, addonWorksheet, 'Dịch vụ');
+
     const sanitizedPlate = (trip.licensePlate || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
     const formattedDate = (trip.date || 'nodate').replace(/-/g, '');
     const formattedTime = (trip.time || 'notime').replace(/:/g, '');
@@ -1173,12 +1209,61 @@ export default function App() {
       .replace(/'/g, '&#x27;');
   };
 
+  const addonTypeLabel = (type: string) =>
+    type === 'SIGHTSEEING' ? 'Tham quan' : type === 'TRANSPORT' ? 'Di chuyển' : type === 'FOOD' ? 'Ăn uống' : 'Khác';
+
+  const buildAddonUsersMap = (trip: any, passengerGroups: { booking: any; seats: any[] }[]) => {
+    const map = new Map<string, { name: string; price: number; type: string; description?: string; users: { name: string; phone: string; seats: string; quantity: number }[] }>();
+    for (const addon of (trip.addons || [])) {
+      map.set(addon.id, { name: addon.name, price: addon.price, type: addon.type, description: addon.description, users: [] });
+    }
+    for (const g of passengerGroups) {
+      const selectedAddons: { id: string; name: string; price: number; quantity?: number }[] = g.booking?.selectedAddons || [];
+      const primarySeat = g.seats[0];
+      const seatIds = g.seats.map((s: any) => s.id).join(', ');
+      for (const sa of selectedAddons) {
+        if (!map.has(sa.id)) {
+          map.set(sa.id, { name: sa.name, price: sa.price, type: '—', users: [] });
+        }
+        map.get(sa.id)!.users.push({
+          name: primarySeat.customerName || '—',
+          phone: primarySeat.customerPhone || '—',
+          seats: seatIds,
+          quantity: sa.quantity || 1,
+        });
+      }
+    }
+    return map;
+  };
+
   const exportTripToPDF = (trip: any) => {
     const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
     const routeData = routes.find(r => r.name === trip.route);
     const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id);
     const passengerGroups = buildPassengerGroups(trip.id, bookedSeats);
     const totalRevenue = passengerGroups.reduce((sum, g) => sum + (g.booking?.amount ?? (trip.price || 0) * g.seats.length), 0);
+
+    // Build addon → users map for the services section
+    const pdfAddonMap = buildAddonUsersMap(trip, passengerGroups);
+    const addonsSection = pdfAddonMap.size > 0 ? `
+  <h2 style="color:#cc2222;font-size:14px;margin:20px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Dịch vụ bổ sung (${pdfAddonMap.size} dịch vụ)</h2>
+  <table>
+    <thead>
+      <tr><th>STT</th><th>Tên dịch vụ</th><th>Loại</th><th>Giá/người</th><th>Tổng khách</th><th>Danh sách khách sử dụng</th></tr>
+    </thead>
+    <tbody>
+      ${Array.from(pdfAddonMap.values()).map((info, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td><b>${escapeHtml(info.name)}</b>${info.description ? `<br><span style="color:#888;font-size:11px;">${escapeHtml(info.description)}</span>` : ''}</td>
+        <td>${escapeHtml(addonTypeLabel(info.type))}</td>
+        <td>${info.price.toLocaleString()}đ</td>
+        <td>${info.users.length > 0 ? info.users.length : '<span style="color:#999">—</span>'}</td>
+        <td>${info.users.length > 0 ? info.users.map(u => `${escapeHtml(u.name)} (${escapeHtml(u.phone)}) – Ghế ${escapeHtml(u.seats)} × ${u.quantity}`).join('<br>') : '<span style="color:#999;font-style:italic;">Chưa có khách</span>'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : '';
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -1246,6 +1331,7 @@ export default function App() {
   <div class="summary">
     <p>Tổng đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế) | Doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ</p>
   </div>
+  ${addonsSection}
 </body>
 </html>`;
     const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -1356,6 +1442,10 @@ export default function App() {
     <thead><tr><th>STT</th><th>Thứ tự</th><th>Tên điểm dừng</th></tr></thead>
     <tbody>${stopsRows}</tbody>
   </table>` : '<p class="no-data">Không có điểm dừng trung gian.</p>'}
+
+  ${route.note ? `
+  <h2>Ghi chú</h2>
+  <div class="details-box">${escapeHtml(route.note)}</div>` : ''}
 </body>
 </html>`;
     const printWindow = window.open('', '_blank', 'width=900,height=700');
