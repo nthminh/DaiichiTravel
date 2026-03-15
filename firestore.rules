@@ -36,8 +36,8 @@ service cloud.firestore {
 
     function isValidBooking(data) {
       return isShortString(data.customerName)
-          && isShortString(data.customerPhone)
-          && isNonNegativeNumber(data.totalAmount)
+          && isShortString(data.phone)
+          && isNonNegativeNumber(data.amount)
           && isShortString(data.status);
     }
 
@@ -67,6 +67,14 @@ service cloud.firestore {
           && isShortString(data.status);
     }
 
+    function isValidInquiry(data) {
+      return isShortString(data.name)
+          && isShortString(data.phone)
+          && isShortString(data.from)
+          && isShortString(data.to)
+          && data.keys().size() <= 30;
+    }
+
     // Rules for Rowy's internal collections.
     match /_rowy_/{collection}/{document=**} {
       allow read, write: if isRowyAdmin();
@@ -74,15 +82,20 @@ service cloud.firestore {
     
     // --- App Collections ---
 
-    // Trips: public read + authenticated validated write (for seat booking from app)
+    // Trips: public read + authenticated validated write (for management)
+    // Seat-only updates (status change during booking) are allowed without auth.
     match /trips/{trip} {
       allow read: if true;
       allow create: if isSignedIn()
                     && request.resource.data.keys().size() <= 30
                     && isValidTrip(request.resource.data);
-      allow update: if isSignedIn()
-                    && request.resource.data.keys().size() <= 30
-                    && isValidTrip(request.resource.data);
+      // Allow seat-only updates without auth (booking flow); full updates require auth.
+      // The seats array size is bounded to prevent arbitrary inflation.
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats'])
+                        && request.resource.data.seats.size() <= 100)
+                    || (isSignedIn()
+                        && request.resource.data.keys().size() <= 30
+                        && isValidTrip(request.resource.data));
       allow delete: if isSignedIn();
     }
 
@@ -143,22 +156,20 @@ service cloud.firestore {
       allow delete: if isSignedIn();
     }
 
-    // Bookings: authenticated validated create/update
+    // Bookings: anyone can create/update (book tickets without login); delete requires auth
     match /bookings/{booking} {
       allow read: if true;
-      allow create: if isSignedIn()
-                    && request.resource.data.keys().size() <= 30
+      allow create: if request.resource.data.keys().size() <= 50
                     && isValidBooking(request.resource.data);
-      allow update: if isSignedIn()
-                    && request.resource.data.keys().size() <= 30
+      allow update: if request.resource.data.keys().size() <= 50
                     && isValidBooking(request.resource.data);
       allow delete: if isSignedIn();
     }
 
-    // Inquiries: allow authenticated creates (customers contacting about unavailable trips)
+    // Inquiries: anyone can create (customers contacting about unavailable trips); read requires auth
     match /inquiries/{inquiry} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isValidInquiry(request.resource.data);
     }
 
     // Employees and customers: public read (needed for login verification), authenticated write
