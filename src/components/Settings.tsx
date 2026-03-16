@@ -116,12 +116,20 @@ export const Settings: React.FC<SettingsProps> = ({
     momoEnabled: false,
     zalopayEnabled: false,
     vnpayEnabled: false,
+    vietinbankEnabled: false,
     momoPartnerCode: '',
     zalopayAppId: '',
     vnpayTerminalId: '',
     bankAccountName: '',
     bankAccountNumber: '',
     bankName: '',
+    vietinbankClientId: '',
+    vietinbankClientSecret: '',
+    vietinbankMerchantId: '',
+    vietinbankTerminalId: '',
+    vietinbankAccountNumber: '',
+    vietinbankAccountName: '',
+    vietinbankEnvironment: 'sandbox' as 'sandbox' | 'production',
   };
   const [paymentConfig, setPaymentConfig] = useState(DEFAULT_PAYMENT_CONFIG);
   const [paymentConfigLoading, setPaymentConfigLoading] = useState(true);
@@ -675,6 +683,140 @@ export const Settings: React.FC<SettingsProps> = ({
                     <div className="pt-2 border-t border-gray-100">
                       <label className="text-[10px] font-bold text-gray-400 uppercase">Terminal ID</label>
                       <input type="text" value={paymentConfig.vnpayTerminalId} onChange={e => setPaymentConfig(p => ({ ...p, vnpayTerminalId: e.target.value }))} placeholder="VNPAY_TERMINAL_ID" className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                  )}
+                </div>
+
+                {/* VietinBank */}
+                <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🏛️</span>
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'VietinBank (Ngân hàng Thương mại cổ phần Công Thương Việt Nam)' : 'VietinBank OpenAPI'}</p>
+                        <p className={cn("text-xs font-bold", paymentConfig.vietinbankEnabled ? "text-green-600" : "text-gray-400")}>
+                          {paymentConfig.vietinbankEnabled ? (language === 'vi' ? 'Đã kích hoạt' : 'Enabled') : (language === 'vi' ? 'Chưa kết nối' : 'Not connected')}
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => setPaymentConfig(p => ({ ...p, vietinbankEnabled: !p.vietinbankEnabled }))} className={cn("transition-colors", paymentConfig.vietinbankEnabled ? "text-blue-600" : "text-gray-300")}>
+                      {paymentConfig.vietinbankEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                    </button>
+                  </div>
+                  {paymentConfig.vietinbankEnabled && (
+                    <div className="pt-3 border-t border-blue-100 space-y-3">
+                      <p className="text-[11px] text-blue-600 font-semibold">{language === 'vi' ? 'Thông tin kết nối VietinBank OpenAPI' : 'VietinBank OpenAPI Connection Details'}</p>
+
+                      {/* Environment */}
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Môi trường' : 'Environment'}</label>
+                        <div className="flex gap-3 mt-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="vietinbank_env"
+                              value="sandbox"
+                              checked={paymentConfig.vietinbankEnvironment === 'sandbox'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, vietinbankEnvironment: 'sandbox' }))}
+                              className="accent-blue-600"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">Sandbox (Test)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="vietinbank_env"
+                              value="production"
+                              checked={paymentConfig.vietinbankEnvironment === 'production'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, vietinbankEnvironment: 'production' }))}
+                              className="accent-blue-600"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">Production (Live)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* API Credentials */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Client ID</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.vietinbankClientId}
+                            onChange={e => setPaymentConfig(p => ({ ...p, vietinbankClientId: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Client ID từ VietinBank' : 'Client ID from VietinBank'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Client Secret</label>
+                          <input
+                            type="password"
+                            value={paymentConfig.vietinbankClientSecret}
+                            onChange={e => setPaymentConfig(p => ({ ...p, vietinbankClientSecret: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Client Secret từ VietinBank' : 'Client Secret from VietinBank'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Merchant ID</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.vietinbankMerchantId}
+                            onChange={e => setPaymentConfig(p => ({ ...p, vietinbankMerchantId: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Mã merchant VietinBank' : 'VietinBank Merchant ID'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Terminal ID</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.vietinbankTerminalId}
+                            onChange={e => setPaymentConfig(p => ({ ...p, vietinbankTerminalId: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Mã terminal VietinBank' : 'VietinBank Terminal ID'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Bank account info */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Số tài khoản VietinBank' : 'VietinBank Account Number'}</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.vietinbankAccountNumber}
+                            onChange={e => setPaymentConfig(p => ({ ...p, vietinbankAccountNumber: e.target.value }))}
+                            placeholder="108xxxxxxxxx"
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Tên chủ tài khoản' : 'Account Holder Name'}</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.vietinbankAccountName}
+                            onChange={e => setPaymentConfig(p => ({ ...p, vietinbankAccountName: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Công ty TNHH Daiichi...' : 'Daiichi Travel Co., Ltd...'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                        <p className="text-[11px] text-blue-700 font-semibold mb-1">{language === 'vi' ? '🔗 Endpoint API' : '🔗 API Endpoints'}</p>
+                        <p className="text-[10px] text-blue-600 font-mono">
+                          {paymentConfig.vietinbankEnvironment === 'sandbox'
+                            ? 'https://sandbox.vietinbank.vn/openapi/...'
+                            : 'https://openapi.vietinbank.vn/...'}
+                        </p>
+                        <p className="text-[10px] text-blue-500 mt-1">
+                          {language === 'vi'
+                            ? 'Thông tin xác thực được lưu trữ an toàn. Tích hợp OAuth2 sẽ sử dụng Client ID và Client Secret để lấy access token.'
+                            : 'Credentials stored securely. OAuth2 integration will use Client ID & Client Secret to obtain access tokens.'}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
