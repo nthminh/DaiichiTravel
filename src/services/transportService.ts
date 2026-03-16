@@ -9,6 +9,7 @@ import {
   setDoc,
   getDocs,
   writeBatch,
+  runTransaction,
   query, 
   orderBy,
   Timestamp 
@@ -47,18 +48,34 @@ export const transportService = {
     });
   },
 
-  // Update seat status
+  // Update seat status (atomic transaction to avoid race conditions)
   bookSeat: async (tripId: string, seatId: string, bookingData: Partial<Seat>) => {
     if (!db) return;
     const tripRef = doc(db, 'trips', tripId);
-    const tripSnap = await getDoc(tripRef);
-    if (!tripSnap.exists()) return;
-    const tripData = tripSnap.data();
-    const seats = tripData.seats || [];
-    const updatedSeats = seats.map((seat: Seat) =>
-      seat.id === seatId ? { ...seat, ...bookingData } : seat
-    );
-    await updateDoc(tripRef, { seats: updatedSeats });
+    await runTransaction(db, async (transaction) => {
+      const tripSnap = await transaction.get(tripRef);
+      if (!tripSnap.exists()) return;
+      const seats = (tripSnap.data().seats || []) as Seat[];
+      const updatedSeats = seats.map((seat: Seat) =>
+        seat.id === seatId ? { ...seat, ...bookingData } : seat
+      );
+      transaction.update(tripRef, { seats: updatedSeats });
+    });
+  },
+
+  // Update multiple seats atomically in a single transaction
+  bookSeats: async (tripId: string, seatIds: string[], bookingData: Partial<Seat>) => {
+    if (!db) return;
+    const tripRef = doc(db, 'trips', tripId);
+    await runTransaction(db, async (transaction) => {
+      const tripSnap = await transaction.get(tripRef);
+      if (!tripSnap.exists()) return;
+      const seats = (tripSnap.data().seats || []) as Seat[];
+      const updatedSeats = seats.map((seat: Seat) =>
+        seatIds.includes(seat.id) ? { ...seat, ...bookingData } : seat
+      );
+      transaction.update(tripRef, { seats: updatedSeats });
+    });
   },
 
   // Listen to consignments

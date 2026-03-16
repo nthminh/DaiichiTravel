@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
-import { cn } from '../lib/utils';
+import { cn, getTodayVN } from '../lib/utils';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
@@ -1183,6 +1183,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                             <input
                               type="date"
                               value={editTripDate}
+                              min={getTodayVN()}
                               onChange={e => { setEditTripDate(e.target.value); setEditSelectedTrip(null); setEditSelectedSeats([]); }}
                               className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
                             />

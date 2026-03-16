@@ -168,7 +168,7 @@ export default function App() {
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
-  const [searchDate, setSearchDate] = useState('');
+  const [searchDate, setSearchDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
   const [searchReturnDate, setSearchReturnDate] = useState('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
   const [bookTicketSearch, setBookTicketSearch] = useState('');
@@ -1773,11 +1773,8 @@ export default function App() {
       // Save booking to Firebase (always cloud – no local fallback)
       const result = await transportService.createBooking(bookingData);
 
-      // Update seat status in Firebase for all seats
-      await transportService.bookSeat(selectedTrip.id, seatId, seatUpdateData);
-      for (const extraSeatId of extraSeatsForBooking) {
-        await transportService.bookSeat(selectedTrip.id, extraSeatId, seatUpdateData);
-      }
+      // Update seat status in Firebase for all seats atomically
+      await transportService.bookSeats(selectedTrip.id, allSeatIds, seatUpdateData);
 
       setLastBooking({ ...bookingData, id: result.id, ticketCode: result.ticketCode });
     } catch (err) {
@@ -2125,7 +2122,7 @@ export default function App() {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label>
                   <div className="relative mt-1">
                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input type="date" value={searchDate} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                    <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>
                 </div>
                 {tripType === 'ROUND_TRIP' && (
@@ -2133,7 +2130,7 @@ export default function App() {
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.return_date}</label>
                     <div className="relative mt-1">
                       <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input type="date" value={searchReturnDate} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                      <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
                     </div>
                   </div>
                 )}
@@ -3582,7 +3579,7 @@ export default function App() {
                   <input
                     type="date"
                     value={tourBookingDate}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getLocalDateString(0)}
                     onChange={(e) => setTourBookingDate(e.target.value)}
                     className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                   />
@@ -5213,7 +5210,7 @@ export default function App() {
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={tripForm.date} onChange={e => {
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={tripForm.date} min={editingTrip ? undefined : getLocalDateString(0)} onChange={e => {
                         const date = e.target.value;
                         const selectedRoute = routes.find(r => r.name === tripForm.route);
                         if (selectedRoute) {
@@ -5304,7 +5301,7 @@ export default function App() {
                     <button onClick={() => setShowBatchAddTrip(false)} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={batchTripForm.date} onChange={e => {
+                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={batchTripForm.date} min={getLocalDateString(0)} onChange={e => {
                       const date = e.target.value;
                       const selectedRoute = routes.find(r => r.name === batchTripForm.route);
                       if (selectedRoute) {
