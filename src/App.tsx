@@ -1481,12 +1481,16 @@ export default function App() {
 
   const handleTripVehicleSelect = (licensePlate: string) => {
     const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
-    setTripForm(p => ({ ...p, licensePlate, seatCount: vehicle?.seats || p.seatCount }));
+    const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
+    const layoutSeatCount = savedLayout && savedLayout.length > 0 ? savedLayout.length : null;
+    setTripForm(p => ({ ...p, licensePlate, seatCount: layoutSeatCount ?? vehicle?.seats ?? p.seatCount }));
   };
 
   const handleBatchVehicleSelect = (licensePlate: string) => {
     const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
-    setBatchTripForm(p => ({ ...p, licensePlate, seatCount: vehicle?.seats || p.seatCount }));
+    const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
+    const layoutSeatCount = savedLayout && savedLayout.length > 0 ? savedLayout.length : null;
+    setBatchTripForm(p => ({ ...p, licensePlate, seatCount: layoutSeatCount ?? vehicle?.seats ?? p.seatCount }));
   };
 
   // --- Batch trip creation ---
@@ -4216,7 +4220,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -4804,7 +4808,7 @@ export default function App() {
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Route')}</button>
+                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : t.add_route}</button>
                   </div>
                 </div>
               </div>

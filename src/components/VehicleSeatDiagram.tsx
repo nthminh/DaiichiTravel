@@ -15,6 +15,8 @@ export interface SeatCell {
   discounted?: boolean;
   /** booked status (read-only, not editable in the diagram builder) */
   booked?: boolean;
+  /** true = sleeper/lying berth; false/undefined = sitting seat */
+  isSleeper?: boolean;
 }
 
 export type DeckLayout = SeatCell[][];
@@ -206,6 +208,7 @@ export function serializeLayout(layout: VehicleLayout): SerializedSeat[] {
             deck: deckIdx,
             discounted: cell.discounted ?? false,
             booked: cell.booked ?? false,
+            isSleeper: cell.isSleeper ?? false,
           });
         }
       });
@@ -222,6 +225,7 @@ export interface SerializedSeat {
   deck: number;
   discounted: boolean;
   booked: boolean;
+  isSleeper?: boolean;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -266,6 +270,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
           label: s.label,
           discounted: s.discounted,
           booked: s.booked,
+          isSleeper: s.isSleeper,
         };
       });
       return { decks };
@@ -275,8 +280,9 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
 
   const [layout, setLayout] = useState<VehicleLayout>(buildLayout);
   const [activeDeck, setActiveDeck] = useState(0);
-  const [editMode, setEditMode] = useState<'view' | 'discount' | 'position'>('view');
+  const [editMode, setEditMode] = useState<'view' | 'discount' | 'position' | 'type'>('view');
   const [isDirty, setIsDirty] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
 
   const isMultiDeck = layout.decks.length > 1;
 
@@ -323,6 +329,20 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
   const handleCellClick = (deckIdx: number, rowIdx: number, colIdx: number) => {
     if (editMode === 'discount') toggleDiscount(deckIdx, rowIdx, colIdx);
     else if (editMode === 'position') togglePosition(deckIdx, rowIdx, colIdx);
+    else if (editMode === 'type') toggleSeatType(deckIdx, rowIdx, colIdx);
+  };
+
+  const toggleSeatType = (deckIdx: number, rowIdx: number, colIdx: number) => {
+    if (!editable || editMode !== 'type') return;
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      const cell = next.decks[deckIdx][rowIdx][colIdx];
+      if (!cell.isAisle && !cell.isDriver) {
+        cell.isSleeper = !cell.isSleeper;
+      }
+      return next;
+    });
+    setIsDirty(true);
   };
 
   const toggleAllSeats = () => {
@@ -358,6 +378,74 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
     setIsDirty(true);
   };
 
+  // ─── Grid size / deck controls ─────────────────────────────────────────────
+
+  const addRow = () => {
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      const colCount = next.decks[activeDeck]?.[0]?.length ?? 4;
+      const newRow: SeatCell[] = Array.from({ length: colCount }, () => ({ label: '', isAisle: true, isSleeper: false }));
+      next.decks[activeDeck].push(newRow);
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const removeRow = () => {
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      if (next.decks[activeDeck].length > 1) next.decks[activeDeck].pop();
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const addCol = () => {
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      next.decks.forEach(deck => {
+        deck.forEach(row => row.push({ label: '', isAisle: true, isSleeper: false }));
+      });
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const removeCol = () => {
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      next.decks.forEach(deck => {
+        deck.forEach(row => { if (row.length > 1) row.pop(); });
+      });
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const addDeck = () => {
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      const refDeck = next.decks[0];
+      const newDeck: DeckLayout = refDeck.map(row =>
+        row.map(cell => cell.isDriver ? { ...cell } : { label: '', isAisle: true })
+      );
+      next.decks.push(newDeck);
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const removeDeck = () => {
+    setLayout(prev => {
+      if (prev.decks.length <= 1) return prev;
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      next.decks.pop();
+      return next;
+    });
+    setActiveDeck(d => Math.max(0, d - 1));
+    setIsDirty(true);
+  };
+
   const handleSave = () => {
     const seats = serializeLayout(layout);
     onSave?.(seats);
@@ -382,8 +470,11 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       available: 'Trống',
       booked: 'Đã đặt',
       discounted: 'Giảm giá (vị trí kém)',
+      sleeper: 'Giường nằm',
       editDiscount: 'Đánh dấu ghế giảm giá',
       editPosition: 'Chỉnh sửa vị trí ghế',
+      editType: 'Đổi loại ghế (ngồi/nằm)',
+      tipType: 'Nhấp vào ghế để chuyển đổi ngồi ↔ nằm',
       view: 'Chế độ xem',
       reset: 'Khôi phục mặc định',
       save: 'Lưu sơ đồ',
@@ -397,6 +488,16 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       front: '← Đầu xe (Tài xế bên trái)',
       toggleAllOn: 'Bật tất cả ghế',
       toggleAllOff: 'Tắt tất cả ghế',
+      hideLabels: 'Ẩn số thứ tự',
+      showLabels: 'Hiện số thứ tự',
+      addRow: '+ Hàng',
+      removeRow: '− Hàng',
+      addCol: '+ Cột',
+      removeCol: '− Cột',
+      addDeck: '+ Tầng',
+      removeDeck: '− Tầng',
+      deck: 'Tầng',
+      grid: 'Lưới',
     },
     en: {
       title: 'Seat Diagram',
@@ -405,8 +506,11 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       available: 'Available',
       booked: 'Booked',
       discounted: 'Discounted (bad position)',
+      sleeper: 'Sleeper berth',
       editDiscount: 'Mark Discounted Seats',
       editPosition: 'Edit Seat Positions',
+      editType: 'Toggle Seat Type (sit/sleep)',
+      tipType: 'Click a seat to toggle sitting ↔ sleeper',
       view: 'View Mode',
       reset: 'Reset Layout',
       save: 'Save Layout',
@@ -420,6 +524,16 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       front: '← Front (Driver on left)',
       toggleAllOn: 'Enable All Seats',
       toggleAllOff: 'Disable All Seats',
+      hideLabels: 'Hide Numbers',
+      showLabels: 'Show Numbers',
+      addRow: '+ Row',
+      removeRow: '− Row',
+      addCol: '+ Col',
+      removeCol: '− Col',
+      addDeck: '+ Deck',
+      removeDeck: '− Deck',
+      deck: 'Deck',
+      grid: 'Grid',
     },
     ja: {
       title: '座席図',
@@ -428,8 +542,11 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       available: '空席',
       booked: '予約済',
       discounted: '割引（不利な位置）',
+      sleeper: '寝台',
       editDiscount: '割引席をマーク',
       editPosition: '座席位置を編集',
+      editType: '座席タイプを変更（座席/寝台）',
+      tipType: '座席をクリックして座席 ↔ 寝台を切り替え',
       view: '表示モード',
       reset: 'デフォルトに戻す',
       save: '保存',
@@ -443,6 +560,16 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       front: '← 前方（運転手は左側）',
       toggleAllOn: '全座席を有効化',
       toggleAllOff: '全座席を無効化',
+      hideLabels: '番号を非表示',
+      showLabels: '番号を表示',
+      addRow: '+ 行',
+      removeRow: '− 行',
+      addCol: '+ 列',
+      removeCol: '− 列',
+      addDeck: '+ フロア',
+      removeDeck: '− フロア',
+      deck: 'フロア',
+      grid: 'グリッド',
     },
   };
   const label = t[language] ?? t.vi;
@@ -503,11 +630,12 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
 
         {/* Toolbar */}
         {editable && (
-          <div className="flex flex-wrap items-center gap-3 px-7 pt-4">
+          <div className="flex flex-wrap items-center gap-2 px-7 pt-4">
+            {/* Edit-mode buttons */}
             <button
               onClick={() => setEditMode(editMode === 'discount' ? 'view' : 'discount')}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all',
+                'flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all',
                 editMode === 'discount'
                   ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-400'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -519,7 +647,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
             <button
               onClick={() => setEditMode(editMode === 'position' ? 'view' : 'position')}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all',
+                'flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all',
                 editMode === 'position'
                   ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -529,9 +657,29 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
               {editMode === 'position' ? label.tipPosition : label.editPosition}
             </button>
             <button
+              onClick={() => setEditMode(editMode === 'type' ? 'view' : 'type')}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all',
+                editMode === 'type'
+                  ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-400'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <span className="w-3 h-3 rounded-sm bg-indigo-400 inline-block" />
+              {editMode === 'type' ? label.tipType : label.editType}
+            </button>
+            {/* Toggle seat number labels */}
+            <button
+              onClick={() => setShowLabels(v => !v)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
+            >
+              {showLabels ? label.hideLabels : label.showLabels}
+            </button>
+            {/* Toggle all seats on/off */}
+            <button
               onClick={toggleAllSeats}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all',
+                'flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all',
                 totalSeats > 0
                   ? 'bg-red-50 text-red-600 hover:bg-red-100'
                   : 'bg-green-50 text-green-600 hover:bg-green-100'
@@ -542,10 +690,24 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
             </button>
             <button
               onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
             >
-              <RotateCcw size={14} /> {label.reset}
+              <RotateCcw size={12} /> {label.reset}
             </button>
+          </div>
+        )}
+
+        {/* Grid size + deck controls */}
+        {editable && (
+          <div className="flex flex-wrap items-center gap-2 px-7 pt-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-1">{label.grid}:</span>
+            <button onClick={addRow} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">{label.addRow}</button>
+            <button onClick={removeRow} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">{label.removeRow}</button>
+            <button onClick={addCol} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">{label.addCol}</button>
+            <button onClick={removeCol} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">{label.removeCol}</button>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mr-1">{label.deck}:</span>
+            <button onClick={addDeck} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">{label.addDeck}</button>
+            <button onClick={removeDeck} disabled={layout.decks.length <= 1} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40">{label.removeDeck}</button>
           </div>
         )}
 
@@ -580,13 +742,16 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                     );
                   }
                   const isDriver = !!cell.isDriver;
+                  const isSleeper = !!cell.isSleeper;
                   const tooltipText = isDriver
                     ? (language === 'vi' ? 'Tài xế' : language === 'ja' ? '運転手' : 'Driver')
                     : cell.discounted
                     ? `${label.available} – ${label.discounted.replace('(', '').replace(')', '')} (${cell.label})`
+                    : isSleeper
+                    ? `${label.sleeper} (${cell.label})`
                     : `${label.available} (${cell.label})`;
                   const isInteractive = editable && !isDriver &&
-                    (editMode === 'discount' || editMode === 'position');
+                    (editMode === 'discount' || editMode === 'position' || editMode === 'type');
                   return (
                     <button
                       key={colIdx}
@@ -601,6 +766,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                           ? 'bg-red-100 border-red-400 text-red-700'
                           : cell.discounted
                           ? 'bg-amber-100 border-amber-400 text-amber-700 ring-2 ring-amber-300'
+                          : isSleeper
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-800'
                           : 'bg-green-50 border-green-300 text-green-800',
                         isInteractive && !cell.booked
                           ? 'cursor-pointer hover:scale-110 hover:shadow-md'
@@ -608,7 +775,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                       )}
                       title={tooltipText}
                     >
-                      {isDriver ? '🚌' : cell.label}
+                      {isDriver ? '🚌' : showLabels ? cell.label : ''}
                     </button>
                   );
                 })}
@@ -621,6 +788,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
         <div className="flex flex-wrap gap-4 px-7 pb-4 text-xs font-semibold text-gray-600">
           {[
             { color: 'bg-green-50 border-green-300', text: label.available },
+            { color: 'bg-indigo-50 border-indigo-300', text: label.sleeper },
             { color: 'bg-red-100 border-red-400', text: label.booked },
             { color: 'bg-amber-100 border-amber-400', text: label.discounted },
           ].map(l => (
