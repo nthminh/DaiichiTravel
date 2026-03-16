@@ -38,7 +38,11 @@ export interface Route {
   details?: string;        // detailed trip information shown to customers on seat selection
   routeStops?: RouteStop[]; // ordered stops for fare-table pricing
   disablePickupAddress?: boolean;  // when true, disables pickup address (điểm đón) input on booking page
+  disablePickupAddressFrom?: string;  // YYYY-MM-DD, if set the disable only applies from this date
+  disablePickupAddressTo?: string;    // YYYY-MM-DD, if set the disable only applies until this date
   disableDropoffAddress?: boolean; // when true, disables dropoff address (điểm trả) input on booking page
+  disableDropoffAddressFrom?: string; // YYYY-MM-DD, if set the disable only applies from this date
+  disableDropoffAddressTo?: string;   // YYYY-MM-DD, if set the disable only applies until this date
 }
 
 // A single fare entry in the routeFares subcollection
