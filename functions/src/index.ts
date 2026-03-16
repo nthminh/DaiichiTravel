@@ -234,3 +234,230 @@ export const notifyInquiry = onDocumentCreated(
     }
   },
 );
+
+/** Welcome email sent to a newly registered customer.
+ *
+ * Triggered when a new document is created in the `customers` collection.
+ * If the customer document contains an email address the function sends a
+ * branded welcome email that introduces Daiichi Travel, includes links to
+ * all company channels, and provides a confirmation button that directs the
+ * customer back to the main website.
+ *
+ * Reads SMTP configuration from the same environment variables as notifyInquiry:
+ *   SMTP_HOST  – e.g. "smtp.gmail.com"
+ *   SMTP_PORT  – e.g. "587"
+ *   SMTP_USER  – sender email address
+ *   SMTP_PASS  – sender email password / app password
+ *   APP_URL    – base URL used for the confirmation button
+ *                (defaults to https://daiichitravel.com)
+ *
+ * If the customer has no email, or if SMTP credentials are absent, the
+ * function exits gracefully without throwing.
+ */
+export const onCustomerCreated = onDocumentCreated(
+  { document: 'customers/{customerId}', region: 'asia-southeast1' },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const data = snapshot.data() as Record<string, unknown>;
+    const customerEmail = typeof data.email === 'string' ? data.email.trim() : '';
+
+    if (!customerEmail) {
+      logger.info('[onCustomerCreated] No email on customer – skipping welcome email.', {
+        customerId: event.params.customerId,
+      });
+      return;
+    }
+
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (!smtpUser || !smtpPass) {
+      logger.warn('[onCustomerCreated] SMTP credentials not configured – skipping welcome email.', {
+        customerId: event.params.customerId,
+      });
+      return;
+    }
+
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+    const appUrl = process.env.APP_URL || 'https://daiichitravel.com';
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const customerName = clean(data.name) || 'Quý khách';
+    const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const subject = `Chào mừng ${customerName} đến với Daiichi Travel! 🎉`;
+
+    const logoUrl =
+      'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
+
+    const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Chào mừng đến với Daiichi Travel</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 16px">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:16px;overflow:hidden;max-width:600px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,0.08)">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#c8102e 0%,#8b0000 100%);padding:36px 32px;text-align:center">
+              <img src="${logoUrl}" alt="Daiichi Travel" height="52"
+                   style="max-width:200px;display:block;margin:0 auto 16px">
+              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:-0.5px">
+                Chào mừng đến với Daiichi Travel! 🎉
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 32px">
+              <p style="font-size:16px;color:#333333;margin:0 0 16px">
+                Kính chào <strong>${customerName}</strong>,
+              </p>
+              <p style="font-size:15px;color:#555555;line-height:1.8;margin:0 0 16px">
+                Chúng tôi rất vui mừng chào đón bạn trở thành thành viên của
+                <strong>Daiichi Travel</strong> – công ty tổ chức tour du lịch và vận tải hành khách
+                chất lượng cao tại Miền Bắc Việt Nam.
+              </p>
+              <p style="font-size:15px;color:#555555;line-height:1.8;margin:0 0 24px">
+                Với đội ngũ chuyên nghiệp và hệ thống xe hiện đại, chúng tôi cam kết mang đến cho bạn
+                những chuyến đi <strong>an toàn, thoải mái</strong> và đáng nhớ nhất.
+              </p>
+
+              <!-- Confirmation button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 32px">
+                    <a href="${appUrl}"
+                       style="background:#c8102e;color:#ffffff;text-decoration:none;padding:14px 40px;
+                              border-radius:8px;font-size:16px;font-weight:700;display:inline-block;
+                              letter-spacing:0.3px">
+                      ✅ Xác nhận tài khoản
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid #eeeeee;margin:0 0 28px">
+
+              <!-- Company links -->
+              <h3 style="font-size:15px;color:#333333;margin:0 0 16px;font-weight:700">
+                🌐 Kết nối với chúng tôi
+              </h3>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+                <tr>
+                  <td style="padding:6px 0">
+                    <a href="${appUrl}"
+                       style="color:#c8102e;text-decoration:none;font-size:14px;font-weight:600">
+                      🌍 Website chính thức: daiichitravel.com
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0">
+                    <a href="https://www.facebook.com/Fanpagedaiichitravel"
+                       style="color:#1877f2;text-decoration:none;font-size:14px;font-weight:600">
+                      📘 Facebook: facebook.com/Fanpagedaiichitravel
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0">
+                    <a href="https://www.youtube.com/@daiichitravel63"
+                       style="color:#ff0000;text-decoration:none;font-size:14px;font-weight:600">
+                      ▶️ YouTube: youtube.com/@daiichitravel63
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0">
+                    <a href="https://www.instagram.com/daiichi_travel_official/"
+                       style="color:#e1306c;text-decoration:none;font-size:14px;font-weight:600">
+                      📸 Instagram: @daiichi_travel_official
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid #eeeeee;margin:0 0 28px">
+
+              <!-- Contact info -->
+              <h3 style="font-size:15px;color:#333333;margin:0 0 16px;font-weight:700">
+                📞 Thông tin liên hệ
+              </h3>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:5px 0;font-size:14px;color:#555555">
+                    📱 Hotline 24/7: <strong>+84 96 100 47 09</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:5px 0;font-size:14px;color:#555555">
+                    📧 Email: <strong>info@daiichitravel.com</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:5px 0;font-size:14px;color:#555555">
+                    📍 Địa chỉ: <strong>96 Nguyễn Hữu Huân, Hoàn Kiếm, Hà Nội</strong>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f9f9f9;padding:20px 32px;text-align:center;border-top:1px solid #eeeeee">
+              <p style="color:#888888;font-size:12px;margin:0 0 4px">
+                Gửi tự động từ hệ thống Daiichi Travel – ${now}
+              </p>
+              <p style="color:#aaaaaa;font-size:11px;margin:0">
+                © 2026 Daiichi Travel. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    try {
+      await transporter.sendMail({
+        from: `Daiichi Travel <${smtpUser}>`,
+        to: customerEmail,
+        subject,
+        html,
+      });
+      logger.info('[onCustomerCreated] Welcome email sent', {
+        customerId: event.params.customerId,
+        to: customerEmail,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('[onCustomerCreated] Failed to send welcome email', {
+        customerId: event.params.customerId,
+        error: msg,
+      });
+    }
+  },
+);
