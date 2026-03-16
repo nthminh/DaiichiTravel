@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronUp, X, Printer, Eye, Trash2, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getTodayVN } from '../lib/utils';
 import { matchesSearch } from '../lib/searchUtils';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
@@ -210,7 +210,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-    XLSX.writeFile(wb, `financial-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `financial-report-${getTodayVN()}.xlsx`);
   };
 
   const statusColor: Record<Invoice['status'], string> = {
