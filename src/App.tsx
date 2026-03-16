@@ -273,7 +273,7 @@ export default function App() {
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [isCopyingRoute, setIsCopyingRoute] = useState(false);
-  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
+  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disableDropoffAddress: false });
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
   const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
@@ -692,7 +692,7 @@ export default function App() {
       setShowAddRoute(false);
       setEditingRoute(null);
       setIsCopyingRoute(false);
-      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' });
+      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disableDropoffAddress: false });
       setRoutePricePeriods([]);
       setShowAddPricePeriod(false);
       setEditingPricePeriodId(null);
@@ -725,7 +725,7 @@ export default function App() {
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
     setIsCopyingRoute(false);
-    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '' });
+    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', disablePickupAddress: route.disablePickupAddress || false, disableDropoffAddress: route.disableDropoffAddress || false });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
@@ -763,7 +763,7 @@ export default function App() {
     setIsCopyingRoute(true);
     const copySuffix = language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
     const copiedName = `${route.name}${copySuffix}`;
-    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '' });
+    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', disablePickupAddress: route.disablePickupAddress || false, disableDropoffAddress: route.disableDropoffAddress || false });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
     setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
@@ -2902,7 +2902,11 @@ export default function App() {
                               onChange={setPickupAddress}
                               placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
                               className="mt-1"
+                              disabled={!!tripRoute?.disablePickupAddress}
                             />
+                            {tripRoute?.disablePickupAddress && (
+                              <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : language === 'ja' ? 'この路線では乗車地点の入力が無効です' : 'Pickup address input is disabled for this route'}</p>
+                            )}
                           </div>
                         </>
                       );
@@ -2974,7 +2978,11 @@ export default function App() {
                               onChange={setDropoffAddress}
                               placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
                               className="mt-1"
+                              disabled={!!tripRoute?.disableDropoffAddress}
                             />
+                            {tripRoute?.disableDropoffAddress && (
+                              <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : language === 'ja' ? 'この路線では降車地点の入力が無効です' : 'Dropoff address input is disabled for this route'}</p>
+                            )}
                           </div>
                         </>
                       );
@@ -4146,7 +4154,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disableDropoffAddress: false }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_trip}</button>
               </div>
             </div>
 
@@ -4660,6 +4668,34 @@ export default function App() {
                         )}
                       </div>
                     )}
+
+                    {/* Pickup / Dropoff Address Settings (Cấu hình điểm đón / điểm trả) */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Cấu hình điểm đón / điểm trả' : language === 'ja' ? '乗降地点の設定' : 'Pickup / Dropoff Settings'}</p>
+                        <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Bật vô hiệu hóa để ẩn ô nhập điểm đón hoặc điểm trả trên trang đặt vé' : 'Enable to hide pickup or dropoff address input on the booking page'}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={routeForm.disablePickupAddress}
+                            onChange={e => setRouteForm(f => ({ ...f, disablePickupAddress: e.target.checked }))}
+                            className="w-4 h-4 accent-daiichi-red rounded"
+                          />
+                          <span className="text-sm text-gray-700">{language === 'vi' ? 'Vô hiệu hóa ô nhập điểm đón' : language === 'ja' ? '乗車地点の入力を無効化' : 'Disable pickup address input'}</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={routeForm.disableDropoffAddress}
+                            onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddress: e.target.checked }))}
+                            className="w-4 h-4 accent-daiichi-red rounded"
+                          />
+                          <span className="text-sm text-gray-700">{language === 'vi' ? 'Vô hiệu hóa ô nhập điểm trả' : language === 'ja' ? '降車地点の入力を無効化' : 'Disable dropoff address input'}</span>
+                        </label>
+                      </div>
+                    </div>
 
                   </div>
                   <div className="flex justify-end gap-4 pt-2">

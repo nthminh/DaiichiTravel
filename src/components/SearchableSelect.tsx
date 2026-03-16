@@ -10,6 +10,7 @@ interface SearchableSelectProps {
   placeholder?: string;
   className?: string;
   inputClassName?: string;
+  disabled?: boolean;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -18,7 +19,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   onChange,
   placeholder = 'Select or type...',
   className,
-  inputClassName
+  inputClassName,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value);
@@ -43,6 +45,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const val = e.target.value;
     setSearchTerm(val);
     onChange(val);
@@ -50,6 +53,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   const handleSelectOption = (option: string) => {
+    if (disabled) return;
     onChange(option);
     setSearchTerm(option);
     setIsOpen(false);
@@ -62,15 +66,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           type="text"
           value={searchTerm}
           onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => { if (!disabled) setIsOpen(true); }}
           placeholder={placeholder}
+          disabled={disabled}
           className={cn(
             "w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm pr-10",
+            disabled && "opacity-50 cursor-not-allowed bg-gray-100",
             inputClassName
           )}
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-400">
-          {searchTerm && (
+          {searchTerm && !disabled && (
             <button 
               onClick={(e) => {
                 e.stopPropagation();
@@ -81,7 +87,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               <X size={14} />
             </button>
           )}
-          <ChevronDown size={16} className={cn("transition-transform", isOpen && "rotate-180")} />
+          <ChevronDown size={16} className={cn("transition-transform", isOpen && !disabled && "rotate-180")} />
         </div>
       </div>
 
