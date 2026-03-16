@@ -281,7 +281,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
   const [layout, setLayout] = useState<VehicleLayout>(buildLayout);
   const [activeDeck, setActiveDeck] = useState(0);
   const [editMode, setEditMode] = useState<'view' | 'discount' | 'position' | 'type'>('view');
-  const [isDirty, setIsDirty] = useState(false);
+  const [isDirty, setIsDirty] = useState(() => !savedSeats || savedSeats.length === 0);
   const [showLabels, setShowLabels] = useState(true);
 
   const isMultiDeck = layout.decks.length > 1;
