@@ -2637,129 +2637,133 @@ export default function App() {
                   const currentImg = routeImages[carouselIdx] ?? null;
                   const isTripRevealed = hasSearched || clearedTripCards.has(trip.id);
                   return (
-                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-row", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
-                    {/* Route image – left column (2/3 square) */}
-                    {(currentImg || vehicleImg) ? (
-                      <div className="relative flex-[2] aspect-square flex-shrink-0 overflow-hidden max-h-48 sm:max-h-64 md:max-h-80">
-                        {currentImg && (
-                          <img
-                            src={currentImg}
-                            alt={trip.route}
-                            className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
-                            style={{ filter: isTripRevealed ? 'none' : 'blur(12px)', transform: isTripRevealed ? 'scale(1)' : 'scale(1.1)' }}
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                        {vehicleImg && (
-                          <img
-                            src={vehicleImg}
-                            alt={trip.licensePlate}
-                            className="absolute bottom-2 right-2 w-16 sm:w-20 h-11 sm:h-14 object-cover rounded-xl border-2 border-white shadow-md transition-all duration-700"
-                            style={{ filter: isTripRevealed ? 'none' : 'blur(8px)' }}
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                        {/* Carousel prev/next buttons */}
-                        {isTripRevealed && routeImages.length > 1 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx - 1 + routeImages.length) % routeImages.length })); }}
-                              className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
-                              aria-label="Previous image"
-                            >‹</button>
-                            <button
-                              type="button"
-                              onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx + 1) % routeImages.length })); }}
-                              className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
-                              aria-label="Next image"
-                            >›</button>
-                            {/* Dot indicators */}
-                            <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5 z-10">
-                              {routeImages.map((_, idx) => (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  aria-label={`Ảnh ${idx + 1}`}
-                                  onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: idx })); }}
-                                  className="w-6 h-6 flex items-center justify-center rounded-full transition-all hover:bg-black/20"
-                                >
-                                  <span className={cn("w-1.5 h-1.5 rounded-full block transition-all", idx === carouselIdx ? "bg-white" : "bg-white/50")} />
-                                </button>
-                              ))}
+                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
+                    {/* Route name – full-width header row */}
+                    <div className="px-3 pt-2.5 pb-1">
+                      <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase block text-center w-full">{trip.route}</span>
+                    </div>
+                    {/* Image + details – side by side */}
+                    <div className="flex flex-row pb-2.5">
+                      {/* Route image – left, fixed square frame */}
+                      {(currentImg || vehicleImg) ? (
+                        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5">
+                          {currentImg && (
+                            <img
+                              src={currentImg}
+                              alt={trip.route}
+                              className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
+                              style={{ filter: isTripRevealed ? 'none' : 'blur(12px)', transform: isTripRevealed ? 'scale(1)' : 'scale(1.1)' }}
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          {vehicleImg && (
+                            <img
+                              src={vehicleImg}
+                              alt={trip.licensePlate}
+                              className="absolute bottom-1 right-1 w-12 h-8 object-cover rounded-lg border-2 border-white shadow-md transition-all duration-700"
+                              style={{ filter: isTripRevealed ? 'none' : 'blur(8px)' }}
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          {/* Carousel prev/next buttons */}
+                          {isTripRevealed && routeImages.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx - 1 + routeImages.length) % routeImages.length })); }}
+                                className="absolute left-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
+                                aria-label="Previous image"
+                              >‹</button>
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx + 1) % routeImages.length })); }}
+                                className="absolute right-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
+                                aria-label="Next image"
+                              >›</button>
+                              {/* Dot indicators */}
+                              <div className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5 z-10">
+                                {routeImages.map((_, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    aria-label={`Ảnh ${idx + 1}`}
+                                    onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: idx })); }}
+                                    className="w-4 h-4 flex items-center justify-center rounded-full transition-all hover:bg-black/20"
+                                  >
+                                    <span className={cn("w-1 h-1 rounded-full block transition-all", idx === carouselIdx ? "bg-white" : "bg-white/50")} />
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                          {!isTripRevealed && (
+                            <div
+                              className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+                              onClick={() => setClearedTripCards(prev => new Set([...prev, trip.id]))}
+                            >
+                              <span className="text-white text-[9px] font-bold bg-black/40 px-1.5 py-0.5 rounded-full text-center leading-tight">
+                                {language === 'vi' ? '👆 Chạm xem ảnh' : '👆 Tap to reveal'}
+                              </span>
                             </div>
-                          </>
-                        )}
-                        {!isTripRevealed && (
-                          <div
-                            className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
-                            onClick={() => setClearedTripCards(prev => new Set([...prev, trip.id]))}
-                          >
-                            <span className="text-white text-xs font-bold bg-black/40 px-2 sm:px-3 py-1 rounded-full text-center">
-                              {language === 'vi' ? '👆 Chạm để xem ảnh' : '👆 Tap to reveal'}
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5 bg-gray-100 flex items-center justify-center">
+                          <Bus size={32} className="text-gray-300" />
+                        </div>
+                      )}
+                      {/* Trip details – right */}
+                      <div className="flex-1 pr-3 pt-0.5 flex flex-col gap-1 min-w-0">
+                        {/* License plate */}
+                        <span className="text-[10px] text-gray-400 truncate">{trip.licensePlate}</span>
+                        {/* Time + departure label + date */}
+                        <div>
+                          <p className="text-lg sm:text-xl font-bold text-gray-800 leading-tight">{trip.time}</p>
+                          <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">{t.departure}</p>
+                          {trip.date && (
+                            <span className={cn("inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
+                              {formatTripDateDisplay(trip.date)}
                             </span>
+                          )}
+                        </div>
+                        {/* Driver + seats */}
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                            <Users size={10} className="flex-shrink-0" />
+                            <span className="truncate">{trip.driverName}</span>
                           </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="relative flex-[2] aspect-square flex-shrink-0 overflow-hidden max-h-48 sm:max-h-64 md:max-h-80 bg-gray-100 flex items-center justify-center">
-                        <Bus size={40} className="text-gray-300" />
-                      </div>
-                    )}
-                    {/* Trip details – right column (1/3) */}
-                    <div className="flex-[1] p-3 sm:p-4 flex flex-col gap-2 min-w-0">
-                      {/* Route badge + license plate */}
-                      <div className="flex flex-col gap-0.5">
-                        <span className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase truncate block text-center">{trip.route}</span>
-                        <span className="text-[10px] text-gray-400 text-center truncate">{trip.licensePlate}</span>
-                      </div>
-                      {/* Time + departure label */}
-                      <div className="text-center">
-                        <p className="text-lg sm:text-2xl font-bold text-gray-800 leading-tight">{trip.time}</p>
-                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{t.departure}</p>
-                        {trip.date && (
-                          <span className={cn("inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
-                            {formatTripDateDisplay(trip.date)}
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                            <Bus size={10} className="flex-shrink-0" />
+                            <span>{(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
+                          </div>
+                        </div>
+                        {/* Add-ons badge */}
+                        {(trip.addons || []).length > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-bold border border-emerald-200 self-start">
+                            <Gift size={9} />
+                            {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
                           </span>
                         )}
-                      </div>
-                      {/* Driver + seats */}
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1 text-[11px] text-gray-500">
-                          <Users size={11} className="flex-shrink-0" />
-                          <span className="truncate">{trip.driverName}</span>
+                        {/* Price + CTA */}
+                        <div className="mt-auto flex flex-col gap-1">
+                          {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
+                            <div>
+                              <p className="text-sm sm:text-base font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
+                              <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                              <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
+                                💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm sm:text-base font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
+                          )}
+                          <button
+                            onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
+                            className="w-full py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
+                          >
+                            {t.select_seat}
+                          </button>
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] text-gray-500">
-                          <Bus size={11} className="flex-shrink-0" />
-                          <span>{(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
-                        </div>
-                      </div>
-                      {/* Add-ons badge */}
-                      {(trip.addons || []).length > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold border border-emerald-200 self-start">
-                          <Gift size={10} />
-                          {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
-                        </span>
-                      )}
-                      {/* Price + CTA – pushed to bottom */}
-                      <div className="mt-auto pt-1 flex flex-col gap-1.5">
-                        {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
-                          <div>
-                            <p className="text-base sm:text-lg font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
-                            <p className="text-[10px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
-                              💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
-                            </span>
-                          </div>
-                        ) : (
-                          <p className="text-base sm:text-lg font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
-                        )}
-                        <button
-                          onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
-                          className="w-full py-2 bg-daiichi-red text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-daiichi-red/10"
-                        >
-                          {t.select_seat}
-                        </button>
                       </div>
                     </div>
                   </div>
