@@ -1740,6 +1740,8 @@ export default function App() {
       children,
       pickupPoint,
       dropoffPoint,
+      ...(pickupAddress ? { pickupAddress } : {}),
+      ...(dropoffAddress ? { dropoffAddress } : {}),
       paymentMethod: paymentMethodInput,
       ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: addonQuantities[a.id] || 1 })),
@@ -4805,7 +4807,7 @@ export default function App() {
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : (language === 'vi' ? 'Thêm tuyến' : 'Add Route')}</button>
+                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Route')}</button>
                   </div>
                 </div>
               </div>

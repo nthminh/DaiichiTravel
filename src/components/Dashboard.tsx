@@ -937,6 +937,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupPoint}</p>
                       </div>
                     )}
+                    {viewingBooking.type !== 'TOUR' && viewingBooking.pickupAddress && (
+                      <div className="p-4 bg-blue-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-blue-400 mb-1">
+                          <MapPin size={14} className="text-blue-500" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm đón' : 'Pickup Address'}</span>
+                        </div>
+                        <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupAddress}</p>
+                      </div>
+                    )}
                     {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffPoint && (
                       <div className="p-4 bg-green-50 rounded-2xl">
                         <div className="flex items-center gap-2 text-green-400 mb-1">
@@ -944,6 +953,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                           <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Trả' : 'Dropoff'}</span>
                         </div>
                         <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffPoint}</p>
+                      </div>
+                    )}
+                    {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffAddress && (
+                      <div className="p-4 bg-green-50 rounded-2xl">
+                        <div className="flex items-center gap-2 text-green-400 mb-1">
+                          <MapPin size={14} className="text-green-500" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm trả' : 'Dropoff Address'}</span>
+                        </div>
+                        <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffAddress}</p>
                       </div>
                     )}
                     {/* Tour specific fields */}
