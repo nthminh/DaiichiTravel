@@ -174,6 +174,8 @@ export default function App() {
   const [bookTicketSearch, setBookTicketSearch] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [searchAdults, setSearchAdults] = useState(1);
+  const [searchChildren, setSearchChildren] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -2134,6 +2136,53 @@ export default function App() {
                   </div>
                 )}
               </div>
+              {/* Passenger count row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.num_adults}</label>
+                  <div className="relative mt-1 flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setSearchAdults(v => Math.max(1, v - 1))}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                    >−</button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={searchAdults}
+                      onChange={e => setSearchAdults(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full text-center px-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSearchAdults(v => v + 1)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                    >+</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.num_children}</label>
+                  <div className="relative mt-1 flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setSearchChildren(v => Math.max(0, v - 1))}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                    >−</button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={searchChildren}
+                      onChange={e => setSearchChildren(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full text-center px-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSearchChildren(v => v + 1)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                    >+</button>
+                  </div>
+                </div>
+              </div>
               {/* Search button row */}
               <div className="flex justify-end mt-4">
                 <button className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
@@ -2259,6 +2308,9 @@ export default function App() {
                     const maxVal = parseInt(priceMax);
                     if (!isNaN(maxVal) && trip.price > maxVal) return false;
                   }
+                  const totalPassengers = searchAdults + searchChildren;
+                  const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
+                  if (emptySeats < totalPassengers) return false;
                   return true;
                 };
 
