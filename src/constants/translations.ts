@@ -67,7 +67,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Home
     hero_title: 'Khám phá Việt Nam cùng Daiichi Travel',
     hero_subtitle: 'Dịch vụ vận tải hành khách và tour du lịch chuyên nghiệp, uy tín hàng đầu.',
-    book_now: 'Đặt vé ngay',
+    book_now: 'Đặt vé xe',
     view_hot_tours: 'Xem tour hot',
     feature_limo_title: 'Limo Sang Trọng',
     feature_limo_desc: 'Dòng xe Limousine đời mới, tiện nghi đẳng cấp.',
