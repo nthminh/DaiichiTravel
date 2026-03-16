@@ -2452,10 +2452,10 @@ export default function App() {
                   const routeImg = tripRoute?.imageUrl;
                   const vehicleImg = tripRoute?.vehicleImageUrl;
                   return (
-                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
-                    {/* Route image banner (blurred until user searches) */}
+                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col md:flex-row", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
+                    {/* Route image – left column */}
                     {(routeImg || vehicleImg) && (
-                      <div className="relative h-32 overflow-hidden">
+                      <div className="relative w-full md:w-52 h-44 md:h-auto flex-shrink-0 overflow-hidden">
                         {routeImg && (
                           <img
                             src={routeImg}
@@ -2469,7 +2469,7 @@ export default function App() {
                           <img
                             src={vehicleImg}
                             alt={trip.licensePlate}
-                            className="absolute bottom-2 right-2 w-24 h-16 object-cover rounded-xl border-2 border-white shadow-md transition-all duration-700"
+                            className="absolute bottom-2 right-2 w-20 h-14 object-cover rounded-xl border-2 border-white shadow-md transition-all duration-700"
                             style={{ filter: hasSearched ? 'none' : 'blur(8px)' }}
                             referrerPolicy="no-referrer"
                           />
@@ -2483,7 +2483,8 @@ export default function App() {
                         )}
                       </div>
                     )}
-                    <div className="p-6 flex flex-col md:flex-row items-center gap-8">
+                    {/* Trip details – right column */}
+                    <div className="p-6 flex flex-col md:flex-row items-center gap-8 flex-1">
                     <div className="text-center md:text-left">
                       <p className="text-3xl font-bold text-gray-800">{trip.time}</p>
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
