@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   FileText, TrendingUp, AlertCircle, CheckCircle2, Clock,
   Download, Plus, Search, Filter, DollarSign, Users,
-  ChevronDown, ChevronUp, X, Printer, Eye, Trash2, Edit3
+  ChevronDown, ChevronUp, X, Printer, Eye, Trash2, Edit3, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getTodayVN } from '../lib/utils';
@@ -56,6 +56,9 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     status: 130,
     options: 120,
   });
+
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // New invoice form state
   const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
@@ -152,32 +155,40 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
   };
 
   const handleCreateInvoice = async () => {
-    const items = (newInvoice.items || []).map(i => ({ ...i, total: i.quantity * i.unitPrice }));
-    const { subtotal, total } = calcInvoiceTotals(items, newInvoice.discount || 0, newInvoice.tax || 0);
-    const invoice: Omit<Invoice, 'id'> = {
-      invoiceNumber: `INV-${Date.now()}`,
-      type: newInvoice.type || 'RETAIL',
-      customerName: newInvoice.customerName || '',
-      customerPhone: newInvoice.customerPhone,
-      agentId: newInvoice.agentId,
-      agentName: newInvoice.agentName,
-      items,
-      subtotal,
-      discount: newInvoice.discount || 0,
-      tax: newInvoice.tax || 0,
-      total,
-      paidAmount: 0,
-      debtAmount: total,
-      status: 'UNPAID',
-      paymentMethod: newInvoice.paymentMethod,
-      dueDate: newInvoice.dueDate,
-      notes: newInvoice.notes,
-    };
-    await transportService.createInvoice(invoice);
-    setShowCreateModal(false);
-    setNewInvoice({ type: 'RETAIL', customerName: '', customerPhone: '', items: [emptyInvoiceItem()], discount: 0, tax: 0, status: 'UNPAID', paymentMethod: 'CASH' });
-    setAgentSearch('');
-    setShowAgentDropdown(false);
+    setCreateError(null);
+    setCreateLoading(true);
+    try {
+      const items = (newInvoice.items || []).map(i => ({ ...i, total: i.quantity * i.unitPrice }));
+      const { subtotal, total } = calcInvoiceTotals(items, newInvoice.discount || 0, newInvoice.tax || 0);
+      const invoice: Omit<Invoice, 'id'> = {
+        invoiceNumber: `INV-${Date.now()}`,
+        type: newInvoice.type || 'RETAIL',
+        customerName: newInvoice.customerName || '',
+        ...(newInvoice.customerPhone ? { customerPhone: newInvoice.customerPhone } : {}),
+        ...(newInvoice.agentId ? { agentId: newInvoice.agentId } : {}),
+        ...(newInvoice.agentName ? { agentName: newInvoice.agentName } : {}),
+        items,
+        subtotal,
+        discount: newInvoice.discount || 0,
+        tax: newInvoice.tax || 0,
+        total,
+        paidAmount: 0,
+        debtAmount: total,
+        status: 'UNPAID',
+        ...(newInvoice.paymentMethod ? { paymentMethod: newInvoice.paymentMethod } : {}),
+        ...(newInvoice.dueDate ? { dueDate: newInvoice.dueDate } : {}),
+        ...(newInvoice.notes ? { notes: newInvoice.notes } : {}),
+      };
+      await transportService.createInvoice(invoice);
+      setShowCreateModal(false);
+      setNewInvoice({ type: 'RETAIL', customerName: '', customerPhone: '', items: [emptyInvoiceItem()], discount: 0, tax: 0, status: 'UNPAID', paymentMethod: 'CASH' });
+      setAgentSearch('');
+      setShowAgentDropdown(false);
+    } catch (err: any) {
+      setCreateError(err?.message || (language === 'vi' ? 'Lỗi khi tạo hóa đơn. Vui lòng thử lại.' : language === 'en' ? 'Failed to create invoice. Please try again.' : '請求書の作成に失敗しました。'));
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   const handleRecordPayment = async () => {
@@ -211,6 +222,181 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
     XLSX.writeFile(wb, `financial-report-${getTodayVN()}.xlsx`);
+  };
+
+  const COMPANY_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
+
+  const escHtml = (str: unknown): string => {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+
+  const handlePrintInvoicePDF = (inv: Invoice) => {
+    const statusLabelMap: Record<Invoice['status'], string> = {
+      PAID: language === 'vi' ? 'Đã thanh toán' : language === 'en' ? 'Paid' : '支払済',
+      UNPAID: language === 'vi' ? 'Chưa thanh toán' : language === 'en' ? 'Unpaid' : '未払い',
+      PARTIAL: language === 'vi' ? 'Thanh toán một phần' : language === 'en' ? 'Partial' : '一部支払済',
+    };
+    const statusColorMap: Record<Invoice['status'], string> = {
+      PAID: '#15803d',
+      UNPAID: '#b91c1c',
+      PARTIAL: '#b45309',
+    };
+    const createdDateStr = inv.createdAt?.toDate
+      ? inv.createdAt.toDate().toLocaleDateString('vi-VN')
+      : inv.createdAt
+        ? new Date(inv.createdAt).toLocaleDateString('vi-VN')
+        : getTodayVN();
+
+    const itemsHtml = inv.items.map((item, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escHtml(item.description)}</td>
+        <td class="center">${item.quantity}</td>
+        <td class="right">${item.unitPrice.toLocaleString('vi-VN')}đ</td>
+        <td class="right"><b>${item.total.toLocaleString('vi-VN')}đ</b></td>
+      </tr>`).join('');
+
+    const discountAmt = inv.subtotal * (inv.discount / 100);
+    const taxAmt = (inv.subtotal - discountAmt) * (inv.tax / 100);
+
+    const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hóa đơn ${escHtml(inv.invoiceNumber)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #222; background: #fff; padding: 32px; max-width: 800px; margin: 0 auto; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; border-bottom: 2px solid #DA291C; padding-bottom: 16px; }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .header-left img { height: 56px; width: auto; object-fit: contain; }
+    .company-name { font-size: 18px; font-weight: 700; color: #DA291C; line-height: 1.2; }
+    .company-sub { font-size: 11px; color: #666; margin-top: 2px; }
+    .invoice-title { text-align: right; }
+    .invoice-title h1 { font-size: 22px; font-weight: 800; color: #DA291C; letter-spacing: 1px; }
+    .invoice-title .inv-no { font-size: 13px; color: #555; margin-top: 4px; }
+    .invoice-title .status-badge { display: inline-block; margin-top: 8px; padding: 3px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; color: #fff; background: ${statusColorMap[inv.status]}; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .info-box { background: #f9f9f9; border-radius: 8px; padding: 12px 16px; }
+    .info-box label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .5px; }
+    .info-box p { font-size: 13px; font-weight: 600; margin-top: 3px; color: #222; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    thead tr { background: #DA291C; }
+    thead th { padding: 9px 12px; color: #fff; font-size: 11px; font-weight: 700; text-align: left; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 12px; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .totals { width: 320px; margin-left: auto; }
+    .totals .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+    .totals .row.total { border-top: 2px solid #DA291C; margin-top: 4px; padding-top: 8px; }
+    .totals .row.total span { font-size: 17px; font-weight: 800; color: #DA291C; }
+    .totals .row.paid span:last-child { color: #15803d; font-weight: 700; }
+    .totals .row.debt span:last-child { color: #b91c1c; font-weight: 700; }
+    .notes { margin-top: 20px; padding: 12px 16px; background: #fffbf0; border-left: 3px solid #DA291C; border-radius: 4px; font-size: 12px; color: #555; }
+    .footer { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .footer .sig-box { text-align: center; }
+    .footer .sig-box .sig-title { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 48px; }
+    .footer .sig-box .sig-line { border-top: 1px solid #aaa; padding-top: 4px; font-size: 11px; color: #888; }
+    @media print { button { display: none !important; } body { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <img src="${COMPANY_LOGO_URL}" alt="Daiichi Travel" onerror="this.style.display='none'" />
+      <div>
+        <div class="company-name">DAIICHI TRAVEL</div>
+        <div class="company-sub">Công ty TNHH Daiichi Travel</div>
+      </div>
+    </div>
+    <div class="invoice-title">
+      <h1>${language === 'vi' ? 'HÓA ĐƠN' : language === 'en' ? 'INVOICE' : '請求書'}</h1>
+      <div class="inv-no">${escHtml(inv.invoiceNumber)}</div>
+      <div class="status-badge">${escHtml(statusLabelMap[inv.status])}</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-box">
+      <label>${language === 'vi' ? 'Khách hàng' : language === 'en' ? 'Customer' : 'お客様'}</label>
+      <p>${escHtml(inv.customerName)}</p>
+      ${inv.customerPhone ? `<p style="color:#666;font-size:12px;">${escHtml(inv.customerPhone)}</p>` : ''}
+      ${inv.agentName ? `<p style="color:#7c3aed;font-size:12px;">${escHtml(inv.agentName)}</p>` : ''}
+    </div>
+    <div class="info-box">
+      <label>${language === 'vi' ? 'Thông tin hóa đơn' : language === 'en' ? 'Invoice Details' : '請求書情報'}</label>
+      <p style="color:#666;font-size:12px;">${language === 'vi' ? 'Ngày tạo' : language === 'en' ? 'Created' : '作成日'}: ${escHtml(createdDateStr)}</p>
+      ${inv.dueDate ? `<p style="color:#666;font-size:12px;">${language === 'vi' ? 'Hạn thanh toán' : language === 'en' ? 'Due Date' : '支払期限'}: ${escHtml(inv.dueDate)}</p>` : ''}
+      <p style="font-size:12px;">${language === 'vi' ? 'Loại' : language === 'en' ? 'Type' : 'タイプ'}: ${inv.type === 'RETAIL' ? (language === 'vi' ? 'Khách lẻ' : language === 'en' ? 'Retail' : '小売') : (language === 'vi' ? 'Đại lý' : language === 'en' ? 'Agent' : '代理店')}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px;">STT</th>
+        <th>${language === 'vi' ? 'Mô tả' : language === 'en' ? 'Description' : '説明'}</th>
+        <th style="width:60px;" class="center">${language === 'vi' ? 'SL' : language === 'en' ? 'Qty' : '数量'}</th>
+        <th style="width:120px;" class="right">${language === 'vi' ? 'Đơn giá' : language === 'en' ? 'Unit Price' : '単価'}</th>
+        <th style="width:130px;" class="right">${language === 'vi' ? 'Thành tiền' : language === 'en' ? 'Total' : '合計'}</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHtml}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="row">
+      <span>${language === 'vi' ? 'Tạm tính' : language === 'en' ? 'Subtotal' : '小計'}</span>
+      <span>${inv.subtotal.toLocaleString('vi-VN')}đ</span>
+    </div>
+    ${inv.discount > 0 ? `<div class="row"><span>${language === 'vi' ? 'Giảm giá' : language === 'en' ? 'Discount' : '割引'} (${inv.discount}%)</span><span style="color:#15803d;">-${discountAmt.toLocaleString('vi-VN')}đ</span></div>` : ''}
+    ${inv.tax > 0 ? `<div class="row"><span>VAT (${inv.tax}%)</span><span>+${taxAmt.toLocaleString('vi-VN')}đ</span></div>` : ''}
+    <div class="row total">
+      <span>${language === 'vi' ? 'Tổng cộng' : language === 'en' ? 'Total' : '合計'}</span>
+      <span>${inv.total.toLocaleString('vi-VN')}đ</span>
+    </div>
+    <div class="row paid">
+      <span>${language === 'vi' ? 'Đã thanh toán' : language === 'en' ? 'Paid' : '支払済'}</span>
+      <span>${inv.paidAmount.toLocaleString('vi-VN')}đ</span>
+    </div>
+    <div class="row debt">
+      <span>${language === 'vi' ? 'Còn lại' : language === 'en' ? 'Balance Due' : '残高'}</span>
+      <span>${inv.debtAmount.toLocaleString('vi-VN')}đ</span>
+    </div>
+  </div>
+
+  ${inv.notes ? `<div class="notes"><b>${language === 'vi' ? 'Ghi chú' : language === 'en' ? 'Notes' : 'メモ'}:</b> ${escHtml(inv.notes)}</div>` : ''}
+
+  <div class="footer">
+    <div class="sig-box">
+      <div class="sig-title">${language === 'vi' ? 'Khách hàng ký tên' : language === 'en' ? 'Customer Signature' : '顧客署名'}</div>
+      <div class="sig-line">${language === 'vi' ? '(Ký và ghi rõ họ tên)' : language === 'en' ? '(Sign and print name)' : '(署名と氏名)'}</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-title">${language === 'vi' ? 'Đại diện công ty' : language === 'en' ? 'Company Representative' : '会社代表'}</div>
+      <div class="sig-line">${language === 'vi' ? '(Ký và ghi rõ họ tên)' : language === 'en' ? '(Sign and print name)' : '(署名と氏名)'}</div>
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 500);
+    }
   };
 
   const statusColor: Record<Invoice['status'], string> = {
@@ -439,6 +625,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
                           <button onClick={() => setShowInvoiceDetail(inv)} className="text-gray-600 hover:text-daiichi-red" title={t.view_invoice || 'View'}><Eye size={16} /></button>
+                          <button onClick={() => handlePrintInvoicePDF(inv)} className="text-gray-600 hover:text-blue-600" title={t.print_invoice || 'Print Invoice'}><Printer size={16} /></button>
                           {inv.status !== 'PAID' && (
                             <button onClick={() => { setShowPaymentModal(inv); setPaymentInput(''); }} className="text-gray-600 hover:text-green-600" title={t.record_payment || 'Record Payment'}><DollarSign size={16} /></button>
                           )}
@@ -561,7 +748,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold">{t.create_invoice || 'Create Invoice'}</h3>
-                  <button onClick={() => { setShowCreateModal(false); setAgentSearch(''); setShowAgentDropdown(false); }} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+                  <button onClick={() => { setShowCreateModal(false); setAgentSearch(''); setShowAgentDropdown(false); setCreateError(null); }} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                 </div>
 
                 <div className="space-y-4">
@@ -736,12 +923,19 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                       className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none text-sm resize-none" />
                   </div>
 
+                  {createError && (
+                    <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center gap-2">
+                      <AlertCircle size={16} className="shrink-0" />
+                      {createError}
+                    </div>
+                  )}
+
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => { setShowCreateModal(false); setAgentSearch(''); setShowAgentDropdown(false); }} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all">
+                    <button onClick={() => { setShowCreateModal(false); setAgentSearch(''); setShowAgentDropdown(false); setCreateError(null); }} disabled={createLoading} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all disabled:opacity-50">
                       {t.cancel || 'Cancel'}
                     </button>
-                    <button onClick={handleCreateInvoice} className="flex-1 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all">
-                      {t.create_invoice || 'Create Invoice'}
+                    <button onClick={handleCreateInvoice} disabled={createLoading} className="flex-1 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-2">
+                      {createLoading ? <><Loader2 size={16} className="animate-spin" />{language === 'vi' ? 'Đang tạo...' : language === 'en' ? 'Creating...' : '作成中...'}</> : (t.create_invoice || 'Create Invoice')}
                     </button>
                   </div>
                 </div>
@@ -812,12 +1006,19 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                     <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-600">{showInvoiceDetail.notes}</div>
                   )}
 
-                  {showInvoiceDetail.status !== 'PAID' && (
-                    <button onClick={() => { setShowPaymentModal(showInvoiceDetail); setShowInvoiceDetail(null); setPaymentInput(''); }}
-                      className="w-full py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-all">
-                      {t.record_payment || 'Record Payment'}
+                  <div className="flex gap-3">
+                    <button onClick={() => handlePrintInvoicePDF(showInvoiceDetail)}
+                      className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2">
+                      <Printer size={16} />
+                      {t.print_invoice || 'Print Invoice'}
                     </button>
-                  )}
+                    {showInvoiceDetail.status !== 'PAID' && (
+                      <button onClick={() => { setShowPaymentModal(showInvoiceDetail); setShowInvoiceDetail(null); setPaymentInput(''); }}
+                        className="flex-1 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-all">
+                        {t.record_payment || 'Record Payment'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
