@@ -19,7 +19,7 @@ import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSur
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { auth, db, storage } from './lib/firebase';
-import { signOut as firebaseSignOut } from 'firebase/auth';
+import { signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 
 // Import Components
 import { Dashboard } from './components/Dashboard';
@@ -285,7 +285,7 @@ export default function App() {
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [isCopyingRoute, setIsCopyingRoute] = useState(false);
-  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
+  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', images: [] as string[], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
   const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
@@ -482,7 +482,6 @@ export default function App() {
     const unsubscribeTours = transportService.subscribeToTours(setTours);
     const unsubscribeEmployees = transportService.subscribeToEmployees(setEmployees);
     const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
-    const unsubscribeInvoices = transportService.subscribeToInvoices(setInvoices);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
     return () => {
@@ -495,9 +494,30 @@ export default function App() {
       unsubscribeTours();
       unsubscribeEmployees();
       unsubscribeBookings();
-      unsubscribeInvoices();
       unsubscribeUserGuides();
       unsubscribeCustomers();
+    };
+  }, []);
+
+  // Subscribe to invoices only when Firebase Auth is available (invoices require auth for Firestore reads/writes).
+  // onAuthStateChanged re-subscribes automatically after login so the list is always up-to-date.
+  useEffect(() => {
+    if (!auth) {
+      // No Firebase Auth configured – subscribe anyway (will work if rules are relaxed)
+      return transportService.subscribeToInvoices(setInvoices);
+    }
+    let invoiceUnsub: (() => void) | null = null;
+    const authUnsub = onAuthStateChanged(auth, (user) => {
+      if (invoiceUnsub) { invoiceUnsub(); invoiceUnsub = null; }
+      if (user) {
+        invoiceUnsub = transportService.subscribeToInvoices(setInvoices);
+      } else {
+        setInvoices([]);
+      }
+    });
+    return () => {
+      authUnsub();
+      if (invoiceUnsub) invoiceUnsub();
     };
   }, []);
 
@@ -707,39 +727,59 @@ export default function App() {
       setShowAddRoute(false);
       setEditingRoute(null);
       setIsCopyingRoute(false);
-      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
-      setRoutePricePeriods([]);
-      setShowAddPricePeriod(false);
-      setEditingPricePeriodId(null);
-      setRouteSurcharges([]);
-      setShowAddRouteSurcharge(false);
-      setEditingRouteSurchargeId(null);
-      setRouteFormStops([]);
-      setShowAddRouteStop(false);
-      setEditingRouteStop(null);
-      setRouteFormFares([]);
-      setShowAddRouteFare(false);
-      setEditingRouteFareIdx(null);
-      setRouteModalEditingId(null);
-      setRouteFormStopsHistory([]);
-      setRouteFormFaresHistory([]);
+      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
     } catch (err) {
       console.error('Failed to save route:', err);
     }
   };
 
-  // Upload a route image (location or vehicle) and store the URL in routeForm
-  const handleRouteImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: 'imageUrl' | 'vehicleImageUrl'
-  ) => {
+  // Upload one or more route destination images and append their URLs to routeForm.images
+  const handleRouteImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !storage) {
+      if (!storage) alert('Firebase Storage is not configured.');
+      return;
+    }
+    setRouteImageUploading(true);
+    try {
+      const urls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i] as File;
+        const compressed = await compressImage(file, 0.75, 1280);
+        const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
+        const task = uploadBytesResumable(sRef, compressed);
+        await new Promise<void>((resolve, reject) => {
+          task.on('state_changed', undefined,
+            (err) => { console.error('Upload error:', err); reject(err); },
+            async () => {
+              const url = await getDownloadURL(task.snapshot.ref);
+              urls.push(url);
+              resolve();
+            }
+          );
+        });
+      }
+      setRouteForm(prev => {
+        const combined = [...(prev.images || []), ...urls];
+        return { ...prev, images: combined, imageUrl: combined[0] || prev.imageUrl };
+      });
+    } catch (err) {
+      console.error('Route image upload failed:', err);
+      alert('Upload failed. Please check your Firebase configuration.');
+    } finally {
+      setRouteImageUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Upload a single vehicle image
+  const handleRouteVehicleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !storage) {
       if (!storage) alert('Firebase Storage is not configured.');
       return;
     }
-    const setUploading = field === 'imageUrl' ? setRouteImageUploading : setRouteVehicleImageUploading;
-    setUploading(true);
+    setRouteVehicleImageUploading(true);
     try {
       const compressed = await compressImage(file, 0.75, 1280);
       const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
@@ -749,16 +789,16 @@ export default function App() {
           (err) => { console.error('Upload error:', err); reject(err); },
           async () => {
             const url = await getDownloadURL(task.snapshot.ref);
-            setRouteForm(prev => ({ ...prev, [field]: url }));
+            setRouteForm(prev => ({ ...prev, vehicleImageUrl: url }));
             resolve();
           }
         );
       });
     } catch (err) {
-      console.error('Route image upload failed:', err);
+      console.error('Route vehicle image upload failed:', err);
       alert('Upload failed. Please check your Firebase configuration.');
     } finally {
-      setUploading(false);
+      setRouteVehicleImageUploading(false);
       e.target.value = '';
     }
   };
@@ -775,7 +815,7 @@ export default function App() {
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
     setIsCopyingRoute(false);
-    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
+    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', images: route.images || [], vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
@@ -813,7 +853,7 @@ export default function App() {
     setIsCopyingRoute(true);
     const copySuffix = language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
     const copiedName = `${route.name}${copySuffix}`;
-    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
+    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', images: route.images || [], vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
     setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
@@ -4499,7 +4539,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -4537,30 +4577,43 @@ export default function App() {
                       <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
                     </div>
 
-                    {/* Route images (location photo + vehicle photo) */}
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Destination image */}
+                    {/* Route images (location photos + vehicle photo) */}
+                    <div className="space-y-3">
+                      {/* Destination images – multiple allowed */}
                       <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh điểm đến' : 'Destination Photo'}</label>
-                        <div className="relative mt-1 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
-                          {routeForm.imageUrl ? (
-                            <>
-                              <img src={routeForm.imageUrl} alt="Route" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              <button onClick={() => setRouteForm(p => ({ ...p, imageUrl: '' }))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg">
-                                <X size={12} />
-                              </button>
-                            </>
-                          ) : routeImageUploading ? (
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh điểm đến (có thể tải nhiều ảnh)' : 'Destination Photos (multiple allowed)'}</label>
+                        {/* Uploaded images gallery */}
+                        {(routeForm.images && routeForm.images.length > 0) && (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {routeForm.images.map((url, idx) => (
+                              <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-100">
+                                <img src={url} alt={`Route ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <button
+                                  onClick={() => {
+                                    const newImages = routeForm.images.filter((_, i) => i !== idx);
+                                    setRouteForm(p => ({ ...p, images: newImages, imageUrl: newImages[0] || '' }));
+                                  }}
+                                  className="absolute top-1 right-1 p-0.5 bg-black/60 text-white rounded-lg"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Upload area */}
+                        <div className="relative mt-1 h-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex flex-col items-center justify-center gap-1">
+                          {routeImageUploading ? (
                             <Loader2 className="animate-spin text-daiichi-red" size={24} />
                           ) : (
                             <>
-                              <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh' : 'Select'}</span>
-                              <input type="file" accept="image/*" onChange={e => handleRouteImageUpload(e, 'imageUrl')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                              <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh (nhiều ảnh)' : 'Select photos (multiple)'}</span>
+                              <input type="file" accept="image/*" multiple onChange={handleRouteImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                             </>
                           )}
                         </div>
                       </div>
-                      {/* Vehicle image */}
+                      {/* Vehicle image – single */}
                       <div>
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh xe' : 'Vehicle Photo'}</label>
                         <div className="relative mt-1 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
@@ -4576,7 +4629,7 @@ export default function App() {
                           ) : (
                             <>
                               <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh xe' : 'Select'}</span>
-                              <input type="file" accept="image/*" onChange={e => handleRouteImageUpload(e, 'vehicleImageUrl')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                              <input type="file" accept="image/*" onChange={handleRouteVehicleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                             </>
                           )}
                         </div>

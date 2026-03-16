@@ -44,6 +44,7 @@ export interface Route {
   disableDropoffAddressFrom?: string; // YYYY-MM-DD, if set the disable only applies from this date
   disableDropoffAddressTo?: string;   // YYYY-MM-DD, if set the disable only applies until this date
   imageUrl?: string;        // scenic / destination photo shown to passengers on the booking page
+  images?: string[];        // additional destination photos (multi-upload); imageUrl = images[0]
   vehicleImageUrl?: string; // photo of the typical vehicle used on this route
 }
 
