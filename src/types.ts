@@ -214,6 +214,7 @@ export interface Trip {
   agentPrice?: number; // agent price for this trip
   addons?: TripAddon[];
   note?: string;
+  seatType?: 'assigned' | 'free'; // 'assigned' = ghế chỉ định (default), 'free' = ghế tự do
 }
 
 export interface ConsignmentItem {
@@ -297,6 +298,7 @@ export interface Vehicle {
   ownerId?: string;
   layout?: VehicleSeat[];
   note?: string;
+  seatType?: 'assigned' | 'free'; // 'assigned' = ghế chỉ định (default), 'free' = ghế tự do
 }
 
 export enum PaymentMethod {

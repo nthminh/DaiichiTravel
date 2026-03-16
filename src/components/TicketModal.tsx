@@ -53,7 +53,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: ${booking.ticketCode || '#' + booking.id}`,
         `🚌 ${booking.route}`,
         `📅 ${booking.date} ${booking.time}`,
-        `💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`,
+        ...(!booking.freeSeating ? [`💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`] : []),
         `👤 ${booking.customerName} - ${booking.phone}`,
         `💰 ${(booking.amount || 0).toLocaleString()}đ`,
       ].join('\n');
@@ -291,12 +291,19 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                   </div>
 
                   <div className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100">
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seat}</p>
-                      <p className="text-2xl font-bold text-daiichi-red">
-                        {(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}
-                      </p>
-                    </div>
+                    {booking.freeSeating ? (
+                      <div>
+                        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">🪑 {language === 'vi' ? 'Ghế tự do' : language === 'ja' ? '自由席' : 'Free Seating'}</p>
+                        <p className="text-sm font-bold text-blue-600">{language === 'vi' ? 'Không có số ghế' : language === 'ja' ? '座席番号なし' : 'No seat number'}</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seat}</p>
+                        <p className="text-2xl font-bold text-daiichi-red">
+                          {(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}
+                        </p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
                       <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
