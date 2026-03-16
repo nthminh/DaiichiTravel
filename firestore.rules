@@ -189,7 +189,8 @@ service cloud.firestore {
     }
 
     match /invoices/{invoice} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
     // Settings: public read (needed for login credential check), authenticated write
     match /settings/{setting} {

@@ -8,6 +8,13 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Route images: public read, validated write (images only, max 5 MB)
+    match /routes/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size <= 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     // All other paths: public read only; no unauthenticated writes
     match /{allPaths=**} {
       allow read: if true;
