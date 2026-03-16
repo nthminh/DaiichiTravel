@@ -105,6 +105,13 @@ interface TourItem {
   pricePerNight?: number;
   breakfastCount?: number;
   pricePerBreakfast?: number;
+  youtubeUrl?: string;
+}
+
+function getYoutubeEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/);
+  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
 }
 
 export default function App() {
@@ -185,6 +192,7 @@ export default function App() {
   const [tourPriceMin, setTourPriceMin] = useState('');
   const [tourPriceMax, setTourPriceMax] = useState('');
   const [tourDurationFilter, setTourDurationFilter] = useState('');
+  const [expandedVideoTourId, setExpandedVideoTourId] = useState<string | null>(null);
   const [likedTours, setLikedTours] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem('likedTours');
@@ -3605,6 +3613,7 @@ export default function App() {
                     : null;
                   const displayImg = allTourImages[0] || '';
                   const isLiked = likedTours.has(tour.id);
+                  const embedUrl = tour.youtubeUrl ? getYoutubeEmbedUrl(tour.youtubeUrl) : null;
                   return (
                     <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
                       <div className="relative h-48 overflow-hidden">
@@ -3640,6 +3649,38 @@ export default function App() {
                           </div>
                         )}
                       </div>
+                      {/* YouTube video embed */}
+                      {embedUrl && (
+                        <div className="border-t border-gray-100">
+                          {expandedVideoTourId === tour.id ? (
+                            <div>
+                              <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+                                <iframe
+                                  src={embedUrl}
+                                  title={tour.title}
+                                  className="absolute inset-0 w-full h-full"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              </div>
+                              <button
+                                onClick={() => setExpandedVideoTourId(null)}
+                                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1"
+                              >
+                                <span>▲</span> {language === 'vi' ? 'Ẩn video' : 'Hide video'}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setExpandedVideoTourId(tour.id)}
+                              className="w-full py-3 flex items-center justify-center gap-2 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <span className="w-7 h-7 bg-daiichi-red text-white rounded-full flex items-center justify-center text-xs">▶</span>
+                              {language === 'vi' ? 'Xem video tour' : 'Watch tour video'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <div className="p-6">
                         <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
                         <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>

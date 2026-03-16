@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Search, ChevronLeft, ChevronRight, Youtube } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language, TRANSLATIONS } from '../App';
@@ -21,6 +21,7 @@ interface Tour {
   pricePerNight?: number;
   breakfastCount?: number;
   pricePerBreakfast?: number;
+  youtubeUrl?: string;
 }
 
 interface TourManagementProps {
@@ -41,6 +42,7 @@ const emptyForm = {
   pricePerNight: 0,
   breakfastCount: 0,
   pricePerBreakfast: 0,
+  youtubeUrl: '',
 };
 
 // Carousel card for a single tour shown in the management grid
@@ -86,6 +88,12 @@ const TourCard: React.FC<{
             -{tour.discountPercent}%
           </div>
         ) : null}
+        {tour.youtubeUrl && (
+          <div className="absolute bottom-4 left-4 bg-black/60 text-white px-2 py-1 rounded-full flex items-center gap-1">
+            <Youtube size={12} className="text-red-400" />
+            <span className="text-[10px] font-bold">Video</span>
+          </div>
+        )}
         <div className="absolute top-4 right-4 flex gap-2">
           <button onClick={() => onEdit(tour)} className="p-2 bg-white/80 backdrop-blur-sm rounded-xl text-blue-500 hover:bg-white transition-all shadow-sm">
             <Edit3 size={18} />
@@ -258,6 +266,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         pricePerNight: newTour.pricePerNight || undefined,
         breakfastCount: newTour.breakfastCount || undefined,
         pricePerBreakfast: newTour.pricePerBreakfast || undefined,
+        youtubeUrl: newTour.youtubeUrl || undefined,
       });
       setNewTour(emptyForm);
       setIsAdding(false);
@@ -284,6 +293,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
       pricePerNight: tour.pricePerNight || 0,
       breakfastCount: tour.breakfastCount || 0,
       pricePerBreakfast: tour.pricePerBreakfast || 0,
+      youtubeUrl: tour.youtubeUrl || '',
     });
     setIsAdding(false);
   };
@@ -306,6 +316,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         pricePerNight: editForm.pricePerNight || undefined,
         breakfastCount: editForm.breakfastCount || undefined,
         pricePerBreakfast: editForm.pricePerBreakfast || undefined,
+        youtubeUrl: editForm.youtubeUrl || undefined,
       });
       setEditingTour(null);
       setEditForm(emptyForm);
@@ -457,6 +468,17 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <textarea value={newTour.description}
                   onChange={e => setNewTour(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none h-28 resize-none" />
+              </div>
+              {/* YouTube URL */}
+              <div className="p-4 bg-red-50 rounded-2xl border border-red-100 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Youtube size={16} className="text-red-500" />
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-widest">{language === 'vi' ? 'Video YouTube (tuỳ chọn)' : 'YouTube Video (optional)'}</p>
+                </div>
+                <input type="url" value={newTour.youtubeUrl}
+                  onChange={e => setNewTour(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                  className="w-full px-4 py-3 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-200 focus:outline-none text-sm"
+                  placeholder="https://www.youtube.com/watch?v=..." />
               </div>
             </div>
             <div className="space-y-4">
@@ -620,6 +642,17 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <textarea value={editForm.description}
                   onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none h-28 resize-none" />
+              </div>
+              {/* YouTube URL */}
+              <div className="p-4 bg-red-50 rounded-2xl border border-red-100 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Youtube size={16} className="text-red-500" />
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-widest">{language === 'vi' ? 'Video YouTube (tuỳ chọn)' : 'YouTube Video (optional)'}</p>
+                </div>
+                <input type="url" value={editForm.youtubeUrl}
+                  onChange={e => setEditForm(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                  className="w-full px-4 py-3 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-200 focus:outline-none text-sm"
+                  placeholder="https://www.youtube.com/watch?v=..." />
               </div>
             </div>
             <div className="space-y-4">
