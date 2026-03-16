@@ -32,6 +32,7 @@ interface TourData {
   pricePerNight?: number; // accommodation cost per person per night
   breakfastCount?: number;    // total breakfast meals included per person
   pricePerBreakfast?: number; // price per breakfast per person
+  youtubeUrl?: string;        // optional YouTube video link for the tour
   itinerary?: { day: number; content: string }[];
 }
 
