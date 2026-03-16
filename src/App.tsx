@@ -479,7 +479,8 @@ export default function App() {
   // Booking form inputs
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
-  const [childrenAges, setChildrenAges] = useState<number[]>([]);
+  const [childrenAges, setChildrenAges] = useState<(number | undefined)[]>([]);
+  const [tripCardImgIdx, setTripCardImgIdx] = useState<Record<string, number>>({});
   const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [extraSeatIds, setExtraSeatIds] = useState<string[]>([]);
   const [bookingNote, setBookingNote] = useState('');
@@ -2457,16 +2458,18 @@ export default function App() {
 
                 const renderTripCard = (trip: typeof trips[0], isSuggestion = false) => {
                   const tripRoute = routes.find(r => r.name === trip.route);
-                  const routeImg = tripRoute?.imageUrl;
+                  const routeImages = (tripRoute?.images && tripRoute.images.length > 0) ? tripRoute.images : (tripRoute?.imageUrl ? [tripRoute.imageUrl] : []);
                   const vehicleImg = tripRoute?.vehicleImageUrl;
+                  const carouselIdx = tripCardImgIdx[trip.id] ?? 0;
+                  const currentImg = routeImages[carouselIdx] ?? null;
                   return (
                   <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col md:flex-row", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
                     {/* Route image – left column */}
-                    {(routeImg || vehicleImg) && (
+                    {(currentImg || vehicleImg) && (
                       <div className="relative w-full md:w-52 h-44 md:h-auto flex-shrink-0 overflow-hidden">
-                        {routeImg && (
+                        {currentImg && (
                           <img
-                            src={routeImg}
+                            src={currentImg}
                             alt={trip.route}
                             className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
                             style={{ filter: hasSearched ? 'none' : 'blur(12px)', transform: hasSearched ? 'scale(1)' : 'scale(1.1)' }}
@@ -2481,6 +2484,37 @@ export default function App() {
                             style={{ filter: hasSearched ? 'none' : 'blur(8px)' }}
                             referrerPolicy="no-referrer"
                           />
+                        )}
+                        {/* Carousel prev/next buttons */}
+                        {hasSearched && routeImages.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx - 1 + routeImages.length) % routeImages.length })); }}
+                              className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
+                              aria-label="Previous image"
+                            >‹</button>
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx + 1) % routeImages.length })); }}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
+                              aria-label="Next image"
+                            >›</button>
+                            {/* Dot indicators */}
+                            <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5 z-10">
+                              {routeImages.map((_, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  aria-label={`Ảnh ${idx + 1}`}
+                                  onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: idx })); }}
+                                  className="w-6 h-6 flex items-center justify-center rounded-full transition-all hover:bg-black/20"
+                                >
+                                  <span className={cn("w-1.5 h-1.5 rounded-full block transition-all", idx === carouselIdx ? "bg-white" : "bg-white/50")} />
+                                </button>
+                              ))}
+                            </div>
+                          </>
                         )}
                         {!hasSearched && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -3068,7 +3102,7 @@ export default function App() {
                             setChildren(count);
                             setChildrenAges(prev => {
                               const arr = [...prev];
-                              while (arr.length < count) arr.push(0);
+                              while (arr.length < count) arr.push(undefined);
                               return arr.slice(0, count);
                             });
                           }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
@@ -3085,17 +3119,18 @@ export default function App() {
                           {Array.from({ length: children }).map((_, i) => (
                             <div key={i} className="relative">
                               <input
-                                type="number"
-                                min="0"
-                                max="17"
-                                value={childrenAges[i] ?? ''}
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={childrenAges[i] != null ? String(childrenAges[i]) : ''}
                                 placeholder={`${t.child_age_placeholder || 'Age'} ${i + 1}`}
                                 onChange={e => {
                                   const ages = [...childrenAges];
-                                  ages[i] = parseInt(e.target.value) || 0;
+                                  const parsed = parseInt(e.target.value);
+                                  ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
                                   setChildrenAges(ages);
                                   // Trim extra seats if children over 4 count decreased
-                                  const newOver4Count = ages.filter(age => age > 4).length;
+                                  const newOver4Count = ages.filter(age => (age ?? 0) > 4).length;
                                   setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                                 }}
                                 className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
@@ -4159,7 +4194,7 @@ export default function App() {
                       </div>
                     </div>
                     {agentForm.paymentType === 'POSTPAID' && (
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.agent_credit_limit || 'Hạn mức công nợ (đ)'}</label><input type="number" min="0" value={agentForm.creditLimit} onChange={e => setAgentForm(p => ({ ...p, creditLimit: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.agent_credit_limit || 'Hạn mức công nợ (đ)'}</label><input type="text" inputMode="numeric" pattern="[0-9]*" value={agentForm.creditLimit || ''} placeholder="0" onChange={e => setAgentForm(p => ({ ...p, creditLimit: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     )}
                     {agentForm.paymentType === 'PREPAID' && (
                       <>
