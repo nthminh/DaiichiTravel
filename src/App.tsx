@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, UserPlus
+  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, UserPlus, Loader2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,7 +18,7 @@ import { PAYMENT_METHODS, type PaymentMethod } from './constants/paymentMethods'
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
-import { auth, db } from './lib/firebase';
+import { auth, db, storage } from './lib/firebase';
 import { signOut as firebaseSignOut } from 'firebase/auth';
 
 // Import Components
@@ -38,6 +38,8 @@ import { FinancialReport } from './components/FinancialReport';
 import { VehicleSeatDiagram, generateVehicleLayout, serializeLayout, SerializedSeat } from './components/VehicleSeatDiagram';
 import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
+import { compressImage } from './lib/imageUtils';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { UserGuide } from './components/UserGuide';
@@ -93,6 +95,7 @@ interface TourItem {
   description: string;
   price: number;
   imageUrl: string;
+  images?: string[];
   discountPercent?: number;
   priceAdult?: number;
   priceChild?: number;
@@ -175,6 +178,12 @@ export default function App() {
   const [bookTicketSearch, setBookTicketSearch] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  // Tour advanced search
+  const [tourHasSearched, setTourHasSearched] = useState(false);
+  const [tourPriceMin, setTourPriceMin] = useState('');
+  const [tourPriceMax, setTourPriceMax] = useState('');
+  const [tourDurationFilter, setTourDurationFilter] = useState('');
   const [searchAdults, setSearchAdults] = useState(1);
   const [searchChildren, setSearchChildren] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -276,7 +285,7 @@ export default function App() {
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [isCopyingRoute, setIsCopyingRoute] = useState(false);
-  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
+  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
   const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
   const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
   const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
@@ -494,6 +503,8 @@ export default function App() {
 
   // Subscribe to route fares in real-time when the route edit modal is open
   const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
+  const [routeImageUploading, setRouteImageUploading] = useState(false);
+  const [routeVehicleImageUploading, setRouteVehicleImageUploading] = useState(false);
   useEffect(() => {
     if (!routeModalEditingId) return;
     // Reset tracked original IDs for this editing session
@@ -696,7 +707,7 @@ export default function App() {
       setShowAddRoute(false);
       setEditingRoute(null);
       setIsCopyingRoute(false);
-      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
+      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
       setRoutePricePeriods([]);
       setShowAddPricePeriod(false);
       setEditingPricePeriodId(null);
@@ -717,6 +728,41 @@ export default function App() {
     }
   };
 
+  // Upload a route image (location or vehicle) and store the URL in routeForm
+  const handleRouteImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'imageUrl' | 'vehicleImageUrl'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !storage) {
+      if (!storage) alert('Firebase Storage is not configured.');
+      return;
+    }
+    const setUploading = field === 'imageUrl' ? setRouteImageUploading : setRouteVehicleImageUploading;
+    setUploading(true);
+    try {
+      const compressed = await compressImage(file, 0.75, 1280);
+      const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
+      const task = uploadBytesResumable(sRef, compressed);
+      await new Promise<void>((resolve, reject) => {
+        task.on('state_changed', undefined,
+          (err) => { console.error('Upload error:', err); reject(err); },
+          async () => {
+            const url = await getDownloadURL(task.snapshot.ref);
+            setRouteForm(prev => ({ ...prev, [field]: url }));
+            resolve();
+          }
+        );
+      });
+    } catch (err) {
+      console.error('Route image upload failed:', err);
+      alert('Upload failed. Please check your Firebase configuration.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
   const handleDeleteRoute = async (routeId: string) => {
     if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa tuyến này?' : 'Delete this route?')) return;
     try {
@@ -729,7 +775,7 @@ export default function App() {
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
     setIsCopyingRoute(false);
-    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
+    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
     setShowAddPricePeriod(false);
@@ -767,7 +813,7 @@ export default function App() {
     setIsCopyingRoute(true);
     const copySuffix = language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
     const copiedName = `${route.name}${copySuffix}`;
-    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
+    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
     setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
@@ -2225,7 +2271,7 @@ export default function App() {
               </div>
               {/* Search button row */}
               <div className="flex justify-end mt-4">
-                <button className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+                <button onClick={() => setHasSearched(true)} className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
                   <Search size={18} />
                   {t.search_btn}
                 </button>
@@ -2370,8 +2416,43 @@ export default function App() {
                       .slice(0, 5)
                   : [];
 
-                const renderTripCard = (trip: typeof trips[0], isSuggestion = false) => (
-                  <div key={trip.id} className={cn("bg-white p-6 rounded-3xl border shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
+                const renderTripCard = (trip: typeof trips[0], isSuggestion = false) => {
+                  const tripRoute = routes.find(r => r.name === trip.route);
+                  const routeImg = tripRoute?.imageUrl;
+                  const vehicleImg = tripRoute?.vehicleImageUrl;
+                  return (
+                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
+                    {/* Route image banner (blurred until user searches) */}
+                    {(routeImg || vehicleImg) && (
+                      <div className="relative h-32 overflow-hidden">
+                        {routeImg && (
+                          <img
+                            src={routeImg}
+                            alt={trip.route}
+                            className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
+                            style={{ filter: hasSearched ? 'none' : 'blur(12px)', transform: hasSearched ? 'scale(1)' : 'scale(1.1)' }}
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
+                        {vehicleImg && (
+                          <img
+                            src={vehicleImg}
+                            alt={trip.licensePlate}
+                            className="absolute bottom-2 right-2 w-24 h-16 object-cover rounded-xl border-2 border-white shadow-md transition-all duration-700"
+                            style={{ filter: hasSearched ? 'none' : 'blur(8px)' }}
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
+                        {!hasSearched && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full">
+                              {language === 'vi' ? '🔍 Tìm kiếm để xem ảnh rõ' : '🔍 Search to reveal photo'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div className="p-6 flex flex-col md:flex-row items-center gap-8">
                     <div className="text-center md:text-left">
                       <p className="text-3xl font-bold text-gray-800">{trip.time}</p>
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
@@ -2427,8 +2508,10 @@ export default function App() {
                         {t.select_seat}
                       </button>
                     </div>
+                    </div>
                   </div>
-                );
+                  );
+                };
 
                 if (filteredBookingTrips.length > 0) {
                   return filteredBookingTrips.map(trip => renderTripCard(trip, false));
@@ -3382,28 +3465,131 @@ export default function App() {
         }
 
       case 'tours': {
+        // Apply advanced filters
+        const filteredPublicTours = tours.filter(tour => {
+          const effectivePrice = tour.priceAdult || tour.price;
+          if (tourDurationFilter && !(tour.duration || '').toLowerCase().includes(tourDurationFilter.toLowerCase())) return false;
+          if (tourPriceMin) {
+            const min = parseInt(tourPriceMin);
+            if (!isNaN(min) && effectivePrice < min) return false;
+          }
+          if (tourPriceMax) {
+            const max = parseInt(tourPriceMax);
+            if (!isNaN(max) && effectivePrice > max) return false;
+          }
+          return true;
+        });
+
         return (
           <div className="space-y-8">
             <div>
               <h2 className="text-2xl font-bold">{t.tours}</h2>
               <p className="text-sm text-gray-500">{language === 'vi' ? 'Khám phá các tour du lịch hấp dẫn' : 'Explore our amazing tour packages'}</p>
             </div>
+
+            {/* Advanced search bar */}
+            <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
+              <div className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Thời gian tour' : 'Duration'}</label>
+                  <div className="relative mt-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                      type="text"
+                      value={tourDurationFilter}
+                      onChange={e => setTourDurationFilter(e.target.value)}
+                      placeholder={language === 'vi' ? 'VD: 2 ngày 1 đêm...' : 'e.g. 2 days 1 night...'}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá từ (đ)' : 'Price from'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={tourPriceMin}
+                      onChange={e => setTourPriceMin(e.target.value)}
+                      placeholder="0"
+                      className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'đến (đ)' : 'to'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={tourPriceMax}
+                      onChange={e => setTourPriceMax(e.target.value)}
+                      placeholder="∞"
+                      className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setTourHasSearched(true)}
+                    className="px-6 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center gap-2"
+                  >
+                    <Search size={16} />
+                    {language === 'vi' ? 'Tìm' : 'Search'}
+                  </button>
+                  {(tourDurationFilter || tourPriceMin || tourPriceMax) && (
+                    <button
+                      onClick={() => { setTourDurationFilter(''); setTourPriceMin(''); setTourPriceMax(''); setTourHasSearched(false); }}
+                      className="px-4 py-3 text-gray-400 hover:text-gray-600 text-sm"
+                    >
+                      {language === 'vi' ? 'Xóa bộ lọc' : 'Clear'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {tours.length === 0 ? (
               <div className="text-center py-20">
                 <Star className="mx-auto text-gray-300 mb-4" size={48} />
                 <p className="text-gray-400">{language === 'vi' ? 'Chưa có tour nào. Liên hệ để biết thêm!' : 'No tours available yet. Contact us for more info!'}</p>
               </div>
+            ) : filteredPublicTours.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <Search size={40} className="mx-auto mb-3 opacity-40" />
+                <p className="font-medium">{language === 'vi' ? 'Không tìm thấy tour phù hợp' : 'No tours match your search'}</p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {tours.map((tour) => {
+                {filteredPublicTours.map((tour) => {
+                  const allTourImages = tour.images && tour.images.length > 0
+                    ? tour.images
+                    : (tour.imageUrl ? [tour.imageUrl] : []);
                   const effectiveAdultPrice = tour.priceAdult || tour.price;
                   const discountedPrice = tour.discountPercent && tour.discountPercent > 0
                     ? Math.round(effectiveAdultPrice * (1 - tour.discountPercent / 100))
                     : null;
+                  const displayImg = allTourImages[0] || '';
                   return (
                     <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
                       <div className="relative h-48 overflow-hidden">
-                        <img src={tour.imageUrl} alt={tour.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                        {displayImg && (
+                          <img
+                            src={displayImg}
+                            alt={tour.title}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700"
+                            style={{ filter: tourHasSearched ? 'none' : 'blur(10px)', transform: tourHasSearched ? 'scale(1)' : 'scale(1.1)' }}
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
+                        {!tourHasSearched && displayImg && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full">
+                              {language === 'vi' ? '🔍 Tìm kiếm để xem ảnh rõ' : '🔍 Search to reveal photo'}
+                            </span>
+                          </div>
+                        )}
+                        {allTourImages.length > 1 && tourHasSearched && (
+                          <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            +{allTourImages.length - 1} {language === 'vi' ? 'ảnh' : 'photos'}
+                          </div>
+                        )}
                         {tour.discountPercent && tour.discountPercent > 0 ? (
                           <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
                             -{tour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
@@ -4313,7 +4499,7 @@ export default function App() {
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -4349,6 +4535,52 @@ export default function App() {
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_details}</label>
                       <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
+                    </div>
+
+                    {/* Route images (location photo + vehicle photo) */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Destination image */}
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh điểm đến' : 'Destination Photo'}</label>
+                        <div className="relative mt-1 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
+                          {routeForm.imageUrl ? (
+                            <>
+                              <img src={routeForm.imageUrl} alt="Route" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <button onClick={() => setRouteForm(p => ({ ...p, imageUrl: '' }))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg">
+                                <X size={12} />
+                              </button>
+                            </>
+                          ) : routeImageUploading ? (
+                            <Loader2 className="animate-spin text-daiichi-red" size={24} />
+                          ) : (
+                            <>
+                              <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh' : 'Select'}</span>
+                              <input type="file" accept="image/*" onChange={e => handleRouteImageUpload(e, 'imageUrl')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {/* Vehicle image */}
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh xe' : 'Vehicle Photo'}</label>
+                        <div className="relative mt-1 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
+                          {routeForm.vehicleImageUrl ? (
+                            <>
+                              <img src={routeForm.vehicleImageUrl} alt="Vehicle" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <button onClick={() => setRouteForm(p => ({ ...p, vehicleImageUrl: '' }))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg">
+                                <X size={12} />
+                              </button>
+                            </>
+                          ) : routeVehicleImageUploading ? (
+                            <Loader2 className="animate-spin text-daiichi-red" size={24} />
+                          ) : (
+                            <>
+                              <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh xe' : 'Select'}</span>
+                              <input type="file" accept="image/*" onChange={e => handleRouteImageUpload(e, 'vehicleImageUrl')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Price Periods (Seasonal Pricing) */}

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Search } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
+import { compressImage } from '../lib/imageUtils';
 
 interface Tour {
   id: string;
@@ -11,6 +12,7 @@ interface Tour {
   description: string;
   price: number;
   imageUrl: string;
+  images?: string[];
   discountPercent?: number;
   priceAdult?: number;
   priceChild?: number;
@@ -30,6 +32,7 @@ const emptyForm = {
   description: '',
   price: 0,
   imageUrl: '',
+  images: [] as string[],
   discountPercent: 0,
   priceAdult: 0,
   priceChild: 0,
@@ -38,6 +41,111 @@ const emptyForm = {
   pricePerNight: 0,
   breakfastCount: 0,
   pricePerBreakfast: 0,
+};
+
+// Carousel card for a single tour shown in the management grid
+const TourCard: React.FC<{
+  tour: Tour;
+  allImages: string[];
+  effectivePrice: number;
+  discountedPrice: number | null;
+  language: Language;
+  onEdit: (t: Tour) => void;
+  onDelete: (id: string) => void;
+}> = ({ tour, allImages, effectivePrice, discountedPrice, language, onEdit, onDelete }) => {
+  const [imgIdx, setImgIdx] = useState(0);
+  const prev = (e: React.MouseEvent) => { e.stopPropagation(); setImgIdx(i => (i - 1 + allImages.length) % allImages.length); };
+  const next = (e: React.MouseEvent) => { e.stopPropagation(); setImgIdx(i => (i + 1) % allImages.length); };
+  return (
+    <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
+      <div className="relative h-48 overflow-hidden">
+        <img
+          src={allImages[imgIdx] || ''}
+          alt={tour.title}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          referrerPolicy="no-referrer"
+        />
+        {/* Carousel controls – only shown when there are multiple images */}
+        {allImages.length > 1 && (
+          <>
+            <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-black/40 text-white rounded-full hover:bg-black/60 transition-colors z-10">
+              <ChevronLeft size={16} />
+            </button>
+            <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-black/40 text-white rounded-full hover:bg-black/60 transition-colors z-10">
+              <ChevronRight size={16} />
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {allImages.map((_, i) => (
+                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === imgIdx ? 'bg-white' : 'bg-white/40'}`} />
+              ))}
+            </div>
+          </>
+        )}
+        {tour.discountPercent && tour.discountPercent > 0 ? (
+          <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+            -{tour.discountPercent}%
+          </div>
+        ) : null}
+        <div className="absolute top-4 right-4 flex gap-2">
+          <button onClick={() => onEdit(tour)} className="p-2 bg-white/80 backdrop-blur-sm rounded-xl text-blue-500 hover:bg-white transition-all shadow-sm">
+            <Edit3 size={18} />
+          </button>
+          <button onClick={() => onDelete(tour.id)} className="p-2 bg-white/80 backdrop-blur-sm rounded-xl text-red-500 hover:bg-white transition-all shadow-sm">
+            <Trash2 size={18} />
+          </button>
+        </div>
+      </div>
+      <div className="p-6">
+        <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
+        {tour.duration && <p className="text-xs text-indigo-600 font-medium mb-1">{tour.duration}</p>}
+        <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>
+        {((tour.nights ?? 0) > 0 || (tour.breakfastCount ?? 0) > 0) && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {(tour.nights ?? 0) > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                <Moon size={10} /> {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
+                {(tour.pricePerNight ?? 0) > 0 && <span className="text-indigo-400 ml-1">{(tour.pricePerNight ?? 0).toLocaleString()}đ/đêm</span>}
+              </span>
+            )}
+            {(tour.breakfastCount ?? 0) > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                <Coffee size={10} /> {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
+                {(tour.pricePerBreakfast ?? 0) > 0 && <span className="text-amber-400 ml-1">{(tour.pricePerBreakfast ?? 0).toLocaleString()}đ/bữa</span>}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="flex justify-between items-end">
+          <div>
+            {tour.priceAdult ? (
+              <>
+                <p className="text-xs text-gray-400">{language === 'vi' ? 'Người lớn' : 'Adult'}</p>
+                {discountedPrice ? (
+                  <>
+                    <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
+                    <p className="text-xs text-gray-400 line-through">{effectivePrice.toLocaleString()}đ</p>
+                  </>
+                ) : (
+                  <p className="text-xl font-bold text-daiichi-red">{effectivePrice.toLocaleString()}đ</p>
+                )}
+                {tour.priceChild ? (
+                  <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {tour.priceChild.toLocaleString()}đ</p>
+                ) : null}
+              </>
+            ) : discountedPrice ? (
+              <>
+                <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
+                <p className="text-xs text-gray-400 line-through">{effectivePrice.toLocaleString()}đ</p>
+              </>
+            ) : (
+              <p className="text-xl font-bold text-daiichi-red">{effectivePrice.toLocaleString()}đ</p>
+            )}
+          </div>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full">Active</span>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
@@ -68,9 +176,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
     return unsubscribe;
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
-    const file = e.target.files?.[0];
-    if (!file || !storage) {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !storage) {
       if (!storage) alert('Firebase Storage is not configured. Please check your environment variables.');
       return;
     }
@@ -78,33 +186,58 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
     if (isEdit) setEditUploading(true);
     else setUploading(true);
 
-    const storageRef = ref(storage, `tours/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    try {
+      const urls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i] as File;
+        // Compress to medium quality before uploading
+        const compressed = await compressImage(file, 0.75, 1280);
+        const storageRef = ref(storage, `tours/${Date.now()}_${compressed.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, compressed);
 
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        if (!isEdit) setUploadProgress(progress);
-      },
-      (error) => {
-        console.error("Upload failed:", error);
-        if (isEdit) setEditUploading(false);
-        else setUploading(false);
-        alert('Upload failed. Please check your Firebase configuration.');
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          if (isEdit) {
-            setEditForm(prev => ({ ...prev, imageUrl: downloadURL }));
-            setEditUploading(false);
-          } else {
-            setNewTour(prev => ({ ...prev, imageUrl: downloadURL }));
-            setUploading(false);
-            setUploadProgress(0);
-          }
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on('state_changed',
+            (snapshot) => {
+              if (!isEdit) {
+                const progress = ((i + snapshot.bytesTransferred / snapshot.totalBytes) / files.length) * 100;
+                setUploadProgress(progress);
+              }
+            },
+            (error) => {
+              console.error('Upload failed:', error);
+              reject(error);
+            },
+            async () => {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              urls.push(url);
+              resolve();
+            }
+          );
         });
       }
-    );
+
+      if (isEdit) {
+        setEditForm(prev => {
+          const combined = [...(prev.images || []), ...urls];
+          return { ...prev, images: combined, imageUrl: combined[0] || prev.imageUrl };
+        });
+        setEditUploading(false);
+      } else {
+        setNewTour(prev => {
+          const combined = [...(prev.images || []), ...urls];
+          return { ...prev, images: combined, imageUrl: combined[0] || prev.imageUrl };
+        });
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      if (isEdit) setEditUploading(false);
+      else setUploading(false);
+      alert('Upload failed. Please check your Firebase configuration.');
+    }
+    // Reset file input so the same file can be re-selected
+    e.target.value = '';
   };
 
   const handleAddTour = async () => {
@@ -116,6 +249,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         description: newTour.description,
         price: newTour.price,
         imageUrl: newTour.imageUrl,
+        images: newTour.images.length > 0 ? newTour.images : undefined,
         discountPercent: newTour.discountPercent || 0,
         priceAdult: newTour.priceAdult || undefined,
         priceChild: newTour.priceChild || undefined,
@@ -141,6 +275,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
       description: tour.description,
       price: tour.price,
       imageUrl: tour.imageUrl,
+      images: tour.images || (tour.imageUrl ? [tour.imageUrl] : []),
       discountPercent: tour.discountPercent || 0,
       priceAdult: tour.priceAdult || 0,
       priceChild: tour.priceChild || 0,
@@ -161,7 +296,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         title: editForm.title,
         description: editForm.description,
         price: editForm.price,
-        imageUrl: editForm.imageUrl,
+        imageUrl: editForm.images[0] || editForm.imageUrl,
+        images: editForm.images.length > 0 ? editForm.images : undefined,
         discountPercent: editForm.discountPercent || 0,
         priceAdult: editForm.priceAdult || undefined,
         priceChild: editForm.priceChild || undefined,
@@ -324,36 +460,47 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
               </div>
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Hình ảnh Tour' : 'Tour Image'}</label>
-              <div className="relative h-64 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center overflow-hidden">
-                {newTour.imageUrl ? (
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Hình ảnh Tour (có thể tải nhiều ảnh)' : 'Tour Images (multiple allowed)'}</label>
+              {/* Existing images grid */}
+              {newTour.images.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {newTour.images.map((url, idx) => (
+                    <div key={idx} className="relative h-24 rounded-2xl overflow-hidden group">
+                      <img src={url} alt={`Tour ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <button
+                        onClick={() => setNewTour(prev => {
+                          const imgs = prev.images.filter((_, i) => i !== idx);
+                          return { ...prev, images: imgs, imageUrl: imgs[0] || '' };
+                        })}
+                        className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} />
+                      </button>
+                      {idx === 0 && (
+                        <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-daiichi-red text-white px-1.5 py-0.5 rounded-full">{language === 'vi' ? 'Chính' : 'Main'}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Upload area */}
+              <div className="relative h-36 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center overflow-hidden">
+                {uploading ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="animate-spin text-daiichi-red" size={28} />
+                    <p className="text-sm font-bold text-gray-500">{Math.round(uploadProgress)}%</p>
+                  </div>
+                ) : (
                   <>
-                    <img src={newTour.imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    <button onClick={() => setNewTour(prev => ({ ...prev, imageUrl: '' }))}
-                      className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-sm rounded-xl text-red-500 hover:bg-white transition-all">
-                      <Trash2 size={18} />
+                    <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-400 mx-auto mb-2">
+                      <ImageIcon size={24} />
+                    </div>
+                    <p className="text-xs text-gray-500 mb-2">{language === 'vi' ? 'Chọn nhiều ảnh (sẽ nén trước khi tải lên)' : 'Select images (compressed before upload)'}</p>
+                    <input type="file" accept="image/*" multiple onChange={e => handleImageUpload(e, false)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    <button className="px-5 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all">
+                      {language === 'vi' ? 'Chọn ảnh' : 'Select Images'}
                     </button>
                   </>
-                ) : (
-                  <div className="text-center p-6">
-                    {uploading ? (
-                      <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="animate-spin text-daiichi-red" size={32} />
-                        <p className="text-sm font-bold text-gray-500">{Math.round(uploadProgress)}%</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-400 mx-auto mb-4">
-                          <ImageIcon size={32} />
-                        </div>
-                        <p className="text-sm text-gray-500 mb-4">{language === 'vi' ? 'Kéo thả hoặc chọn ảnh để tải lên' : 'Drag & drop or click to upload'}</p>
-                        <input type="file" accept="image/*" onChange={e => handleImageUpload(e, false)} className="absolute inset-0 opacity-0 cursor-pointer" />
-                        <button className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all">
-                          {language === 'vi' ? 'Chọn ảnh' : 'Select Image'}
-                        </button>
-                      </>
-                    )}
-                  </div>
                 )}
               </div>
             </div>
@@ -362,7 +509,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
             <button onClick={() => setIsAdding(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">
               {language === 'vi' ? 'Hủy' : 'Cancel'}
             </button>
-            <button onClick={handleAddTour} disabled={!newTour.title || !newTour.imageUrl || uploading || saving}
+            <button onClick={handleAddTour} disabled={!newTour.title || newTour.images.length === 0 || uploading || saving}
               className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2">
               {saving && <Loader2 size={16} className="animate-spin" />}
               {language === 'vi' ? 'Lưu Tour' : 'Save Tour'}
@@ -476,42 +623,47 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
               </div>
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Hình ảnh Tour' : 'Tour Image'}</label>
-              <div className="relative h-64 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center overflow-hidden">
-                {editForm.imageUrl ? (
-                  <>
-                    <img src={editForm.imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    <div className="absolute top-4 right-4 flex gap-2">
-                      <label className="cursor-pointer p-2 bg-white/80 backdrop-blur-sm rounded-xl text-blue-500 hover:bg-white transition-all">
-                        <ImageIcon size={18} />
-                        <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="hidden" />
-                      </label>
-                      <button onClick={() => setEditForm(prev => ({ ...prev, imageUrl: '' }))}
-                        className="p-2 bg-white/80 backdrop-blur-sm rounded-xl text-red-500 hover:bg-white transition-all">
-                        <Trash2 size={18} />
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Hình ảnh Tour (có thể tải nhiều ảnh)' : 'Tour Images (multiple allowed)'}</label>
+              {/* Existing images grid */}
+              {editForm.images.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {editForm.images.map((url, idx) => (
+                    <div key={idx} className="relative h-24 rounded-2xl overflow-hidden group">
+                      <img src={url} alt={`Tour ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <button
+                        onClick={() => setEditForm(prev => {
+                          const imgs = prev.images.filter((_, i) => i !== idx);
+                          return { ...prev, images: imgs, imageUrl: imgs[0] || '' };
+                        })}
+                        className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} />
                       </button>
+                      {idx === 0 && (
+                        <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-daiichi-red text-white px-1.5 py-0.5 rounded-full">{language === 'vi' ? 'Chính' : 'Main'}</span>
+                      )}
                     </div>
-                  </>
-                ) : (
-                  <div className="text-center p-6">
-                    {editUploading ? (
-                      <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="animate-spin text-daiichi-red" size={32} />
-                        <p className="text-sm font-bold text-gray-500">{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-400 mx-auto mb-4">
-                          <ImageIcon size={32} />
-                        </div>
-                        <p className="text-sm text-gray-500 mb-4">{language === 'vi' ? 'Kéo thả hoặc chọn ảnh để tải lên' : 'Drag & drop or click to upload'}</p>
-                        <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="absolute inset-0 opacity-0 cursor-pointer" />
-                        <button className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all">
-                          {language === 'vi' ? 'Chọn ảnh' : 'Select Image'}
-                        </button>
-                      </>
-                    )}
+                  ))}
+                </div>
+              )}
+              {/* Upload area */}
+              <div className="relative h-36 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center overflow-hidden">
+                {editUploading ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="animate-spin text-daiichi-red" size={28} />
+                    <p className="text-sm font-bold text-gray-500">{language === 'vi' ? 'Đang tải & nén...' : 'Compressing & uploading...'}</p>
                   </div>
+                ) : (
+                  <>
+                    <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-400 mx-auto mb-2">
+                      <ImageIcon size={24} />
+                    </div>
+                    <p className="text-xs text-gray-500 mb-2">{language === 'vi' ? 'Thêm ảnh (sẽ nén trước khi tải lên)' : 'Add images (compressed before upload)'}</p>
+                    <input type="file" accept="image/*" multiple onChange={e => handleImageUpload(e, true)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    <button className="px-5 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all">
+                      {language === 'vi' ? 'Chọn ảnh' : 'Select Images'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -520,7 +672,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
             <button onClick={() => setEditingTour(null)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">
               {language === 'vi' ? 'Hủy' : 'Cancel'}
             </button>
-            <button onClick={handleUpdateTour} disabled={!editForm.title || !editForm.imageUrl || editUploading || saving}
+            <button onClick={handleUpdateTour} disabled={!editForm.title || editForm.images.length === 0 || editUploading || saving}
               className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2">
               {saving && <Loader2 size={16} className="animate-spin" />}
               {language === 'vi' ? 'Cập nhật Tour' : 'Update Tour'}
@@ -537,83 +689,22 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filteredTours.map(tour => {
+          const allImages = tour.images && tour.images.length > 0 ? tour.images : (tour.imageUrl ? [tour.imageUrl] : []);
           const effectivePrice = tour.priceAdult || tour.price;
           const discountedPrice = tour.discountPercent && tour.discountPercent > 0
             ? Math.round(effectivePrice * (1 - tour.discountPercent / 100))
             : null;
           return (
-            <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
-              <div className="relative h-48 overflow-hidden">
-                <img src={tour.imageUrl} alt={tour.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
-                {tour.discountPercent && tour.discountPercent > 0 ? (
-                  <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                    -{tour.discountPercent}%
-                  </div>
-                ) : null}
-                <div className="absolute top-4 right-4 flex gap-2">
-                  <button onClick={() => handleStartEdit(tour)}
-                    className="p-2 bg-white/80 backdrop-blur-sm rounded-xl text-blue-500 hover:bg-white transition-all shadow-sm">
-                    <Edit3 size={18} />
-                  </button>
-                  <button onClick={() => handleDeleteTour(tour.id)}
-                    className="p-2 bg-white/80 backdrop-blur-sm rounded-xl text-red-500 hover:bg-white transition-all shadow-sm">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-              <div className="p-6">
-                <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
-                {tour.duration && (
-                  <p className="text-xs text-indigo-600 font-medium mb-1">{tour.duration}</p>
-                )}
-                <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>
-                {/* Overnight & Breakfast badges */}
-                {((tour.nights ?? 0) > 0 || (tour.breakfastCount ?? 0) > 0) && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {(tour.nights ?? 0) > 0 && (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                        <Moon size={10} /> {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
-                        {(tour.pricePerNight ?? 0) > 0 && <span className="text-indigo-400 ml-1">{(tour.pricePerNight ?? 0).toLocaleString()}đ/đêm</span>}
-                      </span>
-                    )}
-                    {(tour.breakfastCount ?? 0) > 0 && (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                        <Coffee size={10} /> {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
-                        {(tour.pricePerBreakfast ?? 0) > 0 && <span className="text-amber-400 ml-1">{(tour.pricePerBreakfast ?? 0).toLocaleString()}đ/bữa</span>}
-                      </span>
-                    )}
-                  </div>
-                )}
-                <div className="flex justify-between items-end">
-                  <div>
-                    {tour.priceAdult ? (
-                      <>
-                        <p className="text-xs text-gray-400">{language === 'vi' ? 'Người lớn' : 'Adult'}</p>
-                        {discountedPrice ? (
-                          <>
-                            <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
-                            <p className="text-xs text-gray-400 line-through">{effectivePrice.toLocaleString()}đ</p>
-                          </>
-                        ) : (
-                          <p className="text-xl font-bold text-daiichi-red">{effectivePrice.toLocaleString()}đ</p>
-                        )}
-                        {tour.priceChild ? (
-                          <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {tour.priceChild.toLocaleString()}đ</p>
-                        ) : null}
-                      </>
-                    ) : discountedPrice ? (
-                      <>
-                        <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
-                        <p className="text-xs text-gray-400 line-through">{effectivePrice.toLocaleString()}đ</p>
-                      </>
-                    ) : (
-                      <p className="text-xl font-bold text-daiichi-red">{effectivePrice.toLocaleString()}đ</p>
-                    )}
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full">Active</span>
-                </div>
-              </div>
-            </div>
+            <TourCard
+              key={tour.id}
+              tour={tour}
+              allImages={allImages}
+              effectivePrice={effectivePrice}
+              discountedPrice={discountedPrice}
+              language={language}
+              onEdit={handleStartEdit}
+              onDelete={handleDeleteTour}
+            />
           );
         })}
       </div>
