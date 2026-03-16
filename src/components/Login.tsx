@@ -1,11 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
 import { app, auth } from '../lib/firebase';
-import { signInWithPhoneNumber, signInAnonymously, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
+import {
+  signInWithPhoneNumber,
+  signInAnonymously,
+  RecaptchaVerifier,
+  ConfirmationResult,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  signInWithPopup,
+} from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+
+type MemberLoginMethod = 'phone' | 'gmail' | 'facebook' | 'whatsapp';
+type MemberAuthStep = 'method' | 'phone-entry' | 'otp' | 'social-loading' | 'name-entry';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -18,6 +29,7 @@ interface LoginProps {
   agentsLoading?: boolean;
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
   onRegister?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
+  onOtpMemberLogin?: (data: { name?: string; phone?: string; email?: string; uid?: string; loginMethod: string }) => Promise<User | null>;
 }
 
 const RECAPTCHA_SITE_KEY =
@@ -61,6 +73,14 @@ const PARTICLE_MIN_DURATION = 3.5;
 const PARTICLE_DURATION_STEP = 0.8;
 const PARTICLE_MAX_DELAY = 4;
 
+/** Normalise any Vietnamese phone number format to E.164 (+84xxxxxxxxx). */
+const toE164 = (phone: string): string => {
+  const p = phone.trim();
+  if (p.startsWith('0')) return '+84' + p.slice(1);
+  if (p.startsWith('+')) return p;
+  return '+84' + p;
+};
+
 /** Small floating particle dot */
 const Particle: React.FC<{ style: React.CSSProperties }> = ({ style }) => (
   <span
@@ -78,7 +98,7 @@ const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   animationDuration: `${PARTICLE_MIN_DURATION + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_DURATION_STEP}s`,
 }));
 
-export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, customers, agentsLoading, securityConfig, onRegister }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, customers, agentsLoading, securityConfig, onRegister, onOtpMemberLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -107,7 +127,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [regDone, setRegDone] = useState(false);
   const [regError, setRegError] = useState('');
 
-  // OTP / phone verification state
+  // OTP / phone verification state (for system login)
   const [otpStep, setOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
@@ -115,6 +135,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [pendingUser, setPendingUser] = useState<User | null>(null);
   const [otpPhone, setOtpPhone] = useState('');
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+
+  // ── Member OTP login flow ──
+  const [memberAuthStep, setMemberAuthStep] = useState<MemberAuthStep>('method');
+  const [selectedMethod, setSelectedMethod] = useState<MemberLoginMethod | null>(null);
+  const [memberPhone, setMemberPhone] = useState('');
+  const [memberOtp, setMemberOtp] = useState('');
+  const [memberOtpLoading, setMemberOtpLoading] = useState(false);
+  const [memberOtpError, setMemberOtpError] = useState('');
+  const [memberNameInput, setMemberNameInput] = useState('');
+  const [memberNameLoading, setMemberNameLoading] = useState(false);
+  // Holds verified info from phone OTP or social OAuth before profile completion
+  const [pendingAuthData, setPendingAuthData] = useState<{ uid?: string; phone?: string; email?: string; name?: string } | null>(null);
+  const memberConfirmationResultRef = useRef<ConfirmationResult | null>(null);
 
   // Holds the RecaptchaVerifier instance for Firebase phone auth (invisible mode).
   // Kept in a ref so it persists across renders without triggering re-renders.
@@ -424,6 +457,204 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     onLogin({ id: 'guest', username: 'guest', role: UserRole.GUEST, name: 'Khách lẻ' });
   };
 
+  // ─── Member OTP / social auth handlers ───────────────────────────────────
+
+  /** Reset member OTP flow back to method selector */
+  const resetMemberFlow = () => {
+    setMemberAuthStep('method');
+    setSelectedMethod(null);
+    setMemberPhone('');
+    setMemberOtp('');
+    setMemberOtpError('');
+    setMemberNameInput('');
+    setPendingAuthData(null);
+    memberConfirmationResultRef.current = null;
+  };
+
+  /**
+   * After Firebase auth (phone or social), find or create the customer and log in.
+   * If the customer is new and has no name yet, moves to the name-entry step.
+   */
+  const completeMemberLogin = async (authData: { uid?: string; phone?: string; email?: string; name?: string }, method: MemberLoginMethod) => {
+    if (!onOtpMemberLogin) return;
+    setPendingAuthData(authData);
+    setMemberOtpLoading(true);
+    const defaultName = language === 'vi' ? 'Khách hàng' : 'Customer';
+    try {
+      const user = await onOtpMemberLogin({ ...authData, loginMethod: method });
+      if (user) {
+        // New user with a default placeholder name → ask for real name before completing login
+        if (!user.name || user.name === defaultName) {
+          setMemberNameInput(authData.name || '');
+          setMemberAuthStep('name-entry');
+        } else {
+          onLogin(user);
+        }
+      }
+    } catch (err) {
+      setMemberOtpError(language === 'vi' ? 'Đăng nhập thất bại. Vui lòng thử lại.' : 'Login failed. Please try again.');
+    } finally {
+      setMemberOtpLoading(false);
+    }
+  };
+
+  /** Send SMS OTP to the member's phone number */
+  const handleMemberSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberPhone.trim()) return;
+    setMemberOtpLoading(true);
+    setMemberOtpError('');
+    try {
+      if (!auth || !app) {
+        setMemberOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+        return;
+      }
+      // Normalise to E.164 format for Firebase
+      const phoneE164 = toE164(memberPhone);
+
+      // Verify reCAPTCHA before sending OTP
+      try {
+        const recaptchaToken = await getRecaptchaToken();
+        try {
+          const functions = getFunctions(app, 'asia-southeast1');
+          const verifyRecaptcha = httpsCallable<{ token: string; action: string }, { success: boolean; score: number; message: string }>(functions, 'verifyRecaptchaAndSendOtp');
+          await verifyRecaptcha({ token: recaptchaToken, action: 'MEMBER_LOGIN' });
+        } catch {
+          // Best-effort; continue even if Cloud Function unavailable
+        }
+      } catch {
+        // reCAPTCHA not ready – continue anyway in development
+      }
+
+      // Create or reuse RecaptchaVerifier
+      if (!recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      }
+      const result = await signInWithPhoneNumber(auth, phoneE164, recaptchaVerifierRef.current);
+      memberConfirmationResultRef.current = result;
+      setMemberAuthStep('otp');
+    } catch (err: any) {
+      recaptchaVerifierRef.current?.clear();
+      recaptchaVerifierRef.current = null;
+      const code: string = err?.code ?? '';
+      const msg: string = err?.message ?? '';
+      if (code === 'auth/invalid-phone-number' || msg.includes('invalid-phone-number')) {
+        setMemberOtpError(language === 'vi' ? 'Số điện thoại không hợp lệ.' : 'Invalid phone number.');
+      } else if (code === 'auth/too-many-requests' || msg.includes('too-many-requests')) {
+        setMemberOtpError(language === 'vi' ? 'Quá nhiều yêu cầu, vui lòng thử lại sau.' : 'Too many requests, please try again later.');
+      } else {
+        setMemberOtpError(language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`);
+      }
+    } finally {
+      setMemberOtpLoading(false);
+    }
+  };
+
+  /** Verify the 6-digit OTP entered by the member */
+  const handleMemberOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberConfirmationResultRef.current || memberOtp.length !== 6) return;
+    setMemberOtpLoading(true);
+    setMemberOtpError('');
+    try {
+      const credential = await memberConfirmationResultRef.current.confirm(memberOtp.trim());
+      const fbUser = credential.user;
+      const phoneE164 = toE164(memberPhone);
+      await completeMemberLogin(
+        { uid: fbUser.uid, phone: fbUser.phoneNumber || phoneE164, name: fbUser.displayName || undefined },
+        selectedMethod || 'phone',
+      );
+    } catch {
+      setMemberOtpError(t.otp_wrong || 'Mã OTP không đúng, vui lòng thử lại');
+    } finally {
+      setMemberOtpLoading(false);
+    }
+  };
+
+  /** Resend OTP to the same phone number */
+  const handleMemberResendOtp = async () => {
+    setMemberAuthStep('phone-entry');
+    setMemberOtp('');
+    setMemberOtpError('');
+    memberConfirmationResultRef.current = null;
+  };
+
+  /** Sign in with Google OAuth */
+  const handleGoogleLogin = async () => {
+    if (!auth) return;
+    setMemberAuthStep('social-loading');
+    setMemberOtpError('');
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const fbUser = result.user;
+      await completeMemberLogin(
+        { uid: fbUser.uid, email: fbUser.email || undefined, name: fbUser.displayName || undefined },
+        'gmail',
+      );
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setMemberOtpError(language === 'vi' ? 'Đăng nhập Google thất bại. Vui lòng thử lại.' : 'Google sign-in failed. Please try again.');
+      }
+      setMemberAuthStep('method');
+    }
+  };
+
+  /** Sign in with Facebook OAuth */
+  const handleFacebookLogin = async () => {
+    if (!auth) return;
+    setMemberAuthStep('social-loading');
+    setMemberOtpError('');
+    try {
+      const provider = new FacebookAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const fbUser = result.user;
+      await completeMemberLogin(
+        { uid: fbUser.uid, email: fbUser.email || undefined, name: fbUser.displayName || undefined },
+        'facebook',
+      );
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setMemberOtpError(language === 'vi' ? 'Đăng nhập Facebook thất bại. Vui lòng thử lại.' : 'Facebook sign-in failed. Please try again.');
+      }
+      setMemberAuthStep('method');
+    }
+  };
+
+  /** Handle method selection */
+  const handleMemberMethodSelect = (method: MemberLoginMethod) => {
+    setSelectedMethod(method);
+    setMemberOtpError('');
+    if (method === 'phone' || method === 'whatsapp') {
+      setMemberAuthStep('phone-entry');
+    } else if (method === 'gmail') {
+      handleGoogleLogin();
+    } else if (method === 'facebook') {
+      handleFacebookLogin();
+    }
+  };
+
+  /** Complete profile: save name for new users */
+  const handleMemberNameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onOtpMemberLogin || !pendingAuthData || !selectedMethod) return;
+    const name = memberNameInput.trim();
+    if (!name) return;
+    setMemberNameLoading(true);
+    try {
+      const user = await onOtpMemberLogin({ ...pendingAuthData, name, loginMethod: selectedMethod });
+      if (user) {
+        onLogin({ ...user, name });
+      }
+    } catch {
+      setMemberOtpError(language === 'vi' ? 'Không thể lưu thông tin. Vui lòng thử lại.' : 'Could not save profile. Please try again.');
+    } finally {
+      setMemberNameLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"
       style={{ background: 'linear-gradient(145deg, #E31B23 0%, #8B0000 45%, #1a1a2e 100%)' }}
@@ -552,233 +783,231 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           </p>
         </motion.div>
 
-        {/* ── Member section: login or register (shown right below CTA) ── */}
+        {/* ── Member section: OTP-based login / register ── */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28 }}
           className="glass-card p-5 rounded-3xl shadow-2xl"
         >
-          {/* Tab switcher */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => { setShowMemberLogin(true); setShowRegisterForm(false); setMemberLoginError(''); }}
-              className={cn(
-                'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
-                showMemberLogin && !showRegisterForm
-                  ? 'bg-white text-daiichi-red shadow'
-                  : 'text-white/60 hover:text-white'
-              )}
-            >
-              {t.member_login_btn || 'Đăng nhập thành viên'}
-            </button>
-            {onRegister && (
+          {/* Section header */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-white font-bold text-sm flex items-center gap-2">
+              <UserIcon size={15} className="text-white/70" />
+              {t.member_login_btn || 'Đăng nhập / Đăng ký thành viên'}
+            </p>
+            {memberAuthStep !== 'method' && (
               <button
-                onClick={() => { setShowRegisterForm(true); setShowMemberLogin(false); setRegError(''); setRegDone(false); }}
-                className={cn(
-                  'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
-                  showRegisterForm
-                    ? 'bg-white text-daiichi-red shadow'
-                    : 'text-white/60 hover:text-white'
-                )}
+                onClick={resetMemberFlow}
+                className="text-white/50 text-xs font-bold hover:text-white transition-colors"
               >
-                {t.member_register_btn || 'Đăng ký thành viên'}
+                {t.otp_back || '← Quay lại'}
               </button>
             )}
           </div>
 
           <AnimatePresence initial={false} mode="wait">
-            {/* Member Login form */}
-            {showMemberLogin && !showRegisterForm && (
+            {/* ── Step 1: Method selector ── */}
+            {memberAuthStep === 'method' && (
               <motion.div
-                key="member-login"
+                key="method"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3"
+              >
+                <p className="text-white/60 text-xs text-center">
+                  {t.otp_choose_method || 'Chọn phương thức đăng nhập / đăng ký'}
+                </p>
+                {memberOtpError && (
+                  <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                    {memberOtpError}
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { id: 'phone' as const, label: t.otp_method_phone || 'Số ĐT Việt Nam', desc: t.otp_method_phone_desc || 'Nhận OTP qua SMS', emoji: '🇻🇳' },
+                    { id: 'gmail' as const, label: t.otp_method_gmail || 'Gmail', desc: t.otp_method_gmail_desc || 'Đăng nhập Google', emoji: '📧' },
+                    { id: 'facebook' as const, label: t.otp_method_facebook || 'Facebook', desc: t.otp_method_facebook_desc || 'Đăng nhập Facebook', emoji: '📘' },
+                    { id: 'whatsapp' as const, label: t.otp_method_whatsapp || 'WhatsApp', desc: t.otp_method_whatsapp_desc || 'Nhận OTP qua WhatsApp', emoji: '💬' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => handleMemberMethodSelect(opt.id)}
+                      className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border border-white/20 bg-white/5 hover:bg-white/15 hover:border-white/40 transition-all text-center group"
+                    >
+                      <span className="text-2xl leading-none">{opt.emoji}</span>
+                      <span className="text-white font-bold text-xs leading-tight">{opt.label}</span>
+                      <span className="text-white/40 text-[10px] leading-tight group-hover:text-white/60 transition-colors">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── Step 2: Phone entry ── */}
+            {memberAuthStep === 'phone-entry' && (
+              <motion.div
+                key="phone-entry"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.18 }}
               >
-                <form onSubmit={handleMemberLogin} className="space-y-3">
-                  <input
-                    type="text"
-                    value={memberUsername}
-                    onChange={e => setMemberUsername(e.target.value)}
-                    placeholder={t.member_username_placeholder || 'Tên đăng nhập hoặc SĐT'}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                    autoComplete="username"
-                  />
-                  <div className="relative">
-                    <input
-                      type={showMemberPassword ? 'text' : 'password'}
-                      value={memberPassword}
-                      onChange={e => setMemberPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowMemberPassword(p => !p)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
-                    >
-                      {showMemberPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                <form onSubmit={handleMemberSendOtp} className="space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">{selectedMethod === 'whatsapp' ? '💬' : '🇻🇳'}</span>
+                    <p className="text-white/80 text-xs font-bold">
+                      {t.otp_enter_phone || 'Nhập số điện thoại của bạn'}
+                    </p>
                   </div>
-                  {memberLoginError && (
+                  <input
+                    type="tel"
+                    value={memberPhone}
+                    onChange={e => setMemberPhone(e.target.value.replace(/[^0-9+]/g, ''))}
+                    placeholder="0912 345 678"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm tracking-wide"
+                    autoFocus
+                    autoComplete="tel"
+                    required
+                  />
+                  {memberOtpError && (
                     <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
-                      {memberLoginError}
+                      {memberOtpError}
                     </p>
                   )}
                   <button
                     type="submit"
-                    className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all"
+                    disabled={memberOtpLoading || !memberPhone.trim()}
+                    className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {t.member_login_btn || 'Đăng nhập thành viên'}
+                    {memberOtpLoading ? (
+                      <><Loader2 size={16} className="animate-spin" />{t.otp_sending || 'Đang gửi...'}</>
+                    ) : (
+                      <><Phone size={15} />{t.otp_send_btn || 'Gửi mã OTP'}</>
+                    )}
                   </button>
-                  {onRegister && (
-                    <p className="text-center text-white/50 text-xs pt-1">
-                      <button
-                        type="button"
-                        onClick={() => { setShowRegisterForm(true); setShowMemberLogin(false); }}
-                        className="underline hover:text-white transition-colors"
-                      >
-                        {t.login_switch_to_register || 'Chưa có tài khoản? Đăng ký'}
-                      </button>
-                    </p>
-                  )}
                 </form>
               </motion.div>
             )}
 
-            {/* Registration form */}
-            {showRegisterForm && onRegister && (
+            {/* ── Step 3: OTP code entry ── */}
+            {memberAuthStep === 'otp' && (
               <motion.div
-                key="register"
+                key="otp"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.18 }}
               >
-                {regDone ? (
-                  <div className="flex flex-col items-center gap-3 py-4 text-center">
-                    <CheckCircle2 size={32} className="text-green-300" />
-                    <p className="text-white font-bold text-sm">{t.register_success_login || 'Đăng ký thành công! Vui lòng đăng nhập.'}</p>
+                <form onSubmit={handleMemberOtpVerify} className="space-y-4">
+                  <div>
+                    <p className="text-white/70 text-xs font-medium mb-0.5">
+                      {t.otp_sent_to || 'Mã OTP đã gửi đến'}&nbsp;
+                      <span className="text-white font-bold">{memberPhone}</span>
+                    </p>
+                    <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                      {t.otp_enter_code || 'Nhập mã OTP'}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={memberOtp}
+                      onChange={e => setMemberOtp(e.target.value.replace(/\D/g, ''))}
+                      className="w-full mt-1.5 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all text-center text-2xl tracking-[0.5em] font-mono"
+                      placeholder="------"
+                      autoFocus
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                  {memberOtpError && (
+                    <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                      {memberOtpError}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={memberOtpLoading || memberOtp.length !== 6}
+                    className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {memberOtpLoading ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={15} />}
+                    {t.otp_confirm_btn || 'Xác nhận OTP'}
+                  </button>
+                  <div className="text-center">
                     <button
-                      onClick={() => {
-                        // Pre-fill the member login with the stored (lowercase) username
-                        const normalizedPhone = regPhone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
-                        const storedUsername = (regUsername.trim() || normalizedPhone || regPhone).toLowerCase();
-                        setRegDone(false);
-                        setShowRegisterForm(false);
-                        setShowMemberLogin(true);
-                        setMemberUsername(storedUsername);
-                        setMemberPassword('');
-                      }}
-                      className="mt-2 px-6 py-2.5 bg-white text-daiichi-red rounded-xl font-bold text-sm shadow hover:scale-[1.02] transition-all"
+                      type="button"
+                      onClick={handleMemberResendOtp}
+                      disabled={memberOtpLoading}
+                      className="text-white/50 text-xs font-bold hover:text-white transition-colors disabled:opacity-40"
                     >
-                      {t.member_login_btn || 'Đăng nhập thành viên'}
+                      {t.otp_resend || 'Gửi lại OTP'}
                     </button>
                   </div>
-                ) : (
-                  <form onSubmit={handleRegisterSubmit} className="space-y-3">
-                    <input
-                      type="text"
-                      value={regName}
-                      onChange={e => setRegName(e.target.value)}
-                      placeholder={`${t.register_full_name || 'Họ và tên'} *`}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                      required
-                    />
-                    <input
-                      type="tel"
-                      value={regPhone}
-                      onChange={e => setRegPhone(e.target.value)}
-                      placeholder={`${t.register_phone || 'Số điện thoại'} *`}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                      required
-                    />
-                    <input
-                      type="email"
-                      value={regEmail}
-                      onChange={e => setRegEmail(e.target.value)}
-                      placeholder={t.register_email_hint || 'Email (không bắt buộc)'}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                    />
-                    <input
-                      type="text"
-                      value={regUsername}
-                      onChange={e => setRegUsername(e.target.value)}
-                      placeholder={t.register_username_hint || 'Tên đăng nhập (để trống dùng SĐT)'}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                    />
-                    <div className="relative">
-                      <input
-                        type={showRegPassword ? 'text' : 'password'}
-                        value={regPassword}
-                        onChange={e => setRegPassword(e.target.value)}
-                        placeholder={`${t.password || 'Mật khẩu'} *`}
-                        className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowRegPassword(p => !p)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
-                      >
-                        {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                    {regError && (
-                      <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
-                        {regError}
-                      </p>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={regSaving || !regName.trim() || !regPhone.trim() || !regPassword.trim()}
-                      className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {regSaving ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-                      {t.register_member_submit || 'Đăng ký ngay'}
-                    </button>
-                    <p className="text-center text-white/50 text-xs pt-1">
-                      <button
-                        type="button"
-                        onClick={() => { setShowRegisterForm(false); setShowMemberLogin(true); }}
-                        className="underline hover:text-white transition-colors"
-                      >
-                        {t.register_switch_to_login || 'Đã có tài khoản? Đăng nhập'}
-                      </button>
-                    </p>
-                  </form>
-                )}
+                </form>
               </motion.div>
             )}
 
-            {/* Default: prompt to choose member login or register */}
-            {!showMemberLogin && !showRegisterForm && (
+            {/* ── Step: Social auth loading ── */}
+            {memberAuthStep === 'social-loading' && (
               <motion.div
-                key="member-prompt"
+                key="social-loading"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex gap-3"
+                className="flex flex-col items-center gap-3 py-6"
               >
-                <button
-                  onClick={() => { setShowMemberLogin(true); setMemberLoginError(''); }}
-                  className="flex-1 py-3 rounded-xl text-white/80 border border-white/20 text-xs font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                >
-                  <span>🔑</span>
-                  {t.member_login_btn || 'Đăng nhập thành viên'}
-                </button>
-                {onRegister && (
+                <Loader2 size={28} className="animate-spin text-white/70" />
+                <p className="text-white/70 text-sm font-medium">
+                  {t.otp_social_loading || 'Đang kết nối...'}
+                </p>
+              </motion.div>
+            )}
+
+            {/* ── Step 4: Name entry for new users ── */}
+            {memberAuthStep === 'name-entry' && (
+              <motion.div
+                key="name-entry"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+              >
+                <form onSubmit={handleMemberNameSubmit} className="space-y-4">
+                  <div className="flex flex-col items-center gap-2 mb-1">
+                    <CheckCircle2 size={28} className="text-green-300" />
+                    <p className="text-white font-bold text-sm text-center">
+                      {t.otp_new_user_title || 'Xác minh thành công! 🎉'}
+                    </p>
+                    <p className="text-white/60 text-xs text-center">
+                      {t.otp_new_user_desc || 'Bạn là thành viên mới. Vui lòng nhập tên để hoàn tất.'}
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    value={memberNameInput}
+                    onChange={e => setMemberNameInput(e.target.value)}
+                    placeholder={t.otp_name_placeholder || 'Nhập họ và tên của bạn'}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                    autoFocus
+                    required
+                  />
+                  {memberOtpError && (
+                    <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                      {memberOtpError}
+                    </p>
+                  )}
                   <button
-                    onClick={() => { setShowRegisterForm(true); setRegError(''); setRegDone(false); }}
-                    className="flex-1 py-3 rounded-xl text-white/80 border border-white/20 text-xs font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                    type="submit"
+                    disabled={memberNameLoading || !memberNameInput.trim()}
+                    className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    <UserPlus size={14} />
-                    {t.member_register_btn || 'Đăng ký thành viên'}
+                    {memberNameLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={15} />}
+                    {t.otp_complete_btn || 'Hoàn tất đăng ký'}
                   </button>
-                )}
+                </form>
               </motion.div>
             )}
           </AnimatePresence>
