@@ -187,8 +187,10 @@ export default function App() {
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [clearedTripCards, setClearedTripCards] = useState<Set<string>>(new Set());
   // Tour advanced search
   const [tourHasSearched, setTourHasSearched] = useState(false);
+  const [clearedTourCards, setClearedTourCards] = useState<Set<string>>(new Set());
   const [tourPriceMin, setTourPriceMin] = useState('');
   const [tourPriceMax, setTourPriceMax] = useState('');
   const [tourDurationFilter, setTourDurationFilter] = useState('');
@@ -2534,17 +2536,18 @@ export default function App() {
                   const vehicleImg = tripRoute?.vehicleImageUrl;
                   const carouselIdx = tripCardImgIdx[trip.id] ?? 0;
                   const currentImg = routeImages[carouselIdx] ?? null;
+                  const isTripRevealed = hasSearched || clearedTripCards.has(trip.id);
                   return (
-                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col md:flex-row", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
+                  <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-row", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
                     {/* Route image – left column */}
                     {(currentImg || vehicleImg) && (
-                      <div className="relative w-full md:w-52 h-44 md:h-auto flex-shrink-0 overflow-hidden">
+                      <div className="relative w-28 sm:w-40 md:w-52 flex-shrink-0 overflow-hidden self-stretch min-h-[120px]">
                         {currentImg && (
                           <img
                             src={currentImg}
                             alt={trip.route}
                             className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
-                            style={{ filter: hasSearched ? 'none' : 'blur(12px)', transform: hasSearched ? 'scale(1)' : 'scale(1.1)' }}
+                            style={{ filter: isTripRevealed ? 'none' : 'blur(12px)', transform: isTripRevealed ? 'scale(1)' : 'scale(1.1)' }}
                             referrerPolicy="no-referrer"
                           />
                         )}
@@ -2552,13 +2555,13 @@ export default function App() {
                           <img
                             src={vehicleImg}
                             alt={trip.licensePlate}
-                            className="absolute bottom-2 right-2 w-20 h-14 object-cover rounded-xl border-2 border-white shadow-md transition-all duration-700"
-                            style={{ filter: hasSearched ? 'none' : 'blur(8px)' }}
+                            className="absolute bottom-2 right-2 w-16 sm:w-20 h-11 sm:h-14 object-cover rounded-xl border-2 border-white shadow-md transition-all duration-700"
+                            style={{ filter: isTripRevealed ? 'none' : 'blur(8px)' }}
                             referrerPolicy="no-referrer"
                           />
                         )}
                         {/* Carousel prev/next buttons */}
-                        {hasSearched && routeImages.length > 1 && (
+                        {isTripRevealed && routeImages.length > 1 && (
                           <>
                             <button
                               type="button"
@@ -2588,68 +2591,71 @@ export default function App() {
                             </div>
                           </>
                         )}
-                        {!hasSearched && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full">
-                              {language === 'vi' ? '🔍 Tìm kiếm để xem ảnh rõ' : '🔍 Search to reveal photo'}
+                        {!isTripRevealed && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+                            onClick={() => setClearedTripCards(prev => new Set([...prev, trip.id]))}
+                          >
+                            <span className="text-white text-xs font-bold bg-black/40 px-2 sm:px-3 py-1 rounded-full text-center">
+                              {language === 'vi' ? '👆 Chạm để xem ảnh' : '👆 Tap to reveal'}
                             </span>
                           </div>
                         )}
                       </div>
                     )}
                     {/* Trip details – right column */}
-                    <div className="p-6 flex flex-col md:flex-row items-center gap-8 flex-1">
-                    <div className="text-center md:text-left">
-                      <p className="text-3xl font-bold text-gray-800">{trip.time}</p>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{t.departure}</p>
+                    <div className="p-3 sm:p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-8 flex-1 min-w-0">
+                    <div className="text-left">
+                      <p className="text-xl sm:text-3xl font-bold text-gray-800">{trip.time}</p>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mt-0.5">{t.departure}</p>
                       {trip.date && (
                         <span className={cn("inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
                           {formatTripDateDisplay(trip.date)}
                         </span>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase">{trip.route}</span>
-                        <span className="text-sm text-gray-400">•</span>
-                        <span className="text-sm font-medium text-gray-600">{trip.licensePlate}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-2 flex-wrap">
+                        <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase">{trip.route}</span>
+                        <span className="text-xs text-gray-400 hidden sm:inline">•</span>
+                        <span className="text-xs font-medium text-gray-600">{trip.licensePlate}</span>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Users size={16} />
-                          <span>{t.driver}: {trip.driverName}</span>
+                      <div className="flex items-center gap-2 sm:gap-6 flex-wrap">
+                        <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
+                          <Users size={14} />
+                          <span className="truncate max-w-[110px] sm:max-w-none">{trip.driverName}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Bus size={16} />
-                          <span>{language === 'vi' ? 'Còn' : 'Only'} {(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
+                        <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
+                          <Bus size={14} />
+                          <span>{(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
                         </div>
                       </div>
                       {(trip.addons || []).length > 0 && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200">
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200">
                             <Gift size={12} />
-                            {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'add-on services'}
+                            {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
                           </span>
                         </div>
                       )}
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
-                        <div className="mb-2">
-                          <p className="text-2xl font-bold text-daiichi-red">{(trip.agentPrice || 0).toLocaleString()}đ</p>
-                          <p className="text-xs text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
-                          <div className="flex items-center justify-end gap-1 mt-1">
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-                              💰 {language === 'vi' ? 'Lợi nhuận' : 'Profit'}: {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ/ghế
+                        <div className="mb-1 sm:mb-2">
+                          <p className="text-lg sm:text-2xl font-bold text-daiichi-red">{(trip.agentPrice || 0).toLocaleString()}đ</p>
+                          <p className="text-[10px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
+                              💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
                             </span>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-2xl font-bold text-daiichi-red mb-2">{trip.price.toLocaleString()}đ</p>
+                        <p className="text-lg sm:text-2xl font-bold text-daiichi-red mb-1 sm:mb-2">{trip.price.toLocaleString()}đ</p>
                       )}
                       <button
                         onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
-                        className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/10"
+                        className="px-4 sm:px-8 py-2 sm:py-3 bg-daiichi-red text-white rounded-xl text-sm sm:text-base font-bold shadow-lg shadow-daiichi-red/10"
                       >
                         {t.select_seat}
                       </button>
@@ -3721,6 +3727,7 @@ export default function App() {
                   const displayImg = allTourImages[0] || '';
                   const isLiked = likedTours.has(tour.id);
                   const embedUrl = tour.youtubeUrl ? getYoutubeEmbedUrl(tour.youtubeUrl) : null;
+                  const isTourRevealed = tourHasSearched || clearedTourCards.has(tour.id);
                   return (
                     <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
                       <div className="relative h-48 overflow-hidden">
@@ -3729,18 +3736,21 @@ export default function App() {
                             src={displayImg}
                             alt={tour.title}
                             className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700"
-                            style={{ filter: tourHasSearched ? 'none' : 'blur(10px)', transform: tourHasSearched ? 'scale(1)' : 'scale(1.1)' }}
+                            style={{ filter: isTourRevealed ? 'none' : 'blur(10px)', transform: isTourRevealed ? 'scale(1)' : 'scale(1.1)' }}
                             referrerPolicy="no-referrer"
                           />
                         )}
-                        {!tourHasSearched && displayImg && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        {!isTourRevealed && displayImg && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+                            onClick={() => setClearedTourCards(prev => new Set([...prev, tour.id]))}
+                          >
                             <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full">
-                              {language === 'vi' ? '🔍 Tìm kiếm để xem ảnh rõ' : '🔍 Search to reveal photo'}
+                              {language === 'vi' ? '👆 Chạm để xem ảnh' : '👆 Tap to reveal'}
                             </span>
                           </div>
                         )}
-                        {allTourImages.length > 1 && tourHasSearched && (
+                        {allTourImages.length > 1 && isTourRevealed && (
                           <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                             +{allTourImages.length - 1} {language === 'vi' ? 'ảnh' : 'photos'}
                           </div>
