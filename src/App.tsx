@@ -744,7 +744,7 @@ export default function App() {
     try {
       const urls: string[] = [];
       for (let i = 0; i < files.length; i++) {
-        const file = files[i] as File;
+        const file = files[i];
         const compressed = await compressImage(file, 0.75, 1280);
         const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
         const task = uploadBytesResumable(sRef, compressed);
@@ -761,7 +761,7 @@ export default function App() {
       }
       setRouteForm(prev => {
         const combined = [...(prev.images || []), ...urls];
-        return { ...prev, images: combined, imageUrl: combined[0] || prev.imageUrl };
+        return { ...prev, images: combined, imageUrl: combined[0] || '' };
       });
     } catch (err) {
       console.error('Route image upload failed:', err);
