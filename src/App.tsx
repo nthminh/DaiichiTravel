@@ -4,7 +4,8 @@ import {
   MapPin, Calendar, Truck, Star, Phone, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, UserPlus, Loader2
+  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, UserPlus, Loader2,
+  Heart
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -184,6 +185,14 @@ export default function App() {
   const [tourPriceMin, setTourPriceMin] = useState('');
   const [tourPriceMax, setTourPriceMax] = useState('');
   const [tourDurationFilter, setTourDurationFilter] = useState('');
+  const [likedTours, setLikedTours] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('likedTours');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [searchAdults, setSearchAdults] = useState(1);
   const [searchChildren, setSearchChildren] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -609,6 +618,20 @@ export default function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showAddRoute, activeTab, isTicketOpen, routeFormStopsHistory, routeFormFaresHistory, seatSelectionHistory]);
+
+  // --- Tour like handler ---
+  const toggleLike = (tourId: string) => {
+    setLikedTours(prev => {
+      const next = new Set(prev);
+      if (next.has(tourId)) {
+        next.delete(tourId);
+      } else {
+        next.add(tourId);
+      }
+      try { localStorage.setItem('likedTours', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   // --- Agent CRUD handlers ---
   const handleSaveAgent = async () => {
@@ -3476,7 +3499,13 @@ export default function App() {
         // Apply advanced filters
         const filteredPublicTours = tours.filter(tour => {
           const effectivePrice = tour.priceAdult || tour.price;
-          if (tourDurationFilter && !(tour.duration || '').toLowerCase().includes(tourDurationFilter.toLowerCase())) return false;
+          if (tourDurationFilter) {
+            const q = tourDurationFilter.toLowerCase();
+            const matchesTitle = tour.title.toLowerCase().includes(q);
+            const matchesDescription = (tour.description || '').toLowerCase().includes(q);
+            const matchesDuration = (tour.duration || '').toLowerCase().includes(q);
+            if (!matchesTitle && !matchesDescription && !matchesDuration) return false;
+          }
           if (tourPriceMin) {
             const min = parseInt(tourPriceMin);
             if (!isNaN(min) && effectivePrice < min) return false;
@@ -3499,16 +3528,16 @@ export default function App() {
             <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
               <div className="flex flex-col sm:flex-row gap-4 items-end">
                 <div className="flex-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Thời gian tour' : 'Duration'}</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tìm kiếm tour' : 'Search tours'}</label>
                   <div className="relative mt-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    <input
-                      type="text"
-                      value={tourDurationFilter}
-                      onChange={e => setTourDurationFilter(e.target.value)}
-                      placeholder={language === 'vi' ? 'VD: 2 ngày 1 đêm...' : 'e.g. 2 days 1 night...'}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
+                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                     <input
+                       type="text"
+                       value={tourDurationFilter}
+                       onChange={e => setTourDurationFilter(e.target.value)}
+                       placeholder={language === 'vi' ? 'Tìm theo tên, nội dung, thời gian...' : 'Search by name, content, duration...'}
+                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                     />
                   </div>
                 </div>
                 <div className="flex items-end gap-2">
@@ -3574,6 +3603,7 @@ export default function App() {
                     ? Math.round(effectiveAdultPrice * (1 - tour.discountPercent / 100))
                     : null;
                   const displayImg = allTourImages[0] || '';
+                  const isLiked = likedTours.has(tour.id);
                   return (
                     <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
                       <div className="relative h-48 overflow-hidden">
@@ -3642,12 +3672,21 @@ export default function App() {
                               <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {tour.priceChild.toLocaleString()}đ</p>
                             )}
                           </div>
-                          <button
-                            onClick={() => { setSelectedTour(tour); setActiveTab('book-tour'); }}
-                            className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
-                          >
-                            {t.book_tour || (language === 'vi' ? 'Đặt tour' : 'Book Tour')}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setSelectedTour(tour); setActiveTab('book-tour'); }}
+                              className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
+                            >
+                              {t.book_tour || (language === 'vi' ? 'Đặt tour' : 'Book Tour')}
+                            </button>
+                            <button
+                              onClick={() => toggleLike(tour.id)}
+                              className={`p-2.5 rounded-xl border transition-all hover:scale-110 ${isLiked ? 'bg-pink-50 border-pink-200 text-pink-500' : 'bg-gray-50 border-gray-100 text-gray-400 hover:text-pink-400'}`}
+                              title={isLiked ? (language === 'vi' ? 'Bỏ thích' : 'Unlike') : (language === 'vi' ? 'Thích tour này' : 'Like this tour')}
+                            >
+                              <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
