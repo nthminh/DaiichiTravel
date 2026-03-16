@@ -1702,6 +1702,78 @@ export default function App() {
     return true;
   };
 
+  /**
+   * OTP / OAuth-based member login and auto-registration.
+   * Called after Firebase phone-OTP or social sign-in succeeds.
+   * Finds an existing customer by phone / email / firebaseUid or creates a new one.
+   */
+  const handleOtpMemberLogin = async (data: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    uid?: string;
+    loginMethod: string;
+  }): Promise<{ id: string; username: string; role: UserRole; name: string; phone?: string; email?: string } | null> => {
+    // Normalise phone to local format for storage/lookup
+    const normalizedPhone = data.phone
+      ? data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '')
+      : undefined;
+
+    const defaultName = language === 'vi' ? 'Khách hàng' : 'Customer';
+
+    // 1. Find existing customer by uid, phone, or email
+    let customer = customers.find(c => {
+      if (data.uid && c.firebaseUid === data.uid) return true;
+      if (normalizedPhone && c.phone && c.phone.replace(/[^0-9]/g, '') === normalizedPhone) return true;
+      if (data.phone && c.phone === data.phone) return true;
+      if (data.email && c.email && c.email.toLowerCase() === data.email.toLowerCase()) return true;
+      return false;
+    });
+
+    if (customer) {
+      // Update profile fields that may have changed
+      const updates: Partial<Omit<CustomerProfile, 'id'>> = {
+        loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
+      };
+      if (data.uid && !customer.firebaseUid) updates.firebaseUid = data.uid;
+      if (data.name && data.name !== customer.name) updates.name = data.name;
+      if (data.email && !customer.email) updates.email = data.email;
+      if (normalizedPhone && !customer.phone) updates.phone = normalizedPhone;
+      await transportService.updateCustomer(customer.id, updates);
+
+      return {
+        id: customer.id,
+        username: customer.username || customer.phone || data.email || 'member',
+        role: UserRole.CUSTOMER,
+        name: customer.name || data.name || defaultName,
+        phone: customer.phone || normalizedPhone,
+        email: customer.email || data.email,
+      };
+    }
+
+    // 2. Create new customer profile
+    const docRef = await transportService.addCustomer({
+      name: data.name || defaultName,
+      phone: normalizedPhone || data.phone || '',
+      email: data.email,
+      username: normalizedPhone || data.email || data.uid || '',
+      loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
+      firebaseUid: data.uid,
+      status: 'ACTIVE',
+      registeredAt: new Date().toISOString(),
+      totalBookings: 0,
+    });
+
+    return {
+      id: docRef.id,
+      username: normalizedPhone || data.email || data.uid || 'member',
+      role: UserRole.CUSTOMER,
+      name: data.name || defaultName,
+      phone: normalizedPhone || data.phone,
+      email: data.email,
+    };
+  };
+
   const handleCreateConsignment = async () => {
     if (!newConsignment.senderName || !newConsignment.receiverName) return;
     // Derive the display name for the current agent
@@ -6962,6 +7034,7 @@ export default function App() {
           agentsLoading={agentsLoading}
           securityConfig={securityConfig}
           onRegister={handleRegisterMember}
+          onOtpMemberLogin={handleOtpMemberLogin}
         />
       </>
     );

@@ -354,6 +354,8 @@ export interface CustomerProfile {
   username?: string;
   password?: string;
   note?: string;
+  loginMethod?: 'phone' | 'gmail' | 'facebook' | 'whatsapp';
+  firebaseUid?: string;
   status: 'ACTIVE' | 'INACTIVE';
   registeredAt: string;      // ISO timestamp
   lastActivityAt?: string;   // ISO timestamp of last known activity
