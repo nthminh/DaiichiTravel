@@ -2539,9 +2539,9 @@ export default function App() {
                   const isTripRevealed = hasSearched || clearedTripCards.has(trip.id);
                   return (
                   <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-row", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
-                    {/* Route image – left column */}
-                    {(currentImg || vehicleImg) && (
-                      <div className="relative w-28 sm:w-40 md:w-52 flex-shrink-0 overflow-hidden self-stretch min-h-[120px]">
+                    {/* Route image – left column (2/3 square) */}
+                    {(currentImg || vehicleImg) ? (
+                      <div className="relative flex-[2] aspect-square flex-shrink-0 overflow-hidden max-h-48 sm:max-h-64 md:max-h-80">
                         {currentImg && (
                           <img
                             src={currentImg}
@@ -2602,64 +2602,66 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                    )}
-                    {/* Trip details – right column */}
-                    <div className="p-3 sm:p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-8 flex-1 min-w-0">
-                    <div className="text-left">
-                      <p className="text-xl sm:text-3xl font-bold text-gray-800">{trip.time}</p>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mt-0.5">{t.departure}</p>
-                      {trip.date && (
-                        <span className={cn("inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
-                          {formatTripDateDisplay(trip.date)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-2 flex-wrap">
-                        <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase">{trip.route}</span>
-                        <span className="text-xs text-gray-400 hidden sm:inline">•</span>
-                        <span className="text-xs font-medium text-gray-600">{trip.licensePlate}</span>
+                    ) : (
+                      <div className="relative flex-[2] aspect-square flex-shrink-0 overflow-hidden max-h-48 sm:max-h-64 md:max-h-80 bg-gray-100 flex items-center justify-center">
+                        <Bus size={40} className="text-gray-300" />
                       </div>
-                      <div className="flex items-center gap-2 sm:gap-6 flex-wrap">
-                        <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
-                          <Users size={14} />
-                          <span className="truncate max-w-[110px] sm:max-w-none">{trip.driverName}</span>
+                    )}
+                    {/* Trip details – right column (1/3) */}
+                    <div className="flex-[1] p-3 sm:p-4 flex flex-col gap-2 min-w-0">
+                      {/* Route badge + license plate */}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[10px] font-bold uppercase truncate block text-center">{trip.route}</span>
+                        <span className="text-[10px] text-gray-400 text-center truncate">{trip.licensePlate}</span>
+                      </div>
+                      {/* Time + departure label */}
+                      <div className="text-center">
+                        <p className="text-lg sm:text-2xl font-bold text-gray-800 leading-tight">{trip.time}</p>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{t.departure}</p>
+                        {trip.date && (
+                          <span className={cn("inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
+                            {formatTripDateDisplay(trip.date)}
+                          </span>
+                        )}
+                      </div>
+                      {/* Driver + seats */}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                          <Users size={11} className="flex-shrink-0" />
+                          <span className="truncate">{trip.driverName}</span>
                         </div>
-                        <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
-                          <Bus size={14} />
+                        <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                          <Bus size={11} className="flex-shrink-0" />
                           <span>{(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
                         </div>
                       </div>
+                      {/* Add-ons badge */}
                       {(trip.addons || []).length > 0 && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200">
-                            <Gift size={12} />
-                            {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
-                          </span>
-                        </div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold border border-emerald-200 self-start">
+                          <Gift size={10} />
+                          {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
+                        </span>
                       )}
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
-                        <div className="mb-1 sm:mb-2">
-                          <p className="text-lg sm:text-2xl font-bold text-daiichi-red">{(trip.agentPrice || 0).toLocaleString()}đ</p>
-                          <p className="text-[10px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
-                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                      {/* Price + CTA – pushed to bottom */}
+                      <div className="mt-auto pt-1 flex flex-col gap-1.5">
+                        {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
+                          <div>
+                            <p className="text-base sm:text-lg font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
+                            <p className="text-[10px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
                             <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
                               💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
                             </span>
                           </div>
-                        </div>
-                      ) : (
-                        <p className="text-lg sm:text-2xl font-bold text-daiichi-red mb-1 sm:mb-2">{trip.price.toLocaleString()}đ</p>
-                      )}
-                      <button
-                        onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
-                        className="px-4 sm:px-8 py-2 sm:py-3 bg-daiichi-red text-white rounded-xl text-sm sm:text-base font-bold shadow-lg shadow-daiichi-red/10"
-                      >
-                        {t.select_seat}
-                      </button>
-                    </div>
+                        ) : (
+                          <p className="text-base sm:text-lg font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
+                        )}
+                        <button
+                          onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
+                          className="w-full py-2 bg-daiichi-red text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-daiichi-red/10"
+                        >
+                          {t.select_seat}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   );
