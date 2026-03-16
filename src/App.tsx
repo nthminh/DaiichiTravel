@@ -20,7 +20,7 @@ import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSur
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { auth, db, storage } from './lib/firebase';
-import { signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
+import { signOut as firebaseSignOut, onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 
 // Import Components
 import { Dashboard } from './components/Dashboard';
@@ -112,6 +112,53 @@ function getYoutubeEmbedUrl(url: string): string | null {
   if (!url) return null;
   const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/);
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+}
+
+/** Small overlay shown when a magic-link email is opened on a different device than where it was requested */
+function EmailLinkReenterForm({ language, onSubmit, onCancel }: { language: Language; onSubmit: (email: string) => void; onCancel: () => void }) {
+  const [email, setEmail] = React.useState('');
+  const isVi = language === 'vi';
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+        <p className="text-lg font-bold text-gray-800 text-center">
+          {isVi ? '📧 Xác nhận email đăng nhập' : '📧 Confirm sign-in email'}
+        </p>
+        <p className="text-sm text-gray-500 text-center">
+          {isVi
+            ? 'Vui lòng nhập lại địa chỉ email bạn đã dùng để yêu cầu link đăng nhập.'
+            : 'Please re-enter the email address you used to request the sign-in link.'}
+        </p>
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (email.trim()) onSubmit(email.trim()); }}
+          className="space-y-3"
+        >
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="email@example.com"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+            autoFocus
+            required
+          />
+          <button
+            type="submit"
+            className="w-full py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors"
+          >
+            {isVi ? 'Xác nhận' : 'Confirm'}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full py-2 text-gray-400 text-xs hover:text-gray-600 transition-colors"
+          >
+            {isVi ? 'Huỷ' : 'Cancel'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -254,6 +301,12 @@ export default function App() {
 
   // Customer profiles state
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+
+  // Pending email-link sign-in data (set when the app is opened via a magic link)
+  const [emailLinkPending, setEmailLinkPending] = useState<{ uid: string; email: string } | null>(null);
+  const emailLinkProcessingRef = useRef(false);
+  // State to prompt user to re-enter email when localStorage key is missing (cross-device scenario)
+  const [emailLinkReenter, setEmailLinkReenter] = useState(false);
 
   // Agent CRUD state
   const [showAddAgent, setShowAddAgent] = useState(false);
@@ -540,6 +593,52 @@ export default function App() {
       if (invoiceUnsub) invoiceUnsub();
     };
   }, []);
+
+  // Detect Firebase email link sign-in on page load (magic link redirect)
+  useEffect(() => {
+    if (!auth) return;
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+    const email = window.localStorage.getItem('emailForSignIn');
+    if (!email) {
+      // Email not found in localStorage (e.g. opened on a different device) –
+      // show the re-enter form instead of using a blocking window.prompt().
+      setEmailLinkReenter(true);
+      return;
+    }
+    signInWithEmailLink(auth, email, window.location.href)
+      .then(result => {
+        window.localStorage.removeItem('emailForSignIn');
+        // Clean the URL so the oobCode doesn't persist
+        window.history.replaceState(null, '', window.location.pathname);
+        setEmailLinkPending({ uid: result.user.uid, email: result.user.email || email });
+      })
+      .catch(err => {
+        console.error('[EmailLink] Sign-in failed:', err);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Complete the email-link login once customer data has loaded
+  useEffect(() => {
+    if (!emailLinkPending || emailLinkProcessingRef.current) return;
+    emailLinkProcessingRef.current = true;
+    handleOtpMemberLogin({
+      uid: emailLinkPending.uid,
+      email: emailLinkPending.email,
+      loginMethod: 'email',
+    }).then(user => {
+      if (user) {
+        setCurrentUser(user);
+        setEmailLinkPending(null);
+      }
+      emailLinkProcessingRef.current = false;
+    }).catch(err => {
+      console.error('[EmailLink] Profile creation failed:', err);
+      setEmailLinkPending(null);
+      emailLinkProcessingRef.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailLinkPending, customers]);
 
   // Subscribe to route fares in real-time when the route edit modal is open
   const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
@@ -7035,6 +7134,27 @@ export default function App() {
     return (
       <>
         <PWAInstallPrompt />
+        {emailLinkReenter && (
+          <EmailLinkReenterForm
+            language={language}
+            onSubmit={(email) => {
+              setEmailLinkReenter(false);
+              if (!auth) return;
+              signInWithEmailLink(auth, email, window.location.href)
+                .then(result => {
+                  window.history.replaceState(null, '', window.location.pathname);
+                  setEmailLinkPending({ uid: result.user.uid, email: result.user.email || email });
+                })
+                .catch(err => {
+                  console.error('[EmailLink] Sign-in failed:', err);
+                });
+            }}
+            onCancel={() => {
+              setEmailLinkReenter(false);
+              window.history.replaceState(null, '', window.location.pathname);
+            }}
+          />
+        )}
         <Login 
           onLogin={setCurrentUser} 
           language={language} 
