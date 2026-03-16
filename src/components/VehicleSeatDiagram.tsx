@@ -325,6 +325,34 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
     else if (editMode === 'position') togglePosition(deckIdx, rowIdx, colIdx);
   };
 
+  const toggleAllSeats = () => {
+    setLayout(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+      const hasAnySeats = next.decks.some(d => d.some(r => r.some(c => !c.isAisle && !c.isDriver)));
+      let seatCounter = 1;
+      next.decks.forEach(deck => {
+        deck.forEach(row => {
+          row.forEach(cell => {
+            if (cell.isDriver) return;
+            if (hasAnySeats) {
+              // Turn all seats into aisles
+              cell.label = '';
+              cell.isAisle = true;
+              delete cell.discounted;
+              delete cell.booked;
+            } else {
+              // Turn all aisles into seats
+              cell.label = String(seatCounter++);
+              delete cell.isAisle;
+            }
+          });
+        });
+      });
+      return next;
+    });
+    setIsDirty(true);
+  };
+
   const handleReset = () => {
     setLayout(generateVehicleLayout(vehicleType, seatCount));
     setIsDirty(true);
@@ -367,6 +395,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       tip: 'Nhấp vào ghế để đánh dấu/bỏ đánh dấu giảm giá',
       tipPosition: 'Nhấp vào ô trống để thêm ghế, nhấp vào ghế để xóa',
       front: '← Đầu xe (Tài xế bên trái)',
+      toggleAllOn: 'Bật tất cả ghế',
+      toggleAllOff: 'Tắt tất cả ghế',
     },
     en: {
       title: 'Seat Diagram',
@@ -388,6 +418,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       tip: 'Click seats to toggle discount mark',
       tipPosition: 'Click empty cell to add seat, click seat to remove',
       front: '← Front (Driver on left)',
+      toggleAllOn: 'Enable All Seats',
+      toggleAllOff: 'Disable All Seats',
     },
     ja: {
       title: '座席図',
@@ -409,6 +441,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       tip: '座席をクリックして割引マークを切り替え',
       tipPosition: '空セルをクリックして座席を追加、座席をクリックして削除',
       front: '← 前方（運転手は左側）',
+      toggleAllOn: '全座席を有効化',
+      toggleAllOff: '全座席を無効化',
     },
   };
   const label = t[language] ?? t.vi;
@@ -493,6 +527,18 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
             >
               <span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" />
               {editMode === 'position' ? label.tipPosition : label.editPosition}
+            </button>
+            <button
+              onClick={toggleAllSeats}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all',
+                totalSeats > 0
+                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                  : 'bg-green-50 text-green-600 hover:bg-green-100'
+              )}
+            >
+              <span className={cn('w-3 h-3 rounded-sm inline-block', totalSeats > 0 ? 'bg-red-400' : 'bg-green-400')} />
+              {totalSeats > 0 ? label.toggleAllOff : label.toggleAllOn}
             </button>
             <button
               onClick={handleReset}
