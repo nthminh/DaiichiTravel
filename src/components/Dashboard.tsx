@@ -928,42 +928,53 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         </p>
                       </div>
                     )}
-                    {viewingBooking.type !== 'TOUR' && viewingBooking.pickupPoint && (
-                      <div className="p-4 bg-blue-50 rounded-2xl">
-                        <div className="flex items-center gap-2 text-blue-400 mb-1">
-                          <MapPin size={14} className="text-blue-500" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Đón' : 'Pickup'}</span>
-                        </div>
-                        <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupPoint}</p>
-                      </div>
-                    )}
-                    {viewingBooking.type !== 'TOUR' && viewingBooking.pickupAddress && (
-                      <div className="p-4 bg-blue-50 rounded-2xl">
-                        <div className="flex items-center gap-2 text-blue-400 mb-1">
-                          <MapPin size={14} className="text-blue-500" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm đón' : 'Pickup Address'}</span>
-                        </div>
-                        <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupAddress}</p>
-                      </div>
-                    )}
-                    {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffPoint && (
-                      <div className="p-4 bg-green-50 rounded-2xl">
-                        <div className="flex items-center gap-2 text-green-400 mb-1">
-                          <MapPin size={14} className="text-green-500" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Trả' : 'Dropoff'}</span>
-                        </div>
-                        <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffPoint}</p>
-                      </div>
-                    )}
-                    {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffAddress && (
-                      <div className="p-4 bg-green-50 rounded-2xl">
-                        <div className="flex items-center gap-2 text-green-400 mb-1">
-                          <MapPin size={14} className="text-green-500" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm trả' : 'Dropoff Address'}</span>
-                        </div>
-                        <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffAddress}</p>
-                      </div>
-                    )}
+                    {(() => {
+                      // For old bookings, pickupAddress/dropoffAddress may only exist in the
+                      // trip's seat document (not the booking document). Fall back to seat data.
+                      const seatLookup = viewingBooking.type !== 'TOUR' && viewingBooking.tripId && viewingBooking.seatId
+                        ? trips.find((tr) => tr.id === viewingBooking.tripId)?.seats?.find((s: any) => s.id === viewingBooking.seatId)
+                        : null;
+                      const effectivePickupAddress = viewingBooking.pickupAddress || seatLookup?.pickupAddress;
+                      const effectiveDropoffAddress = viewingBooking.dropoffAddress || seatLookup?.dropoffAddress;
+                      return <>
+                        {viewingBooking.type !== 'TOUR' && viewingBooking.pickupPoint && (
+                          <div className="p-4 bg-blue-50 rounded-2xl">
+                            <div className="flex items-center gap-2 text-blue-400 mb-1">
+                              <MapPin size={14} className="text-blue-500" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Đón' : 'Pickup'}</span>
+                            </div>
+                            <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupPoint}</p>
+                          </div>
+                        )}
+                        {viewingBooking.type !== 'TOUR' && effectivePickupAddress && (
+                          <div className="p-4 bg-blue-50 rounded-2xl">
+                            <div className="flex items-center gap-2 text-blue-400 mb-1">
+                              <MapPin size={14} className="text-blue-500" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm đón' : 'Pickup Address'}</span>
+                            </div>
+                            <p className="font-bold text-blue-800 text-xs">{effectivePickupAddress}</p>
+                          </div>
+                        )}
+                        {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffPoint && (
+                          <div className="p-4 bg-green-50 rounded-2xl">
+                            <div className="flex items-center gap-2 text-green-400 mb-1">
+                              <MapPin size={14} className="text-green-500" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Trả' : 'Dropoff'}</span>
+                            </div>
+                            <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffPoint}</p>
+                          </div>
+                        )}
+                        {viewingBooking.type !== 'TOUR' && effectiveDropoffAddress && (
+                          <div className="p-4 bg-green-50 rounded-2xl">
+                            <div className="flex items-center gap-2 text-green-400 mb-1">
+                              <MapPin size={14} className="text-green-500" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm trả' : 'Dropoff Address'}</span>
+                            </div>
+                            <p className="font-bold text-green-800 text-xs">{effectiveDropoffAddress}</p>
+                          </div>
+                        )}
+                      </>;
+                    })()}
                     {/* Tour specific fields */}
                     {viewingBooking.type === 'TOUR' && viewingBooking.duration && (
                       <div className="p-4 bg-indigo-50 rounded-2xl">
