@@ -2642,11 +2642,11 @@ export default function App() {
                     <div className="px-3 pt-2.5 pb-1">
                       <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase block text-center w-full">{trip.route}</span>
                     </div>
-                    {/* Image + details – side by side */}
-                    <div className="flex flex-row pb-2.5">
-                      {/* Route image – left, fixed square frame */}
+                    {/* Image + details – stacked on mobile, side by side on desktop */}
+                    <div className="flex flex-col md:flex-row pb-2.5">
+                      {/* Route image – full-width on mobile, fixed square on desktop */}
                       {(currentImg || vehicleImg) ? (
-                        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5">
+                        <div className="relative w-full h-44 md:w-36 md:h-36 md:flex-shrink-0 overflow-hidden md:rounded-2xl md:mx-2.5 md:mb-0.5">
                           {currentImg && (
                             <img
                               src={currentImg}
@@ -2708,12 +2708,12 @@ export default function App() {
                           )}
                         </div>
                       ) : (
-                        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5 bg-gray-100 flex items-center justify-center">
+                        <div className="relative w-full h-44 md:w-36 md:h-36 md:flex-shrink-0 overflow-hidden md:rounded-2xl md:mx-2.5 md:mb-0.5 bg-gray-100 flex items-center justify-center">
                           <Bus size={32} className="text-gray-300" />
                         </div>
                       )}
-                      {/* Trip details – right */}
-                      <div className="flex-1 pr-3 pt-0.5 flex flex-col gap-1 min-w-0">
+                      {/* Trip details */}
+                      <div className="flex-1 px-3 py-2 md:pr-3 md:pl-0 md:py-0 md:pt-0.5 flex flex-col gap-1 min-w-0">
                         {/* License plate */}
                         <span className="text-[10px] text-gray-400 truncate">{trip.licensePlate}</span>
                         {/* Time + departure label + date */}
@@ -2771,7 +2771,11 @@ export default function App() {
                 };
 
                 if (filteredBookingTrips.length > 0) {
-                  return filteredBookingTrips.map(trip => renderTripCard(trip, false));
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {filteredBookingTrips.map(trip => renderTripCard(trip, false))}
+                    </div>
+                  );
                 }
 
                 // Inquiry form (shared for both "nearest trips available" and "no trips at all" cases)
@@ -2850,7 +2854,9 @@ export default function App() {
                         <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
                         <p className="text-sm font-medium text-amber-700">{t.no_exact_trips}</p>
                       </div>
-                      {nearestTrips.map(trip => renderTripCard(trip, true))}
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {nearestTrips.map(trip => renderTripCard(trip, true))}
+                      </div>
                       {!showInquiryForm && !inquirySuccess && (
                         <div className="text-center pt-2 pb-2">
                           <p className="text-sm text-gray-500 mb-3">{t.inquiry_not_satisfied}</p>
