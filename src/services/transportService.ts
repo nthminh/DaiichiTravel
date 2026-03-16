@@ -304,10 +304,12 @@ export const transportService = {
   // Create invoice
   createInvoice: async (invoice: Omit<Invoice, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
-    return await addDoc(collection(db, 'invoices'), {
-      ...invoice,
-      createdAt: Timestamp.now()
-    });
+    // Strip undefined values – Firestore rejects them
+    const data = {
+      ...Object.fromEntries(Object.entries(invoice).filter(([, v]) => v !== undefined)),
+      createdAt: Timestamp.now(),
+    };
+    return await addDoc(collection(db, 'invoices'), data);
   },
 
   // Update invoice
