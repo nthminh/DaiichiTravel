@@ -84,6 +84,7 @@ export interface Vehicle {
   status: string;
   layout?: VehicleSeat[];
   note?: string;
+  seatType?: 'assigned' | 'free';
 }
 
 interface TourItem {
@@ -324,7 +325,7 @@ export default function App() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isCopyingVehicle, setIsCopyingVehicle] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
+  const [vehicleForm, setVehicleForm] = useState({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' as 'assigned' | 'free' });
 
   // Vehicle seat diagram state
   const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
@@ -819,7 +820,7 @@ export default function App() {
       setShowAddVehicle(false);
       setEditingVehicle(null);
       setIsCopyingVehicle(false);
-      setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE' });
+      setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' });
     } catch (err) {
       console.error('Failed to save vehicle:', err);
     }
@@ -828,14 +829,14 @@ export default function App() {
   const handleStartEditVehicle = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
     setIsCopyingVehicle(false);
-    setVehicleForm({ licensePlate: vehicle.licensePlate, type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE' });
+    setVehicleForm({ licensePlate: vehicle.licensePlate, type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE', seatType: vehicle.seatType || 'assigned' });
     setShowAddVehicle(true);
   };
 
   const handleCopyVehicle = (vehicle: Vehicle) => {
     setEditingVehicle(null);
     setIsCopyingVehicle(true);
-    setVehicleForm({ licensePlate: '', type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE' });
+    setVehicleForm({ licensePlate: '', type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE', seatType: vehicle.seatType || 'assigned' });
     setShowAddVehicle(true);
   };
 
@@ -918,10 +919,12 @@ export default function App() {
   const handleSaveTrip = async () => {
     try {
       const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
+      const tripVehicle = vehicles.find(v => v.licensePlate === tripForm.licensePlate);
+      const seatType = tripVehicle?.seatType || 'assigned';
       if (editingTrip) {
         await transportService.updateTrip(editingTrip.id, { time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status });
       } else {
-        await transportService.addTrip({ time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status, seats, addons: [] });
+        await transportService.addTrip({ time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status, seats, addons: [], seatType });
       }
       setShowAddTrip(false);
       setEditingTrip(null);
@@ -1471,6 +1474,17 @@ export default function App() {
 
   const buildSeatsForVehicle = (licensePlate: string, seatCount: number) => {
     const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
+    // For free seating vehicles, generate simple numbered seats (used only for capacity tracking)
+    if (vehicle?.seatType === 'free') {
+      const FREE_SEATING_COLS = 4; // seats per row for internal grid layout (not displayed to user)
+      return Array.from({ length: seatCount }, (_, i) => ({
+        id: String(i + 1),
+        row: Math.floor(i / FREE_SEATING_COLS),
+        col: i % FREE_SEATING_COLS,
+        deck: 0,
+        status: SeatStatus.EMPTY,
+      }));
+    }
     const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
     if (savedLayout && savedLayout.length > 0) {
       return savedLayout.map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
@@ -1500,6 +1514,8 @@ export default function App() {
     setBatchTripLoading(true);
     try {
       const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
+      const batchVehicle = vehicles.find(v => v.licensePlate === batchTripForm.licensePlate);
+      const seatType = batchVehicle?.seatType || 'assigned';
       const tripsToCreate = validSlots.map(slot => ({
         time: slot,
         date: batchTripForm.date,
@@ -1511,6 +1527,7 @@ export default function App() {
         status: TripStatus.WAITING,
         seats,
         addons: [] as TripAddon[],
+        seatType,
       }));
       await transportService.addTripsBatch(tripsToCreate);
       setShowBatchAddTrip(false);
@@ -1719,8 +1736,26 @@ export default function App() {
     const totalAmount = Math.round((totalBase + totalSurcharge + addonsTotalPrice) * (1 - bookingDiscount / 100));
 
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
-    const extraSeatsForBooking = extraSeatIds.slice(0, (adults - 1) + childrenOver4);
-    const allSeatIds = [seatId, ...extraSeatsForBooking];
+    const isFreeSeating = selectedTrip.seatType === 'free';
+    let allSeatIds: string[];
+    let effectiveSeatId: string;
+    if (isFreeSeating) {
+      // Auto-assign the required number of seats from available ones
+      const seatsNeeded = adults + childrenOver4;
+      const availableSeats = selectedTrip.seats
+        .filter((s: any) => s.status === SeatStatus.EMPTY)
+        .slice(0, seatsNeeded);
+      if (availableSeats.length < seatsNeeded) {
+        alert(language === 'vi' ? 'Không còn đủ chỗ trống cho số hành khách đã chọn!' : 'Not enough seats available for the selected number of passengers!');
+        return;
+      }
+      allSeatIds = availableSeats.map((s: any) => s.id);
+      effectiveSeatId = allSeatIds[0] || '1';
+    } else {
+      const extraSeatsForBooking = extraSeatIds.slice(0, (adults - 1) + childrenOver4);
+      allSeatIds = [seatId, ...extraSeatsForBooking];
+      effectiveSeatId = seatId;
+    }
 
     // Resolve stop orders for segment availability tracking
     const fromStopOrder = tripRoute?.routeStops?.find(s => s.stopId === fromStopId)?.order;
@@ -1734,7 +1769,7 @@ export default function App() {
       date: new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       time: selectedTrip.time,
       tripId: selectedTrip.id,
-      seatId,
+      seatId: effectiveSeatId,
       seatIds: allSeatIds,
       amount: totalAmount,
       agent: effectiveAgentName,
@@ -1749,6 +1784,7 @@ export default function App() {
       paymentMethod: paymentMethodInput,
       ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: addonQuantities[a.id] || 1 })),
+      ...(isFreeSeating ? { freeSeating: true } : {}),
       // Fare-table fields (Option 2) – present only when a fare was resolved
       ...(effectiveFareAmount !== null && fromStopId && toStopId ? {
         fromStopId,
@@ -2523,8 +2559,11 @@ export default function App() {
           const tripRoute = routes.find(r => r.name === selectedTrip.route);
           // Also disable confirmation when a fare lookup error exists for a route with configured stops
           const hasFareBlocker = !!fareError && (tripRoute?.routeStops?.length ?? 0) > 0;
-          const canConfirmBooking = (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
-          const isSelectingExtraSeats = !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
+          const isFreeSeatingTrip = selectedTrip.seatType === 'free';
+          const canConfirmBooking = isFreeSeatingTrip
+            ? !hasFareBlocker
+            : (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
+          const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
 
           // Route-level surcharges
           const tripDate = selectedTrip.date || '';
@@ -2704,6 +2743,47 @@ export default function App() {
                 </div>
               )}
 
+              {isFreeSeatingTrip ? (
+                /* ── FREE SEATING: no seat diagram, show available count + book button ── */
+                <div className="max-w-lg mx-auto bg-gray-50 p-6 sm:p-10 rounded-[32px] border border-gray-100 text-center space-y-6">
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-5xl font-bold text-daiichi-red">
+                      {selectedTrip.seats.filter((s: any) => s.status === SeatStatus.EMPTY).length}
+                    </span>
+                    <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">
+                      {language === 'vi' ? 'chỗ trống còn lại' : language === 'ja' ? '空席残り' : 'seats available'}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {language === 'vi'
+                        ? `Tổng: ${selectedTrip.seats.length} chỗ • Đã đặt: ${selectedTrip.seats.filter((s: any) => s.status !== SeatStatus.EMPTY).length} chỗ`
+                        : `Total: ${selectedTrip.seats.length} • Booked: ${selectedTrip.seats.filter((s: any) => s.status !== SeatStatus.EMPTY).length}`}
+                    </span>
+                  </div>
+                  <div className="px-4 py-2 bg-blue-50 rounded-2xl border border-blue-100 inline-block mx-auto">
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">
+                      🪑 {language === 'vi' ? 'Xe ghế tự do – Không chọn ghế' : language === 'ja' ? '自由席 – 座席指定なし' : 'Free Seating – No seat selection'}
+                    </span>
+                  </div>
+                  {!showBookingForm && (
+                    <button
+                      onClick={() => {
+                        if (selectedTrip.seats.filter((s: any) => s.status === SeatStatus.EMPTY).length === 0) return;
+                        // Push a no-op history entry so Escape/undo can cancel the booking form
+                        setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
+                        setShowBookingForm('FREE');
+                        if (currentUser?.role === UserRole.CUSTOMER) {
+                          if (currentUser.name) setCustomerNameInput(currentUser.name);
+                          if (currentUser.phone) setPhoneInput(currentUser.phone);
+                        }
+                      }}
+                      disabled={selectedTrip.seats.filter((s: any) => s.status === SeatStatus.EMPTY).length === 0}
+                      className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                    >
+                      {language === 'vi' ? '🎫 Đặt vé' : language === 'ja' ? '🎫 予約する' : '🎫 Book Ticket'}
+                    </button>
+                  )}
+                </div>
+              ) : (
               <div className="max-w-lg mx-auto bg-gray-50 p-4 sm:p-6 rounded-[32px] border border-gray-100">
                 {/* Front of bus indicator */}
                 <div className="flex items-center gap-2 mb-3 text-xs text-gray-400 font-semibold">
@@ -2749,6 +2829,7 @@ export default function App() {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Route details panel */}
               {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details || tripRoute.note) && (
@@ -2778,7 +2859,14 @@ export default function App() {
 
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold mb-4">{t.trip_info}</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">{t.trip_info}</h3>
+                  {isFreeSeatingTrip && (
+                    <span className="px-2 py-1 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-600 uppercase tracking-wide">
+                      🪑 {language === 'vi' ? 'Ghế tự do' : language === 'ja' ? '自由席' : 'Free Seating'}
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-4 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">{t.total_seats}</span><span className="font-bold">{selectedTrip.seats.length}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">{t.paid_seats}</span><span className="font-bold text-green-600">{selectedTrip.seats.filter(s => s.status === SeatStatus.PAID).length}</span></div>
@@ -2793,7 +2881,7 @@ export default function App() {
                     <Gift size={20} className="text-emerald-600" />
                     <h3 className="text-lg font-bold text-emerald-700">{language === 'vi' ? 'Dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}</h3>
                   </div>
-                  <p className="text-xs text-gray-500 mb-3">{language === 'vi' ? 'Chọn ghế để thêm các dịch vụ bổ sung vào vé của bạn:' : language === 'ja' ? '座席を選択してオプションサービスを追加できます:' : 'Select a seat to add these optional services to your booking:'}</p>
+                  <p className="text-xs text-gray-500 mb-3">{isFreeSeatingTrip ? (language === 'vi' ? 'Thêm các dịch vụ bổ sung vào vé của bạn:' : 'Add optional services to your booking:') : (language === 'vi' ? 'Chọn ghế để thêm các dịch vụ bổ sung vào vé của bạn:' : language === 'ja' ? '座席を選択してオプションサービスを追加できます:' : 'Select a seat to add these optional services to your booking:')}</p>
                   <div className="space-y-2">
                     {(selectedTrip.addons || []).map((addon: TripAddon) => (
                       <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -2816,7 +2904,11 @@ export default function App() {
               {showBookingForm && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold">{t.booking_title}: {showBookingForm}</h3>
+                    <h3 className="text-lg font-bold">
+                      {isFreeSeatingTrip
+                        ? (language === 'vi' ? '🪑 Đặt vé ghế tự do' : language === 'ja' ? '🪑 自由席予約' : '🪑 Free Seating Booking')
+                        : `${t.booking_title}: ${showBookingForm}`}
+                    </h3>
                     <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                   </div>
                   <form className="space-y-4">
@@ -4968,7 +5060,7 @@ export default function App() {
                     {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
                   </button>
                 )}
-                <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+                <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
               </div>
             </div>
 
@@ -5000,6 +5092,13 @@ export default function App() {
                       </select>
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.registration_expiry}</label><input type="date" value={vehicleForm.registrationExpiry} onChange={e => setVehicleForm(p => ({ ...p, registrationExpiry: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Loại ghế' : language === 'en' ? 'Seat Type' : '座席タイプ'}</label>
+                      <select value={vehicleForm.seatType} onChange={e => setVehicleForm(p => ({ ...p, seatType: e.target.value as 'assigned' | 'free' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="assigned">{language === 'vi' ? 'Ghế chỉ định' : language === 'en' ? 'Assigned Seats' : '指定席'}</option>
+                        <option value="free">{language === 'vi' ? 'Ghế tự do' : language === 'en' ? 'Free Seating' : '自由席'}</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); setIsCopyingVehicle(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
@@ -5132,7 +5231,7 @@ export default function App() {
                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-6 text-sm text-gray-500">{idx + 1}</td>
                       <td className="px-6 py-6 font-bold text-gray-800">{v.licensePlate}</td>
-                      <td className="px-6 py-6 text-sm">{v.type}</td>
+                      <td className="px-6 py-6 text-sm">{v.type}{v.seatType === 'free' && <span className="ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-600 uppercase">{language === 'vi' ? 'Tự do' : 'Free'}</span>}</td>
                       <td className="px-6 py-6 text-sm">{v.seats}</td>
                       <td className="px-6 py-6 text-sm">{v.registrationExpiry}</td>
                       <td className="px-6 py-6">
