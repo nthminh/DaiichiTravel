@@ -465,7 +465,8 @@ export const transportService = {
     currency = 'VND',
     startDate?: string,
     endDate?: string,
-  ) => _upsertFare(routeId, fromStopId, toStopId, price, agentPrice, currency, startDate, endDate),
+    sortOrder?: number,
+  ) => _upsertFare(routeId, fromStopId, toStopId, price, agentPrice, currency, startDate, endDate, sortOrder),
 
   /** Fetch all fares for a route (one-time read). */
   getRouteFares: async (routeId: string): Promise<RouteFare[]> => {
@@ -478,7 +479,13 @@ export const transportService = {
   subscribeToRouteFares: (routeId: string, callback: (fares: RouteFare[]) => void) => {
     if (!db) return () => {};
     return onSnapshot(collection(db, 'routeFares', routeId, 'fares'), (snap) => {
-      callback(snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteFare, 'id'>) })));
+      const fares = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteFare, 'id'>) }));
+      fares.sort((a, b) => {
+        const aSortOrder = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        const bSortOrder = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        return aSortOrder - bSortOrder;
+      });
+      callback(fares);
     });
   },
 

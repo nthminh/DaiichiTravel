@@ -671,10 +671,11 @@ export default function App() {
       }
       // Save fare table entries: upsert current fares and delete removed ones
       if (routeId) {
-        // Upsert all current fares
-        for (const fare of routeFormFares) {
+        // Upsert all current fares, saving their display index as sortOrder
+        for (let fareIdx = 0; fareIdx < routeFormFares.length; fareIdx++) {
+          const fare = routeFormFares[fareIdx];
           try {
-            await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined, 'VND', fare.startDate || undefined, fare.endDate || undefined);
+            await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined, 'VND', fare.startDate || undefined, fare.endDate || undefined, fareIdx);
           } catch (err) {
             console.error('Failed to save fare:', fare, err);
           }

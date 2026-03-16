@@ -59,6 +59,7 @@ export interface RouteFare {
   updatedAt: string; // ISO string
   startDate?: string; // YYYY-MM-DD, if set fare is only valid from this date
   endDate?: string;   // YYYY-MM-DD, if set fare is only valid until this date
+  sortOrder?: number; // display order in the fare table (0-based index)
 }
 
 // Return type of getFareForStops()
