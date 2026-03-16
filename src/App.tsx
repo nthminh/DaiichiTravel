@@ -524,7 +524,6 @@ export default function App() {
   // Subscribe to route fares in real-time when the route edit modal is open
   const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
   const [routeImageUploading, setRouteImageUploading] = useState(false);
-  const [routeVehicleImageUploading, setRouteVehicleImageUploading] = useState(false);
   useEffect(() => {
     if (!routeModalEditingId) return;
     // Reset tracked original IDs for this editing session
@@ -747,7 +746,7 @@ export default function App() {
         const file = files[i];
         const compressed = await compressImage(file, 0.75, 1280);
         const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
-        const task = uploadBytesResumable(sRef, compressed);
+        const task = uploadBytesResumable(sRef, compressed, { contentType: 'image/jpeg' });
         await new Promise<void>((resolve, reject) => {
           task.on('state_changed', undefined,
             (err) => { console.error('Upload error:', err); reject(err); },
@@ -768,37 +767,6 @@ export default function App() {
       alert('Upload failed. Please check your Firebase configuration.');
     } finally {
       setRouteImageUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  // Upload a single vehicle image
-  const handleRouteVehicleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !storage) {
-      if (!storage) alert('Firebase Storage is not configured.');
-      return;
-    }
-    setRouteVehicleImageUploading(true);
-    try {
-      const compressed = await compressImage(file, 0.75, 1280);
-      const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
-      const task = uploadBytesResumable(sRef, compressed);
-      await new Promise<void>((resolve, reject) => {
-        task.on('state_changed', undefined,
-          (err) => { console.error('Upload error:', err); reject(err); },
-          async () => {
-            const url = await getDownloadURL(task.snapshot.ref);
-            setRouteForm(prev => ({ ...prev, vehicleImageUrl: url }));
-            resolve();
-          }
-        );
-      });
-    } catch (err) {
-      console.error('Route vehicle image upload failed:', err);
-      alert('Upload failed. Please check your Firebase configuration.');
-    } finally {
-      setRouteVehicleImageUploading(false);
       e.target.value = '';
     }
   };
@@ -4577,7 +4545,7 @@ export default function App() {
                       <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
                     </div>
 
-                    {/* Route images (location photos + vehicle photo) */}
+                    {/* Route images (location photos) */}
                     <div className="space-y-3">
                       {/* Destination images – multiple allowed */}
                       <div>
@@ -4609,27 +4577,6 @@ export default function App() {
                             <>
                               <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh (nhiều ảnh)' : 'Select photos (multiple)'}</span>
                               <input type="file" accept="image/*" multiple onChange={handleRouteImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      {/* Vehicle image – single */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh xe' : 'Vehicle Photo'}</label>
-                        <div className="relative mt-1 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
-                          {routeForm.vehicleImageUrl ? (
-                            <>
-                              <img src={routeForm.vehicleImageUrl} alt="Vehicle" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              <button onClick={() => setRouteForm(p => ({ ...p, vehicleImageUrl: '' }))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg">
-                                <X size={12} />
-                              </button>
-                            </>
-                          ) : routeVehicleImageUploading ? (
-                            <Loader2 className="animate-spin text-daiichi-red" size={24} />
-                          ) : (
-                            <>
-                              <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh xe' : 'Select'}</span>
-                              <input type="file" accept="image/*" onChange={handleRouteVehicleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                             </>
                           )}
                         </div>
