@@ -12,11 +12,12 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
   signInWithPopup,
+  sendSignInLinkToEmail,
 } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-type MemberLoginMethod = 'phone' | 'gmail' | 'facebook' | 'whatsapp';
-type MemberAuthStep = 'method' | 'phone-entry' | 'otp' | 'social-loading' | 'name-entry';
+type MemberLoginMethod = 'phone' | 'gmail' | 'facebook' | 'whatsapp' | 'email';
+type MemberAuthStep = 'method' | 'phone-entry' | 'otp' | 'social-loading' | 'name-entry' | 'email-entry' | 'email-sent';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -34,6 +35,9 @@ interface LoginProps {
 
 const RECAPTCHA_SITE_KEY =
   import.meta.env.VITE_RECAPTCHA_SITE_KEY ?? '6Lc-vIosAAAAAPJ1NRFhFu43lldk12EAjgii-8Ke';
+
+/** Loose email format check */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 if (import.meta.env.DEV && !import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
   console.warn('[reCAPTCHA] VITE_RECAPTCHA_SITE_KEY is not set – falling back to the hardcoded site key. Set it in your .env file.');
@@ -140,6 +144,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [memberAuthStep, setMemberAuthStep] = useState<MemberAuthStep>('method');
   const [selectedMethod, setSelectedMethod] = useState<MemberLoginMethod | null>(null);
   const [memberPhone, setMemberPhone] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
   const [memberOtp, setMemberOtp] = useState('');
   const [memberOtpLoading, setMemberOtpLoading] = useState(false);
   const [memberOtpError, setMemberOtpError] = useState('');
@@ -464,6 +469,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberAuthStep('method');
     setSelectedMethod(null);
     setMemberPhone('');
+    setMemberEmail('');
     setMemberOtp('');
     setMemberOtpError('');
     setMemberNameInput('');
@@ -623,6 +629,44 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
   };
 
+  /** Send a Firebase Email Sign-in Link (passwordless magic link) */
+  const handleEmailSendLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = memberEmail.trim();
+    if (!email) return;
+    if (!auth || !app) {
+      setMemberOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+      return;
+    }
+    // Basic email format check
+    if (!EMAIL_REGEX.test(email)) {
+      setMemberOtpError(t.otp_email_error_invalid || 'Địa chỉ email không hợp lệ.');
+      return;
+    }
+    setMemberOtpLoading(true);
+    setMemberOtpError('');
+    try {
+      const actionCodeSettings = {
+        // After clicking the link the user is redirected back to this URL (no extra query params)
+        url: window.location.origin + window.location.pathname,
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      // Persist email so the completion handler can read it after redirect
+      window.localStorage.setItem('emailForSignIn', email);
+      setMemberAuthStep('email-sent');
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code === 'auth/invalid-email') {
+        setMemberOtpError(t.otp_email_error_invalid || 'Địa chỉ email không hợp lệ.');
+      } else {
+        setMemberOtpError(t.otp_email_error_failed || 'Không thể gửi email. Vui lòng thử lại.');
+      }
+    } finally {
+      setMemberOtpLoading(false);
+    }
+  };
+
   /** Handle method selection */
   const handleMemberMethodSelect = (method: MemberLoginMethod) => {
     setSelectedMethod(method);
@@ -633,6 +677,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       handleGoogleLogin();
     } else if (method === 'facebook') {
       handleFacebookLogin();
+    } else if (method === 'email') {
+      setMemberAuthStep('email-entry');
     }
   };
 
@@ -831,6 +877,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                     { id: 'gmail' as const, label: t.otp_method_gmail || 'Gmail', desc: t.otp_method_gmail_desc || 'Đăng nhập Google', emoji: '📧' },
                     { id: 'facebook' as const, label: t.otp_method_facebook || 'Facebook', desc: t.otp_method_facebook_desc || 'Đăng nhập Facebook', emoji: '📘' },
                     { id: 'whatsapp' as const, label: t.otp_method_whatsapp || 'WhatsApp', desc: t.otp_method_whatsapp_desc || 'Nhận OTP qua WhatsApp', emoji: '💬' },
+                    { id: 'email' as const, label: t.otp_method_email || 'Email', desc: t.otp_method_email_desc || 'Nhận link đăng nhập qua email', emoji: '✉️' },
                   ].map(opt => (
                     <button
                       key={opt.id}
@@ -1008,6 +1055,90 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                     {t.otp_complete_btn || 'Hoàn tất đăng ký'}
                   </button>
                 </form>
+              </motion.div>
+            )}
+
+            {/* ── Step: Email entry ── */}
+            {memberAuthStep === 'email-entry' && (
+              <motion.div
+                key="email-entry"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+              >
+                <form onSubmit={handleEmailSendLink} className="space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">✉️</span>
+                    <p className="text-white/80 text-xs font-bold">
+                      {t.otp_enter_email || 'Nhập địa chỉ email của bạn'}
+                    </p>
+                  </div>
+                  <input
+                    type="email"
+                    value={memberEmail}
+                    onChange={e => setMemberEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                    autoFocus
+                    autoComplete="email"
+                    required
+                  />
+                  {memberOtpError && (
+                    <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                      {memberOtpError}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={memberOtpLoading || !memberEmail.trim()}
+                    className="w-full py-3 bg-white text-daiichi-red rounded-xl font-extrabold text-sm shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {memberOtpLoading ? (
+                      <><Loader2 size={16} className="animate-spin" />{t.otp_sending || 'Đang gửi...'}</>
+                    ) : (
+                      <>{t.otp_send_email_btn || 'Gửi link đăng nhập'}</>
+                    )}
+                  </button>
+                </form>
+              </motion.div>
+            )}
+
+            {/* ── Step: Email sent confirmation ── */}
+            {memberAuthStep === 'email-sent' && (
+              <motion.div
+                key="email-sent"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <span className="text-4xl">📧</span>
+                  <p className="text-white font-bold text-sm">
+                    {t.otp_email_sent_title || 'Kiểm tra email của bạn! 📧'}
+                  </p>
+                  <p className="text-white/60 text-xs">
+                    {t.otp_email_sent_desc || 'Chúng tôi đã gửi link đăng nhập đến'}
+                  </p>
+                  <p className="text-white font-bold text-sm break-all">{memberEmail}</p>
+                  <p className="text-white/50 text-[11px] leading-relaxed">
+                    {t.otp_email_sent_note || 'Nhấp vào link trong email để hoàn tất đăng nhập. Link có hiệu lực trong 1 giờ.'}
+                  </p>
+                </div>
+                {memberOtpError && (
+                  <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
+                    {memberOtpError}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMemberAuthStep('email-entry')}
+                  className="w-full py-2.5 border border-white/30 text-white/70 rounded-xl text-xs font-bold hover:bg-white/10 transition-all"
+                >
+                  {t.otp_email_resend || 'Gửi lại email'}
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
