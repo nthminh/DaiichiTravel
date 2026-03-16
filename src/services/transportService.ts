@@ -23,6 +23,7 @@ interface TourData {
   description: string;
   price: number;
   imageUrl: string;
+  images?: string[];      // additional photos for the tour (shown in gallery)
   discountPercent?: number;
   priceAdult?: number;
   priceChild?: number;
