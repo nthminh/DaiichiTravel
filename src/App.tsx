@@ -4733,6 +4733,34 @@ export default function App() {
                                 )}
                               </div>
                             </div>
+                            <div className="flex flex-col gap-0.5 flex-shrink-0">
+                              <button
+                                onClick={() => {
+                                  if (idx === 0) return;
+                                  setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
+                                  setRouteFormFares(prev => {
+                                    const next = [...prev];
+                                    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                                    return next;
+                                  });
+                                }}
+                                disabled={idx === 0}
+                                className="p-0.5 text-gray-400 hover:text-teal-600 disabled:opacity-30 text-xs font-bold leading-none"
+                              >↑</button>
+                              <button
+                                onClick={() => {
+                                  if (idx === routeFormFares.length - 1) return;
+                                  setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
+                                  setRouteFormFares(prev => {
+                                    const next = [...prev];
+                                    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                                    return next;
+                                  });
+                                }}
+                                disabled={idx === routeFormFares.length - 1}
+                                className="p-0.5 text-gray-400 hover:text-teal-600 disabled:opacity-30 text-xs font-bold leading-none"
+                              >↓</button>
+                            </div>
                             <button onClick={() => { setEditingRouteFareIdx(idx); setRouteFareForm({ fromStopId: fare.fromStopId, toStopId: fare.toStopId, price: fare.price, agentPrice: fare.agentPrice, startDate: fare.startDate, endDate: fare.endDate }); setShowAddRouteFare(true); }} className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-100 rounded-lg flex-shrink-0">
                               <Edit3 size={14} />
                             </button>
