@@ -1816,17 +1816,25 @@ export default function App() {
     uid?: string;
     loginMethod: string;
   }): Promise<{ id: string; username: string; role: UserRole; name: string; phone?: string; email?: string } | null> => {
-    // Normalise phone to local format for storage/lookup
+    // Normalise phone for storage/lookup:
+    // - Vietnamese E.164 (+84xxx) → local 0xxx format (consistent with traditional registration)
+    // - International E.164 (+CCxxx) → kept as-is (e.g. +61412345678 for Australia)
+    // - Already local (0xxx): no change
     const normalizedPhone = data.phone
-      ? data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '')
+      ? data.phone.replace(/^\+84/, '0')
       : undefined;
 
     const defaultName = language === 'vi' ? 'Khách hàng' : 'Customer';
 
     // 1. Find existing customer by uid, phone, or email
+    // Compare phone digits only to handle format variations (+61..., 61..., 0...).
     let customer = customers.find(c => {
       if (data.uid && c.firebaseUid === data.uid) return true;
-      if (normalizedPhone && c.phone && c.phone.replace(/[^0-9]/g, '') === normalizedPhone) return true;
+      if (normalizedPhone && c.phone) {
+        const normDigits = normalizedPhone.replace(/[^0-9]/g, '');
+        const cDigits = c.phone.replace(/[^0-9]/g, '');
+        if (normDigits && normDigits === cDigits) return true;
+      }
       if (data.phone && c.phone === data.phone) return true;
       if (data.email && c.email && c.email.toLowerCase() === data.email.toLowerCase()) return true;
       return false;
