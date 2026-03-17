@@ -45,6 +45,15 @@ const emptyForm = {
   youtubeUrl: '',
 };
 
+// Computes the per-adult tour price by summing all included per-person cost components
+const computeTourPrice = (
+  priceAdult: number,
+  nights: number,
+  pricePerNight: number,
+  breakfastCount: number,
+  pricePerBreakfast: number,
+): number => priceAdult + nights * pricePerNight + breakfastCount * pricePerBreakfast;
+
 // Carousel card for a single tour shown in the management grid
 const TourCard: React.FC<{
   tour: Tour;
@@ -252,7 +261,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
     if (!newTour.title || !newTour.imageUrl) return;
     setSaving(true);
     // Auto-compute tour price = adult price + nights × pricePerNight + breakfasts × pricePerBreakfast
-    const computedPrice = newTour.priceAdult + (newTour.nights || 0) * (newTour.pricePerNight || 0) + (newTour.breakfastCount || 0) * (newTour.pricePerBreakfast || 0);
+    const computedPrice = computeTourPrice(newTour.priceAdult, newTour.nights || 0, newTour.pricePerNight || 0, newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0);
     try {
       await transportService.addTour({
         title: newTour.title,
@@ -304,7 +313,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
     if (!editingTour || !editForm.title || !editForm.imageUrl) return;
     setSaving(true);
     // Auto-compute tour price = adult price + nights × pricePerNight + breakfasts × pricePerBreakfast
-    const computedPrice = editForm.priceAdult + (editForm.nights || 0) * (editForm.pricePerNight || 0) + (editForm.breakfastCount || 0) * (editForm.pricePerBreakfast || 0);
+    const computedPrice = computeTourPrice(editForm.priceAdult, editForm.nights || 0, editForm.pricePerNight || 0, editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0);
     try {
       await transportService.updateTour(editingTour.id, {
         title: editForm.title,
@@ -414,7 +423,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá tour (đ)' : 'Tour Price (VND)'}</label>
                   <div className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-bold text-sm select-none cursor-default">
-                    {(newTour.priceAdult + (newTour.nights || 0) * (newTour.pricePerNight || 0) + (newTour.breakfastCount || 0) * (newTour.pricePerBreakfast || 0)).toLocaleString()}đ
+                    {computeTourPrice(newTour.priceAdult, newTour.nights || 0, newTour.pricePerNight || 0, newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0).toLocaleString()}đ
                   </div>
                   <p className="text-[10px] text-gray-400 mt-0.5 ml-1">{language === 'vi' ? 'Tự tính: người lớn + đêm + bữa sáng' : 'Auto: adult + nights + breakfast'}</p>
                 </div>
@@ -594,7 +603,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá tour (đ)' : 'Tour Price (VND)'}</label>
                   <div className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-bold text-sm select-none cursor-default">
-                    {(editForm.priceAdult + (editForm.nights || 0) * (editForm.pricePerNight || 0) + (editForm.breakfastCount || 0) * (editForm.pricePerBreakfast || 0)).toLocaleString()}đ
+                    {computeTourPrice(editForm.priceAdult, editForm.nights || 0, editForm.pricePerNight || 0, editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0).toLocaleString()}đ
                   </div>
                   <p className="text-[10px] text-gray-400 mt-0.5 ml-1">{language === 'vi' ? 'Tự tính: người lớn + đêm + bữa sáng' : 'Auto: adult + nights + breakfast'}</p>
                 </div>

@@ -4246,14 +4246,13 @@ export default function App() {
                     )}
                   </div>
                   <p className="text-daiichi-red font-bold mt-1.5">
-                    {(selectedTour.discountPercent ?? 0) > 0
-                      ? <>
-                          {Math.round(pricePerAdult * (1 - (selectedTour.discountPercent ?? 0) / 100)).toLocaleString()}đ{' '}
-                          <span className="text-xs text-gray-400 line-through">{pricePerAdult.toLocaleString()}đ</span>
-                        </>
-                      : <>{pricePerAdult.toLocaleString()}đ</>
-                    }
+                    {pricePerAdult.toLocaleString()}đ
                     <span className="text-xs font-normal text-gray-500 ml-1">/{language === 'vi' ? 'người lớn' : 'adult'}</span>
+                    {(selectedTour.discountPercent ?? 0) > 0 && (
+                      <span className="ml-2 text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                        -{selectedTour.discountPercent}% {language === 'vi' ? 'giảm tổng' : 'off total'}
+                      </span>
+                    )}
                   </p>
                   {pricePerChild > 0 && (
                     <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {pricePerChild.toLocaleString()}đ</p>
