@@ -6,6 +6,13 @@ import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 import { compressImage } from '../lib/imageUtils';
 
+interface TourAddon {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
 interface Tour {
   id: string;
   title: string;
@@ -26,6 +33,8 @@ interface Tour {
   surcharge?: number;
   surchargeNote?: string;
   youtubeUrl?: string;
+  itinerary?: { day: number; content: string }[];
+  addons?: TourAddon[];
 }
 
 interface TourManagementProps {
@@ -51,6 +60,8 @@ const emptyForm = {
   surcharge: 0,
   surchargeNote: '',
   youtubeUrl: '',
+  itinerary: [] as { day: number; content: string }[],
+  addons: [] as TourAddon[],
 };
 
 // Computes the total tour price by summing all cost components for the defined group
@@ -305,6 +316,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         surcharge: newTour.surcharge || undefined,
         surchargeNote: newTour.surchargeNote || undefined,
         youtubeUrl: newTour.youtubeUrl || undefined,
+        itinerary: newTour.itinerary.length > 0 ? newTour.itinerary : undefined,
+        addons: newTour.addons.length > 0 ? newTour.addons : undefined,
       });
       setNewTour(emptyForm);
       setIsAdding(false);
@@ -336,6 +349,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
       surcharge: tour.surcharge || 0,
       surchargeNote: tour.surchargeNote || '',
       youtubeUrl: tour.youtubeUrl || '',
+      itinerary: tour.itinerary || [],
+      addons: tour.addons || [],
     });
     setIsAdding(false);
   };
@@ -371,6 +386,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         surcharge: editForm.surcharge || undefined,
         surchargeNote: editForm.surchargeNote || undefined,
         youtubeUrl: editForm.youtubeUrl || undefined,
+        itinerary: editForm.itinerary.length > 0 ? editForm.itinerary : undefined,
+        addons: editForm.addons.length > 0 ? editForm.addons : undefined,
       });
       setEditingTour(null);
       setEditForm(emptyForm);
@@ -576,6 +593,123 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                   onChange={e => setNewTour(prev => ({ ...prev, youtubeUrl: e.target.value }))}
                   className="w-full px-4 py-3 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-200 focus:outline-none text-sm"
                   placeholder="https://www.youtube.com/watch?v=..." />
+              </div>
+              {/* Itinerary */}
+              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-500 font-bold">📋</span>
+                    <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">{language === 'vi' ? 'Lịch trình (tuỳ chọn)' : 'Itinerary (optional)'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewTour(prev => ({
+                      ...prev,
+                      itinerary: [...prev.itinerary, { day: prev.itinerary.length + 1, content: '' }]
+                    }))}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> {language === 'vi' ? 'Thêm ngày' : 'Add day'}
+                  </button>
+                </div>
+                {newTour.itinerary.map((item, idx) => (
+                  <div key={idx} className="flex gap-2 items-start">
+                    <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-2">{item.day}</span>
+                    <input
+                      type="text"
+                      value={item.content}
+                      onChange={e => setNewTour(prev => {
+                        const it = [...prev.itinerary];
+                        it[idx] = { ...it[idx], content: e.target.value };
+                        return { ...prev, itinerary: it };
+                      })}
+                      className="flex-1 px-3 py-2 bg-white border border-blue-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                      placeholder={language === 'vi' ? `Nội dung ngày ${item.day}...` : `Day ${item.day} activities...`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewTour(prev => ({
+                        ...prev,
+                        itinerary: prev.itinerary.filter((_, i) => i !== idx).map((it, i) => ({ ...it, day: i + 1 }))
+                      }))}
+                      className="p-2 text-gray-400 hover:text-red-500 mt-1"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                {newTour.itinerary.length === 0 && (
+                  <p className="text-xs text-blue-400">{language === 'vi' ? 'Chưa có lịch trình. Nhấn "+ Thêm ngày" để bắt đầu.' : 'No itinerary yet. Click "+ Add day" to start.'}</p>
+                )}
+              </div>
+              {/* Addons (optional services) */}
+              <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-500 font-bold">⭐</span>
+                    <p className="text-xs font-bold text-purple-700 uppercase tracking-widest">{language === 'vi' ? 'Dịch vụ thêm (tuỳ chọn)' : 'Optional Add-on Services'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewTour(prev => ({
+                      ...prev,
+                      addons: [...prev.addons, { id: crypto.randomUUID(), name: '', price: 0, description: '' }]
+                    }))}
+                    className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> {language === 'vi' ? 'Thêm dịch vụ' : 'Add service'}
+                  </button>
+                </div>
+                {newTour.addons.map((addon, idx) => (
+                  <div key={addon.id} className="bg-white rounded-xl border border-purple-100 p-3 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={addon.name}
+                        onChange={e => setNewTour(prev => {
+                          const ads = [...prev.addons];
+                          ads[idx] = { ...ads[idx], name: e.target.value };
+                          return { ...prev, addons: ads };
+                        })}
+                        className="flex-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        placeholder={language === 'vi' ? 'Tên dịch vụ...' : 'Service name...'}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={addon.price}
+                        onChange={e => setNewTour(prev => {
+                          const ads = [...prev.addons];
+                          ads[idx] = { ...ads[idx], price: parseInt(e.target.value) || 0 };
+                          return { ...prev, addons: ads };
+                        })}
+                        className="w-28 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        placeholder={language === 'vi' ? 'Giá đ/người' : 'Price/person'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewTour(prev => ({ ...prev, addons: prev.addons.filter((_, i) => i !== idx) }))}
+                        className="p-2 text-gray-400 hover:text-red-500"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={addon.description || ''}
+                      onChange={e => setNewTour(prev => {
+                        const ads = [...prev.addons];
+                        ads[idx] = { ...ads[idx], description: e.target.value };
+                        return { ...prev, addons: ads };
+                      })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                      placeholder={language === 'vi' ? 'Mô tả ngắn (tuỳ chọn)...' : 'Short description (optional)...'}
+                    />
+                  </div>
+                ))}
+                {newTour.addons.length === 0 && (
+                  <p className="text-xs text-purple-400">{language === 'vi' ? 'Chưa có dịch vụ thêm. Ví dụ: Thuê xe đạp, Tham quan hang động...' : 'No add-ons yet. E.g. Bike rental, Cave tour...'}</p>
+                )}
               </div>
             </div>
             <div className="space-y-4">
@@ -794,10 +928,126 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                   className="w-full px-4 py-3 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-200 focus:outline-none text-sm"
                   placeholder="https://www.youtube.com/watch?v=..." />
               </div>
+              {/* Itinerary */}
+              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-500 font-bold">📋</span>
+                    <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">{language === 'vi' ? 'Lịch trình (tuỳ chọn)' : 'Itinerary (optional)'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(prev => ({
+                      ...prev,
+                      itinerary: [...prev.itinerary, { day: prev.itinerary.length + 1, content: '' }]
+                    }))}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> {language === 'vi' ? 'Thêm ngày' : 'Add day'}
+                  </button>
+                </div>
+                {editForm.itinerary.map((item, idx) => (
+                  <div key={idx} className="flex gap-2 items-start">
+                    <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-2">{item.day}</span>
+                    <input
+                      type="text"
+                      value={item.content}
+                      onChange={e => setEditForm(prev => {
+                        const it = [...prev.itinerary];
+                        it[idx] = { ...it[idx], content: e.target.value };
+                        return { ...prev, itinerary: it };
+                      })}
+                      className="flex-1 px-3 py-2 bg-white border border-blue-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                      placeholder={language === 'vi' ? `Nội dung ngày ${item.day}...` : `Day ${item.day} activities...`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(prev => ({
+                        ...prev,
+                        itinerary: prev.itinerary.filter((_, i) => i !== idx).map((it, i) => ({ ...it, day: i + 1 }))
+                      }))}
+                      className="p-2 text-gray-400 hover:text-red-500 mt-1"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                {editForm.itinerary.length === 0 && (
+                  <p className="text-xs text-blue-400">{language === 'vi' ? 'Chưa có lịch trình.' : 'No itinerary yet.'}</p>
+                )}
+              </div>
+              {/* Addons (optional services) */}
+              <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-500 font-bold">⭐</span>
+                    <p className="text-xs font-bold text-purple-700 uppercase tracking-widest">{language === 'vi' ? 'Dịch vụ thêm (tuỳ chọn)' : 'Optional Add-on Services'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(prev => ({
+                      ...prev,
+                      addons: [...prev.addons, { id: crypto.randomUUID(), name: '', price: 0, description: '' }]
+                    }))}
+                    className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> {language === 'vi' ? 'Thêm dịch vụ' : 'Add service'}
+                  </button>
+                </div>
+                {editForm.addons.map((addon, idx) => (
+                  <div key={addon.id} className="bg-white rounded-xl border border-purple-100 p-3 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={addon.name}
+                        onChange={e => setEditForm(prev => {
+                          const ads = [...prev.addons];
+                          ads[idx] = { ...ads[idx], name: e.target.value };
+                          return { ...prev, addons: ads };
+                        })}
+                        className="flex-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        placeholder={language === 'vi' ? 'Tên dịch vụ...' : 'Service name...'}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={addon.price}
+                        onChange={e => setEditForm(prev => {
+                          const ads = [...prev.addons];
+                          ads[idx] = { ...ads[idx], price: parseInt(e.target.value) || 0 };
+                          return { ...prev, addons: ads };
+                        })}
+                        className="w-28 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        placeholder={language === 'vi' ? 'Giá đ/người' : 'Price/person'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditForm(prev => ({ ...prev, addons: prev.addons.filter((_, i) => i !== idx) }))}
+                        className="p-2 text-gray-400 hover:text-red-500"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={addon.description || ''}
+                      onChange={e => setEditForm(prev => {
+                        const ads = [...prev.addons];
+                        ads[idx] = { ...ads[idx], description: e.target.value };
+                        return { ...prev, addons: ads };
+                      })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                      placeholder={language === 'vi' ? 'Mô tả ngắn (tuỳ chọn)...' : 'Short description (optional)...'}
+                    />
+                  </div>
+                ))}
+                {editForm.addons.length === 0 && (
+                  <p className="text-xs text-purple-400">{language === 'vi' ? 'Chưa có dịch vụ thêm.' : 'No add-ons yet.'}</p>
+                )}
+              </div>
             </div>
             <div className="space-y-4">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Hình ảnh Tour (có thể tải nhiều ảnh)' : 'Tour Images (multiple allowed)'}</label>
-              {/* Existing images grid */}
               {editForm.images.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
                   {editForm.images.map((url, idx) => (
