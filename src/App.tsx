@@ -1862,17 +1862,18 @@ export default function App() {
     }
 
     // 2. Create new customer profile
-    const docRef = await transportService.addCustomer({
+    const newCustomer: Omit<CustomerProfile, 'id'> = {
       name: data.name || defaultName,
       phone: normalizedPhone || data.phone || '',
-      email: data.email,
       username: normalizedPhone || data.email || data.uid || '',
       loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
-      firebaseUid: data.uid,
       status: 'ACTIVE',
       registeredAt: new Date().toISOString(),
       totalBookings: 0,
-    });
+    };
+    if (data.email) newCustomer.email = data.email;
+    if (data.uid) newCustomer.firebaseUid = data.uid;
+    const docRef = await transportService.addCustomer(newCustomer);
 
     return {
       id: docRef.id,
