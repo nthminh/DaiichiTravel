@@ -176,6 +176,17 @@ export enum SeatStatus {
   PAID = 'PAID'
 }
 
+/** One passenger's booking occupying a seat for a specific sub-segment of the route. */
+export interface SegmentBooking {
+  fromStopOrder: number;  // order of pickup stop
+  toStopOrder: number;    // order of dropoff stop
+  customerName?: string;
+  customerPhone?: string;
+  pickupPoint?: string;
+  dropoffPoint?: string;
+  bookingNote?: string;
+}
+
 export interface Seat {
   id: string;
   status: SeatStatus;
@@ -189,6 +200,8 @@ export interface Seat {
   toStopOrder?: number;      // order of dropoff stop (used for segment availability)
   deck?: number; // 0 for lower, 1 for upper
   bookingNote?: string;      // note from agent or bus company (e.g. partial payment info)
+  /** All sub-segment bookings for this seat (supports multiple passengers on different segments). */
+  segmentBookings?: SegmentBooking[];
 }
 
 export enum TripStatus {

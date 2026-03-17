@@ -15,7 +15,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -73,9 +73,57 @@ export const transportService = {
       const tripSnap = await transaction.get(tripRef);
       if (!tripSnap.exists()) return;
       const seats = (tripSnap.data().seats || []) as Seat[];
-      const updatedSeats = seats.map((seat: Seat) =>
-        seatIds.includes(seat.id) ? { ...seat, ...bookingData } : seat
-      );
+      const updatedSeats = seats.map((seat: Seat) => {
+        if (!seatIds.includes(seat.id)) return seat;
+
+        // When this booking is for a specific sub-segment (has stop orders), preserve
+        // existing segment bookings instead of overwriting the primary customer fields.
+        if (bookingData.fromStopOrder !== undefined && bookingData.toStopOrder !== undefined) {
+          const newEntry: SegmentBooking = {
+            fromStopOrder: bookingData.fromStopOrder,
+            toStopOrder: bookingData.toStopOrder,
+            ...(bookingData.customerName ? { customerName: bookingData.customerName } : {}),
+            ...(bookingData.customerPhone ? { customerPhone: bookingData.customerPhone } : {}),
+            ...(bookingData.pickupPoint ? { pickupPoint: bookingData.pickupPoint } : {}),
+            ...(bookingData.dropoffPoint ? { dropoffPoint: bookingData.dropoffPoint } : {}),
+            ...(bookingData.bookingNote ? { bookingNote: bookingData.bookingNote } : {}),
+          };
+          const existingSegments: SegmentBooking[] = seat.segmentBookings ?? [];
+          // Determine if the seat already has any segment booking data
+          const hasExistingSegmentBooking = existingSegments.length > 0 || (seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined);
+          if (hasExistingSegmentBooking) {
+            // Build the initial array from the legacy single-booking fields if segmentBookings
+            // wasn't initialised yet (backward-compat: first booking pre-dates this feature).
+            let segments = existingSegments;
+            if (existingSegments.length === 0 && seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined) {
+              segments = [{
+                fromStopOrder: seat.fromStopOrder,
+                toStopOrder: seat.toStopOrder,
+                ...(seat.customerName ? { customerName: seat.customerName } : {}),
+                ...(seat.customerPhone ? { customerPhone: seat.customerPhone } : {}),
+                ...(seat.pickupPoint ? { pickupPoint: seat.pickupPoint } : {}),
+                ...(seat.dropoffPoint ? { dropoffPoint: seat.dropoffPoint } : {}),
+                ...(seat.bookingNote ? { bookingNote: seat.bookingNote } : {}),
+              }];
+            }
+            // Append new segment, keeping the primary (first) booking's customer info on the seat
+            return {
+              ...seat,
+              status: SeatStatus.BOOKED,
+              segmentBookings: [...segments, newEntry],
+            };
+          }
+          // First segment booking for this seat
+          return {
+            ...seat,
+            ...bookingData,
+            segmentBookings: [newEntry],
+          };
+        }
+
+        // Non-segment booking: simple overwrite (existing behaviour)
+        return { ...seat, ...bookingData };
+      });
       transaction.update(tripRef, { seats: updatedSeats });
     });
   },
