@@ -891,7 +891,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                     {memberOtpError}
                   </p>
                 )}
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="flex flex-col gap-2.5">
                   {[
                     { id: 'phone' as const, label: t.otp_method_phone || 'Số ĐT Việt Nam', desc: t.otp_method_phone_desc || 'Nhận OTP qua SMS', emoji: '🇻🇳' },
                     { id: 'gmail' as const, label: t.otp_method_gmail || 'Gmail', desc: t.otp_method_gmail_desc || 'Đăng nhập Google', emoji: '📧' },
@@ -902,11 +902,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                     <button
                       key={opt.id}
                       onClick={() => handleMemberMethodSelect(opt.id)}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border border-white/20 bg-white/5 hover:bg-white/15 hover:border-white/40 transition-all text-center group"
+                      className="flex flex-row items-center gap-3 px-4 py-3 rounded-2xl border border-white/20 bg-white/5 hover:bg-white/15 hover:border-white/40 transition-all text-left group w-full"
                     >
-                      <span className="text-2xl leading-none">{opt.emoji}</span>
-                      <span className="text-white font-bold text-xs leading-tight">{opt.label}</span>
-                      <span className="text-white/40 text-[10px] leading-tight group-hover:text-white/60 transition-colors">{opt.desc}</span>
+                      <span className="text-2xl leading-none shrink-0">{opt.emoji}</span>
+                      <span className="flex flex-col min-w-0">
+                        <span className="text-white font-bold text-sm leading-tight">{opt.label}</span>
+                        <span className="text-white/40 text-xs leading-tight group-hover:text-white/60 transition-colors">{opt.desc}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
