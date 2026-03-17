@@ -430,6 +430,7 @@ export default function App() {
 
   // Trip addon management state
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
+  const [showAddonDetailTrip, setShowAddonDetailTrip] = useState<Trip | null>(null);
   const [tripAddonForm, setTripAddonForm] = useState({ name: '', price: 0, description: '', type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' });
   const [showAddTripAddon, setShowAddTripAddon] = useState(false);
   // Addon quantities for the current booking: addonId -> quantity (0 means unselected)
@@ -2740,25 +2741,29 @@ export default function App() {
                             {formatTripDateDisplay(trip.date)}
                           </span>
                         )}
+                      </div>
+                      {/* Column 3: Driver name + Seats left + price + CTA button */}
+                      <div className="col-span-1 flex flex-col justify-between gap-1.5 py-1 pr-1 min-w-0">
                         {/* Driver name */}
                         <div className="flex items-center gap-1 text-[10px] text-gray-500">
                           <Users size={10} className="flex-shrink-0" />
                           <span className="truncate">{trip.driverName}</span>
                         </div>
-                      </div>
-                      {/* Column 3: Seats left + price + CTA button */}
-                      <div className="col-span-1 flex flex-col justify-between gap-1.5 py-1 pr-1 min-w-0">
                         {/* Seats left */}
                         <div className="flex items-center gap-1 text-[10px] text-gray-500">
                           <Bus size={10} className="flex-shrink-0" />
                           <span className="truncate">{emptySeats} {t.seats_left}</span>
                         </div>
-                        {/* Add-ons badge */}
+                        {/* Add-ons badge – clickable to show service details */}
                         {(trip.addons || []).length > 0 && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-bold border border-emerald-200 self-start">
+                          <button
+                            onClick={() => setShowAddonDetailTrip(trip)}
+                            aria-label={language === 'vi' ? 'Xem chi tiết dịch vụ kèm theo' : language === 'ja' ? '付帯サービスの詳細を見る' : 'View add-on services details'}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-bold border border-emerald-200 self-start hover:bg-emerald-100 transition-colors cursor-pointer"
+                          >
                             <Gift size={9} />
                             {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
-                          </span>
+                          </button>
                         )}
                         {/* Price */}
                         <div className="mt-auto">
@@ -2911,6 +2916,39 @@ export default function App() {
                 );
               })()}
             </div>
+            {/* Addon detail modal – shown when user clicks gift badge on a trip card */}
+            {showAddonDetailTrip && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddonDetailTrip(null)}>
+                <div role="dialog" aria-modal="true" aria-labelledby="addon-detail-title" className="bg-white rounded-[32px] p-6 max-w-md w-full space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Gift size={20} className="text-emerald-600" />
+                      <h3 id="addon-detail-title" className="text-lg font-bold text-emerald-700">
+                        {language === 'vi' ? 'Dịch vụ kèm theo' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}
+                      </h3>
+                    </div>
+                    <button onClick={() => setShowAddonDetailTrip(null)} aria-label={language === 'vi' ? 'Đóng' : language === 'ja' ? '閉じる' : 'Close'} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                  </div>
+                  <p className="text-sm text-gray-500">{showAddonDetailTrip.time} · {showAddonDetailTrip.route}</p>
+                  <div className="space-y-3">
+                    {(showAddonDetailTrip.addons || []).map((addon: TripAddon) => (
+                      <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-gray-800">{addon.name}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
+                              {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
+                            </span>
+                          </div>
+                          {addon.description && <p className="text-xs text-gray-500 mt-1">{addon.description}</p>}
+                        </div>
+                        <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
 
