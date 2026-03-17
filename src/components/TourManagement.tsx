@@ -653,7 +653,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                     type="button"
                     onClick={() => setNewTour(prev => ({
                       ...prev,
-                      addons: [...prev.addons, { id: `addon_${Date.now()}`, name: '', price: 0, description: '' }]
+                      addons: [...prev.addons, { id: crypto.randomUUID(), name: '', price: 0, description: '' }]
                     }))}
                     className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
                   >
@@ -987,7 +987,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                     type="button"
                     onClick={() => setEditForm(prev => ({
                       ...prev,
-                      addons: [...prev.addons, { id: `addon_${Date.now()}`, name: '', price: 0, description: '' }]
+                      addons: [...prev.addons, { id: crypto.randomUUID(), name: '', price: 0, description: '' }]
                     }))}
                     className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
                   >

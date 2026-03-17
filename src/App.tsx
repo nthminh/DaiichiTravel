@@ -4337,7 +4337,7 @@ export default function App() {
             nights: selectedTour.nights || 0,
             notes: tourNotes,
             amount: tourTotal,
-            paymentMethod: bookStatus === 'CONFIRMED' ? tourPaymentMethod : 'Thanh toán sau',
+            paymentMethod: bookStatus === 'CONFIRMED' ? tourPaymentMethod : (language === 'vi' ? 'Thanh toán sau' : 'Pay later'),
             agent: tourAgentName,
             agentId: isTourAgentBooking ? currentUser!.id : undefined,
             status: bookStatus,
