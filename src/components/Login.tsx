@@ -77,7 +77,12 @@ const PARTICLE_MIN_DURATION = 3.5;
 const PARTICLE_DURATION_STEP = 0.8;
 const PARTICLE_MAX_DELAY = 4;
 
-/** Normalise any Vietnamese phone number format to E.164 (+84xxxxxxxxx). */
+/**
+ * Normalise a phone number to E.164 format for Firebase phone auth.
+ * - Numbers starting with '0': treated as Vietnamese local format → +84...
+ * - Numbers starting with '+': already E.164 (international or Vietnamese) → returned as-is
+ * - International users MUST include their country code prefix (e.g. +61 for Australia).
+ */
 const toE164 = (phone: string): string => {
   const p = phone.trim();
   if (p.startsWith('0')) return '+84' + p.slice(1);
@@ -926,7 +931,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
               >
                 <form onSubmit={handleMemberSendOtp} className="space-y-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl">{selectedMethod === 'whatsapp' ? '💬' : '🇻🇳'}</span>
+                    <span className="text-xl">{selectedMethod === 'whatsapp' ? '💬' : '📱'}</span>
                     <p className="text-white/80 text-xs font-bold">
                       {t.otp_enter_phone || 'Nhập số điện thoại của bạn'}
                     </p>
@@ -935,12 +940,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                     type="tel"
                     value={memberPhone}
                     onChange={e => setMemberPhone(e.target.value.replace(/[^0-9+]/g, ''))}
-                    placeholder="0912 345 678"
+                    placeholder="+84 912 345 678"
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm tracking-wide"
                     autoFocus
                     autoComplete="tel"
                     required
                   />
+                  <p className="text-white/50 text-[11px] leading-tight">
+                    {t.otp_phone_hint || 'Số VN: nhập dạng 0912... • Quốc tế: thêm mã quốc gia (vd: +61 cho Úc, +1 cho Mỹ)'}
+                  </p>
                   {memberOtpError && (
                     <p className="text-red-200 bg-red-900/30 rounded-xl px-4 py-2 text-xs font-medium border border-red-400/20">
                       {memberOtpError}
