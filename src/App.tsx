@@ -93,6 +93,13 @@ export interface Vehicle {
   seatType?: 'assigned' | 'free';
 }
 
+interface TourAddonItem {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
 interface TourItem {
   id: string;
   title: string;
@@ -113,6 +120,8 @@ interface TourItem {
   surcharge?: number;
   surchargeNote?: string;
   youtubeUrl?: string;
+  itinerary?: { day: number; content: string }[];
+  addons?: TourAddonItem[];
 }
 
 function getYoutubeEmbedUrl(url: string): string | null {
@@ -228,6 +237,7 @@ export default function App() {
   const [tourBookingChildren, setTourBookingChildren] = useState(0);
   const [tourAccommodation, setTourAccommodation] = useState<'none' | 'standard' | 'deluxe' | 'suite'>('none');
   const [tourMealPlan, setTourMealPlan] = useState<'none' | 'breakfast' | 'half_board' | 'full_board'>('none');
+  const [tourSelectedAddons, setTourSelectedAddons] = useState<Set<string>>(new Set());
   const [tourNotes, setTourNotes] = useState('');
   const [tourPaymentMethod, setTourPaymentMethod] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [tourBookingSuccess, setTourBookingSuccess] = useState(false);
@@ -235,6 +245,7 @@ export default function App() {
   const [tourBookingId, setTourBookingId] = useState<string>('');
   const [lastTourBooking, setLastTourBooking] = useState<any>(null);
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
+  const [tourBookingStatus, setTourBookingStatus] = useState<'PENDING' | 'CONFIRMED'>('PENDING');
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
   const [searchDate, setSearchDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
@@ -4208,7 +4219,25 @@ export default function App() {
                           </div>
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => { setSelectedTour(tour); setActiveTab('book-tour'); }}
+                              onClick={() => {
+                                setSelectedTour(tour);
+                                // Reset all booking form state when selecting a new tour
+                                setTourBookingName('');
+                                setTourBookingPhone('');
+                                setTourBookingEmail('');
+                                setTourBookingDate('');
+                                setTourBookingAdults(1);
+                                setTourBookingChildren(0);
+                                setTourAccommodation('none');
+                                setTourMealPlan('none');
+                                setTourSelectedAddons(new Set());
+                                setTourNotes('');
+                                setTourPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                                setTourBookingSuccess(false);
+                                setTourBookingError('');
+                                setTourBookingStatus('PENDING');
+                                setActiveTab('book-tour');
+                              }}
                               className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
                             >
                               {t.book_tour || (language === 'vi' ? 'Đặt tour' : 'Book Tour')}
@@ -4234,39 +4263,55 @@ export default function App() {
 
       case 'book-tour': {
         const totalPersons = tourBookingAdults + tourBookingChildren;
-        // Use tour-specific priceAdult if defined, else fall back to stored price (which is auto-computed as tour price per adult)
+        // Use tour-specific priceAdult if defined, else fall back to stored price
         const pricePerAdult = selectedTour?.priceAdult ?? selectedTour?.price ?? 0;
         // Use tour-specific priceChild if defined, else 50% of adult (for children >4 years old)
         const pricePerChild = selectedTour?.priceChild ?? Math.round(pricePerAdult * 0.5);
         const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
-        // Accommodation: use tour's pricePerNight × nights × persons if defined, else fixed costs
-        const tourNights = selectedTour?.nights ?? 1;
+
+        // Accommodation: only available if tour defines pricePerNight
+        const tourNights = selectedTour?.nights ?? 0;
+        const tourPricePerNight = selectedTour?.pricePerNight ?? 0;
+        const hasAccommodationOption = tourNights > 0 && tourPricePerNight > 0;
         const accommodationCosts: Record<string, number> = {
           none: 0,
-          standard: (selectedTour?.pricePerNight ?? 300000) * tourNights * totalPersons,
-          deluxe: Math.round((selectedTour?.pricePerNight ?? 300000) * 1.5) * tourNights * totalPersons,
-          suite: Math.round((selectedTour?.pricePerNight ?? 300000) * 2.5) * tourNights * totalPersons,
+          standard: tourPricePerNight * tourNights * totalPersons,
+          deluxe: Math.round(tourPricePerNight * 1.5) * tourNights * totalPersons,
+          suite: Math.round(tourPricePerNight * 2.5) * tourNights * totalPersons,
         };
-        // Meals: use tour's pricePerBreakfast × breakfastCount × persons if defined, else fixed costs
-        const breakfastCount = selectedTour?.breakfastCount ?? 1;
-        const pricePerBreakfast = selectedTour?.pricePerBreakfast ?? 100000;
+
+        // Meals: only available if tour defines pricePerBreakfast
+        const breakfastCount = selectedTour?.breakfastCount ?? 0;
+        const pricePerBreakfast = selectedTour?.pricePerBreakfast ?? 0;
+        const hasMealOption = breakfastCount > 0 && pricePerBreakfast > 0;
         const mealCosts: Record<string, number> = {
           none: 0,
           breakfast: pricePerBreakfast * breakfastCount * totalPersons,
           half_board: pricePerBreakfast * breakfastCount * totalPersons + 150000 * totalPersons,
           full_board: pricePerBreakfast * breakfastCount * totalPersons + 300000 * totalPersons,
         };
-        const accomCost = accommodationCosts[tourAccommodation];
-        const mealCost = mealCosts[tourMealPlan];
-        // Discount is applied to the full tour subtotal (giá tour)
-        const tourSubtotal = baseTourPrice + accomCost + mealCost;
+
+        // Surcharge (flat fee defined by admin)
+        const surchargeAmount = selectedTour?.surcharge ?? 0;
+
+        // Selected addons cost
+        const addonsCost = (selectedTour?.addons ?? [])
+          .filter(a => tourSelectedAddons.has(a.id))
+          .reduce((sum, a) => sum + a.price * totalPersons, 0);
+
+        const accomCost = hasAccommodationOption ? accommodationCosts[tourAccommodation] : 0;
+        const mealCost = hasMealOption ? mealCosts[tourMealPlan] : 0;
+
+        // Discount is applied to the full tour subtotal
+        const tourSubtotal = baseTourPrice + accomCost + mealCost + surchargeAmount + addonsCost;
         const discountAmount = selectedTour?.discountPercent
           ? Math.round(tourSubtotal * selectedTour.discountPercent / 100)
           : 0;
         const tourTotal = tourSubtotal - discountAmount;
 
-        const handleTourBooking = async () => {
+        const handleTourBooking = async (bookStatus: 'PENDING' | 'CONFIRMED') => {
           if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
+          setTourBookingStatus(bookStatus);
           setIsTourBookingLoading(true);
           setTourBookingError('');
           const isTourAgentBooking = currentUser?.role === UserRole.AGENT;
@@ -4283,16 +4328,19 @@ export default function App() {
             date: tourBookingDate,
             adults: tourBookingAdults,
             children: tourBookingChildren,
-            accommodation: tourAccommodation,
-            mealPlan: tourMealPlan,
+            accommodation: hasAccommodationOption ? tourAccommodation : 'none',
+            mealPlan: hasMealOption ? tourMealPlan : 'none',
+            selectedAddons: [...tourSelectedAddons],
+            surcharge: surchargeAmount,
+            surchargeNote: selectedTour.surcharge ? (selectedTour.surchargeNote || '') : '',
             duration: selectedTour.duration || '',
             nights: selectedTour.nights || 0,
             notes: tourNotes,
             amount: tourTotal,
-            paymentMethod: tourPaymentMethod,
+            paymentMethod: bookStatus === 'CONFIRMED' ? tourPaymentMethod : 'Thanh toán sau',
             agent: tourAgentName,
             agentId: isTourAgentBooking ? currentUser!.id : undefined,
-            status: 'BOOKED',
+            status: bookStatus,
           };
           try {
             const result = await transportService.createBooking(bookingData);
@@ -4311,12 +4359,22 @@ export default function App() {
         };
 
         if (tourBookingSuccess) {
+          const isReserved = tourBookingStatus === 'PENDING';
           return (
-            <div className="flex flex-col items-center justify-center py-20 space-y-6">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="text-green-500" size={40} />
+            <div className="flex flex-col items-center justify-center py-16 space-y-6">
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isReserved ? 'bg-blue-100' : 'bg-green-100'}`}>
+                <CheckCircle2 className={isReserved ? 'text-blue-500' : 'text-green-500'} size={40} />
               </div>
-              <h2 className="text-2xl font-bold text-gray-800">{t.tour_booking_success}</h2>
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {isReserved ? (t.tour_reserved_success || (language === 'vi' ? 'Giữ chỗ thành công!' : 'Reservation placed!')) : t.tour_booking_success}
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {isReserved
+                    ? (t.tour_reserve_note || (language === 'vi' ? 'Chúng tôi sẽ liên hệ xác nhận và hướng dẫn thanh toán sau.' : 'We will contact you to confirm and guide payment.'))
+                    : (language === 'vi' ? `Xác nhận thanh toán sẽ được gửi đến ${tourBookingPhone}` : `Payment confirmation will be sent to ${tourBookingPhone}`)}
+                </p>
+              </div>
               <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 w-full max-w-sm space-y-3">
                 {tourBookingId && (
                   <div className="flex justify-between text-sm">
@@ -4324,6 +4382,12 @@ export default function App() {
                     <span className="font-bold text-daiichi-red">{tourBookingId}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400 font-medium">{language === 'vi' ? 'Trạng thái' : 'Status'}</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${isReserved ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
+                    {isReserved ? (language === 'vi' ? 'Giữ chỗ' : 'Reserved') : (language === 'vi' ? 'Đã xác nhận' : 'Confirmed')}
+                  </span>
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400 font-medium">{language === 'vi' ? 'Tour' : 'Tour'}</span>
                   <span className="font-bold text-gray-700 text-right max-w-[180px] truncate">{selectedTour?.title}</span>
@@ -4358,11 +4422,6 @@ export default function App() {
                   <span className="text-lg font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
                 </div>
               </div>
-              <p className="text-gray-500 text-center max-w-md text-sm">
-                {language === 'vi'
-                  ? `Chúng tôi sẽ liên hệ qua SĐT ${tourBookingPhone} để xác nhận tour.`
-                  : `We will contact you at ${tourBookingPhone} to confirm your tour.`}
-              </p>
               <div className="flex gap-4 flex-wrap justify-center">
                 <button
                   onClick={() => { if (lastTourBooking) { setLastBooking(lastTourBooking); setIsTicketOpen(true); } }}
@@ -4389,7 +4448,7 @@ export default function App() {
         }
 
         return (
-          <div className="space-y-6 max-w-2xl mx-auto">
+          <div className="space-y-6 max-w-2xl mx-auto pb-8">
             {/* Header */}
             <div className="flex items-center gap-4">
               <button onClick={() => setActiveTab('tours')} className="p-2 hover:bg-gray-100 rounded-xl text-gray-500">
@@ -4397,44 +4456,122 @@ export default function App() {
               </button>
               <div>
                 <h2 className="text-2xl font-bold">{t.tour_booking_title}</h2>
-                <p className="text-sm text-gray-500">{language === 'vi' ? 'Điền thông tin để đặt tour' : 'Fill in details to book your tour'}</p>
+                <p className="text-sm text-gray-500">{language === 'vi' ? 'Xem tour và tùy chỉnh chuyến đi của bạn' : 'View tour and customize your trip'}</p>
               </div>
             </div>
 
-            {/* Selected Tour Card */}
-            {selectedTour && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex gap-4 p-4">
-                <img src={selectedTour.imageUrl} alt={selectedTour.title} className="w-24 h-24 object-cover rounded-xl flex-shrink-0" referrerPolicy="no-referrer" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-800">{selectedTour.title}</h3>
-                  {selectedTour.duration && (
-                    <p className="text-xs text-indigo-600 font-medium mt-0.5">{selectedTour.duration}</p>
+            {/* Tour Detail Hero */}
+            {selectedTour && (() => {
+              const allImages = selectedTour.images && selectedTour.images.length > 0
+                ? selectedTour.images
+                : (selectedTour.imageUrl ? [selectedTour.imageUrl] : []);
+              return (
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+                  {/* Image carousel */}
+                  {allImages.length > 0 && (
+                    <div className="relative h-56 overflow-hidden bg-gray-100">
+                      <img
+                        src={allImages[0]}
+                        alt={selectedTour.title}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      {allImages.length > 1 && (
+                        <div className="absolute bottom-3 right-3 flex gap-1">
+                          {allImages.slice(0, 5).map((img, i) => (
+                            <div
+                              key={i}
+                              className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white/70 cursor-pointer"
+                              style={{ opacity: i === 0 ? 1 : 0.75 }}
+                            >
+                              <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            </div>
+                          ))}
+                          {allImages.length > 5 && (
+                            <div className="w-10 h-10 rounded-lg bg-black/50 border-2 border-white/70 flex items-center justify-center text-white text-[10px] font-bold">
+                              +{allImages.length - 5}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(selectedTour.discountPercent ?? 0) > 0 && (
+                        <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
+                          -{selectedTour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
+                        </div>
+                      )}
+                      {selectedTour.duration && (
+                        <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
+                          {selectedTour.duration}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {(selectedTour.nights ?? 0) > 0 && (
-                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">🌙 {selectedTour.nights} {language === 'vi' ? 'đêm' : 'nights'}</span>
-                    )}
-                    {(selectedTour.breakfastCount ?? 0) > 0 && (
-                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">☕ {selectedTour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}</span>
-                    )}
+                  <div className="p-5 space-y-3">
+                    <h3 className="text-xl font-bold text-gray-800">{selectedTour.title}</h3>
+                    <p className="text-sm text-gray-600">{selectedTour.description}</p>
+                    {/* Highlights */}
+                    <div className="flex flex-wrap gap-2">
+                      {(selectedTour.nights ?? 0) > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                          🌙 {selectedTour.nights} {language === 'vi' ? 'đêm' : 'nights'}
+                        </span>
+                      )}
+                      {(selectedTour.breakfastCount ?? 0) > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                          ☕ {selectedTour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
+                        </span>
+                      )}
+                      {(selectedTour.surcharge ?? 0) > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-full">
+                          + {selectedTour.surchargeNote || (language === 'vi' ? 'Phụ phí' : 'Surcharge')}
+                        </span>
+                      )}
+                    </div>
+                    {/* Price */}
+                    <div>
+                      <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá từ / người lớn' : 'Price from / adult'}</p>
+                      {(selectedTour.discountPercent ?? 0) > 0 ? (
+                        <>
+                          <p className="text-2xl font-bold text-daiichi-red">
+                            {Math.round(pricePerAdult * (1 - (selectedTour.discountPercent ?? 0) / 100)).toLocaleString()}đ
+                          </p>
+                          <p className="text-xs text-gray-400 line-through">{pricePerAdult.toLocaleString()}đ</p>
+                        </>
+                      ) : (
+                        <p className="text-2xl font-bold text-daiichi-red">{pricePerAdult.toLocaleString()}đ</p>
+                      )}
+                      {pricePerChild > 0 && (
+                        <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {pricePerChild.toLocaleString()}đ</p>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-daiichi-red font-bold mt-1.5">
-                    {pricePerAdult.toLocaleString()}đ
-                    <span className="text-xs font-normal text-gray-500 ml-1">/{language === 'vi' ? 'người lớn' : 'adult'}</span>
-                    {(selectedTour.discountPercent ?? 0) > 0 && (
-                      <span className="ml-2 text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
-                        -{selectedTour.discountPercent}% {language === 'vi' ? 'giảm tổng' : 'off total'}
-                      </span>
-                    )}
-                  </p>
-                  {pricePerChild > 0 && (
-                    <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {pricePerChild.toLocaleString()}đ</p>
-                  )}
+                </div>
+              );
+            })()}
+
+            {/* Itinerary */}
+            {selectedTour?.itinerary && selectedTour.itinerary.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">
+                  📋 {t.tour_itinerary || (language === 'vi' ? 'Lịch trình tour' : 'Tour Itinerary')}
+                </h4>
+                <div className="space-y-3">
+                  {selectedTour.itinerary.map((item) => (
+                    <div key={item.day} className="flex gap-3">
+                      <div className="flex-shrink-0 w-7 h-7 bg-daiichi-red text-white rounded-full flex items-center justify-center text-xs font-bold">{item.day}</div>
+                      <p className="text-sm text-gray-600 pt-0.5">{item.content}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+            {/* Section: Customize trip */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+              <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                ✈️ {t.tour_configure_trip || (language === 'vi' ? 'Tùy chỉnh chuyến đi' : 'Customize your trip')}
+              </h4>
+
               {/* Departure date */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.tour_departure_date}</label>
@@ -4470,37 +4607,126 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Accommodation */}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">{t.accommodation}</label>
-                <select
-                  value={tourAccommodation}
-                  onChange={(e) => setTourAccommodation(e.target.value as typeof tourAccommodation)}
-                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                >
-                  <option value="none">{t.no_accommodation}</option>
-                  <option value="standard">{t.room_standard}</option>
-                  <option value="deluxe">{t.room_deluxe}</option>
-                  <option value="suite">{t.room_suite}</option>
-                </select>
-              </div>
+              {/* Accommodation – only shown if tour defines pricePerNight */}
+              {hasAccommodationOption && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.accommodation}</label>
+                  <p className="text-[10px] text-gray-400 mb-1">
+                    {language === 'vi'
+                      ? `Căn bản ${tourPricePerNight.toLocaleString()}đ/người × ${tourNights} đêm`
+                      : `Base ${tourPricePerNight.toLocaleString()}đ/person × ${tourNights} nights`}
+                  </p>
+                  <select
+                    value={tourAccommodation}
+                    onChange={(e) => setTourAccommodation(e.target.value as typeof tourAccommodation)}
+                    className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                  >
+                    <option value="none">{t.no_accommodation}</option>
+                    <option value="standard">
+                      {language === 'vi' ? 'Phòng tiêu chuẩn' : 'Standard room'} (+{accommodationCosts.standard.toLocaleString()}đ)
+                    </option>
+                    <option value="deluxe">
+                      {language === 'vi' ? 'Phòng deluxe' : 'Deluxe room'} (+{accommodationCosts.deluxe.toLocaleString()}đ)
+                    </option>
+                    <option value="suite">
+                      {language === 'vi' ? 'Phòng suite' : 'Suite'} (+{accommodationCosts.suite.toLocaleString()}đ)
+                    </option>
+                  </select>
+                </div>
+              )}
 
-              {/* Meal plan */}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">{t.meal_plan}</label>
-                <select
-                  value={tourMealPlan}
-                  onChange={(e) => setTourMealPlan(e.target.value as typeof tourMealPlan)}
-                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                >
-                  <option value="none">{t.meal_none}</option>
-                  <option value="breakfast">{t.meal_breakfast}</option>
-                  <option value="half_board">{t.meal_half_board}</option>
-                  <option value="full_board">{t.meal_full_board}</option>
-                </select>
-              </div>
+              {/* Meal plan – only shown if tour defines pricePerBreakfast */}
+              {hasMealOption && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.meal_plan}</label>
+                  <p className="text-[10px] text-gray-400 mb-1">
+                    {language === 'vi'
+                      ? `${pricePerBreakfast.toLocaleString()}đ/bữa × ${breakfastCount} bữa × người`
+                      : `${pricePerBreakfast.toLocaleString()}đ/meal × ${breakfastCount} meals × person`}
+                  </p>
+                  <select
+                    value={tourMealPlan}
+                    onChange={(e) => setTourMealPlan(e.target.value as typeof tourMealPlan)}
+                    className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                  >
+                    <option value="none">{t.meal_none}</option>
+                    <option value="breakfast">
+                      {language === 'vi' ? 'Ăn sáng' : 'Breakfast'} (+{mealCosts.breakfast.toLocaleString()}đ)
+                    </option>
+                    <option value="half_board">
+                      {language === 'vi' ? 'Ăn sáng + ăn tối' : 'Breakfast + Dinner'} (+{mealCosts.half_board.toLocaleString()}đ)
+                    </option>
+                    <option value="full_board">
+                      {language === 'vi' ? 'Ăn đủ 3 bữa/ngày' : 'Full board'} (+{mealCosts.full_board.toLocaleString()}đ)
+                    </option>
+                  </select>
+                </div>
+              )}
 
-              {/* Customer info */}
+              {/* Optional add-on services */}
+              {selectedTour?.addons && selectedTour.addons.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">
+                    {t.tour_optional_services || (language === 'vi' ? 'Dịch vụ thêm (tuỳ chọn)' : 'Optional add-on services')}
+                  </label>
+                  <div className="mt-2 space-y-2">
+                    {selectedTour.addons.map((addon) => {
+                      const isSelected = tourSelectedAddons.has(addon.id);
+                      return (
+                        <label
+                          key={addon.id}
+                          className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                            isSelected ? 'bg-daiichi-red/5 border-daiichi-red/30' : 'bg-gray-50 border-gray-100 hover:border-gray-200'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              setTourSelectedAddons(prev => {
+                                const next = new Set(prev);
+                                if (next.has(addon.id)) next.delete(addon.id);
+                                else next.add(addon.id);
+                                return next;
+                              });
+                            }}
+                            className="mt-0.5 accent-daiichi-red"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-800">{addon.name}</p>
+                            {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                          </div>
+                          <span className="text-sm font-bold text-daiichi-red">
+                            +{addon.price.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Surcharge info (always shown if set) */}
+              {surchargeAmount > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-amber-700">
+                      {t.tour_surcharge_label || (language === 'vi' ? 'Phụ phí' : 'Surcharge')}
+                    </p>
+                    {selectedTour?.surchargeNote && (
+                      <p className="text-[10px] text-amber-600">{selectedTour.surchargeNote}</p>
+                    )}
+                  </div>
+                  <span className="font-bold text-amber-700">{surchargeAmount.toLocaleString()}đ</span>
+                </div>
+              )}
+            </div>
+
+            {/* Section: Contact info */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+              <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                👤 {t.tour_contact_info || (language === 'vi' ? 'Thông tin liên hệ' : 'Contact information')}
+              </h4>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label>
                 <input
@@ -4531,77 +4757,129 @@ export default function App() {
                   className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                 />
               </div>
-
-              {/* Payment method */}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
-                <select
-                  value={tourPaymentMethod}
-                  onChange={(e) => setTourPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                >
-                  {PAYMENT_METHODS.map(m => (
-                    <option key={m} value={m}>{t[PAYMENT_METHOD_TRANSLATION_KEYS[m]]}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Notes */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.tour_notes}</label>
                 <textarea
                   value={tourNotes}
                   onChange={(e) => setTourNotes(e.target.value)}
                   rows={3}
-                  placeholder={language === 'vi' ? 'Nhập yêu cầu đặc biệt...' : 'Enter special requests...'}
+                  placeholder={language === 'vi' ? 'Nhập yêu cầu đặc biệt, dị ứng thức ăn...' : 'Special requests, dietary requirements...'}
                   className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 resize-none"
                 />
               </div>
+            </div>
 
-              {/* Price breakdown */}
-              <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
-                <p className="text-xs font-bold text-gray-500 uppercase mb-2">{language === 'vi' ? 'Chi tiết giá' : 'Price breakdown'}</p>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span><span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span></div>
-                {tourBookingChildren > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span><span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span></div>}
-                {tourAccommodation !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_accommodation_cost}</span><span className="font-bold">{accomCost.toLocaleString()}đ</span></div>}
-                {tourMealPlan !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_meal_cost}</span><span className="font-bold">{mealCost.toLocaleString()}đ</span></div>}
-                {discountAmount > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm text-gray-400">
-                      <span>{language === 'vi' ? 'Giá tour' : 'Tour subtotal'}</span>
-                      <span>{tourSubtotal.toLocaleString()}đ</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-green-600 font-medium">
-                      <span>{language === 'vi' ? `Giảm giá ${selectedTour?.discountPercent}%` : `Discount ${selectedTour?.discountPercent}%`}</span>
-                      <span>-{discountAmount.toLocaleString()}đ</span>
-                    </div>
-                  </>
-                )}
-                <div className="border-t border-daiichi-accent/40 pt-2 flex justify-between">
-                  <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
-                  <span className="text-xl font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
-                </div>
+            {/* Price summary */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-2">
+              <p className="text-xs font-bold text-gray-500 uppercase mb-3">{language === 'vi' ? 'Chi tiết giá' : 'Price breakdown'}</p>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span>
+                <span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span>
               </div>
-
-              {tourBookingError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 font-medium">
-                  {tourBookingError}
+              {tourBookingChildren > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span>
+                  <span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span>
                 </div>
               )}
+              {accomCost > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{t.tour_accommodation_cost}</span>
+                  <span className="font-bold">{accomCost.toLocaleString()}đ</span>
+                </div>
+              )}
+              {mealCost > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{t.tour_meal_cost}</span>
+                  <span className="font-bold">{mealCost.toLocaleString()}đ</span>
+                </div>
+              )}
+              {addonsCost > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{t.tour_addons_label || (language === 'vi' ? 'Dịch vụ thêm' : 'Add-ons')}</span>
+                  <span className="font-bold">{addonsCost.toLocaleString()}đ</span>
+                </div>
+              )}
+              {surchargeAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{selectedTour?.surchargeNote || (language === 'vi' ? 'Phụ phí' : 'Surcharge')}</span>
+                  <span className="font-bold">{surchargeAmount.toLocaleString()}đ</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between text-sm text-gray-400">
+                    <span>{language === 'vi' ? 'Tạm tính' : 'Subtotal'}</span>
+                    <span>{tourSubtotal.toLocaleString()}đ</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-green-600 font-medium">
+                    <span>{language === 'vi' ? `Giảm giá ${selectedTour?.discountPercent}%` : `Discount ${selectedTour?.discountPercent}%`}</span>
+                    <span>-{discountAmount.toLocaleString()}đ</span>
+                  </div>
+                </>
+              )}
+              <div className="border-t border-gray-100 pt-3 flex justify-between">
+                <span className="text-sm font-bold text-gray-500 uppercase">{t.total_amount}</span>
+                <span className="text-xl font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
+              </div>
+            </div>
 
+            {tourBookingError && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 font-medium">
+                {tourBookingError}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {!tourBookingDate || !tourBookingName.trim() || !tourBookingPhone.trim() ? (
+              <p className="text-center text-xs text-gray-400">
+                {language === 'vi' ? '* Vui lòng điền ngày khởi hành, tên và số điện thoại trước khi đặt.' : '* Please fill in departure date, name and phone before booking.'}
+              </p>
+            ) : null}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Reserve */}
               <button
                 type="button"
                 disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
-                onClick={handleTourBooking}
+                onClick={() => handleTourBooking('PENDING')}
                 className={cn(
-                  "w-full py-4 text-white rounded-xl font-bold shadow-lg",
+                  "w-full py-4 rounded-xl font-bold border-2 flex items-center justify-center gap-2 transition-all",
                   !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
-                    ? "bg-daiichi-red shadow-daiichi-red/20"
-                    : "bg-gray-300 shadow-gray-200 cursor-not-allowed"
+                    ? "border-daiichi-red text-daiichi-red hover:bg-daiichi-red/5"
+                    : "border-gray-200 text-gray-300 cursor-not-allowed"
                 )}
               >
-                {isTourBookingLoading ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...') : t.confirm_tour_booking}
+                🔒 {isTourBookingLoading && tourBookingStatus === 'PENDING'
+                  ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                  : (t.tour_reserve || (language === 'vi' ? 'Giữ chỗ (miễn phí)' : 'Reserve (Free)'))}
               </button>
+              {/* Pay now */}
+              <div className="space-y-2">
+                <select
+                  value={tourPaymentMethod}
+                  onChange={(e) => setTourPaymentMethod(e.target.value as PaymentMethod)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
+                >
+                  {PAYMENT_METHODS.map(m => (
+                    <option key={m} value={m}>{t[PAYMENT_METHOD_TRANSLATION_KEYS[m]]}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
+                  onClick={() => handleTourBooking('CONFIRMED')}
+                  className={cn(
+                    "w-full py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all",
+                    !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
+                      ? "bg-daiichi-red text-white shadow-daiichi-red/20 hover:scale-[1.01]"
+                      : "bg-gray-300 text-white shadow-gray-200 cursor-not-allowed"
+                  )}
+                >
+                  💳 {isTourBookingLoading && tourBookingStatus === 'CONFIRMED'
+                    ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                    : (t.tour_pay_now || (language === 'vi' ? 'Thanh toán ngay' : 'Pay Now'))}
+                </button>
+              </div>
             </div>
           </div>
         );

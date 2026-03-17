@@ -31,13 +31,14 @@ interface TourData {
   numChildren?: number;   // number of children (>4 years old) in the tour group
   duration?: string;      // e.g., "3 ngày 2 đêm"
   nights?: number;        // number of overnight stays
-  pricePerNight?: number; // overnight cost per night (flat rate for the tour group)
-  breakfastCount?: number;    // total breakfast meals included in the tour
-  pricePerBreakfast?: number; // price per breakfast session (flat rate for the tour group)
+  pricePerNight?: number; // overnight cost per person per night
+  breakfastCount?: number;    // number of breakfast meals per person
+  pricePerBreakfast?: number; // price per breakfast per person
   surcharge?: number;         // additional surcharge amount (flat fee)
   surchargeNote?: string;     // description of the surcharge
   youtubeUrl?: string;        // optional YouTube video link for the tour
   itinerary?: { day: number; content: string }[];
+  addons?: { id: string; name: string; price: number; description?: string }[]; // optional add-on services
 }
 
 export const transportService = {
