@@ -2636,106 +2636,122 @@ export default function App() {
                   const carouselIdx = tripCardImgIdx[trip.id] ?? 0;
                   const currentImg = routeImages[carouselIdx] ?? null;
                   const isTripRevealed = hasSearched || clearedTripCards.has(trip.id);
+                  const tripVehicle = vehicles.find(v => v.licensePlate === trip.licensePlate);
+                  const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
                   return (
                   <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
                     {/* Route name – full-width header row */}
                     <div className="px-3 pt-2.5 pb-1">
                       <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase block text-center w-full">{trip.route}</span>
                     </div>
-                    {/* Image + details – always side by side (horizontal) on both mobile and desktop */}
-                    <div className="flex flex-row pb-2">
-                      {/* Route image – compact square on mobile, slightly larger on desktop */}
-                      {(currentImg || vehicleImg) ? (
-                        <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5">
-                          {currentImg && (
-                            <img
-                              src={currentImg}
-                              alt={trip.route}
-                              className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
-                              style={{ filter: isTripRevealed ? 'none' : 'blur(12px)', transform: isTripRevealed ? 'scale(1)' : 'scale(1.1)' }}
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
-                          {vehicleImg && (
-                            <img
-                              src={vehicleImg}
-                              alt={trip.licensePlate}
-                              className="absolute bottom-1 right-1 w-12 h-8 object-cover rounded-lg border-2 border-white shadow-md transition-all duration-700"
-                              style={{ filter: isTripRevealed ? 'none' : 'blur(8px)' }}
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
-                          {/* Carousel prev/next buttons */}
-                          {isTripRevealed && routeImages.length > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx - 1 + routeImages.length) % routeImages.length })); }}
-                                className="absolute left-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
-                                aria-label="Previous image"
-                              >‹</button>
-                              <button
-                                type="button"
-                                onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx + 1) % routeImages.length })); }}
-                                className="absolute right-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
-                                aria-label="Next image"
-                              >›</button>
-                              {/* Dot indicators */}
-                              <div className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5 z-10">
-                                {routeImages.map((_, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    aria-label={`Ảnh ${idx + 1}`}
-                                    onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: idx })); }}
-                                    className="w-4 h-4 flex items-center justify-center rounded-full transition-all hover:bg-black/20"
-                                  >
-                                    <span className={cn("w-1 h-1 rounded-full block transition-all", idx === carouselIdx ? "bg-white" : "bg-white/50")} />
-                                  </button>
-                                ))}
+                    {/* 3-column body: [image | schedule info | seats+price+CTA] */}
+                    {/* Mobile: image full-width on top row, info columns side by side below */}
+                    {/* Desktop (md+): all 3 columns side by side */}
+                    <div className="grid grid-cols-2 md:grid-cols-[2fr_1.5fr_1.5fr] gap-2 px-2 pb-2">
+                      {/* Column 1: Large route image – full width on mobile, proportional column on desktop */}
+                      <div className="col-span-2 md:col-span-1 relative overflow-hidden rounded-2xl aspect-video md:aspect-auto md:min-h-[110px]">
+                        {(currentImg || vehicleImg) ? (
+                          <>
+                            {currentImg && (
+                              <img
+                                src={currentImg}
+                                alt={trip.route}
+                                className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
+                                style={{ filter: isTripRevealed ? 'none' : 'blur(12px)', transform: isTripRevealed ? 'scale(1)' : 'scale(1.1)' }}
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            {vehicleImg && (
+                              <img
+                                src={vehicleImg}
+                                alt={trip.licensePlate}
+                                className="absolute bottom-1 right-1 w-12 h-8 object-cover rounded-lg border-2 border-white shadow-md transition-all duration-700"
+                                style={{ filter: isTripRevealed ? 'none' : 'blur(8px)' }}
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            {/* Carousel prev/next buttons */}
+                            {isTripRevealed && routeImages.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx - 1 + routeImages.length) % routeImages.length })); }}
+                                  className="absolute left-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
+                                  aria-label="Previous image"
+                                >‹</button>
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: (carouselIdx + 1) % routeImages.length })); }}
+                                  className="absolute right-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white text-xs hover:bg-black/60 transition-all z-10"
+                                  aria-label="Next image"
+                                >›</button>
+                                {/* Dot indicators */}
+                                <div className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5 z-10">
+                                  {routeImages.map((_, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      aria-label={`Ảnh ${idx + 1}`}
+                                      onClick={e => { e.stopPropagation(); setTripCardImgIdx(prev => ({ ...prev, [trip.id]: idx })); }}
+                                      className="w-4 h-4 flex items-center justify-center rounded-full transition-all hover:bg-black/20"
+                                    >
+                                      <span className={cn("w-1 h-1 rounded-full block transition-all", idx === carouselIdx ? "bg-white" : "bg-white/50")} />
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                            {!isTripRevealed && (
+                              <div
+                                className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+                                onClick={() => setClearedTripCards(prev => new Set([...prev, trip.id]))}
+                              >
+                                <span className="text-white text-[9px] font-bold bg-black/40 px-1.5 py-0.5 rounded-full text-center leading-tight">
+                                  {language === 'vi' ? '👆 Chạm xem ảnh' : '👆 Tap to reveal'}
+                                </span>
                               </div>
-                            </>
-                          )}
-                          {!isTripRevealed && (
-                            <div
-                              className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
-                              onClick={() => setClearedTripCards(prev => new Set([...prev, trip.id]))}
-                            >
-                              <span className="text-white text-[9px] font-bold bg-black/40 px-1.5 py-0.5 rounded-full text-center leading-tight">
-                                {language === 'vi' ? '👆 Chạm xem ảnh' : '👆 Tap to reveal'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5 bg-gray-100 flex items-center justify-center">
-                          <Bus size={28} className="text-gray-300" />
-                        </div>
-                      )}
-                      {/* Trip details */}
-                      <div className="flex-1 pr-3 py-1 flex flex-col gap-0.5 min-w-0">
+                            )}
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
+                            <Bus size={28} className="text-gray-300" />
+                          </div>
+                        )}
+                      </div>
+                      {/* Column 2: Vehicle type + departure time + date/schedule */}
+                      <div className="col-span-1 flex flex-col justify-center gap-1.5 py-1 min-w-0">
+                        {/* Vehicle type */}
+                        {tripVehicle?.type && (
+                          <div className="flex items-center gap-1">
+                            <Bus size={10} className="flex-shrink-0 text-gray-400" />
+                            <span className="text-[10px] text-gray-500 truncate">{tripVehicle.type}</span>
+                          </div>
+                        )}
                         {/* License plate */}
-                        <span className="text-[10px] text-gray-400 truncate">{trip.licensePlate}</span>
-                        {/* Time + departure label + date */}
+                        <span className="text-[9px] text-gray-400 truncate">{trip.licensePlate}</span>
+                        {/* Departure time */}
                         <div>
-                          <p className="text-lg sm:text-xl font-bold text-gray-800 leading-tight">{trip.time}</p>
+                          <p className="text-lg font-bold text-gray-800 leading-tight">{trip.time}</p>
                           <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">{t.departure}</p>
-                          {trip.date && (
-                            <span className={cn("inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
-                              {formatTripDateDisplay(trip.date)}
-                            </span>
-                          )}
                         </div>
-                        {/* Driver + seats */}
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                            <Users size={10} className="flex-shrink-0" />
-                            <span className="truncate">{trip.driverName}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                            <Bus size={10} className="flex-shrink-0" />
-                            <span>{(trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length} {t.seats_left}</span>
-                          </div>
+                        {/* Date */}
+                        {trip.date && (
+                          <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
+                            {formatTripDateDisplay(trip.date)}
+                          </span>
+                        )}
+                        {/* Driver name */}
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                          <Users size={10} className="flex-shrink-0" />
+                          <span className="truncate">{trip.driverName}</span>
+                        </div>
+                      </div>
+                      {/* Column 3: Seats left + price + CTA button */}
+                      <div className="col-span-1 flex flex-col justify-between gap-1.5 py-1 pr-1 min-w-0">
+                        {/* Seats left */}
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                          <Bus size={10} className="flex-shrink-0" />
+                          <span className="truncate">{emptySeats} {t.seats_left}</span>
                         </div>
                         {/* Add-ons badge */}
                         {(trip.addons || []).length > 0 && (
@@ -2744,28 +2760,27 @@ export default function App() {
                             {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
                           </span>
                         )}
-                        {/* Price + CTA on the same row – eliminates wasted space at card bottom */}
-                        <div className="mt-auto flex items-center justify-between gap-2 pt-0.5">
-                          <div className="min-w-0">
-                            {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
-                              <div>
-                                <p className="text-sm font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
-                                <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
-                                <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
-                                  💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
-                                </span>
-                              </div>
-                            ) : (
-                              <p className="text-sm font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
-                            className="flex-shrink-0 px-3 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10 whitespace-nowrap"
-                          >
-                            {t.select_seat}
-                          </button>
+                        {/* Price */}
+                        <div className="mt-auto">
+                          {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
+                            <div>
+                              <p className="text-sm font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
+                              <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                              <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
+                                💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
+                          )}
                         </div>
+                        {/* Select seat CTA */}
+                        <button
+                          onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
+                          className="w-full px-2 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
+                        >
+                          {t.select_seat}
+                        </button>
                       </div>
                     </div>
                   </div>
