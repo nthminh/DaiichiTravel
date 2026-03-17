@@ -45,13 +45,16 @@ import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { UserGuide } from './components/UserGuide';
 import { CustomerManagement } from './components/CustomerManagement';
+import { PaymentQRModal } from './components/PaymentQRModal';
+import { PaymentManagement } from './components/PaymentManagement';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
 export type { Language };
 
-const DEFAULT_PAYMENT_METHOD: PaymentMethod = 'Tiền mặt';
+const DEFAULT_PAYMENT_METHOD: PaymentMethod = 'Chuyển khoản QR';
 const PAYMENT_METHOD_TRANSLATION_KEYS: Record<PaymentMethod, string> = {
+  'Chuyển khoản QR': 'payment_qr',
   'Tiền mặt': 'payment_cash',
   'Chuyển khoản': 'payment_transfer',
   'Thẻ tín dụng': 'payment_card',
@@ -540,6 +543,8 @@ export default function App() {
   const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [extraSeatIds, setExtraSeatIds] = useState<string[]>([]);
   const [bookingNote, setBookingNote] = useState('');
+  // QR Payment flow state – holds the callback to execute after user confirms QR payment
+  const [pendingQrBooking, setPendingQrBooking] = useState<{ amount: number; ref: string; label: string; execute: () => Promise<void> } | null>(null);
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -2085,81 +2090,97 @@ export default function App() {
       ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
     };
 
-    try {
-      // Save booking to Firebase (always cloud – no local fallback)
-      const result = await transportService.createBooking(bookingData);
+    // Core save function – shared by both QR and direct booking paths
+    const saveBooking = async () => {
+      try {
+        const result = await transportService.createBooking(bookingData);
+        await transportService.bookSeats(selectedTrip.id, allSeatIds, seatUpdateData);
+        setLastBooking({ ...bookingData, id: result.id, ticketCode: result.ticketCode });
+      } catch (err) {
+        console.error('Failed to save booking:', err);
+        alert(language === 'vi'
+          ? 'Đặt vé thất bại: Không thể kết nối đến máy chủ. Vui lòng thử lại.'
+          : 'Booking failed: Unable to connect to server. Please try again.');
+        return;
+      }
 
-      // Update seat status in Firebase for all seats atomically
-      await transportService.bookSeats(selectedTrip.id, allSeatIds, seatUpdateData);
+      setIsTicketOpen(true);
+      setShowBookingForm(null);
 
-      setLastBooking({ ...bookingData, id: result.id, ticketCode: result.ticketCode });
-    } catch (err) {
-      console.error('Failed to save booking:', err);
-      alert(language === 'vi'
-        ? 'Đặt vé thất bại: Không thể kết nối đến máy chủ. Vui lòng thử lại.'
-        : 'Booking failed: Unable to connect to server. Please try again.');
+      // Reset form inputs
+      setCustomerNameInput('');
+      setPhoneInput('');
+      setAdults(1);
+      setChildren(0);
+      setChildrenAges([]);
+      setExtraSeatIds([]);
+      setPickupPoint('');
+      setDropoffPoint('');
+      setPickupAddress('');
+      setDropoffAddress('');
+      setPickupSurcharge(0);
+      setDropoffSurcharge(0);
+      setSurchargeAmount(0);
+      setBookingDiscount(0);
+      setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
+      setAddonQuantities({});
+      setBookingNote('');
+      // Reset fare-table state
+      setFareAmount(null);
+      setFareAgentAmount(null);
+      setFareError('');
+      setFareLoading(false);
+      setFromStopId('');
+      setToStopId('');
+      setSeatSelectionHistory([]);
+
+      // Send real-time notification
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'NEW_BOOKING',
+          customerName: bookingData.customerName,
+          route: bookingData.route,
+          time: bookingData.time,
+          amount: bookingData.amount
+        }));
+      }
+
+      // Optimistic local state update while Firebase listener syncs
+      setTrips(prev => prev.map(trip => {
+        if (trip.id === selectedTrip.id) {
+          return {
+            ...trip,
+            seats: trip.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
+          };
+        }
+        return trip;
+      }));
+      // Also update selectedTrip immediately so the seat diagram reflects the new status
+      setSelectedTrip((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          seats: prev.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
+        };
+      });
+    };
+
+    // When payment method is QR bank transfer, show the QR modal first
+    if (paymentMethodInput === 'Chuyển khoản QR') {
+      const paymentReference = transportService.generateTicketCode();
+      // Store the reference so it shows in the QR modal and is saved with the booking
+      (bookingData as any).paymentRef = paymentReference;
+      setPendingQrBooking({
+        amount: totalAmount,
+        ref: paymentReference,
+        label: bookingData.customerName,
+        execute: saveBooking,
+      });
       return;
     }
 
-    setIsTicketOpen(true);
-    setShowBookingForm(null);
-
-    // Reset form inputs
-    setCustomerNameInput('');
-    setPhoneInput('');
-    setAdults(1);
-    setChildren(0);
-    setChildrenAges([]);
-    setExtraSeatIds([]);
-    setPickupPoint('');
-    setDropoffPoint('');
-    setPickupAddress('');
-    setDropoffAddress('');
-    setPickupSurcharge(0);
-    setDropoffSurcharge(0);
-    setSurchargeAmount(0);
-    setBookingDiscount(0);
-    setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
-    setAddonQuantities({});
-    setBookingNote('');
-    // Reset fare-table state
-    setFareAmount(null);
-    setFareAgentAmount(null);
-    setFareError('');
-    setFareLoading(false);
-    setFromStopId('');
-    setToStopId('');
-    setSeatSelectionHistory([]);
-
-    // Send real-time notification
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'NEW_BOOKING',
-        customerName: bookingData.customerName,
-        route: bookingData.route,
-        time: bookingData.time,
-        amount: bookingData.amount
-      }));
-    }
-    
-    // Optimistic local state update while Firebase listener syncs
-    setTrips(prev => prev.map(trip => {
-      if (trip.id === selectedTrip.id) {
-        return {
-          ...trip,
-          seats: trip.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
-        };
-      }
-      return trip;
-    }));
-    // Also update selectedTrip immediately so the seat diagram reflects the new status
-    setSelectedTrip((prev: any) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        seats: prev.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
-      };
-    });
+    // All other payment methods – save immediately
+    await saveBooking();
   };
 
   // --- Route price period helpers ---
@@ -6930,6 +6951,16 @@ export default function App() {
       case 'financial-report':
         return <FinancialReport language={language} agents={agents} bookings={bookings} invoices={invoices} />;
 
+      case 'payment-management':
+        return (
+          <PaymentManagement
+            language={language}
+            bookings={bookings}
+            agents={agents}
+            currentUser={currentUser}
+          />
+        );
+
       case 'consignments': {
         const filteredConsignments = consignments.filter(c => {
           const searchOk = !consignmentSearch ||
@@ -7284,6 +7315,21 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* QR Payment Modal – shown when paymentMethod is 'Chuyển khoản QR' */}
+      {pendingQrBooking && (
+        <PaymentQRModal
+          amount={pendingQrBooking.amount}
+          paymentRef={pendingQrBooking.ref}
+          language={language}
+          bookingLabel={pendingQrBooking.label}
+          onConfirm={async () => {
+            await pendingQrBooking.execute();
+            setPendingQrBooking(null);
+          }}
+          onCancel={() => setPendingQrBooking(null)}
+        />
+      )}
 
       <TicketModal
         isOpen={isTicketOpen}
