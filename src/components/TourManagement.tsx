@@ -318,7 +318,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
 
   const handleCopyTour = (tour: Tour) => {
     setNewTour({
-      title: `Bản sao - ${tour.title}`,
+      title: language === 'vi' ? `Bản sao - ${tour.title}` : `Copy - ${tour.title}`,
       description: tour.description,
       price: tour.price,
       imageUrl: tour.imageUrl,
@@ -803,14 +803,21 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                   ? Math.round(effectivePrice * (1 - tour.discountPercent / 100))
                   : null;
                 const isExpanded = expandedTourId === tour.id;
-                const schedule = (tour.startDate || tour.endDate)
-                  ? `${tour.startDate || '?'} → ${tour.endDate || '?'}`
-                  : '—';
+                const schedule = (tour.startDate && tour.endDate)
+                  ? `${tour.startDate} → ${tour.endDate}`
+                  : tour.startDate
+                    ? `${tour.startDate} →`
+                    : tour.endDate
+                      ? `→ ${tour.endDate}`
+                      : '—';
 
                 return (
                   <React.Fragment key={tour.id}>
                     <tr
                       onClick={() => handleRowClick(tour)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowClick(tour); } }}
+                      role="button"
+                      tabIndex={0}
                       className={`border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 ${isExpanded ? 'bg-orange-50/40' : ''}`}
                     >
                       <td className="px-4 py-3 text-gray-400">
