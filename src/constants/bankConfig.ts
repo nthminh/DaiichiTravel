@@ -86,25 +86,26 @@ export function generateVietQrString(params: {
   // Field 60: Merchant City
   // Field 62: Additional Data (reference label)
   const amount = params.amount.toString();
-  const desc = params.description.slice(0, 25); // max 25 chars
+  const desc = params.description.slice(0, 25); // max 25 chars per EMVCo spec
+  // Field 38 inner content: GUID (14 chars) + tag 01 (bankBin) + tag 02 (accountNumber)
+  const innerContent =
+    `0010A000000727` +
+    `01${cfg.bankBin.length.toString().padStart(2, '0')}${cfg.bankBin}` +
+    `02${cfg.accountNumber.length.toString().padStart(2, '0')}${cfg.accountNumber}`;
+  // Field 62 additional data: tag 01 (reference label) = 2 bytes tag + 2 bytes length + value
+  // The outer length = 4 (for "01" + 2-digit length indicator) + desc.length
+  const additionalDataLen = (4 + desc.length).toString().padStart(2, '0');
   return [
     '000201',
     '010212',
-    `38${String(
-      `0010A000000727` +
-      `01${String(`00${cfg.bankBin}`.slice(-10)).padStart(2, '0').length.toString().padStart(2, '0')}${cfg.bankBin}` +
-      `02${cfg.accountNumber.length.toString().padStart(2, '0')}${cfg.accountNumber}`
-    ).length.toString().padStart(2, '0')}` +
-    `0010A000000727` +
-    `01${cfg.bankBin.length.toString().padStart(2, '0')}${cfg.bankBin}` +
-    `02${cfg.accountNumber.length.toString().padStart(2, '0')}${cfg.accountNumber}`,
+    `38${innerContent.length.toString().padStart(2, '0')}${innerContent}`,
     '5204' + '7999',
     '5303' + '704',
     `54${amount.length.toString().padStart(2, '0')}${amount}`,
     '5802VN',
     `59${cfg.accountName.slice(0, 25).length.toString().padStart(2, '0')}${cfg.accountName.slice(0, 25)}`,
     '6007HCMC',
-    `62${(desc.length + 4).toString().padStart(2, '0')}01${desc.length.toString().padStart(2, '0')}${desc}`,
+    `62${additionalDataLen}01${desc.length.toString().padStart(2, '0')}${desc}`,
     '6304',
   ].join('');
 }

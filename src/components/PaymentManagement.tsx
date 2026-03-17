@@ -98,7 +98,17 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
   // ── Export to CSV ─────────────────────────────────────────────────────────
   const handleExport = () => {
     const rows = [
-      ['Mã vé', 'Khách hàng', 'Số điện thoại', 'Tuyến', 'Ngày', 'Số tiền', 'Hình thức', 'Trạng thái', 'Đại lý'],
+      [
+        t.payment_ticket_code || 'Mã vé',
+        t.payment_customer || 'Khách hàng',
+        language === 'vi' ? 'Số điện thoại' : language === 'ja' ? '電話番号' : 'Phone',
+        language === 'vi' ? 'Tuyến' : language === 'ja' ? 'ルート' : 'Route',
+        t.payment_date || 'Ngày',
+        t.payment_amount_col || 'Số tiền',
+        t.payment_method_col || 'Hình thức',
+        t.status || 'Trạng thái',
+        language === 'vi' ? 'Đại lý' : language === 'ja' ? '代理店' : 'Agent',
+      ],
       ...filtered.map(b => [
         b.ticketCode || b.id,
         b.customerName || '',

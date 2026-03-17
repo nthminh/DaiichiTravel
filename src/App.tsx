@@ -2167,12 +2167,12 @@ export default function App() {
 
     // When payment method is QR bank transfer, show the QR modal first
     if (paymentMethodInput === 'Chuyển khoản QR') {
-      const preRef = `${transportService.generateTicketCode()}`;
-      // Store the ref so it shows in the QR modal and will be attached to the saved booking
-      (bookingData as any).paymentRef = preRef;
+      const paymentReference = transportService.generateTicketCode();
+      // Store the reference so it shows in the QR modal and is saved with the booking
+      (bookingData as any).paymentRef = paymentReference;
       setPendingQrBooking({
         amount: totalAmount,
-        ref: preRef,
+        ref: paymentReference,
         label: bookingData.customerName,
         execute: saveBooking,
       });

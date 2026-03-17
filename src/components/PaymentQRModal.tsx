@@ -241,7 +241,7 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const paymentRef = `NAPAS${agentCode}`;
+  const paymentRef = `TOPUP${agentCode}`;
   const description = `NAP TIEN DAI LY ${agentCode}`;
 
   const qrImageUrl = showQr && topUpAmount > 0
