@@ -646,12 +646,32 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberOtpLoading(true);
     setMemberOtpError('');
     try {
-      const actionCodeSettings = {
-        // After clicking the link the user is redirected back to this URL (no extra query params)
-        url: window.location.origin + window.location.pathname,
-        handleCodeInApp: true,
-      };
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      const redirectUrl = window.location.origin + window.location.pathname;
+      // Try the branded Cloud Function first; fall back to Firebase's default email
+      // when the Cloud Function is unavailable (e.g. SMTP not configured).
+      let usedCloudFunction = false;
+      try {
+        const fns = getFunctions(app, 'asia-southeast1');
+        const sendLink = httpsCallable<{ email: string; redirectUrl: string }, { success: boolean }>(
+          fns, 'sendEmailLoginLink');
+        await sendLink({ email, redirectUrl });
+        usedCloudFunction = true;
+      } catch (cfErr: unknown) {
+        // Only fall back on unavailable/internal errors (e.g. SMTP not configured).
+        // Re-throw auth/invalid-email and similar hard failures so the user sees them.
+        const cfCode: string = (cfErr !== null && typeof cfErr === 'object' && 'code' in cfErr)
+          ? String((cfErr as { code: unknown }).code)
+          : '';
+        if (cfCode !== 'functions/unavailable' && cfCode !== 'functions/internal') {
+          throw cfErr;
+        }
+      }
+      if (!usedCloudFunction) {
+        await sendSignInLinkToEmail(auth, email, {
+          url: redirectUrl,
+          handleCodeInApp: true,
+        });
+      }
       // Persist email so the completion handler can read it after redirect
       window.localStorage.setItem('emailForSignIn', email);
       setMemberAuthStep('email-sent');
