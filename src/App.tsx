@@ -209,6 +209,9 @@ export default function App() {
   const [fareLoading, setFareLoading] = useState(false);
   const [fromStopId, setFromStopId] = useState('');
   const [toStopId, setToStopId] = useState('');
+  // Seat ID that triggered a segment-conflict warning (cleared after a short timeout)
+  const [segmentConflictSeat, setSegmentConflictSeat] = useState<string | null>(null);
+  const segmentConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref to track the latest fare request and discard stale responses
   const fareRequestIdRef = useRef(0);
   // Tour booking states
@@ -2042,6 +2045,28 @@ export default function App() {
     const fromStopOrder = tripRoute?.routeStops?.find(s => s.stopId === fromStopId)?.order;
     const toStopOrder = tripRoute?.routeStops?.find(s => s.stopId === toStopId)?.order;
 
+    // Guard: if the selected seat already has segment bookings that overlap with the current
+    // segment selection, block the booking and show a warning.
+    if (fromStopOrder !== undefined && toStopOrder !== undefined && !isFreeSeating) {
+      const conflictSeatIds = allSeatIds.filter(sid => {
+        const seatData = selectedTrip.seats.find((s: any) => s.id === sid);
+        if (!seatData) return false;
+        const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
+          (seatData.segmentBookings ?? []).length > 0
+            ? seatData.segmentBookings
+            : (seatData.fromStopOrder !== undefined && seatData.toStopOrder !== undefined
+                ? [{ fromStopOrder: seatData.fromStopOrder, toStopOrder: seatData.toStopOrder }]
+                : []);
+        return segs.some(seg => seg.fromStopOrder < toStopOrder && fromStopOrder < seg.toStopOrder);
+      });
+      if (conflictSeatIds.length > 0) {
+        alert(language === 'vi'
+          ? `Chặng này, ghế ${conflictSeatIds.join(', ')} đã có người ngồi rồi — vui lòng chọn chặng khác.`
+          : `Segment already booked for seat(s) ${conflictSeatIds.join(', ')} — please choose a different segment.`);
+        return;
+      }
+    }
+
     const bookingData = {
       customerName: customerNameInput.trim() || (language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
       phone: phoneInput.trim(),
@@ -2146,22 +2171,52 @@ export default function App() {
       }
 
       // Optimistic local state update while Firebase listener syncs
+      const applyOptimisticSeatUpdate = (seat: any): any => {
+        if (!allSeatIds.includes(seat.id)) return seat;
+        // For segment bookings: update segmentBookings array instead of just status
+        if (fromStopOrder !== undefined && toStopOrder !== undefined) {
+          const newEntry = {
+            fromStopOrder,
+            toStopOrder,
+            customerName: seatUpdateData.customerName,
+            ...(seatUpdateData.customerPhone ? { customerPhone: seatUpdateData.customerPhone } : {}),
+            ...(seatUpdateData.pickupPoint ? { pickupPoint: seatUpdateData.pickupPoint } : {}),
+            ...(seatUpdateData.dropoffPoint ? { dropoffPoint: seatUpdateData.dropoffPoint } : {}),
+            ...(seatUpdateData.bookingNote ? { bookingNote: seatUpdateData.bookingNote } : {}),
+          };
+          const existingSegs = seat.segmentBookings ?? [];
+          // Determine if the seat already has any segment booking data (same logic as bookSeats)
+          const hasExistingSegmentBooking = existingSegs.length > 0 || (seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined);
+          if (hasExistingSegmentBooking) {
+            let segs = existingSegs;
+            if (existingSegs.length === 0 && seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined) {
+              segs = [{
+                fromStopOrder: seat.fromStopOrder,
+                toStopOrder: seat.toStopOrder,
+                customerName: seat.customerName,
+                customerPhone: seat.customerPhone,
+                pickupPoint: seat.pickupPoint,
+                dropoffPoint: seat.dropoffPoint,
+                bookingNote: seat.bookingNote,
+              }];
+            }
+            return { ...seat, status: SeatStatus.BOOKED, segmentBookings: [...segs, newEntry] };
+          }
+          return { ...seat, ...seatUpdateData, segmentBookings: [newEntry] };
+        }
+        return { ...seat, status: SeatStatus.BOOKED };
+      };
+
       setTrips(prev => prev.map(trip => {
         if (trip.id === selectedTrip.id) {
-          return {
-            ...trip,
-            seats: trip.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
-          };
+          return { ...trip, seats: trip.seats.map(applyOptimisticSeatUpdate) };
         }
         return trip;
       }));
       // Also update selectedTrip immediately so the seat diagram reflects the new status
       setSelectedTrip((prev: any) => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          seats: prev.seats.map((s: any) => allSeatIds.includes(s.id) ? { ...s, status: SeatStatus.BOOKED } : s)
-        };
+        return { ...prev, seats: prev.seats.map(applyOptimisticSeatUpdate) };
       });
     };
 
@@ -3078,13 +3133,20 @@ export default function App() {
             if (currentFromOrder < 0 || currentToOrder < 0) return rawStatus;
             // Look up the seat's stop orders from the trip seat data
             const seatData = selectedTrip.seats.find((s: any) => s.id === seatId);
-            const sFrom = seatData?.fromStopOrder;
-            const sTo = seatData?.toStopOrder;
-            if (sFrom === undefined || sTo === undefined) return rawStatus;
+            // Collect all segment bookings: prefer the new segmentBookings array, fall back to legacy fields
+            const segments: Array<{ fromStopOrder: number; toStopOrder: number }> =
+              (seatData?.segmentBookings ?? []).length > 0
+                ? seatData.segmentBookings
+                : (seatData?.fromStopOrder !== undefined && seatData?.toStopOrder !== undefined
+                    ? [{ fromStopOrder: seatData.fromStopOrder, toStopOrder: seatData.toStopOrder }]
+                    : []);
+            if (segments.length === 0) return rawStatus;
             // Two segments [sFrom, sTo) and [currentFromOrder, currentToOrder) overlap iff:
             //   sFrom < currentToOrder AND currentFromOrder < sTo
-            const overlaps = sFrom < currentToOrder && currentFromOrder < sTo;
-            if (!overlaps) return SeatStatus.EMPTY; // seat is free for our segment
+            const anyOverlap = segments.some(
+              seg => seg.fromStopOrder < currentToOrder && currentFromOrder < seg.toStopOrder
+            );
+            if (!anyOverlap) return SeatStatus.EMPTY; // seat is free for our segment
             return rawStatus;
           };
 
@@ -3094,13 +3156,53 @@ export default function App() {
             const isSegmentFree = hasSegmentSelection && status === SeatStatus.EMPTY && rawStatus !== SeatStatus.EMPTY;
             const isPrimarySeat = seatId === showBookingForm;
             const isExtraSeat = extraSeatIds.includes(seatId);
+
+            // Detect a seat that is booked for a specific sub-segment on a multi-stop route.
+            // Such a seat is only half-colored: it may still be free for other segments.
+            const seatDataForBtn = selectedTrip.seats.find((s: any) => s.id === seatId);
+            const hasSegmentInfo =
+              (seatDataForBtn?.segmentBookings ?? []).length > 0 ||
+              (seatDataForBtn?.fromStopOrder !== undefined && seatDataForBtn?.toStopOrder !== undefined);
+            const isPartiallyBooked =
+              rawStatus !== SeatStatus.EMPTY &&
+              !isSegmentFree &&
+              !!(tripRoute?.routeStops?.length) &&
+              hasSegmentInfo &&
+              !isPrimarySeat &&
+              !isExtraSeat;
+
+            // Segment-conflict tooltip/warning badge
+            const hasConflictWarning = segmentConflictSeat === seatId;
+
             return (
               <motion.button
                 key={seatId}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
-                  if (status !== SeatStatus.EMPTY) return;
+                  if (status !== SeatStatus.EMPTY) {
+                    // Partially-booked seat on a multi-stop route
+                    if (isPartiallyBooked) {
+                      if (hasSegmentSelection) {
+                        // Segment conflict: the user's selected segment overlaps → warn
+                        if (segmentConflictTimerRef.current) clearTimeout(segmentConflictTimerRef.current);
+                        setSegmentConflictSeat(seatId);
+                        segmentConflictTimerRef.current = setTimeout(() => setSegmentConflictSeat(null), 3000);
+                      } else {
+                        // No segment selected yet → open the booking form so the user can
+                        // pick a non-overlapping segment
+                        if (!showBookingForm) {
+                          setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
+                          setShowBookingForm(seatId);
+                          if (currentUser?.role === UserRole.CUSTOMER) {
+                            if (currentUser.name) setCustomerNameInput(currentUser.name);
+                            if (currentUser.phone) setPhoneInput(currentUser.phone);
+                          }
+                        }
+                      }
+                    }
+                    return;
+                  }
                   if (showBookingForm) {
                     if (isPrimarySeat) return;
                     if (isExtraSeat) {
@@ -3125,20 +3227,38 @@ export default function App() {
                   }
                 }}
                 className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative",
-                  rawStatus === SeatStatus.PAID && !isSegmentFree && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
-                  rawStatus === SeatStatus.BOOKED && !isSegmentFree && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
+                  "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative overflow-hidden",
+                  // Fully-booked seats (no segment info on a multi-stop route, or non-multi-stop)
+                  rawStatus === SeatStatus.PAID && !isSegmentFree && !isPartiallyBooked && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
+                  rawStatus === SeatStatus.BOOKED && !isSegmentFree && !isPartiallyBooked && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
+                  // Partially-booked seat: half-colored via inline style below; apply border color only
+                  isPartiallyBooked && rawStatus === SeatStatus.PAID && "border-daiichi-red text-daiichi-red hover:border-daiichi-red cursor-pointer",
+                  isPartiallyBooked && rawStatus === SeatStatus.BOOKED && "border-daiichi-yellow text-daiichi-yellow hover:border-daiichi-red cursor-pointer",
                   isSegmentFree && !isPrimarySeat && !isExtraSeat && "bg-emerald-50 border-emerald-400 text-emerald-600 hover:border-daiichi-red hover:text-daiichi-red",
                   isPrimarySeat && "bg-daiichi-red/20 border-daiichi-red text-daiichi-red",
                   isExtraSeat && "bg-blue-100 border-blue-500 text-blue-600",
-                  status === SeatStatus.EMPTY && !isSegmentFree && !isPrimarySeat && !isExtraSeat && "bg-white border-gray-200 text-gray-500 hover:border-daiichi-red hover:text-daiichi-red"
+                  status === SeatStatus.EMPTY && !isSegmentFree && !isPrimarySeat && !isExtraSeat && "bg-white border-gray-200 text-gray-500 hover:border-daiichi-red hover:text-daiichi-red",
+                  hasConflictWarning && "ring-2 ring-offset-1 ring-orange-400"
                 )}
-                title={isSegmentFree ? (language === 'vi' ? 'Trống cho chặng này' : 'Free for this segment') : undefined}
+                style={isPartiallyBooked ? {
+                  background: rawStatus === SeatStatus.PAID
+                    ? 'linear-gradient(135deg, #E31B23 50%, #ffffff 50%)'
+                    : 'linear-gradient(135deg, #FBBF24 50%, #ffffff 50%)',
+                } : undefined}
+                title={
+                  isPartiallyBooked
+                    ? (language === 'vi' ? 'Ghế đã đặt một phần chặng — chọn ghế này để chọn chặng khác' : 'Partially booked — click to book a different segment')
+                    : isSegmentFree
+                      ? (language === 'vi' ? 'Trống cho chặng này' : 'Free for this segment')
+                      : undefined
+                }
               >
                 {seatId}
-                {rawStatus === SeatStatus.PAID && !isSegmentFree && <CheckCircle2 size={10} className="absolute top-0.5 right-0.5" />}
+                {rawStatus === SeatStatus.PAID && !isSegmentFree && !isPartiallyBooked && <CheckCircle2 size={10} className="absolute top-0.5 right-0.5" />}
                 {isExtraSeat && <span className="absolute top-0 right-0.5 text-[7px] font-bold text-blue-600">+</span>}
                 {isSegmentFree && <span className="absolute top-0 right-0 text-[7px] font-bold text-emerald-600">✓</span>}
+                {isPartiallyBooked && <span className="absolute top-0 right-0 text-[7px] font-bold leading-none" style={{ color: rawStatus === SeatStatus.PAID ? '#E31B23' : '#FBBF24' }}>½</span>}
+                {hasConflictWarning && <span className="absolute bottom-0 left-0 right-0 text-[7px] font-bold text-orange-600 text-center leading-tight bg-orange-50">!</span>}
               </motion.button>
             );
           };
@@ -3262,10 +3382,30 @@ export default function App() {
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-yellow rounded" /> {t.booked}</div>
                   <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white border border-gray-200 rounded" /> {t.empty}</div>
+                  {!!(tripRoute?.routeStops?.length) && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded border-2 border-daiichi-yellow overflow-hidden" style={{ background: 'linear-gradient(135deg, #FBBF24 50%, #ffffff 50%)' }} />
+                      {language === 'vi' ? 'Đặt một phần chặng' : language === 'ja' ? '区間の一部予約' : 'Partial segment'}
+                    </div>
+                  )}
                   {hasSegmentSelection && (
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-emerald-50 border-2 border-emerald-400 rounded" /> {language === 'vi' ? 'Trống chặng này' : language === 'ja' ? 'この区間は空き' : 'Free for segment'}</div>
                   )}
                 </div>
+
+                {/* Segment-conflict warning banner */}
+                {segmentConflictSeat && (
+                  <div className="mt-3 mx-auto max-w-xs p-2 bg-orange-50 border border-orange-300 rounded-xl flex items-center gap-2 text-xs font-bold text-orange-700 animate-pulse">
+                    <span>⚠️</span>
+                    <span>
+                      {language === 'vi'
+                        ? `Ghế ${segmentConflictSeat}: Chặng này đã có người ngồi rồi — vui lòng chọn chặng khác.`
+                        : language === 'ja'
+                          ? `座席 ${segmentConflictSeat}: この区間はすでに予約されています — 別の区間を選んでください。`
+                          : `Seat ${segmentConflictSeat}: This segment is already booked — please choose a different segment.`}
+                    </span>
+                  </div>
+                )}
               </div>
               )}
 
@@ -3566,6 +3706,35 @@ export default function App() {
                                 )}
                               </div>
                             )}
+                            {/* Segment-conflict warning inside the booking form */}
+                            {(() => {
+                              if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;
+                              const bookedSeat = selectedTrip.seats.find((s: any) => s.id === showBookingForm);
+                              if (!bookedSeat) return null;
+                              const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
+                                (bookedSeat.segmentBookings ?? []).length > 0
+                                  ? bookedSeat.segmentBookings
+                                  : (bookedSeat.fromStopOrder !== undefined && bookedSeat.toStopOrder !== undefined
+                                      ? [{ fromStopOrder: bookedSeat.fromStopOrder, toStopOrder: bookedSeat.toStopOrder }]
+                                      : []);
+                              if (segs.length === 0) return null;
+                              const conflict = segs.some(
+                                seg => seg.fromStopOrder < currentToOrder && currentFromOrder < seg.toStopOrder
+                              );
+                              if (!conflict) return null;
+                              return (
+                                <div className="mt-2 p-2 bg-orange-50 border border-orange-300 rounded-xl flex items-start gap-2 text-xs font-bold text-orange-700">
+                                  <span className="mt-0.5">⚠️</span>
+                                  <span>
+                                    {language === 'vi'
+                                      ? 'Chặng này, ghế này đã có người ngồi rồi — vui lòng chọn chặng khác.'
+                                      : language === 'ja'
+                                        ? 'この区間はすでに予約されています — 別の区間を選んでください。'
+                                        : 'This segment is already taken — please choose a different segment.'}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div>
                             <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
