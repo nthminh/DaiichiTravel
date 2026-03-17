@@ -2642,11 +2642,11 @@ export default function App() {
                     <div className="px-3 pt-2.5 pb-1">
                       <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase block text-center w-full">{trip.route}</span>
                     </div>
-                    {/* Image + details – stacked on mobile, side by side on desktop */}
-                    <div className="flex flex-col md:flex-row pb-2.5">
-                      {/* Route image – full-width on mobile, fixed square on desktop */}
+                    {/* Image + details – always side by side (horizontal) on both mobile and desktop */}
+                    <div className="flex flex-row pb-2">
+                      {/* Route image – compact square on mobile, slightly larger on desktop */}
                       {(currentImg || vehicleImg) ? (
-                        <div className="relative w-full h-44 md:w-36 md:h-36 md:flex-shrink-0 overflow-hidden md:rounded-2xl md:mx-2.5 md:mb-0.5">
+                        <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5">
                           {currentImg && (
                             <img
                               src={currentImg}
@@ -2708,12 +2708,12 @@ export default function App() {
                           )}
                         </div>
                       ) : (
-                        <div className="relative w-full h-44 md:w-36 md:h-36 md:flex-shrink-0 overflow-hidden md:rounded-2xl md:mx-2.5 md:mb-0.5 bg-gray-100 flex items-center justify-center">
-                          <Bus size={32} className="text-gray-300" />
+                        <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 overflow-hidden rounded-2xl mx-2.5 mb-0.5 bg-gray-100 flex items-center justify-center">
+                          <Bus size={28} className="text-gray-300" />
                         </div>
                       )}
                       {/* Trip details */}
-                      <div className="flex-1 px-3 py-2 md:pr-3 md:pl-0 md:py-0 md:pt-0.5 flex flex-col gap-1 min-w-0">
+                      <div className="flex-1 pr-3 py-1 flex flex-col gap-0.5 min-w-0">
                         {/* License plate */}
                         <span className="text-[10px] text-gray-400 truncate">{trip.licensePlate}</span>
                         {/* Time + departure label + date */}
@@ -2744,22 +2744,24 @@ export default function App() {
                             {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
                           </span>
                         )}
-                        {/* Price + CTA */}
-                        <div className="mt-auto flex flex-col gap-1">
-                          {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
-                            <div>
-                              <p className="text-sm sm:text-base font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
-                              <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
-                              <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
-                                💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
-                              </span>
-                            </div>
-                          ) : (
-                            <p className="text-sm sm:text-base font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
-                          )}
+                        {/* Price + CTA on the same row – eliminates wasted space at card bottom */}
+                        <div className="mt-auto flex items-center justify-between gap-2 pt-0.5">
+                          <div className="min-w-0">
+                            {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
+                              <div>
+                                <p className="text-sm font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
+                                <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                                <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
+                                  💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="text-sm font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
+                            )}
+                          </div>
                           <button
                             onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
-                            className="w-full py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
+                            className="flex-shrink-0 px-3 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10 whitespace-nowrap"
                           >
                             {t.select_seat}
                           </button>
