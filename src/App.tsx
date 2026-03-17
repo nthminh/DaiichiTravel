@@ -103,11 +103,15 @@ interface TourItem {
   discountPercent?: number;
   priceAdult?: number;
   priceChild?: number;
+  numAdults?: number;
+  numChildren?: number;
   duration?: string;
   nights?: number;
   pricePerNight?: number;
   breakfastCount?: number;
   pricePerBreakfast?: number;
+  surcharge?: number;
+  surchargeNote?: string;
   youtubeUrl?: string;
 }
 

@@ -27,11 +27,15 @@ interface TourData {
   discountPercent?: number;
   priceAdult?: number;
   priceChild?: number;
+  numAdults?: number;     // number of adults in the tour group
+  numChildren?: number;   // number of children (>4 years old) in the tour group
   duration?: string;      // e.g., "3 ngày 2 đêm"
   nights?: number;        // number of overnight stays
-  pricePerNight?: number; // accommodation cost per person per night
-  breakfastCount?: number;    // total breakfast meals included per person
-  pricePerBreakfast?: number; // price per breakfast per person
+  pricePerNight?: number; // overnight cost per night (flat rate for the tour group)
+  breakfastCount?: number;    // total breakfast meals included in the tour
+  pricePerBreakfast?: number; // price per breakfast session (flat rate for the tour group)
+  surcharge?: number;         // additional surcharge amount (flat fee)
+  surchargeNote?: string;     // description of the surcharge
   youtubeUrl?: string;        // optional YouTube video link for the tour
   itinerary?: { day: number; content: string }[];
 }
