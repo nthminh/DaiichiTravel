@@ -16,11 +16,15 @@ interface Tour {
   discountPercent?: number;
   priceAdult?: number;
   priceChild?: number;
+  numAdults?: number;
+  numChildren?: number;
   duration?: string;
   nights?: number;
   pricePerNight?: number;
   breakfastCount?: number;
   pricePerBreakfast?: number;
+  surcharge?: number;
+  surchargeNote?: string;
   youtubeUrl?: string;
 }
 
@@ -37,22 +41,35 @@ const emptyForm = {
   discountPercent: 0,
   priceAdult: 0,
   priceChild: 0,
+  numAdults: 1,
+  numChildren: 0,
   duration: '',
   nights: 0,
   pricePerNight: 0,
   breakfastCount: 0,
   pricePerBreakfast: 0,
+  surcharge: 0,
+  surchargeNote: '',
   youtubeUrl: '',
 };
 
-// Computes the per-adult tour price by summing all included per-person cost components
+// Computes the total tour price by summing all cost components for the defined group
 const computeTourPrice = (
   priceAdult: number,
+  numAdults: number,
+  priceChild: number,
+  numChildren: number,
   nights: number,
   pricePerNight: number,
   breakfastCount: number,
   pricePerBreakfast: number,
-): number => priceAdult + nights * pricePerNight + breakfastCount * pricePerBreakfast;
+  surcharge: number,
+): number =>
+  priceAdult * numAdults +
+  priceChild * numChildren +
+  nights * pricePerNight +
+  breakfastCount * pricePerBreakfast +
+  surcharge;
 
 // Carousel card for a single tour shown in the management grid
 const TourCard: React.FC<{
@@ -260,8 +277,14 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
   const handleAddTour = async () => {
     if (!newTour.title || !newTour.imageUrl) return;
     setSaving(true);
-    // Auto-compute tour price = adult price + nights × pricePerNight + breakfasts × pricePerBreakfast
-    const computedPrice = computeTourPrice(newTour.priceAdult, newTour.nights || 0, newTour.pricePerNight || 0, newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0);
+    // Auto-compute tour price = numAdults×priceAdult + numChildren×priceChild + nights×pricePerNight + breakfastCount×pricePerBreakfast + surcharge
+    const computedPrice = computeTourPrice(
+      newTour.priceAdult, newTour.numAdults || 1,
+      newTour.priceChild || 0, newTour.numChildren || 0,
+      newTour.nights || 0, newTour.pricePerNight || 0,
+      newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0,
+      newTour.surcharge || 0,
+    );
     try {
       await transportService.addTour({
         title: newTour.title,
@@ -272,11 +295,15 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         discountPercent: newTour.discountPercent || 0,
         priceAdult: newTour.priceAdult || undefined,
         priceChild: newTour.priceChild || undefined,
+        numAdults: newTour.numAdults || undefined,
+        numChildren: newTour.numChildren || undefined,
         duration: newTour.duration || undefined,
         nights: newTour.nights || undefined,
         pricePerNight: newTour.pricePerNight || undefined,
         breakfastCount: newTour.breakfastCount || undefined,
         pricePerBreakfast: newTour.pricePerBreakfast || undefined,
+        surcharge: newTour.surcharge || undefined,
+        surchargeNote: newTour.surchargeNote || undefined,
         youtubeUrl: newTour.youtubeUrl || undefined,
       });
       setNewTour(emptyForm);
@@ -299,11 +326,15 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
       discountPercent: tour.discountPercent || 0,
       priceAdult: tour.priceAdult || 0,
       priceChild: tour.priceChild || 0,
+      numAdults: tour.numAdults ?? 1,
+      numChildren: tour.numChildren ?? 0,
       duration: tour.duration || '',
       nights: tour.nights || 0,
       pricePerNight: tour.pricePerNight || 0,
       breakfastCount: tour.breakfastCount || 0,
       pricePerBreakfast: tour.pricePerBreakfast || 0,
+      surcharge: tour.surcharge || 0,
+      surchargeNote: tour.surchargeNote || '',
       youtubeUrl: tour.youtubeUrl || '',
     });
     setIsAdding(false);
@@ -312,8 +343,14 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
   const handleUpdateTour = async () => {
     if (!editingTour || !editForm.title || !editForm.imageUrl) return;
     setSaving(true);
-    // Auto-compute tour price = adult price + nights × pricePerNight + breakfasts × pricePerBreakfast
-    const computedPrice = computeTourPrice(editForm.priceAdult, editForm.nights || 0, editForm.pricePerNight || 0, editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0);
+    // Auto-compute tour price = numAdults×priceAdult + numChildren×priceChild + nights×pricePerNight + breakfastCount×pricePerBreakfast + surcharge
+    const computedPrice = computeTourPrice(
+      editForm.priceAdult, editForm.numAdults || 1,
+      editForm.priceChild || 0, editForm.numChildren || 0,
+      editForm.nights || 0, editForm.pricePerNight || 0,
+      editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0,
+      editForm.surcharge || 0,
+    );
     try {
       await transportService.updateTour(editingTour.id, {
         title: editForm.title,
@@ -324,11 +361,15 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
         discountPercent: editForm.discountPercent || 0,
         priceAdult: editForm.priceAdult || undefined,
         priceChild: editForm.priceChild || undefined,
+        numAdults: editForm.numAdults || undefined,
+        numChildren: editForm.numChildren || undefined,
         duration: editForm.duration || undefined,
         nights: editForm.nights || undefined,
         pricePerNight: editForm.pricePerNight || undefined,
         breakfastCount: editForm.breakfastCount || undefined,
         pricePerBreakfast: editForm.pricePerBreakfast || undefined,
+        surcharge: editForm.surcharge || undefined,
+        surchargeNote: editForm.surchargeNote || undefined,
         youtubeUrl: editForm.youtubeUrl || undefined,
       });
       setEditingTour(null);
@@ -403,6 +444,21 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                   className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
                   placeholder={language === 'vi' ? 'Ví dụ: 3 ngày 2 đêm' : 'e.g. 3 days 2 nights'} />
               </div>
+              {/* Number of Adults / Children */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số người lớn' : 'Number of Adults'}</label>
+                  <input type="number" min="1" value={newTour.numAdults}
+                    onChange={e => setNewTour(prev => ({ ...prev, numAdults: parseInt(e.target.value) || 1 }))}
+                    className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số trẻ em (>4 tuổi)' : 'Children (>4 yrs)'}</label>
+                  <input type="number" min="0" value={newTour.numChildren}
+                    onChange={e => setNewTour(prev => ({ ...prev, numChildren: parseInt(e.target.value) || 0 }))}
+                    className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
+                </div>
+              </div>
               {/* Price Adult / Child */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -423,9 +479,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá tour (đ)' : 'Tour Price (VND)'}</label>
                   <div className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-bold text-sm select-none cursor-default">
-                    {computeTourPrice(newTour.priceAdult, newTour.nights || 0, newTour.pricePerNight || 0, newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0).toLocaleString()}đ
+                    {computeTourPrice(newTour.priceAdult, newTour.numAdults || 1, newTour.priceChild || 0, newTour.numChildren || 0, newTour.nights || 0, newTour.pricePerNight || 0, newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0, newTour.surcharge || 0).toLocaleString()}đ
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5 ml-1">{language === 'vi' ? 'Tự tính: người lớn + đêm + bữa sáng' : 'Auto: adult + nights + breakfast'}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 ml-1">{language === 'vi' ? 'Tự tính: NL×giá NL + TE×giá TE + đêm + bữa sáng + phụ phí' : 'Auto: adults×price + children×price + nights + breakfast + surcharge'}</p>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giảm giá (%)' : 'Discount (%)'}</label>
@@ -478,6 +534,28 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                     <input type="number" min="0" value={newTour.pricePerBreakfast}
                       onChange={e => setNewTour(prev => ({ ...prev, pricePerBreakfast: parseInt(e.target.value) || 0 }))}
                       className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-xl focus:ring-2 focus:ring-amber-200 focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+              {/* Surcharge */}
+              <div className="p-4 bg-green-50 rounded-2xl border border-green-100 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-500 font-bold text-base">+</span>
+                  <p className="text-xs font-bold text-green-700 uppercase tracking-widest">{language === 'vi' ? 'Phụ phí' : 'Surcharge'}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số tiền phụ phí (đ)' : 'Surcharge Amount (VND)'}</label>
+                    <input type="number" min="0" value={newTour.surcharge}
+                      onChange={e => setNewTour(prev => ({ ...prev, surcharge: parseInt(e.target.value) || 0 }))}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Nội dung phụ phí' : 'Surcharge Description'}</label>
+                    <input type="text" value={newTour.surchargeNote}
+                      onChange={e => setNewTour(prev => ({ ...prev, surchargeNote: e.target.value }))}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none"
+                      placeholder={language === 'vi' ? 'Ví dụ: Phụ phí xăng dầu' : 'e.g. Fuel surcharge'} />
                   </div>
                 </div>
               </div>
@@ -583,6 +661,21 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                   className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
                   placeholder={language === 'vi' ? 'Ví dụ: 3 ngày 2 đêm' : 'e.g. 3 days 2 nights'} />
               </div>
+              {/* Number of Adults / Children */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số người lớn' : 'Number of Adults'}</label>
+                  <input type="number" min="1" value={editForm.numAdults}
+                    onChange={e => setEditForm(prev => ({ ...prev, numAdults: parseInt(e.target.value) || 1 }))}
+                    className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số trẻ em (>4 tuổi)' : 'Children (>4 yrs)'}</label>
+                  <input type="number" min="0" value={editForm.numChildren}
+                    onChange={e => setEditForm(prev => ({ ...prev, numChildren: parseInt(e.target.value) || 0 }))}
+                    className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
+                </div>
+              </div>
               {/* Price Adult / Child */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -603,9 +696,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá tour (đ)' : 'Tour Price (VND)'}</label>
                   <div className="w-full mt-1 px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-bold text-sm select-none cursor-default">
-                    {computeTourPrice(editForm.priceAdult, editForm.nights || 0, editForm.pricePerNight || 0, editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0).toLocaleString()}đ
+                    {computeTourPrice(editForm.priceAdult, editForm.numAdults || 1, editForm.priceChild || 0, editForm.numChildren || 0, editForm.nights || 0, editForm.pricePerNight || 0, editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0, editForm.surcharge || 0).toLocaleString()}đ
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5 ml-1">{language === 'vi' ? 'Tự tính: người lớn + đêm + bữa sáng' : 'Auto: adult + nights + breakfast'}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 ml-1">{language === 'vi' ? 'Tự tính: NL×giá NL + TE×giá TE + đêm + bữa sáng + phụ phí' : 'Auto: adults×price + children×price + nights + breakfast + surcharge'}</p>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giảm giá (%)' : 'Discount (%)'}</label>
@@ -658,6 +751,28 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                     <input type="number" min="0" value={editForm.pricePerBreakfast}
                       onChange={e => setEditForm(prev => ({ ...prev, pricePerBreakfast: parseInt(e.target.value) || 0 }))}
                       className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-xl focus:ring-2 focus:ring-amber-200 focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+              {/* Surcharge */}
+              <div className="p-4 bg-green-50 rounded-2xl border border-green-100 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-500 font-bold text-base">+</span>
+                  <p className="text-xs font-bold text-green-700 uppercase tracking-widest">{language === 'vi' ? 'Phụ phí' : 'Surcharge'}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số tiền phụ phí (đ)' : 'Surcharge Amount (VND)'}</label>
+                    <input type="number" min="0" value={editForm.surcharge}
+                      onChange={e => setEditForm(prev => ({ ...prev, surcharge: parseInt(e.target.value) || 0 }))}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Nội dung phụ phí' : 'Surcharge Description'}</label>
+                    <input type="text" value={editForm.surchargeNote}
+                      onChange={e => setEditForm(prev => ({ ...prev, surchargeNote: e.target.value }))}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none"
+                      placeholder={language === 'vi' ? 'Ví dụ: Phụ phí xăng dầu' : 'e.g. Fuel surcharge'} />
                   </div>
                 </div>
               </div>
