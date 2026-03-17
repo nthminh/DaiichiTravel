@@ -4020,7 +4020,7 @@ export default function App() {
                         )}
                         <div className="flex justify-between items-end">
                           <div>
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Người lớn từ' : 'Adults from'}</p>
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá tour/người từ' : 'Tour price/person from'}</p>
                             {discountedPrice ? (
                               <>
                                 <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
@@ -4030,7 +4030,7 @@ export default function App() {
                               <p className="text-xl font-bold text-daiichi-red">{effectiveAdultPrice.toLocaleString()}đ</p>
                             )}
                             {tour.priceChild && (
-                              <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {tour.priceChild.toLocaleString()}đ</p>
+                              <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {tour.priceChild.toLocaleString()}đ</p>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
@@ -4061,16 +4061,9 @@ export default function App() {
 
       case 'book-tour': {
         const totalPersons = tourBookingAdults + tourBookingChildren;
-        // Use tour-specific priceAdult if defined, else fall back to discounted/base price
-        const baseAdultPrice = selectedTour
-          ? (selectedTour.priceAdult ?? (selectedTour.discountPercent
-              ? Math.round(selectedTour.price * (1 - selectedTour.discountPercent / 100))
-              : selectedTour.price))
-          : 0;
-        const pricePerAdult = selectedTour?.discountPercent && !selectedTour.priceAdult
-          ? Math.round(baseAdultPrice)
-          : baseAdultPrice;
-        // Use tour-specific priceChild if defined, else 50% of adult
+        // Use tour-specific priceAdult if defined, else fall back to stored price (which is auto-computed as tour price per adult)
+        const pricePerAdult = selectedTour?.priceAdult ?? selectedTour?.price ?? 0;
+        // Use tour-specific priceChild if defined, else 50% of adult (for children >4 years old)
         const pricePerChild = selectedTour?.priceChild ?? Math.round(pricePerAdult * 0.5);
         const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
         // Accommodation: use tour's pricePerNight × nights × persons if defined, else fixed costs
@@ -4092,7 +4085,12 @@ export default function App() {
         };
         const accomCost = accommodationCosts[tourAccommodation];
         const mealCost = mealCosts[tourMealPlan];
-        const tourTotal = baseTourPrice + accomCost + mealCost;
+        // Discount is applied to the full tour subtotal (giá tour)
+        const tourSubtotal = baseTourPrice + accomCost + mealCost;
+        const discountAmount = selectedTour?.discountPercent
+          ? Math.round(tourSubtotal * selectedTour.discountPercent / 100)
+          : 0;
+        const tourTotal = tourSubtotal - discountAmount;
 
         const handleTourBooking = async () => {
           if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
@@ -4248,14 +4246,17 @@ export default function App() {
                     )}
                   </div>
                   <p className="text-daiichi-red font-bold mt-1.5">
-                    {pricePerAdult < (selectedTour.priceAdult || selectedTour.price)
-                      ? <>{pricePerAdult.toLocaleString()}đ <span className="text-xs text-gray-400 line-through">{(selectedTour.priceAdult || selectedTour.price).toLocaleString()}đ</span></>
+                    {(selectedTour.discountPercent ?? 0) > 0
+                      ? <>
+                          {Math.round(pricePerAdult * (1 - (selectedTour.discountPercent ?? 0) / 100)).toLocaleString()}đ{' '}
+                          <span className="text-xs text-gray-400 line-through">{pricePerAdult.toLocaleString()}đ</span>
+                        </>
                       : <>{pricePerAdult.toLocaleString()}đ</>
                     }
                     <span className="text-xs font-normal text-gray-500 ml-1">/{language === 'vi' ? 'người lớn' : 'adult'}</span>
                   </p>
                   {pricePerChild > 0 && (
-                    <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em' : 'Child'}: {pricePerChild.toLocaleString()}đ</p>
+                    <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {pricePerChild.toLocaleString()}đ</p>
                   )}
                 </div>
               </div>
@@ -4288,7 +4289,7 @@ export default function App() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">{t.children} <span className="text-gray-400 font-normal normal-case">{language === 'vi' ? '(50% giá)' : '(50% price)'}</span></label>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.children} <span className="text-gray-400 font-normal normal-case">{language === 'vi' ? '(>4 tuổi)' : '(>4 yrs)'}</span></label>
                   <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
                     <button type="button" onClick={() => setTourBookingChildren(Math.max(0, tourBookingChildren - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none">−</button>
                     <span className="flex-1 text-center font-bold text-gray-800">{tourBookingChildren}</span>
@@ -4392,6 +4393,18 @@ export default function App() {
                 {tourBookingChildren > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span><span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span></div>}
                 {tourAccommodation !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_accommodation_cost}</span><span className="font-bold">{accomCost.toLocaleString()}đ</span></div>}
                 {tourMealPlan !== 'none' && <div className="flex justify-between text-sm"><span className="text-gray-500">{t.tour_meal_cost}</span><span className="font-bold">{mealCost.toLocaleString()}đ</span></div>}
+                {discountAmount > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm text-gray-400">
+                      <span>{language === 'vi' ? 'Giá tour' : 'Tour subtotal'}</span>
+                      <span>{tourSubtotal.toLocaleString()}đ</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-green-600 font-medium">
+                      <span>{language === 'vi' ? `Giảm giá ${selectedTour?.discountPercent}%` : `Discount ${selectedTour?.discountPercent}%`}</span>
+                      <span>-{discountAmount.toLocaleString()}đ</span>
+                    </div>
+                  </>
+                )}
                 <div className="border-t border-daiichi-accent/40 pt-2 flex justify-between">
                   <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
                   <span className="text-xl font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
