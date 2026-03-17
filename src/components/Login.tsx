@@ -53,12 +53,12 @@ const getRecaptchaToken = (): Promise<string> =>
     }
     g.ready(async () => {
       try {
-        const execute = g.execute;
-        if (!execute) {
+        if (typeof g.execute !== 'function') {
           reject(new Error('reCAPTCHA not loaded'));
           return;
         }
-        const token: string = await execute(RECAPTCHA_SITE_KEY, { action: 'LOGIN' });
+        // Call execute on the grecaptcha object to preserve the correct `this` binding.
+        const token: string = await g.execute(RECAPTCHA_SITE_KEY, { action: 'LOGIN' });
         resolve(token);
       } catch (err) {
         reject(err);
