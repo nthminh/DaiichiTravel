@@ -117,6 +117,7 @@ export const Settings: React.FC<SettingsProps> = ({
     zalopayEnabled: false,
     vnpayEnabled: false,
     vietinbankEnabled: false,
+    shbEnabled: false,
     momoPartnerCode: '',
     zalopayAppId: '',
     vnpayTerminalId: '',
@@ -130,6 +131,13 @@ export const Settings: React.FC<SettingsProps> = ({
     vietinbankAccountNumber: '',
     vietinbankAccountName: '',
     vietinbankEnvironment: 'sandbox' as 'sandbox' | 'production',
+    shbClientId: '',
+    shbClientSecret: '',
+    shbMerchantId: '',
+    shbTerminalId: '',
+    shbAccountNumber: '',
+    shbAccountName: '',
+    shbEnvironment: 'sandbox' as 'sandbox' | 'production',
   };
   const [paymentConfig, setPaymentConfig] = useState(DEFAULT_PAYMENT_CONFIG);
   const [paymentConfigLoading, setPaymentConfigLoading] = useState(true);
@@ -810,6 +818,140 @@ export const Settings: React.FC<SettingsProps> = ({
                           {paymentConfig.vietinbankEnvironment === 'sandbox'
                             ? 'https://sandbox.vietinbank.vn/openapi/...'
                             : 'https://openapi.vietinbank.vn/...'}
+                        </p>
+                        <p className="text-[10px] text-blue-500 mt-1">
+                          {language === 'vi'
+                            ? 'Thông tin xác thực được lưu trữ an toàn. Tích hợp OAuth2 sẽ sử dụng Client ID và Client Secret để lấy access token.'
+                            : 'Credentials stored securely. OAuth2 integration will use Client ID & Client Secret to obtain access tokens.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* SHB */}
+                <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🏛️</span>
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'SHB (Ngân hàng Thương mại cổ phần Sài Gòn - Hà Nội)' : 'SHB (Saigon-Hanoi Commercial Joint Stock Bank)'}</p>
+                        <p className={cn("text-xs font-bold", paymentConfig.shbEnabled ? "text-green-600" : "text-gray-400")}>
+                          {paymentConfig.shbEnabled ? (language === 'vi' ? 'Đã kích hoạt' : 'Enabled') : (language === 'vi' ? 'Chưa kết nối' : 'Not connected')}
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => setPaymentConfig(p => ({ ...p, shbEnabled: !p.shbEnabled }))} className={cn("transition-colors", paymentConfig.shbEnabled ? "text-blue-600" : "text-gray-300")}>
+                      {paymentConfig.shbEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                    </button>
+                  </div>
+                  {paymentConfig.shbEnabled && (
+                    <div className="pt-3 border-t border-blue-100 space-y-3">
+                      <p className="text-[11px] text-blue-600 font-semibold">{language === 'vi' ? 'Thông tin kết nối SHB OpenAPI' : 'SHB OpenAPI Connection Details'}</p>
+
+                      {/* Environment */}
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Môi trường' : 'Environment'}</label>
+                        <div className="flex gap-3 mt-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="shb_env"
+                              value="sandbox"
+                              checked={paymentConfig.shbEnvironment === 'sandbox'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, shbEnvironment: 'sandbox' }))}
+                              className="accent-blue-600"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">Sandbox (Test)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="shb_env"
+                              value="production"
+                              checked={paymentConfig.shbEnvironment === 'production'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, shbEnvironment: 'production' }))}
+                              className="accent-blue-600"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">Production (Live)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* API Credentials */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Client ID</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.shbClientId}
+                            onChange={e => setPaymentConfig(p => ({ ...p, shbClientId: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Client ID từ SHB' : 'Client ID from SHB'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Client Secret</label>
+                          <input
+                            type="password"
+                            value={paymentConfig.shbClientSecret}
+                            onChange={e => setPaymentConfig(p => ({ ...p, shbClientSecret: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Client Secret từ SHB' : 'Client Secret from SHB'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Merchant ID</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.shbMerchantId}
+                            onChange={e => setPaymentConfig(p => ({ ...p, shbMerchantId: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Mã merchant SHB' : 'SHB Merchant ID'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Terminal ID</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.shbTerminalId}
+                            onChange={e => setPaymentConfig(p => ({ ...p, shbTerminalId: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Mã terminal SHB' : 'SHB Terminal ID'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Bank account info */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Số tài khoản SHB' : 'SHB Account Number'}</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.shbAccountNumber}
+                            onChange={e => setPaymentConfig(p => ({ ...p, shbAccountNumber: e.target.value }))}
+                            placeholder="1000xxxxxxx"
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Tên chủ tài khoản' : 'Account Holder Name'}</label>
+                          <input
+                            type="text"
+                            value={paymentConfig.shbAccountName}
+                            onChange={e => setPaymentConfig(p => ({ ...p, shbAccountName: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Công ty TNHH Daiichi...' : 'Daiichi Travel Co., Ltd...'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                        <p className="text-[11px] text-blue-700 font-semibold mb-1">{language === 'vi' ? '🔗 Endpoint API' : '🔗 API Endpoints'}</p>
+                        <p className="text-[10px] text-blue-600 font-mono">
+                          {paymentConfig.shbEnvironment === 'sandbox'
+                            ? 'https://sandbox.shb.com.vn/openapi/...'
+                            : 'https://openapi.shb.com.vn/...'}
                         </p>
                         <p className="text-[10px] text-blue-500 mt-1">
                           {language === 'vi'
