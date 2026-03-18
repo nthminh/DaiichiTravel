@@ -17,7 +17,7 @@ import {
 } from './constants/translations';
 import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_PAYMENT_METHOD, PAYMENT_METHOD_TRANSLATION_KEYS } from './constants/paymentMethods';
 import { usePayment } from './hooks/usePayment';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { auth, db, storage } from './lib/firebase';
@@ -72,26 +72,6 @@ export interface User {
   agentCode?: string;
   balance?: number;
   password?: string;
-}
-
-export interface VehicleSeat {
-  id: string;
-  row: number;
-  col: number;
-  deck?: number;
-  status?: SeatStatus;
-}
-
-export interface Vehicle {
-  id: string;
-  licensePlate: string;
-  type: string;
-  seats: number;
-  registrationExpiry: string;
-  status: string;
-  layout?: VehicleSeat[];
-  note?: string;
-  seatType?: 'assigned' | 'free';
 }
 
 interface TourAddonItem {

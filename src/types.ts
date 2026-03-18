@@ -306,12 +306,14 @@ export interface VehicleSeat {
 }
 
 export interface Vehicle {
+  id?: string;
   stt: number;
   licensePlate: string;
   phone?: string;
   type: string;
   seats: number;
   registrationExpiry: string;
+  status?: string;
   ownerId?: string;
   layout?: VehicleSeat[];
   note?: string;
