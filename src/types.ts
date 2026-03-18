@@ -365,6 +365,7 @@ export interface DriverAssignment {
   id: string;
   tripId: string;
   seatId: string;
+  seatIds?: string[];   // all seat IDs belonging to this booking
   // Snapshot of trip/passenger data for display
   tripRoute?: string;
   tripDate?: string;
