@@ -30,6 +30,7 @@ export function nowVN(): string {
   });
   const parts = formatter.formatToParts(now);
   const get = (t: string) => parts.find(p => p.type === t)?.value ?? '00';
+  // Vietnam is UTC+7 year-round with no daylight saving time (fixed offset).
   const dateStr = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}.000+07:00`;
   return dateStr;
 }

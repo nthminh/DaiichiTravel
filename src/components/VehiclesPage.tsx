@@ -26,7 +26,7 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes }: Vehicle
   const [vehicleFilterStatus, setVehicleFilterStatus] = useState('ALL');
 
   // Default/blank vehicle form
-  const DEFAULT_VEHICLE_FORM = { licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' as 'assigned' | 'free' };
+  const DEFAULT_VEHICLE_FORM = { licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' as 'assigned' | 'free' };
 
   // CRUD modal state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -138,7 +138,7 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes }: Vehicle
               {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
             </button>
           )}
-          <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm({ ...DEFAULT_VEHICLE_FORM, type: 'Ghế ngồi', seats: 16 }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+          <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm(DEFAULT_VEHICLE_FORM); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
         </div>
       </div>
 
