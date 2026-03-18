@@ -119,7 +119,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
   }, [bookings, paymentFilter, statusFilter, dateFrom, dateTo, search]);
 
   // Reset page when filters change
-  useEffect(() => { setTxPage(1); }, [filtered]);
+  useEffect(() => { setTxPage(1); }, [paymentFilter, statusFilter, dateFrom, dateTo, search]);
 
   const txTotalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pagedTx = filtered.slice((txPage - 1) * PAGE_SIZE, txPage * PAGE_SIZE);
@@ -165,8 +165,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
   // ── Edit balance save ──────────────────────────────────────────────────────
   const handleSaveBalance = () => {
     if (!editBalanceAgent || !onUpdateAgent) return;
-    const cleaned = editBalanceValue.replace(/[^0-9.-]/g, '').replace(/(-.*)-/g, '$1').replace(/(\..*)\./g, '$1');
-    const val = parseFloat(cleaned);
+    const val = parseFloat(editBalanceValue);
     if (isNaN(val)) return;
     onUpdateAgent(editBalanceAgent.id, { balance: val });
     setEditBalanceAgent(null);
