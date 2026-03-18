@@ -11,8 +11,10 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "firebase-admin": "^12.7.0",
-    "firebase-functions": "^4.9.0",
+    "@exodus/bytes": "^1.15.0",
+    "firebase-admin": "^12.1.1",
+    "firebase-functions": "^5.0.1",
+    "html-encoding-sniffer": "^6.0.0",
     "isomorphic-dompurify": "^3.3.0",
     "nodemailer": "^8.0.2"
   },
