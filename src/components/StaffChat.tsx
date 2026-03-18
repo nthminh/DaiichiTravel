@@ -165,10 +165,10 @@ export const StaffChat: React.FC<StaffChatProps> = ({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Floating toggle button – top-right on mobile, bottom-right on desktop */}
+      {/* Floating toggle button – bottom-right on all screen sizes */}
       <button
         onClick={() => setIsOpen(p => !p)}
-        className="fixed top-4 right-4 sm:top-auto sm:bottom-8 sm:right-24 z-[60] w-14 h-14 rounded-full bg-daiichi-red text-white shadow-xl shadow-daiichi-red/30 flex items-center justify-center hover:bg-red-700 transition-colors"
+        className="fixed bottom-8 right-4 z-[60] w-14 h-14 rounded-full bg-daiichi-red text-white shadow-xl shadow-daiichi-red/30 flex items-center justify-center hover:bg-red-700 transition-colors"
         aria-label={t.staff_chat_title || 'Nhắn tin nội bộ'}
       >
         <MessageCircle size={24} />
@@ -179,7 +179,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({
         )}
       </button>
 
-      {/* Chat panel – opens below button on mobile, above button on desktop */}
+      {/* Chat panel – opens above the button */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -187,7 +187,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ duration: 0.2 }}
-            className="fixed top-20 right-4 sm:top-auto sm:bottom-28 sm:right-24 z-[60] w-[calc(100vw-32px)] sm:w-[360px] bg-white rounded-[24px] shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
+            className="fixed bottom-28 right-4 z-[60] w-[calc(100vw-32px)] sm:w-[360px] bg-white rounded-[24px] shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
             style={{ maxHeight: '70vh' }}
           >
             {/* Header */}

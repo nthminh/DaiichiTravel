@@ -373,6 +373,8 @@ export interface DriverAssignment {
   licensePlate?: string;
   customerName?: string;
   customerPhone?: string;
+  adults?: number;          // number of adult passengers
+  children?: number;        // number of child passengers
   pickupAddress?: string;
   dropoffAddress?: string;
   // Assignment

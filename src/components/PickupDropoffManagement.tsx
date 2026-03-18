@@ -409,6 +409,8 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           licensePlate: assignRow.licensePlate,
           customerName: assignRow.customerName,
           customerPhone: assignRow.customerPhone,
+          adults: assignRow.adults,
+          children: assignRow.children,
           pickupAddress:  assignTaskType === 'pickup'  ? assignRow.pickupAddress  : undefined,
           dropoffAddress: assignTaskType === 'dropoff' ? assignRow.dropoffAddress : undefined,
           driverEmployeeId: assignDriverId,
