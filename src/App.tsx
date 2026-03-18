@@ -4552,19 +4552,16 @@ export default function App() {
                     </div>
                     {/* Price */}
                     <div>
-                      <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá từ / người lớn' : 'Price from / adult'}</p>
+                      <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá tour' : 'Tour Price'}</p>
                       {(selectedTour.discountPercent ?? 0) > 0 ? (
                         <>
                           <p className="text-2xl font-bold text-daiichi-red">
-                            {Math.round(pricePerAdult * (1 - (selectedTour.discountPercent ?? 0) / 100)).toLocaleString()}đ
+                            {Math.round((selectedTour.price || 0) * (1 - (selectedTour.discountPercent ?? 0) / 100)).toLocaleString()}đ
                           </p>
-                          <p className="text-xs text-gray-400 line-through">{pricePerAdult.toLocaleString()}đ</p>
+                          <p className="text-xs text-gray-400 line-through">{(selectedTour.price || 0).toLocaleString()}đ</p>
                         </>
                       ) : (
-                        <p className="text-2xl font-bold text-daiichi-red">{pricePerAdult.toLocaleString()}đ</p>
-                      )}
-                      {pricePerChild > 0 && (
-                        <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {pricePerChild.toLocaleString()}đ</p>
+                        <p className="text-2xl font-bold text-daiichi-red">{(selectedTour.price || 0).toLocaleString()}đ</p>
                       )}
                     </div>
                   </div>

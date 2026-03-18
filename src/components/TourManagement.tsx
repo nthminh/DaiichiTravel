@@ -852,17 +852,17 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                       <td className="px-4 py-3 text-indigo-600 text-xs font-medium">{tour.duration || '—'}</td>
                       <td className="px-4 py-3 text-xs text-gray-500">{schedule}</td>
                       <td className="px-4 py-3 text-right">
-                        {discountedPrice ? (
-                          <div>
-                            <p className="font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
-                            <p className="text-[10px] text-gray-400 line-through">{effectivePrice.toLocaleString()}đ</p>
-                          </div>
-                        ) : (
-                          <p className="font-bold text-daiichi-red">{effectivePrice.toLocaleString()}đ</p>
-                        )}
+                        <p className="font-bold text-gray-700">{effectivePrice.toLocaleString()}đ</p>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="font-bold text-gray-700">{(tour.price || 0).toLocaleString()}đ</p>
+                        {discountedPrice ? (
+                          <div>
+                            <p className="font-bold text-daiichi-red">{Math.round((tour.price || 0) * (1 - (tour.discountPercent ?? 0) / 100)).toLocaleString()}đ</p>
+                            <p className="text-[10px] text-gray-400 line-through">{(tour.price || 0).toLocaleString()}đ</p>
+                          </div>
+                        ) : (
+                          <p className="font-bold text-daiichi-red">{(tour.price || 0).toLocaleString()}đ</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {tour.discountPercent && tour.discountPercent > 0 ? (
