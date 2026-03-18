@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   MapPin, Search, X, Edit3, Trash2, UserPlus, CheckCircle2,
-  XCircle, Clock, Truck, Bus, ChevronDown, Filter, Download
+  XCircle, Clock, Truck, Bus, Filter, Download, AlertCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,6 +10,9 @@ import { TRANSLATIONS } from '../constants/translations';
 import type { Language } from '../constants/translations';
 import { Trip, Employee, Seat, DriverAssignment, SeatStatus } from '../types';
 import { transportService } from '../services/transportService';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from './ToastContainer';
+import { nowVN } from '../lib/vnDate';
 
 interface PassengerRow {
   tripId: string;
@@ -43,6 +46,9 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
 }) => {
   const t = TRANSLATIONS[language];
 
+  // ── Toast notifications ────────────────────────────────────────────────────
+  const { toasts, showToast, dismissToast } = useToast();
+
   // ── State ──────────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -58,6 +64,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   const [assignDriverId, setAssignDriverId] = useState('');
   const [assignNote, setAssignNote] = useState('');
   const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState<string>('');
 
   // ── Derived: flatten passengers with pickup/dropoff from all trips ─────────
   const allRows = useMemo<PassengerRow[]>(() => {
@@ -148,8 +155,15 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
         });
       }
       setEditingRow(null);
+      showToast(language === 'vi' ? 'Đã cập nhật điểm đón/trả.' : 'Pickup/dropoff updated.', 'success');
     } catch (err) {
       console.error('Failed to update pickup/dropoff:', err);
+      showToast(
+        language === 'vi'
+          ? 'Lỗi khi cập nhật điểm đón/trả. Vui lòng thử lại.'
+          : 'Failed to update pickup/dropoff. Please try again.',
+        'error',
+      );
     }
   };
 
@@ -168,8 +182,15 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       if (row.assignment) {
         await transportService.deleteDriverAssignment(row.assignment.id);
       }
+      showToast(language === 'vi' ? 'Đã xóa điểm đón/trả.' : 'Pickup/dropoff removed.', 'success');
     } catch (err) {
       console.error('Failed to delete pickup/dropoff:', err);
+      showToast(
+        language === 'vi'
+          ? 'Lỗi khi xóa điểm đón/trả. Vui lòng thử lại.'
+          : 'Failed to remove pickup/dropoff. Please try again.',
+        'error',
+      );
     }
   };
 
@@ -177,15 +198,17 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
     setAssignRow(row);
     setAssignDriverId(row.assignment?.driverEmployeeId || (drivers[0]?.id ?? ''));
     setAssignNote(row.assignment?.note || '');
+    setAssignError('');
   };
 
   const handleConfirmAssign = async () => {
     if (!assignRow || !assignDriverId) return;
     setAssignLoading(true);
+    setAssignError('');
     try {
       const driver = employees.find(e => e.id === assignDriverId);
       const driverName = driver?.name || assignDriverId;
-      const now = new Date().toISOString();
+      const now = nowVN(); // Vietnam local time
 
       if (assignRow.assignment) {
         // Re-assign: update existing
@@ -222,8 +245,20 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       }
       setAssignRow(null);
       setAssignNote('');
+      showToast(
+        language === 'vi'
+          ? `Đã phân công tài xế ${driverName} thành công.`
+          : `Driver ${driverName} assigned successfully.`,
+        'success',
+      );
     } catch (err) {
       console.error('Failed to assign driver:', err);
+      const msg = (err as Error)?.message || '';
+      setAssignError(
+        language === 'vi'
+          ? `Lỗi khi phân công: ${msg || 'Vui lòng kiểm tra kết nối và thử lại.'}`
+          : `Assignment failed: ${msg || 'Please check your connection and try again.'}`,
+      );
     } finally {
       setAssignLoading(false);
     }
@@ -234,8 +269,15 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
     if (!window.confirm(language === 'vi' ? 'Hủy phân công tài xế này?' : 'Remove this driver assignment?')) return;
     try {
       await transportService.deleteDriverAssignment(row.assignment.id);
+      showToast(language === 'vi' ? 'Đã hủy phân công tài xế.' : 'Driver assignment removed.', 'success');
     } catch (err) {
       console.error('Failed to remove assignment:', err);
+      showToast(
+        language === 'vi'
+          ? 'Lỗi khi hủy phân công. Vui lòng thử lại.'
+          : 'Failed to remove assignment. Please try again.',
+        'error',
+      );
     }
   };
 
@@ -585,8 +627,16 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                 />
               </div>
 
+              {/* Error message */}
+              {assignError && (
+                <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                  <span>{assignError}</span>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-1">
-                <button onClick={() => setAssignRow(null)} className="px-5 py-2.5 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors">
+                <button onClick={() => { setAssignRow(null); setAssignError(''); }} className="px-5 py-2.5 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors">
                   {language === 'vi' ? 'Hủy' : 'Cancel'}
                 </button>
                 <button
@@ -601,6 +651,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           </div>
         )}
       </AnimatePresence>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 };

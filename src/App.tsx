@@ -50,6 +50,8 @@ import { PaymentManagement } from './components/PaymentManagement';
 import { PickupDropoffManagement } from './components/PickupDropoffManagement';
 import { StaffChat } from './components/StaffChat';
 import { DriverTaskPanel } from './components/DriverTaskPanel';
+import { ConsignmentsPage } from './components/ConsignmentsPage';
+import { VehiclesPage } from './components/VehiclesPage';
 import { DriverAssignment, StaffMessage } from './types';
 
 // Re-export types for components
@@ -307,24 +309,6 @@ export default function App() {
     [vehicles]
   );
 
-  // Consignment search/filter state
-  const [consignmentSearch, setConsignmentSearch] = useState('');
-  const [consignmentStatusFilter, setConsignmentStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'DELIVERED'>('ALL');
-  const [consignmentDateFrom, setConsignmentDateFrom] = useState('');
-  const [consignmentDateTo, setConsignmentDateTo] = useState('');
-  const [showConsignmentFilters, setShowConsignmentFilters] = useState(false);
-
-  // Consignment creation modal state
-  const [showCreateConsignment, setShowCreateConsignment] = useState(false);
-
-  // Consignment edit state
-  const [editingConsignment, setEditingConsignment] = useState<Consignment | null>(null);
-  const [showEditConsignment, setShowEditConsignment] = useState(false);
-  const [editConsignmentForm, setEditConsignmentForm] = useState({
-    senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
-    type: '', weight: '', cod: 0, notes: '', status: 'PENDING' as 'PENDING' | 'PICKED_UP' | 'DELIVERED',
-  });
-
   // Tours state (for customer-facing page)
   const [tours, setTours] = useState<TourItem[]>([]);
 
@@ -366,11 +350,7 @@ export default function App() {
   const [routeFilterDeparture, setRouteFilterDeparture] = useState('');
   const [routeFilterArrival, setRouteFilterArrival] = useState('');
 
-  // Vehicle search state
-  const [vehicleSearch, setVehicleSearch] = useState('');
-  const [showVehicleFilters, setShowVehicleFilters] = useState(false);
-  const [vehicleFilterType, setVehicleFilterType] = useState('');
-  const [vehicleFilterStatus, setVehicleFilterStatus] = useState('ALL');
+  // Vehicle search state (managed by VehiclesPage)
 
   // Trip / Operations search state
   const [tripSearch, setTripSearch] = useState('');
@@ -435,14 +415,9 @@ export default function App() {
   const [editingRouteFareIdx, setEditingRouteFareIdx] = useState<number | null>(null);
   const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
 
-  // Vehicle CRUD state
-  const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  const [isCopyingVehicle, setIsCopyingVehicle] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' as 'assigned' | 'free' });
+  // Vehicle CRUD state (managed by VehiclesPage)
 
-  // Vehicle seat diagram state
-  const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
+  // Vehicle seat diagram state (managed by VehiclesPage)
 
   // Excel import refs removed
 
@@ -468,15 +443,11 @@ export default function App() {
   const [showAddTripAddon, setShowAddTripAddon] = useState(false);
   // Addon quantities for the current booking: addonId -> quantity (0 means unselected)
   const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
-  const [newConsignment, setNewConsignment] = useState({
-    senderName: '', senderPhone: '', receiverName: '', receiverPhone: '',
-    type: '', weight: '', cod: 0, notes: '',
-  });
 
   // Column widths for each admin table
   const [agentColWidths, setAgentColWidths] = useState({ name: 200, username: 150, address: 200, phone: 150, commission: 130, balance: 150, status: 120, options: 120 });
   const [routeColWidths, setRouteColWidths] = useState({ stt: 80, name: 200, departure: 200, arrival: 200, price: 150, agentPrice: 150, options: 120 });
-  const [vehicleColWidths, setVehicleColWidths] = useState({ stt: 80, licensePlate: 150, type: 150, seats: 100, expiry: 170, options: 160 });
+  // vehicleColWidths managed by VehiclesPage
   const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, route: 220, driver: 180, status: 150, options: 180 });
   const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, seats: true, passengers: true, addons: true });
   const [showTripColPanel, setShowTripColPanel] = useState(false);
@@ -485,7 +456,6 @@ export default function App() {
   const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
   const [passengerColVisibility, setPassengerColVisibility] = useState({ ticketCode: true, seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, price: true, note: true });
   const [showPassengerColPanel, setShowPassengerColPanel] = useState(false);
-  const [consignMgmtColWidths, setConsignMgmtColWidths] = useState({ code: 130, sender: 180, receiver: 180, goodsType: 130, weight: 100, cod: 130, notes: 160, status: 130, options: 100 });
 
   // Persist user session to localStorage so F5 doesn't log out
   useEffect(() => {
@@ -1036,64 +1006,6 @@ export default function App() {
       }).catch((err) => { console.error('Failed to load route fares for copy:', err); });
     }
     setShowAddRoute(true);
-  };
-
-  // --- Vehicle CRUD handlers ---
-  const handleSaveVehicle = async () => {
-    try {
-      if (editingVehicle) {
-        await transportService.updateVehicle(editingVehicle.id, vehicleForm as Record<string, unknown>);
-      } else {
-        await transportService.addVehicle(vehicleForm as Record<string, unknown>);
-      }
-      setShowAddVehicle(false);
-      setEditingVehicle(null);
-      setIsCopyingVehicle(false);
-      setVehicleForm({ licensePlate: '', type: 'Limousine 11 chỗ', seats: 11, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' });
-    } catch (err) {
-      console.error('Failed to save vehicle:', err);
-    }
-  };
-
-  const handleStartEditVehicle = (vehicle: Vehicle) => {
-    setEditingVehicle(vehicle);
-    setIsCopyingVehicle(false);
-    setVehicleForm({ licensePlate: vehicle.licensePlate, type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE', seatType: vehicle.seatType || 'assigned' });
-    setShowAddVehicle(true);
-  };
-
-  const handleCopyVehicle = (vehicle: Vehicle) => {
-    setEditingVehicle(null);
-    setIsCopyingVehicle(true);
-    setVehicleForm({ licensePlate: '', type: vehicle.type, seats: vehicle.seats, registrationExpiry: vehicle.registrationExpiry, status: vehicle.status || 'ACTIVE', seatType: vehicle.seatType || 'assigned' });
-    setShowAddVehicle(true);
-  };
-
-  const handleSaveVehicleLayout = async (seats: SerializedSeat[]) => {
-    if (!diagramVehicle) return;
-    try {
-      await transportService.updateVehicle(diagramVehicle.id, { layout: seats } as Record<string, unknown>);
-      setVehicles(prev => prev.map(v => v.id === diagramVehicle.id ? { ...v, layout: seats as any } : v));
-    } catch (err) {
-      console.error('Failed to save vehicle layout:', err);
-    }
-  };
-
-  const handleDeleteVehicle = async (vehicleId: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa phương tiện này?' : 'Delete this vehicle?')) return;
-    try {
-      await transportService.deleteVehicle(vehicleId);
-    } catch (err) {
-      console.error('Failed to delete vehicle:', err);
-    }
-  };
-
-  const handleSaveVehicleNote = async (vehicleId: string, note: string) => {
-    try {
-      await transportService.updateVehicle(vehicleId, { note } as Record<string, unknown>);
-    } catch (err) {
-      console.error('Failed to save vehicle note:', err);
-    }
   };
 
   // --- Trip CRUD handlers ---
@@ -1929,84 +1841,6 @@ export default function App() {
       phone: normalizedPhone || data.phone,
       email: effectiveEmail,
     };
-  };
-
-  const handleCreateConsignment = async () => {
-    if (!newConsignment.senderName || !newConsignment.receiverName) return;
-    // Derive the display name for the current agent
-    const effectiveAgentName = currentUser?.role === UserRole.AGENT
-      ? (currentUser.name || currentUser.address || currentUser.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
-      : undefined;
-    try {
-      await transportService.addConsignment({
-        senderName: newConsignment.senderName,
-        sender: newConsignment.senderName,
-        senderPhone: newConsignment.senderPhone,
-        receiverName: newConsignment.receiverName,
-        receiver: newConsignment.receiverName,
-        receiverPhone: newConsignment.receiverPhone,
-        status: 'PENDING',
-        qrCode: `QR-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-        type: newConsignment.type,
-        weight: newConsignment.weight,
-        cod: newConsignment.cod,
-        notes: newConsignment.notes,
-        agentId: currentUser?.role === UserRole.AGENT ? currentUser.id : undefined,
-        agentName: effectiveAgentName,
-      } as any);
-      setShowCreateConsignment(false);
-      setNewConsignment({ senderName: '', senderPhone: '', receiverName: '', receiverPhone: '', type: '', weight: '', cod: 0, notes: '' });
-    } catch (err) {
-      console.error('Failed to create consignment:', err);
-    }
-  };
-
-  const handleStartEditConsignment = (c: Consignment) => {
-    setEditingConsignment(c);
-    setEditConsignmentForm({
-      senderName: c.senderName || c.sender || '',
-      senderPhone: c.senderPhone || '',
-      receiverName: c.receiverName || c.receiver || '',
-      receiverPhone: c.receiverPhone || '',
-      type: c.type || '',
-      weight: c.weight || '',
-      cod: c.cod || 0,
-      notes: c.notes || '',
-      status: c.status,
-    });
-    setShowEditConsignment(true);
-  };
-
-  const handleUpdateConsignment = async () => {
-    if (!editingConsignment) return;
-    try {
-      await transportService.updateConsignment(editingConsignment.id, {
-        senderName: editConsignmentForm.senderName,
-        sender: editConsignmentForm.senderName,
-        senderPhone: editConsignmentForm.senderPhone,
-        receiverName: editConsignmentForm.receiverName,
-        receiver: editConsignmentForm.receiverName,
-        receiverPhone: editConsignmentForm.receiverPhone,
-        type: editConsignmentForm.type,
-        weight: editConsignmentForm.weight,
-        cod: editConsignmentForm.cod,
-        notes: editConsignmentForm.notes,
-        status: editConsignmentForm.status,
-      });
-      setShowEditConsignment(false);
-      setEditingConsignment(null);
-    } catch (err) {
-      console.error('Failed to update consignment:', err);
-    }
-  };
-
-  const handleDeleteConsignment = async (id: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa vận đơn này?' : 'Delete this consignment?')) return;
-    try {
-      await transportService.deleteConsignment(id);
-    } catch (err) {
-      console.error('Failed to delete consignment:', err);
-    }
   };
 
   const handleConfirmBooking = async (seatId: string) => {
@@ -6213,241 +6047,9 @@ export default function App() {
         );
       }
 
-      case 'vehicles': {
-        const filteredVehicles = vehicles.filter(v => {
-          if (vehicleFilterType && (v.type || '') !== vehicleFilterType) return false;
-          if (vehicleFilterStatus !== 'ALL' && (v.status || 'ACTIVE') !== vehicleFilterStatus) return false;
-          if (!vehicleSearch) return true;
-          const q = vehicleSearch.toLowerCase();
-          return (
-            (v.licensePlate || '').toLowerCase().includes(q) ||
-            (v.type || '').toLowerCase().includes(q)
-          );
-        });
-        return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center flex-wrap gap-3">
-              <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
-              <div className="flex gap-3 flex-wrap">
-                {vehicles.length === 0 && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const added = await transportService.seedVehicles();
-                        if (added === 0) alert(language === 'vi' ? 'Tất cả xe đã tồn tại.' : 'All vehicles already exist.');
-                        else alert(language === 'vi' ? `Đã thêm ${added} xe.` : `Added ${added} vehicles.`);
-                      } catch (e) {
-                        console.error(e);
-                        alert(language === 'vi' ? 'Lỗi khi thêm dữ liệu xe.' : 'Error seeding vehicles.');
-                      }
-                    }}
-                    className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm"
-                  >
-                    {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
-                  </button>
-                )}
-                <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm({ licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
-              </div>
-            </div>
+      case 'vehicles':
+        return <VehiclesPage vehicles={vehicles} language={language} uniqueVehicleTypes={uniqueVehicleTypes} />;
 
-            {/* Add/Edit Vehicle Modal */}
-            {showAddVehicle && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">
-                      {editingVehicle
-                        ? (language === 'vi' ? 'Chỉnh sửa phương tiện' : language === 'en' ? 'Edit Vehicle' : '車両を編集')
-                        : isCopyingVehicle
-                          ? `📋 ${t.copy_vehicle_title}`
-                          : (language === 'vi' ? 'Thêm phương tiện mới' : language === 'en' ? 'Add New Vehicle' : '新しい車両を追加')}
-                    </h3>
-                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); setIsCopyingVehicle(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label><input type="text" value={vehicleForm.licensePlate} onChange={e => setVehicleForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="29B-123.45" /></div>
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={vehicleForm.seats} onChange={e => setVehicleForm(p => ({ ...p, seats: parseInt(e.target.value) || 6 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
-                      <select value={vehicleForm.type} onChange={e => setVehicleForm(p => ({ ...p, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="Ghế ngồi">Ghế ngồi</option>
-                        <option value="Ghế ngồi limousine">Ghế ngồi limousine</option>
-                        <option value="Giường nằm">Giường nằm</option>
-                        <option value="Phòng VIP (cabin)">Phòng VIP (cabin)</option>
-                      </select>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.registration_expiry}</label><input type="date" value={vehicleForm.registrationExpiry} onChange={e => setVehicleForm(p => ({ ...p, registrationExpiry: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Loại ghế' : language === 'en' ? 'Seat Type' : '座席タイプ'}</label>
-                      <select value={vehicleForm.seatType} onChange={e => setVehicleForm(p => ({ ...p, seatType: e.target.value as 'assigned' | 'free' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="assigned">{language === 'vi' ? 'Ghế chỉ định' : language === 'en' ? 'Assigned Seats' : '指定席'}</option>
-                        <option value="free">{language === 'vi' ? 'Ghế tự do' : language === 'en' ? 'Free Seating' : '自由席'}</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddVehicle(false); setEditingVehicle(null); setIsCopyingVehicle(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveVehicle} disabled={!vehicleForm.licensePlate} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingVehicle ? t.save : isCopyingVehicle ? t.create_copy : (language === 'vi' ? 'Thêm xe' : language === 'en' ? 'Add Vehicle' : '車両を追加')}</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Vehicle seat diagram modal */}
-            {diagramVehicle && (
-              <VehicleSeatDiagram
-                licensePlate={diagramVehicle.licensePlate}
-                vehicleType={diagramVehicle.type}
-                seatCount={diagramVehicle.seats}
-                savedSeats={(diagramVehicle.layout as any) || null}
-                editable={true}
-                onSave={handleSaveVehicleLayout}
-                onClose={() => setDiagramVehicle(null)}
-                language={language}
-              />
-            )}
-
-            {/* Search bar + Advanced Filter Toggle */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input
-                    type="text"
-                    value={vehicleSearch}
-                    onChange={e => setVehicleSearch(e.target.value)}
-                    placeholder={language === 'vi' ? 'Tìm kiếm theo biển số, loại xe...' : 'Search by plate, type...'}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                  />
-                  {vehicleSearch && (
-                    <button onClick={() => setVehicleSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowVehicleFilters(p => !p)}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
-                    showVehicleFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  )}
-                >
-                  <Filter size={15} />
-                  {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
-                  {(vehicleFilterType || vehicleFilterStatus !== 'ALL') && (
-                    <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded text-[10px] font-bold">
-                      {[vehicleFilterType, vehicleFilterStatus !== 'ALL'].filter(Boolean).length}
-                    </span>
-                  )}
-                </button>
-                {(vehicleSearch || vehicleFilterType || vehicleFilterStatus !== 'ALL') && (
-                  <button
-                    onClick={() => { setVehicleSearch(''); setVehicleFilterType(''); setVehicleFilterStatus('ALL'); }}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
-                  >
-                    <X size={14} />
-                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                )}
-              </div>
-              {showVehicleFilters && (
-                <div className="flex gap-4 flex-wrap pt-1 border-t border-gray-100">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.vehicle_type}</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {(['', ...uniqueVehicleTypes] as string[]).map(type => (
-                        <button
-                          key={type}
-                          onClick={() => setVehicleFilterType(type)}
-                          className={cn(
-                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                            vehicleFilterType === type
-                              ? 'bg-daiichi-red text-white ring-2 ring-daiichi-red'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          )}
-                        >
-                          {type === '' ? (language === 'vi' ? 'Tất cả' : 'All') : type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.status}</label>
-                    <div className="flex gap-2">
-                      {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map(s => (
-                        <button
-                          key={s}
-                          onClick={() => setVehicleFilterStatus(s)}
-                          className={cn(
-                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                            vehicleFilterStatus === s
-                              ? s === 'ACTIVE' ? 'bg-green-100 text-green-700 ring-2 ring-green-400'
-                                : s === 'INACTIVE' ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-400'
-                                : 'bg-daiichi-red/10 text-daiichi-red ring-2 ring-daiichi-red/30'
-                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          )}
-                        >
-                          {s === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All')
-                            : s === 'ACTIVE' ? (language === 'vi' ? 'Hoạt động' : 'Active')
-                            : (language === 'vi' ? 'Ngừng' : 'Inactive')}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <ResizableTh width={vehicleColWidths.stt} onResize={(w) => setVehicleColWidths(p => ({ ...p, stt: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">STT</ResizableTh>
-                    <ResizableTh width={vehicleColWidths.licensePlate} onResize={(w) => setVehicleColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.license_plate}</ResizableTh>
-                    <ResizableTh width={vehicleColWidths.type} onResize={(w) => setVehicleColWidths(p => ({ ...p, type: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.vehicle_type}</ResizableTh>
-                    <ResizableTh width={vehicleColWidths.seats} onResize={(w) => setVehicleColWidths(p => ({ ...p, seats: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seats}</ResizableTh>
-                    <ResizableTh width={vehicleColWidths.expiry} onResize={(w) => setVehicleColWidths(p => ({ ...p, expiry: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.registration_expiry}</ResizableTh>
-                    <ResizableTh width={vehicleColWidths.options} onResize={(w) => setVehicleColWidths(p => ({ ...p, options: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</ResizableTh>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredVehicles.map((v, idx) => (
-                    <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-6 text-sm text-gray-500">{idx + 1}</td>
-                      <td className="px-6 py-6 font-bold text-gray-800">{v.licensePlate}</td>
-                      <td className="px-6 py-6 text-sm">{v.type}{v.seatType === 'free' && <span className="ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-600 uppercase">{language === 'vi' ? 'Tự do' : 'Free'}</span>}</td>
-                      <td className="px-6 py-6 text-sm">{v.seats}</td>
-                      <td className="px-6 py-6 text-sm">{v.registrationExpiry}</td>
-                      <td className="px-6 py-6">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setDiagramVehicle(v)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all"
-                            title={language === 'vi' ? 'Xem / sửa sơ đồ xe' : 'View / edit seat diagram'}
-                          >
-                            <Bus size={13} />
-                            {language === 'vi' ? 'Sơ đồ' : 'Diagram'}
-                          </button>
-                          <button onClick={() => handleStartEditVehicle(v)} className="text-gray-600 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
-                          <button onClick={() => handleCopyVehicle(v)} title={t.copy_vehicle} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1.5 rounded"><Copy size={16} /></button>
-                          <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-600 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
-                          <NotePopover note={v.note} onSave={(note) => handleSaveVehicleNote(v.id, note)} language={language} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredVehicles.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy phương tiện nào.' : 'No vehicles found.'}</td></tr>
-                  )}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          </div>
-        );
-      }
 
       case 'operations': {
         // Pre-compute active employee names (drivers first) for driver select
@@ -7487,280 +7089,12 @@ export default function App() {
           />
         );
 
-      case 'consignments': {
-        const filteredConsignments = consignments.filter(c => {
-          const searchOk = !consignmentSearch ||
-            (c.sender || c.senderName || '').toLowerCase().includes(consignmentSearch.toLowerCase()) ||
-            (c.receiver || c.receiverName || '').toLowerCase().includes(consignmentSearch.toLowerCase()) ||
-            c.id.toLowerCase().includes(consignmentSearch.toLowerCase());
-          const statusOk = consignmentStatusFilter === 'ALL' || c.status === consignmentStatusFilter;
-          const dateOk = (() => {
-            if (!consignmentDateFrom && !consignmentDateTo) return true;
-            const d = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt ? new Date(c.createdAt) : null);
-            if (!d) return true;
-            if (consignmentDateFrom && d < new Date(consignmentDateFrom)) return false;
-            if (consignmentDateTo) {
-              const toDate = new Date(consignmentDateTo);
-              toDate.setHours(23, 59, 59, 999);
-              if (d > toDate) return false;
-            }
-            return true;
-          })();
-          return searchOk && statusOk && dateOk;
-        });
-
-        const statusColorMap: Record<string, string> = {
-          DELIVERED: 'bg-green-100 text-green-600',
-          PICKED_UP: 'bg-blue-100 text-blue-600',
-          PENDING: 'bg-yellow-100 text-yellow-600',
-        };
-        const statusLabelMap: Record<string, string> = {
-          DELIVERED: t.filter_delivered || 'Delivered',
-          PICKED_UP: t.filter_picked_up || 'In Transit',
-          PENDING: t.filter_pending || 'Pending',
-        };
-
-        return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">{t.consignment_title}</h2>
-              <button onClick={() => setShowCreateConsignment(true)} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.create_bill}</button>
-            </div>
-
-            {/* Advanced Search Bar */}
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
-              <div className="flex gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input
-                    type="text"
-                    value={consignmentSearch}
-                    onChange={e => setConsignmentSearch(e.target.value)}
-                    placeholder={t.search_sender_receiver || 'Search by sender/receiver...'}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                  />
-                </div>
-                <button
-                  onClick={() => setShowConsignmentFilters(v => !v)}
-                  className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border", showConsignmentFilters ? "bg-daiichi-red text-white border-daiichi-red" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50")}
-                >
-                  <Filter size={16} />
-                  {t.advanced_search || 'Advanced'}
-                </button>
-                {(consignmentSearch || consignmentStatusFilter !== 'ALL' || consignmentDateFrom || consignmentDateTo) && (
-                  <button
-                    onClick={() => { setConsignmentSearch(''); setConsignmentStatusFilter('ALL'); setConsignmentDateFrom(''); setConsignmentDateTo(''); }}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
-                  >
-                    <X size={14} />
-                    {t.reset_filter || 'Reset'}
-                  </button>
-                )}
-              </div>
-
-              {/* Expanded Filters */}
-              {showConsignmentFilters && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-gray-100">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.status}</label>
-                    <select value={consignmentStatusFilter} onChange={e => setConsignmentStatusFilter(e.target.value as any)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                      <option value="ALL">{t.filter_status_all || 'All statuses'}</option>
-                      <option value="PENDING">{t.filter_pending || 'Pending'}</option>
-                      <option value="PICKED_UP">{t.filter_picked_up || 'In Transit'}</option>
-                      <option value="DELIVERED">{t.filter_delivered || 'Delivered'}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.date_from || 'From Date'}</label>
-                    <input type="date" value={consignmentDateFrom} onChange={e => setConsignmentDateFrom(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.date_to || 'To Date'}</label>
-                    <input type="date" value={consignmentDateTo} onChange={e => setConsignmentDateTo(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                </motion.div>
-              )}
-
-              <p className="text-xs text-gray-400">
-                {filteredConsignments.length} / {consignments.length} {language === 'vi' ? 'đơn hàng' : language === 'en' ? 'orders' : '注文'}
-              </p>
-            </div>
-
-            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <ResizableTh width={consignMgmtColWidths.code} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, code: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.consignment_code || 'Code'}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.sender} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, sender: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.sender}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.receiver} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, receiver: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.receiver}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.goodsType} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, goodsType: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.goods_type}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.weight} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, weight: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.weight}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.cod} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, cod: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.cod}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.notes} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, notes: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Ghi chú' : 'Notes'}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.status} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, status: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</ResizableTh>
-                    <ResizableTh width={consignMgmtColWidths.options} onResize={(w) => setConsignMgmtColWidths(p => ({ ...p, options: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</ResizableTh>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredConsignments.length === 0 ? (
-                    <tr><td colSpan={9} className="px-8 py-12 text-center text-gray-400 text-sm">
-                      {language === 'vi' ? 'Không tìm thấy đơn hàng' : language === 'en' ? 'No orders found' : '注文が見つかりません'}
-                    </td></tr>
-                  ) : filteredConsignments.map((c) => (
-                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-5 font-bold text-daiichi-red text-sm">{(c.id.length >= 8 ? c.id.slice(-8) : c.id).toUpperCase()}</td>
-                      <td className="px-6 py-5">
-                        <p className="font-bold text-gray-800 text-sm">{c.sender || c.senderName}</p>
-                        {c.senderPhone && <p className="text-xs text-gray-400">{c.senderPhone}</p>}
-                      </td>
-                      <td className="px-6 py-5">
-                        <p className="font-bold text-gray-800 text-sm">{c.receiver || c.receiverName}</p>
-                        {c.receiverPhone && <p className="text-xs text-gray-400">{c.receiverPhone}</p>}
-                      </td>
-                      <td className="px-6 py-5 text-sm text-gray-600">{c.type || '—'}</td>
-                      <td className="px-6 py-5 text-sm text-gray-600">{c.weight || '—'}</td>
-                      <td className="px-6 py-5 font-bold text-gray-700">{c.cod ? c.cod.toLocaleString() + 'đ' : '—'}</td>
-                      <td className="px-6 py-5 text-sm text-gray-500 max-w-[160px] truncate">{c.notes || '—'}</td>
-                      <td className="px-6 py-5">
-                        <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", statusColorMap[c.status] || 'bg-gray-100 text-gray-600')}>
-                          {statusLabelMap[c.status] || c.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex gap-3">
-                          <button onClick={() => handleStartEditConsignment(c)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>
-                          <button onClick={() => handleDeleteConsignment(c.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </div>
-
-          {/* Create Consignment Modal */}
-          {showCreateConsignment && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-[32px] p-8 max-w-xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-bold">{t.create_bill}</h3>
-                  <button onClick={() => setShowCreateConsignment(false)} className="p-2 hover:bg-gray-50 rounded-xl">
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.sender}</label>
-                    <input type="text" value={newConsignment.senderName} onChange={e => setNewConsignment(prev => ({ ...prev, senderName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Tên người gửi' : 'Sender name'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'SĐT người gửi' : 'Sender phone'}</label>
-                    <input type="text" value={newConsignment.senderPhone} onChange={e => setNewConsignment(prev => ({ ...prev, senderPhone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="09xxx" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.receiver}</label>
-                    <input type="text" value={newConsignment.receiverName} onChange={e => setNewConsignment(prev => ({ ...prev, receiverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Tên người nhận' : 'Receiver name'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'SĐT người nhận' : 'Receiver phone'}</label>
-                    <input type="text" value={newConsignment.receiverPhone} onChange={e => setNewConsignment(prev => ({ ...prev, receiverPhone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="09xxx" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.goods_type}</label>
-                    <input type="text" value={newConsignment.type} onChange={e => setNewConsignment(prev => ({ ...prev, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Loại hàng...' : 'Goods type...'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.weight}</label>
-                    <input type="text" value={newConsignment.weight} onChange={e => setNewConsignment(prev => ({ ...prev, weight: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: 2kg' : 'e.g. 2kg'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.cod}</label>
-                    <input type="number" min="0" value={newConsignment.cod} onChange={e => setNewConsignment(prev => ({ ...prev, cod: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</label>
-                    <input type="text" value={newConsignment.notes} onChange={e => setNewConsignment(prev => ({ ...prev, notes: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Ghi chú thêm...' : 'Additional notes...'} />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-4 pt-2">
-                  <button onClick={() => setShowCreateConsignment(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                  <button onClick={handleCreateConsignment} disabled={!newConsignment.senderName || !newConsignment.receiverName} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all">
-                    {language === 'vi' ? 'Tạo vận đơn' : 'Create Bill'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Edit Consignment Modal */}
-          {showEditConsignment && editingConsignment && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-[32px] p-8 max-w-xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-bold">{language === 'vi' ? 'Chỉnh sửa vận đơn' : 'Edit Consignment'}</h3>
-                  <button onClick={() => { setShowEditConsignment(false); setEditingConsignment(null); }} className="p-2 hover:bg-gray-50 rounded-xl">
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.sender}</label>
-                    <input type="text" value={editConsignmentForm.senderName} onChange={e => setEditConsignmentForm(prev => ({ ...prev, senderName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Tên người gửi' : 'Sender name'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'SĐT người gửi' : 'Sender phone'}</label>
-                    <input type="text" value={editConsignmentForm.senderPhone} onChange={e => setEditConsignmentForm(prev => ({ ...prev, senderPhone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="09xxx" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.receiver}</label>
-                    <input type="text" value={editConsignmentForm.receiverName} onChange={e => setEditConsignmentForm(prev => ({ ...prev, receiverName: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Tên người nhận' : 'Receiver name'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'SĐT người nhận' : 'Receiver phone'}</label>
-                    <input type="text" value={editConsignmentForm.receiverPhone} onChange={e => setEditConsignmentForm(prev => ({ ...prev, receiverPhone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="09xxx" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.goods_type}</label>
-                    <input type="text" value={editConsignmentForm.type} onChange={e => setEditConsignmentForm(prev => ({ ...prev, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Loại hàng...' : 'Goods type...'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.weight}</label>
-                    <input type="text" value={editConsignmentForm.weight} onChange={e => setEditConsignmentForm(prev => ({ ...prev, weight: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: 2kg' : 'e.g. 2kg'} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.cod}</label>
-                    <input type="number" min="0" value={editConsignmentForm.cod} onChange={e => setEditConsignmentForm(prev => ({ ...prev, cod: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</label>
-                    <input type="text" value={editConsignmentForm.notes} onChange={e => setEditConsignmentForm(prev => ({ ...prev, notes: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'Ghi chú thêm...' : 'Additional notes...'} />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
-                    <select value={editConsignmentForm.status} onChange={e => setEditConsignmentForm(prev => ({ ...prev, status: e.target.value as any }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
-                      <option value="PENDING">{t.filter_pending || 'Pending'}</option>
-                      <option value="PICKED_UP">{t.filter_picked_up || 'In Transit'}</option>
-                      <option value="DELIVERED">{t.filter_delivered || 'Delivered'}</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-4 pt-2">
-                  <button onClick={() => { setShowEditConsignment(false); setEditingConsignment(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                  <button onClick={handleUpdateConsignment} disabled={!editConsignmentForm.senderName || !editConsignmentForm.receiverName} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all">
-                    {t.save}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          </div>
-        );
-      }
+      case 'consignments':
+           return <ConsignmentsPage consignments={consignments} currentUser={currentUser} language={language} />;
 
       case 'user-guide':
         return <UserGuide language={language} currentUser={currentUser} userGuides={userGuides} />;
+
 
       case 'pickup-dropoff':
         return (
