@@ -47,6 +47,10 @@ import { UserGuide } from './components/UserGuide';
 import { CustomerManagement } from './components/CustomerManagement';
 import { PaymentQRModal, AgentTopUpQRModal } from './components/PaymentQRModal';
 import { PaymentManagement } from './components/PaymentManagement';
+import { PickupDropoffManagement } from './components/PickupDropoffManagement';
+import { StaffChat } from './components/StaffChat';
+import { DriverTaskPanel } from './components/DriverTaskPanel';
+import { DriverAssignment, StaffMessage } from './types';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -352,6 +356,10 @@ export default function App() {
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
   const [showEmployeeFilters, setShowEmployeeFilters] = useState(false);
 
+  // Driver assignments & staff messages
+  const [driverAssignments, setDriverAssignments] = useState<DriverAssignment[]>([]);
+  const [staffMessages, setStaffMessages] = useState<StaffMessage[]>([]);
+
   // Route search state
   const [routeSearch, setRouteSearch] = useState('');
   const [showRouteFilters, setShowRouteFilters] = useState(false);
@@ -586,6 +594,8 @@ export default function App() {
     const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
+    const unsubscribeDriverAssignments = transportService.subscribeToDriverAssignments(setDriverAssignments);
+    const unsubscribeStaffMessages = transportService.subscribeToStaffMessages(setStaffMessages);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -598,6 +608,8 @@ export default function App() {
       unsubscribeBookings();
       unsubscribeUserGuides();
       unsubscribeCustomers();
+      unsubscribeDriverAssignments();
+      unsubscribeStaffMessages();
     };
   }, []);
 
@@ -7750,6 +7762,17 @@ export default function App() {
       case 'user-guide':
         return <UserGuide language={language} currentUser={currentUser} userGuides={userGuides} />;
 
+      case 'pickup-dropoff':
+        return (
+          <PickupDropoffManagement
+            language={language}
+            trips={trips}
+            employees={employees}
+            driverAssignments={driverAssignments}
+            currentUserName={currentUser?.name || ''}
+          />
+        );
+
       default:
         return null;
     }
@@ -7801,6 +7824,27 @@ export default function App() {
     <div className="flex h-screen overflow-hidden bg-daiichi-accent">
       <PWAInstallPrompt />
       <UrgencyNotification language={language} />
+
+      {/* Staff Chat (visible to MANAGER and employees) */}
+      {(currentUser?.role === UserRole.MANAGER || (currentUser?.role && currentUser.role !== UserRole.AGENT && currentUser.role !== UserRole.CUSTOMER && currentUser.role !== UserRole.GUEST)) && (
+        <StaffChat
+          language={language}
+          currentUserName={currentUser?.name || ''}
+          currentUserId={currentUser?.id || ''}
+          employees={employees}
+          messages={staffMessages}
+        />
+      )}
+
+      {/* Driver task panel (visible to drivers – employees with DRIVER role) */}
+      {currentUser && currentUser.role === 'DRIVER' && (
+        <DriverTaskPanel
+          language={language}
+          driverEmployeeId={currentUser.id}
+          driverName={currentUser.name}
+          assignments={driverAssignments}
+        />
+      )}
       
       {/* Real-time Notifications */}
       <div className="fixed top-6 right-6 z-[100] space-y-4 pointer-events-none">

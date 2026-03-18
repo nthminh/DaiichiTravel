@@ -192,6 +192,29 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSignedIn();
     }
+
+    // Driver assignments: authenticated read/write (managers assign, drivers respond)
+    match /driverAssignments/{assignment} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().hasAll(['tripId', 'seatId', 'driverEmployeeId', 'driverName', 'status', 'assignedAt'])
+                    && request.resource.data.keys().size() <= 30
+                    && isShortString(request.resource.data.driverName)
+                    && isShortString(request.resource.data.status);
+      allow update: if isSignedIn() && request.resource.data.keys().size() <= 30;
+      allow delete: if isSignedIn();
+    }
+
+    // Staff messages: authenticated read/write (internal messaging)
+    match /staffMessages/{message} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().hasAll(['senderId', 'senderName', 'content', 'createdAt'])
+                    && request.resource.data.keys().size() <= 20
+                    && isShortString(request.resource.data.content)
+                    && isShortString(request.resource.data.senderName);
+      allow delete: if isSignedIn();
+    }
     // Settings: public read (needed for login credential check), authenticated write
     match /settings/{setting} {
       allow read: if true;
