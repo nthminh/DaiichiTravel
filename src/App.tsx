@@ -45,7 +45,7 @@ import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { UserGuide } from './components/UserGuide';
 import { CustomerManagement } from './components/CustomerManagement';
-import { PaymentQRModal } from './components/PaymentQRModal';
+import { PaymentQRModal, AgentTopUpQRModal } from './components/PaymentQRModal';
 import { PaymentManagement } from './components/PaymentManagement';
 
 // Re-export types for components
@@ -567,6 +567,7 @@ export default function App() {
   const [bookingNote, setBookingNote] = useState('');
   // QR Payment flow state – holds the callback to execute after user confirms QR payment
   const [pendingQrBooking, setPendingQrBooking] = useState<{ amount: number; ref: string; label: string; execute: () => Promise<void> } | null>(null);
+  const [agentTopUpModal, setAgentTopUpModal] = useState(false);
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -2429,6 +2430,37 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Agent balance banner – shown when agent is logged in */}
+            {currentUser?.role === UserRole.AGENT && (() => {
+              const agentData = agents.find(a => a.id === currentUser.id);
+              if (!agentData) return null;
+              return (
+                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-3xl p-5 sm:p-8 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                    </div>
+                    <div>
+                      <p className="text-white/70 text-xs font-semibold uppercase tracking-wide">{language === 'vi' ? 'Số dư tài khoản đại lý' : 'Agent Account Balance'}</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold mt-0.5">
+                        <span className={(agentData.balance || 0) < 0 ? 'text-red-300' : 'text-white'}>
+                          {(agentData.balance || 0).toLocaleString('vi-VN')}đ
+                        </span>
+                      </p>
+                      <p className="text-white/60 text-xs mt-1">{agentData.name} · {agentData.code}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAgentTopUpModal(true)}
+                    className="shrink-0 flex items-center gap-2 px-5 py-3 bg-white text-purple-700 rounded-2xl font-bold shadow-lg hover:scale-105 transition-all text-sm whitespace-nowrap"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+                    {language === 'vi' ? 'Nạp tiền' : 'Top Up'}
+                  </button>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[
@@ -7439,6 +7471,7 @@ export default function App() {
             bookings={bookings}
             agents={agents}
             currentUser={currentUser}
+            onUpdateAgent={handleUpdateAgent}
           />
         );
 
@@ -7811,6 +7844,20 @@ export default function App() {
           onCancel={() => setPendingQrBooking(null)}
         />
       )}
+
+      {/* Agent top-up modal – for agent users on the home view */}
+      {agentTopUpModal && currentUser?.role === UserRole.AGENT && (() => {
+        const agentData = agents.find(a => a.id === currentUser.id);
+        if (!agentData) return null;
+        return (
+          <AgentTopUpQRModal
+            agentName={agentData.name}
+            agentCode={agentData.code}
+            language={language}
+            onClose={() => setAgentTopUpModal(false)}
+          />
+        );
+      })()}
 
       <TicketModal
         isOpen={isTicketOpen}
