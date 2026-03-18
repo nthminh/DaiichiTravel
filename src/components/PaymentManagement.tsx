@@ -165,9 +165,9 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     if (!agentSearch.trim()) return activeAgents;
     const q = agentSearch.toLowerCase();
     return activeAgents.filter(a =>
-      (a.name || '').toLowerCase().includes(q) ||
-      (a.code || '').toLowerCase().includes(q) ||
-      (a.phone || '').toLowerCase().includes(q)
+      String(a.name ?? '').toLowerCase().includes(q) ||
+      String(a.code ?? '').toLowerCase().includes(q) ||
+      String(a.phone ?? '').toLowerCase().includes(q)
     );
   }, [activeAgents, agentSearch]);
 
