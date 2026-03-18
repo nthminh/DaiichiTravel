@@ -4215,6 +4215,7 @@ export default function App() {
                             ) : (
                               <p className="text-2xl font-extrabold text-daiichi-red">{effectiveAdultPrice.toLocaleString()}đ</p>
                             )}
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Người lớn' : 'Adult'}: {(discountedPrice ?? effectiveAdultPrice).toLocaleString()}đ</p>
                             {tour.priceChild ? (
                               <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {tour.priceChild.toLocaleString()}đ</p>
                             ) : null}
@@ -4627,62 +4628,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
-              {/* Accommodation – only shown if tour defines pricePerNight */}
-              {hasAccommodationOption && (
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">{t.accommodation}</label>
-                  <p className="text-[10px] text-gray-400 mb-1">
-                    {language === 'vi'
-                      ? `Căn bản ${tourPricePerNight.toLocaleString()}đ/người × ${tourNights} đêm`
-                      : `Base ${tourPricePerNight.toLocaleString()}đ/person × ${tourNights} nights`}
-                  </p>
-                  <select
-                    value={tourAccommodation}
-                    onChange={(e) => setTourAccommodation(e.target.value as typeof tourAccommodation)}
-                    className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                  >
-                    <option value="none">{t.no_accommodation}</option>
-                    <option value="standard">
-                      {language === 'vi' ? 'Phòng tiêu chuẩn' : 'Standard room'} (+{accommodationCosts.standard.toLocaleString()}đ)
-                    </option>
-                    <option value="deluxe">
-                      {language === 'vi' ? 'Phòng deluxe' : 'Deluxe room'} (+{accommodationCosts.deluxe.toLocaleString()}đ)
-                    </option>
-                    <option value="suite">
-                      {language === 'vi' ? 'Phòng suite' : 'Suite'} (+{accommodationCosts.suite.toLocaleString()}đ)
-                    </option>
-                  </select>
-                </div>
-              )}
-
-              {/* Meal plan – only shown if tour defines pricePerBreakfast */}
-              {hasMealOption && (
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">{t.meal_plan}</label>
-                  <p className="text-[10px] text-gray-400 mb-1">
-                    {language === 'vi'
-                      ? `${pricePerBreakfast.toLocaleString()}đ/bữa × ${breakfastCount} bữa × người`
-                      : `${pricePerBreakfast.toLocaleString()}đ/meal × ${breakfastCount} meals × person`}
-                  </p>
-                  <select
-                    value={tourMealPlan}
-                    onChange={(e) => setTourMealPlan(e.target.value as typeof tourMealPlan)}
-                    className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                  >
-                    <option value="none">{t.meal_none}</option>
-                    <option value="breakfast">
-                      {language === 'vi' ? 'Ăn sáng' : 'Breakfast'} (+{mealCosts.breakfast.toLocaleString()}đ)
-                    </option>
-                    <option value="half_board">
-                      {language === 'vi' ? 'Ăn sáng + ăn tối' : 'Breakfast + Dinner'} (+{mealCosts.half_board.toLocaleString()}đ)
-                    </option>
-                    <option value="full_board">
-                      {language === 'vi' ? 'Ăn đủ 3 bữa/ngày' : 'Full board'} (+{mealCosts.full_board.toLocaleString()}đ)
-                    </option>
-                  </select>
-                </div>
-              )}
 
               {/* Optional add-on services */}
               {selectedTour?.addons && selectedTour.addons.length > 0 && (
