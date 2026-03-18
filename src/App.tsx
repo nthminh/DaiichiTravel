@@ -564,8 +564,6 @@ export default function App() {
     const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
-    const unsubscribeDriverAssignments = transportService.subscribeToDriverAssignments(setDriverAssignments);
-    const unsubscribeStaffMessages = transportService.subscribeToStaffMessages(setStaffMessages);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -578,8 +576,6 @@ export default function App() {
       unsubscribeBookings();
       unsubscribeUserGuides();
       unsubscribeCustomers();
-      unsubscribeDriverAssignments();
-      unsubscribeStaffMessages();
     };
   }, []);
 
@@ -602,6 +598,30 @@ export default function App() {
     return () => {
       authUnsub();
       if (invoiceUnsub) invoiceUnsub();
+    };
+  }, []);
+
+  // Subscribe to driverAssignments and staffMessages only when authenticated
+  // (Firestore rules require isSignedIn() for these collections).
+  useEffect(() => {
+    if (!auth) return;
+    let assignmentUnsub: (() => void) | null = null;
+    let messagesUnsub: (() => void) | null = null;
+    const authUnsub = onAuthStateChanged(auth, (user) => {
+      if (assignmentUnsub) { assignmentUnsub(); assignmentUnsub = null; }
+      if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
+      if (user) {
+        assignmentUnsub = transportService.subscribeToDriverAssignments(setDriverAssignments);
+        messagesUnsub = transportService.subscribeToStaffMessages(setStaffMessages);
+      } else {
+        setDriverAssignments([]);
+        setStaffMessages([]);
+      }
+    });
+    return () => {
+      authUnsub();
+      if (assignmentUnsub) assignmentUnsub();
+      if (messagesUnsub) messagesUnsub();
     };
   }, []);
 
