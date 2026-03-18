@@ -317,8 +317,14 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
   };
 
   const handleCopyTour = (tour: Tour) => {
+    const copyPrefix = language === 'vi' ? 'Bản sao - ' : 'Copy - ';
+    const baseTitle = tour.title.startsWith('Bản sao - ')
+      ? tour.title.replace(/^Bản sao - /, '')
+      : tour.title.startsWith('Copy - ')
+        ? tour.title.replace(/^Copy - /, '')
+        : tour.title;
     setNewTour({
-      title: language === 'vi' ? `Bản sao - ${tour.title}` : `Copy - ${tour.title}`,
+      title: `${copyPrefix}${baseTitle}`,
       description: tour.description,
       price: tour.price,
       imageUrl: tour.imageUrl,
