@@ -4,7 +4,7 @@ import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
 import { Vehicle as VehicleBase } from '../types';
 
-type Vehicle = VehicleBase & { id: string; status?: string };
+type Vehicle = VehicleBase & { id: string };
 import { transportService } from '../services/transportService';
 import { ResizableTh } from '../components/ResizableTh';
 import { VehicleSeatDiagram, SerializedSeat } from '../components/VehicleSeatDiagram';
