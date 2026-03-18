@@ -237,6 +237,8 @@ export default function App() {
   const [tourBookingDate, setTourBookingDate] = useState('');
   const [tourBookingAdults, setTourBookingAdults] = useState(1);
   const [tourBookingChildren, setTourBookingChildren] = useState(0);
+  const [tourBookingNights, setTourBookingNights] = useState(0);
+  const [tourBookingBreakfasts, setTourBookingBreakfasts] = useState(0);
   const [tourAccommodation, setTourAccommodation] = useState<'none' | 'standard' | 'deluxe' | 'suite'>('none');
   const [tourMealPlan, setTourMealPlan] = useState<'none' | 'breakfast' | 'half_board' | 'full_board'>('none');
   const [tourSelectedAddons, setTourSelectedAddons] = useState<Set<string>>(new Set());
@@ -4008,7 +4010,14 @@ export default function App() {
       case 'tours': {
         // Apply advanced filters
         const filteredPublicTours = tours.filter(tour => {
-          const effectivePrice = tour.priceAdult || tour.price;
+          const tourPriceAdult = tour.priceAdult || tour.price;
+          const tourPriceChild = tour.priceChild ?? Math.round(tourPriceAdult * 0.5);
+          const effectivePrice =
+            tourPriceAdult * (tour.numAdults ?? 1) +
+            tourPriceChild * (tour.numChildren ?? 0) +
+            (tour.nights ?? 0) * (tour.pricePerNight ?? 0) +
+            (tour.breakfastCount ?? 0) * (tour.pricePerBreakfast ?? 0) +
+            (tour.surcharge ?? 0);
           if (tourDurationFilter) {
             const q = tourDurationFilter.toLowerCase();
             const matchesTitle = tour.title.toLowerCase().includes(q);
@@ -4050,7 +4059,7 @@ export default function App() {
                      />
                   </div>
                 </div>
-                <div className="flex items-end gap-2">
+                <div className="flex flex-wrap items-end gap-2">
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá từ (đ)' : 'Price from'}</label>
                     <input
@@ -4109,8 +4118,15 @@ export default function App() {
                     ? tour.images
                     : (tour.imageUrl ? [tour.imageUrl] : []);
                   const effectiveAdultPrice = tour.priceAdult || tour.price;
-                  const discountedPrice = tour.discountPercent && tour.discountPercent > 0
-                    ? Math.round(effectiveAdultPrice * (1 - tour.discountPercent / 100))
+                  const effectiveChildPrice = tour.priceChild ?? Math.round(effectiveAdultPrice * 0.5);
+                  const fullTourPrice =
+                    effectiveAdultPrice * (tour.numAdults ?? 1) +
+                    effectiveChildPrice * (tour.numChildren ?? 0) +
+                    (tour.nights ?? 0) * (tour.pricePerNight ?? 0) +
+                    (tour.breakfastCount ?? 0) * (tour.pricePerBreakfast ?? 0) +
+                    (tour.surcharge ?? 0);
+                  const discountedFullPrice = tour.discountPercent && tour.discountPercent > 0
+                    ? Math.round(fullTourPrice * (1 - tour.discountPercent / 100))
                     : null;
                   const displayImg = allTourImages[0] || '';
                   const isLiked = likedTours.has(tour.id);
@@ -4207,30 +4223,32 @@ export default function App() {
                         <div className="flex justify-between items-end">
                           <div>
                             <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá toàn tour' : 'Total tour price'}</p>
-                            {discountedPrice ? (
+                            {discountedFullPrice !== null ? (
                               <>
-                                <p className="text-sm text-gray-400 line-through">{effectiveAdultPrice.toLocaleString()}đ</p>
-                                <p className="text-2xl font-extrabold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
+                                <p className="text-sm text-gray-400 line-through">{fullTourPrice.toLocaleString()}đ</p>
+                                <p className="text-2xl font-extrabold text-daiichi-red">{discountedFullPrice.toLocaleString()}đ</p>
                               </>
                             ) : (
-                              <p className="text-2xl font-extrabold text-daiichi-red">{effectiveAdultPrice.toLocaleString()}đ</p>
+                              <p className="text-2xl font-extrabold text-daiichi-red">{fullTourPrice.toLocaleString()}đ</p>
                             )}
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Người lớn' : 'Adult'}: {(discountedPrice ?? effectiveAdultPrice).toLocaleString()}đ</p>
-                            {tour.priceChild ? (
-                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {tour.priceChild.toLocaleString()}đ</p>
-                            ) : null}
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá người lớn' : 'Adult unit price'}: {effectiveAdultPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
+                            {effectiveChildPrice > 0 && (
+                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá trẻ em (>4 tuổi)' : 'Child unit price (>4 yrs)'}: {effectiveChildPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => {
                                 setSelectedTour(tour);
-                                // Reset all booking form state when selecting a new tour
+                                // Pre-fill booking form from tour data
                                 setTourBookingName('');
                                 setTourBookingPhone('');
                                 setTourBookingEmail('');
                                 setTourBookingDate('');
-                                setTourBookingAdults(1);
-                                setTourBookingChildren(0);
+                                setTourBookingAdults(tour.numAdults ?? 1);
+                                setTourBookingChildren(tour.numChildren ?? 0);
+                                setTourBookingNights(tour.nights ?? 0);
+                                setTourBookingBreakfasts(tour.breakfastCount ?? 0);
                                 setTourAccommodation('none');
                                 setTourMealPlan('none');
                                 setTourSelectedAddons(new Set());
@@ -4272,27 +4290,15 @@ export default function App() {
         const pricePerChild = selectedTour?.priceChild ?? Math.round(pricePerAdult * 0.5);
         const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
 
-        // Accommodation: only available if tour defines pricePerNight
-        const tourNights = selectedTour?.nights ?? 0;
+        // Overnight stays: unit price is fixed by admin, customer adjusts quantity
         const tourPricePerNight = selectedTour?.pricePerNight ?? 0;
-        const hasAccommodationOption = tourNights > 0 && tourPricePerNight > 0;
-        const accommodationCosts: Record<string, number> = {
-          none: 0,
-          standard: tourPricePerNight * tourNights * totalPersons,
-          deluxe: Math.round(tourPricePerNight * 1.5) * tourNights * totalPersons,
-          suite: Math.round(tourPricePerNight * 2.5) * tourNights * totalPersons,
-        };
+        const hasNightsOption = (selectedTour?.nights ?? 0) > 0 && tourPricePerNight > 0;
+        const nightsCost = tourBookingNights * tourPricePerNight;
 
-        // Meals: only available if tour defines pricePerBreakfast
-        const breakfastCount = selectedTour?.breakfastCount ?? 0;
+        // Breakfasts: unit price is fixed by admin, customer adjusts quantity
         const pricePerBreakfast = selectedTour?.pricePerBreakfast ?? 0;
-        const hasMealOption = breakfastCount > 0 && pricePerBreakfast > 0;
-        const mealCosts: Record<string, number> = {
-          none: 0,
-          breakfast: pricePerBreakfast * breakfastCount * totalPersons,
-          half_board: pricePerBreakfast * breakfastCount * totalPersons + 150000 * totalPersons,
-          full_board: pricePerBreakfast * breakfastCount * totalPersons + 300000 * totalPersons,
-        };
+        const hasBreakfastOption = (selectedTour?.breakfastCount ?? 0) > 0 && pricePerBreakfast > 0;
+        const breakfastCost = tourBookingBreakfasts * pricePerBreakfast;
 
         // Surcharge (flat fee defined by admin)
         const surchargeAmount = selectedTour?.surcharge ?? 0;
@@ -4302,8 +4308,8 @@ export default function App() {
           .filter(a => tourSelectedAddons.has(a.id))
           .reduce((sum, a) => sum + a.price * totalPersons, 0);
 
-        const accomCost = hasAccommodationOption ? accommodationCosts[tourAccommodation] : 0;
-        const mealCost = hasMealOption ? mealCosts[tourMealPlan] : 0;
+        const accomCost = hasNightsOption ? nightsCost : 0;
+        const mealCost = hasBreakfastOption ? breakfastCost : 0;
 
         // Discount is applied to the full tour subtotal
         const tourSubtotal = baseTourPrice + accomCost + mealCost + surchargeAmount + addonsCost;
@@ -4340,13 +4346,15 @@ export default function App() {
             date: tourBookingDate,
             adults: tourBookingAdults,
             children: tourBookingChildren,
-            accommodation: hasAccommodationOption ? tourAccommodation : 'none',
-            mealPlan: hasMealOption ? tourMealPlan : 'none',
+            accommodation: 'none',
+            mealPlan: 'none',
+            nightsBooked: hasNightsOption ? tourBookingNights : 0,
+            breakfastsBooked: hasBreakfastOption ? tourBookingBreakfasts : 0,
             selectedAddons: [...tourSelectedAddons],
             surcharge: surchargeAmount,
             surchargeNote: selectedTour.surcharge ? (selectedTour.surchargeNote || '') : '',
             duration: selectedTour.duration || '',
-            nights: selectedTour.nights || 0,
+            nights: tourBookingNights,
             notes: tourNotes,
             amount: finalTourTotal,
             paymentMethod: bookStatus === 'CONFIRMED'
@@ -4629,6 +4637,38 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Nights & Breakfasts steppers (pre-filled from tour, price is read-only) */}
+              {(hasNightsOption || hasBreakfastOption) && (
+                <div className="grid grid-cols-2 gap-4">
+                  {hasNightsOption && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">
+                        🌙 {language === 'vi' ? 'Số đêm' : 'Nights'}
+                      </label>
+                      <p className="text-[10px] text-indigo-500 mt-0.5">{tourPricePerNight.toLocaleString()}đ/{language === 'vi' ? 'đêm' : 'night'}</p>
+                      <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl">
+                        <button type="button" onClick={() => setTourBookingNights(Math.max(0, tourBookingNights - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-indigo-200 text-indigo-600 font-bold text-lg leading-none">−</button>
+                        <span className="flex-1 text-center font-bold text-gray-800">{tourBookingNights}</span>
+                        <button type="button" onClick={() => setTourBookingNights(tourBookingNights + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-500 text-white font-bold text-lg leading-none">+</button>
+                      </div>
+                    </div>
+                  )}
+                  {hasBreakfastOption && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">
+                        ☕ {language === 'vi' ? 'Bữa sáng' : 'Breakfasts'}
+                      </label>
+                      <p className="text-[10px] text-amber-500 mt-0.5">{pricePerBreakfast.toLocaleString()}đ/{language === 'vi' ? 'bữa' : 'meal'}</p>
+                      <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                        <button type="button" onClick={() => setTourBookingBreakfasts(Math.max(0, tourBookingBreakfasts - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-amber-200 text-amber-600 font-bold text-lg leading-none">−</button>
+                        <span className="flex-1 text-center font-bold text-gray-800">{tourBookingBreakfasts}</span>
+                        <button type="button" onClick={() => setTourBookingBreakfasts(tourBookingBreakfasts + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-500 text-white font-bold text-lg leading-none">+</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Optional add-on services */}
               {selectedTour?.addons && selectedTour.addons.length > 0 && (
                 <div>
@@ -4750,13 +4790,13 @@ export default function App() {
               )}
               {accomCost > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.tour_accommodation_cost}</span>
+                  <span className="text-gray-500">{language === 'vi' ? `Lưu trú × ${tourBookingNights} đêm` : `Accommodation × ${tourBookingNights} nights`}</span>
                   <span className="font-bold">{accomCost.toLocaleString()}đ</span>
                 </div>
               )}
               {mealCost > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{t.tour_meal_cost}</span>
+                  <span className="text-gray-500">{language === 'vi' ? `Bữa sáng × ${tourBookingBreakfasts} bữa` : `Breakfast × ${tourBookingBreakfasts} meals`}</span>
                   <span className="font-bold">{mealCost.toLocaleString()}đ</span>
                 </div>
               )}
