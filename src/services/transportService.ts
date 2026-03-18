@@ -15,7 +15,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile } from '../types';
+import { Trip, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -925,5 +925,45 @@ export const transportService = {
     }
 
     await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // ─── Driver Assignments ────────────────────────────────────────────────────
+
+  subscribeToDriverAssignments: (callback: (assignments: DriverAssignment[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'driverAssignments'), orderBy('assignedAt', 'desc'));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as DriverAssignment[]);
+    }, (err) => { console.error('[driverAssignments] subscription error:', err); callback([]); });
+  },
+
+  addDriverAssignment: async (assignment: Omit<DriverAssignment, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'driverAssignments'), assignment);
+  },
+
+  updateDriverAssignment: async (id: string, updates: Partial<DriverAssignment>) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'driverAssignments', id), updates as Record<string, unknown>);
+  },
+
+  deleteDriverAssignment: async (id: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'driverAssignments', id));
+  },
+
+  // ─── Staff Messages ────────────────────────────────────────────────────────
+
+  subscribeToStaffMessages: (callback: (messages: StaffMessage[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'staffMessages'), orderBy('createdAt', 'asc'));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as StaffMessage[]);
+    }, (err) => { console.error('[staffMessages] subscription error:', err); callback([]); });
+  },
+
+  addStaffMessage: async (message: Omit<StaffMessage, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'staffMessages'), message);
   },
 };

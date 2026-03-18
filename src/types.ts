@@ -358,6 +358,46 @@ export interface UserGuide {
   updatedAt: number; // Unix timestamp ms
 }
 
+// ─── Driver Assignment ─────────────────────────────────────────────────────────
+// Represents a task assigned to a driver for a passenger pickup/dropoff.
+// Stored in Firestore collection: driverAssignments/{id}
+export interface DriverAssignment {
+  id: string;
+  tripId: string;
+  seatId: string;
+  // Snapshot of trip/passenger data for display
+  tripRoute?: string;
+  tripDate?: string;
+  tripTime?: string;
+  licensePlate?: string;
+  customerName?: string;
+  customerPhone?: string;
+  pickupAddress?: string;
+  dropoffAddress?: string;
+  // Assignment
+  driverEmployeeId: string;
+  driverName: string;
+  assignedBy?: string;   // name of manager who made the assignment
+  assignedAt: string;    // ISO timestamp
+  status: 'pending' | 'accepted' | 'rejected';
+  respondedAt?: string;  // ISO timestamp when driver responded
+  rejectionReason?: string;
+  note?: string;
+}
+
+// ─── Staff Message ─────────────────────────────────────────────────────────────
+// Internal chat message between staff/drivers.
+// Stored in Firestore collection: staffMessages/{id}
+export interface StaffMessage {
+  id: string;
+  senderId: string;       // employee username or currentUser id
+  senderName: string;
+  content: string;
+  mentions: string[];     // list of mentioned names (extracted from @name patterns)
+  createdAt: string;      // ISO timestamp
+  assignmentId?: string;  // optional – links message to a driver assignment thread
+}
+
 // Customer profile stored in Firestore customers collection
 export interface CustomerProfile {
   id: string;
