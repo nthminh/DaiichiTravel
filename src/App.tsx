@@ -47,6 +47,7 @@ import { UserGuide } from './components/UserGuide';
 import { CustomerManagement } from './components/CustomerManagement';
 import { PaymentQRModal, AgentTopUpQRModal } from './components/PaymentQRModal';
 import { PaymentManagement } from './components/PaymentManagement';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PickupDropoffManagement } from './components/PickupDropoffManagement';
 import { StaffChat } from './components/StaffChat';
 import { DriverTaskPanel } from './components/DriverTaskPanel';
@@ -7100,13 +7101,15 @@ export default function App() {
 
       case 'payment-management':
         return (
-          <PaymentManagement
-            language={language}
-            bookings={bookings}
-            agents={agents}
-            currentUser={currentUser}
-            onUpdateAgent={handleUpdateAgent}
-          />
+          <ErrorBoundary language={language} componentName="Payment Management">
+            <PaymentManagement
+              language={language}
+              bookings={bookings}
+              agents={agents}
+              currentUser={currentUser}
+              onUpdateAgent={handleUpdateAgent}
+            />
+          </ErrorBoundary>
         );
 
       case 'consignments':
