@@ -84,7 +84,7 @@ export enum UserRole {
 export interface User {
   id: string;
   username: string;
-  role: UserRole;
+  role: UserRole | string; // UserRole for admin/agent/customer, string for staff roles (e.g. 'DRIVER', 'STAFF')
   name: string;
   phone?: string;
   email?: string;
