@@ -26,6 +26,40 @@ type StatusFilter = 'all' | 'BOOKED' | 'PENDING' | 'CONFIRMED' | 'PAID' | 'CANCE
 const PAGE_SIZE = 50;
 const PAYABLE_STATUSES = ['BOOKED', 'PENDING'] as const;
 
+// ── Pagination bar – defined outside component to avoid remount on every render ──
+const PaginationBar = ({
+  page,
+  totalPages,
+  total,
+  language,
+  onPage,
+}: { page: number; totalPages: number; total: number; language: Language; onPage: (p: number) => void }) => (
+  <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-gray-500">
+    <span>
+      {language === 'vi'
+        ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total}`
+        : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total}`}
+    </span>
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => onPage(page - 1)}
+        disabled={page <= 1}
+        className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronLeft size={14} />
+      </button>
+      <span className="px-2 font-bold">{page} / {totalPages}</span>
+      <button
+        onClick={() => onPage(page + 1)}
+        disabled={page >= totalPages}
+        className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  </div>
+);
+
 export const PaymentManagement: React.FC<PaymentManagementProps> = ({
   language,
   bookings,
@@ -245,39 +279,6 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
       </span>
     );
   };
-
-  // ── Pagination control component ───────────────────────────────────────────
-  const PaginationBar = ({
-    page,
-    totalPages,
-    total,
-    onPage,
-  }: { page: number; totalPages: number; total: number; onPage: (p: number) => void }) => (
-    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-gray-500">
-      <span>
-        {language === 'vi'
-          ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} / ${total}`
-          : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total}`}
-      </span>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPage(page - 1)}
-          disabled={page <= 1}
-          className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronLeft size={14} />
-        </button>
-        <span className="px-2 font-bold">{page} / {totalPages}</span>
-        <button
-          onClick={() => onPage(page + 1)}
-          disabled={page >= totalPages}
-          className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronRight size={14} />
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-6">

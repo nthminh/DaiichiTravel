@@ -699,6 +699,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     assignment_pending: 'Chờ xác nhận',
     assignment_accepted: 'Đã nhận việc',
     assignment_rejected: 'Đã từ chối',
+    assignment_completed: 'Hoàn thành',
     no_pickup_dropoff: 'Chưa có hành khách nào nhập điểm đón/trả.',
     no_pickup_rows: 'Chưa có hành khách nào có điểm đón.',
     no_dropoff_rows: 'Chưa có hành khách nào có điểm trả.',
@@ -711,6 +712,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     driver_tasks_title: 'Nhiệm vụ của tôi',
     driver_task_accept: 'Nhận việc',
     driver_task_reject: 'Từ chối',
+    driver_task_complete: 'Hoàn thành',
     driver_task_rejection_reason: 'Lý do từ chối (không bắt buộc)',
     no_driver_tasks: 'Bạn chưa có nhiệm vụ nào được phân công.',
     // Staff Chat
@@ -1398,6 +1400,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     assignment_pending: 'Pending',
     assignment_accepted: 'Accepted',
     assignment_rejected: 'Rejected',
+    assignment_completed: 'Completed',
     no_pickup_dropoff: 'No passengers with pickup/dropoff addresses yet.',
     no_pickup_rows: 'No passengers with a pickup address yet.',
     no_dropoff_rows: 'No passengers with a dropoff address yet.',
@@ -1410,6 +1413,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     driver_tasks_title: 'My Tasks',
     driver_task_accept: 'Accept',
     driver_task_reject: 'Reject',
+    driver_task_complete: 'Complete',
     driver_task_rejection_reason: 'Rejection reason (optional)',
     no_driver_tasks: 'No tasks have been assigned to you.',
     // Staff Chat
@@ -2097,6 +2101,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     assignment_pending: '確認待ち',
     assignment_accepted: '受諾済み',
     assignment_rejected: '拒否済み',
+    assignment_completed: '完了',
     no_pickup_dropoff: '乗降地点のある乗客はまだいません。',
     no_pickup_rows: '乗車地点のある乗客はまだいません。',
     no_dropoff_rows: '降車地点のある乗客はまだいません。',
@@ -2109,6 +2114,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     driver_tasks_title: '自分のタスク',
     driver_task_accept: '受諾',
     driver_task_reject: '拒否',
+    driver_task_complete: '完了',
     driver_task_rejection_reason: '拒否理由（任意）',
     no_driver_tasks: 'まだタスクが割り当てられていません。',
     // Staff Chat

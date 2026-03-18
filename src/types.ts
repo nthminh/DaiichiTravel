@@ -380,8 +380,9 @@ export interface DriverAssignment {
   driverName: string;
   assignedBy?: string;   // name of manager who made the assignment
   assignedAt: string;    // ISO timestamp
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'rejected' | 'completed';
   respondedAt?: string;  // ISO timestamp when driver responded
+  completedAt?: string;  // ISO timestamp when driver marked task as completed
   rejectionReason?: string;
   note?: string;
 }

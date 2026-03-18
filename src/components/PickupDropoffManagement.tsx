@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   MapPin, Search, X, Edit3, Trash2, UserPlus, CheckCircle2,
   XCircle, Clock, Truck, Bus, Filter, Download, AlertCircle,
-  ArrowDownCircle, ArrowUpCircle,
+  ArrowDownCircle, ArrowUpCircle, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -126,6 +126,14 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   const [dateFilter, setDateFilter]         = useState('');
   const [statusFilter, setStatusFilter]     = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [showFilters, setShowFilters]       = useState(false);
+
+  // ── Pagination ─────────────────────────────────────────────────────────────
+  const PAGE_SIZE = 50;
+  const [pickupPage, setPickupPage]   = useState(1);
+  const [dropoffPage, setDropoffPage] = useState(1);
+
+  // Reset pages when filters change
+  useEffect(() => { setPickupPage(1); setDropoffPage(1); }, [filterRoute, filterPlate, filterEmployee, dateFilter, statusFilter]);
 
   // Edit passenger pickup/dropoff
   const [editingRow, setEditingRow] = useState<PassengerRow | null>(null);
@@ -419,6 +427,11 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
         <XCircle size={10} />{t.assignment_rejected || 'Từ chối'}
       </span>
     );
+    if (status === 'completed') return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+        <CheckCircle2 size={10} />{t.assignment_completed || 'Hoàn thành'}
+      </span>
+    );
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
         <Clock size={10} />{t.assignment_pending || 'Chờ xác nhận'}
@@ -432,6 +445,11 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
     const addressCol  = isPickup ? (t.pickup_address_col  || 'Điểm đón')  : (t.dropoff_address_col || 'Điểm trả');
     const driverCol   = isPickup ? (t.assigned_pickup_driver  || 'Tài xế đón') : (t.assigned_dropoff_driver || 'Tài xế trả');
     const noRowsText  = isPickup ? (t.no_pickup_rows  || 'Chưa có hành khách nào có điểm đón.') : (t.no_dropoff_rows || 'Chưa có hành khách nào có điểm trả.');
+
+    const page        = isPickup ? pickupPage : dropoffPage;
+    const setPage     = isPickup ? setPickupPage : setDropoffPage;
+    const totalPages  = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    const pagedRows   = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     const getAssignment = (row: PassengerRow) => isPickup ? row.pickupAssignment : row.dropoffAssignment;
 
@@ -461,7 +479,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                     <p className="font-medium">{noRowsText}</p>
                   </td>
                 </tr>
-              ) : rows.map((row, idx) => {
+              ) : pagedRows.map((row, idx) => {
                 const assignment = getAssignment(row);
                 const isEditing  = editingRow?.tripId === row.tripId && editingRow?.seatId === row.seatId;
                 return (
@@ -574,6 +592,34 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {rows.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-gray-500">
+            <span>
+              {language === 'vi'
+                ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, rows.length)} / ${rows.length}`
+                : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, rows.length)} of ${rows.length}`}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="px-2 font-bold">{page} / {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
