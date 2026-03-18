@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, MapPin, Bus, Clock, ChevronDown, ChevronUp, Flag } from 'lucide-react';
+import { CheckCircle2, XCircle, MapPin, Bus, Clock, Flag, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS } from '../constants/translations';
@@ -130,6 +130,20 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
           <span className="text-gray-400 w-16 shrink-0">{language === 'vi' ? 'Khách:' : 'Guest:'}</span>
           <span className="font-medium">{a.customerName} {a.customerPhone ? `• ${a.customerPhone}` : ''}</span>
         </div>
+        {(a.adults !== undefined || a.children !== undefined) && (
+          <div className="flex gap-2 items-center">
+            <span className="text-gray-400 w-16 shrink-0 flex items-center gap-1">
+              <Users size={13} />
+              {language === 'vi' ? 'Số lượng:' : 'Pax:'}
+            </span>
+            <span className="font-semibold text-green-700">
+              {a.adults ?? 0} {language === 'vi' ? 'người lớn' : 'adult(s)'}
+              {(a.children ?? 0) > 0 && (
+                <>, <span className="text-blue-600">{a.children} {language === 'vi' ? 'trẻ em' : 'child(ren)'}</span></>
+              )}
+            </span>
+          </div>
+        )}
         {a.pickupAddress && (
           <div className="flex gap-2">
             <span className="text-gray-400 w-16 shrink-0">{language === 'vi' ? 'Đón:' : 'Pickup:'}</span>
@@ -223,50 +237,73 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
   if (myTasks.length === 0) return null;
 
   return (
-    <div className="fixed bottom-8 left-8 z-40 w-[340px] bg-white rounded-[24px] shadow-2xl border border-gray-100 overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => setExpanded(p => !p)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white"
-      >
-        <div className="flex items-center gap-2.5">
+    <>
+      {/* Collapsed: floating button at top-right */}
+      {!expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="fixed top-4 right-4 z-40 flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-2xl shadow-xl shadow-green-500/30 hover:scale-105 transition-all"
+          aria-label={t.driver_tasks_title || 'Nhiệm vụ của tôi'}
+        >
           <MapPin size={16} />
           <span className="font-bold text-sm">{t.driver_tasks_title || 'Nhiệm vụ của tôi'}</span>
           {pendingTasks.length > 0 && (
-            <span className="bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {pendingTasks.length} {language === 'vi' ? 'mới' : 'new'}
+            <span className="bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+              {pendingTasks.length}
             </span>
           )}
-        </div>
-        {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-      </button>
+        </button>
+      )}
 
-      <AnimatePresence initial={false}>
+      {/* Expanded: full-screen overlay */}
+      <AnimatePresence>
         {expanded && (
           <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: 'auto' }}
-            exit={{ height: 0 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-40 bg-white flex flex-col"
           >
-            <div className="max-h-[50vh] overflow-y-auto px-4 py-3 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <MapPin size={18} />
+                <span className="font-bold text-base">{t.driver_tasks_title || 'Nhiệm vụ của tôi'}</span>
+                {pendingTasks.length > 0 && (
+                  <span className="bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {pendingTasks.length} {language === 'vi' ? 'mới' : 'new'}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setExpanded(false)}
+                className="p-1.5 rounded-xl hover:bg-white/20 transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Task list */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50/50">
               {myTasks.length === 0 ? (
-                <p className="text-center text-sm text-gray-400 py-4">
+                <p className="text-center text-sm text-gray-400 py-8">
                   {t.no_driver_tasks || 'Bạn chưa có nhiệm vụ nào.'}
                 </p>
               ) : (
-                <>
+                <div className="max-w-2xl mx-auto w-full space-y-4">
                   {pendingTasks.map(renderTask)}
                   {respondedTasks.length > 0 && pendingTasks.length > 0 && (
-                    <div className="h-px bg-gray-100 my-1" />
+                    <div className="h-px bg-gray-200 my-2" />
                   )}
                   {respondedTasks.map(renderTask)}
-                </>
+                </div>
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 };
