@@ -281,7 +281,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       ? `Đặt chỗ mới: ${b.customerName || ''} - ${b.route || ''}`
       : `New booking: ${b.customerName || ''} - ${b.route || ''}`,
     time: formatActivityTime(b.createdAt),
-    type: 'info' as const,
+    type: 'info' as 'info' | 'success' | 'error',
   }));
 
   return (

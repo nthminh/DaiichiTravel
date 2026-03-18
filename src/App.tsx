@@ -15,7 +15,8 @@ import { cn } from './lib/utils';
 import { 
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
-import { PAYMENT_METHODS, type PaymentMethod } from './constants/paymentMethods';
+import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_PAYMENT_METHOD, PAYMENT_METHOD_TRANSLATION_KEYS } from './constants/paymentMethods';
+import { usePayment } from './hooks/usePayment';
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
@@ -59,21 +60,14 @@ import { DriverAssignment, StaffMessage } from './types';
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
 export type { Language };
 
-const DEFAULT_PAYMENT_METHOD: PaymentMethod = 'Chuyển khoản QR';
-const PAYMENT_METHOD_TRANSLATION_KEYS: Record<PaymentMethod, string> = {
-  'Chuyển khoản QR': 'payment_qr',
-  'Tiền mặt': 'payment_cash',
-  'Chuyển khoản': 'payment_transfer',
-  'Thẻ tín dụng': 'payment_card',
-  'MoMo': 'payment_momo',
-  'Giữ vé': 'payment_hold',
-};
 
 export interface User {
   id: string;
   username: string;
   role: UserRole | string; // UserRole for admin/agent/customer, employee role string for staff
   name: string;
+  phone?: string;
+  email?: string;
   address?: string;
   agentCode?: string;
   balance?: number;
@@ -325,7 +319,7 @@ export default function App() {
   // Agent CRUD state
   const [showAddAgent, setShowAddAgent] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [agentForm, setAgentForm] = useState({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE' as const, username: '', password: '', paymentType: 'POSTPAID' as 'POSTPAID' | 'PREPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] as AgentPaymentOption[] });
+  const [agentForm, setAgentForm] = useState({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', paymentType: 'POSTPAID' as 'POSTPAID' | 'PREPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] as AgentPaymentOption[] });
 
   // Agent search / filter state
   const [agentSearch, setAgentSearch] = useState('');
@@ -541,12 +535,8 @@ export default function App() {
   const [phoneInput, setPhoneInput] = useState('');
   const [childrenAges, setChildrenAges] = useState<(number | undefined)[]>([]);
   const [tripCardImgIdx, setTripCardImgIdx] = useState<Record<string, number>>({});
-  const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [extraSeatIds, setExtraSeatIds] = useState<string[]>([]);
   const [bookingNote, setBookingNote] = useState('');
-  // QR Payment flow state – holds the callback to execute after user confirms QR payment
-  const [pendingQrBooking, setPendingQrBooking] = useState<{ amount: number; ref: string; label: string; execute: () => Promise<void> } | null>(null);
-  const [agentTopUpModal, setAgentTopUpModal] = useState(false);
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
@@ -559,7 +549,7 @@ export default function App() {
     const unsubscribeAgents = transportService.subscribeToAgents((data) => { setAgents(data); setAgentsLoading(false); });
     const unsubscribeStops = transportService.subscribeToStops(setStops);
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
-    const unsubscribeVehicles = transportService.subscribeToVehicles(setVehicles);
+    const unsubscribeVehicles = transportService.subscribeToVehicles((data) => setVehicles(data as unknown as Vehicle[]));
     const unsubscribeTours = transportService.subscribeToTours(setTours);
     const unsubscribeEmployees = transportService.subscribeToEmployees(setEmployees);
     const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
@@ -1864,266 +1854,6 @@ export default function App() {
     };
   };
 
-  const handleConfirmBooking = async (seatId: string) => {
-    // Use fare-table price when available; for agents prefer agentPrice from fare table
-    const isAgentBooking = currentUser?.role === UserRole.AGENT;
-    const effectiveAgentName = isAgentBooking
-      ? (currentUser!.name || currentUser!.address || currentUser!.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
-      : 'Trực tiếp';
-    // When a fare is resolved: use agent fare price for agents (if set), otherwise retail fare
-    const effectiveFareAmount = fareAmount !== null
-      ? (isAgentBooking && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
-      : null;
-    const basePriceAdult = effectiveFareAmount !== null
-      ? effectiveFareAmount
-      : (isAgentBooking
-          ? (selectedTrip.agentPrice || selectedTrip.price || 0)
-          : (selectedTrip.price || 0));
-    const basePriceChild = effectiveFareAmount !== null
-      ? effectiveFareAmount
-      : (isAgentBooking
-          ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
-          : (selectedTrip.priceChild || basePriceAdult));
-    
-    // Children over 4 years old are charged adult price and need their own seat
-    const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
-      (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
-      { childrenOver4: 0, childrenUnder4: 0 }
-    );
-    const effectiveAdults = adults + childrenOver4;
-    const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
-    
-    // Calculate route-level surcharges (fuel, holiday, etc.)
-    const tripRoute = routes.find(r => r.name === selectedTrip.route);
-    const tripDate = selectedTrip.date || '';
-    const appliedRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
-    const routeSurchargeTotal = appliedRouteSurcharges.reduce((sum, sc) => sum + sc.amount * (effectiveAdults + effectiveChildren), 0);
-
-    const totalBase = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
-    const totalSurcharge = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
-    // Calculate selected addons total (price × quantity)
-    const selectedAddons = (selectedTrip.addons || []).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
-    const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (addonQuantities[a.id] || 1), 0);
-    const totalAmount = Math.round((totalBase + totalSurcharge + addonsTotalPrice) * (1 - bookingDiscount / 100));
-
-    // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
-    const isFreeSeating = selectedTrip.seatType === 'free';
-    let allSeatIds: string[];
-    let effectiveSeatId: string;
-    if (isFreeSeating) {
-      // Auto-assign the required number of seats from available ones
-      const seatsNeeded = adults + childrenOver4;
-      const availableSeats = selectedTrip.seats
-        .filter((s: any) => s.status === SeatStatus.EMPTY)
-        .slice(0, seatsNeeded);
-      if (availableSeats.length < seatsNeeded) {
-        alert(language === 'vi' ? 'Không còn đủ chỗ trống cho số hành khách đã chọn!' : 'Not enough seats available for the selected number of passengers!');
-        return;
-      }
-      allSeatIds = availableSeats.map((s: any) => s.id);
-      effectiveSeatId = allSeatIds[0] || '1';
-    } else {
-      const extraSeatsForBooking = extraSeatIds.slice(0, (adults - 1) + childrenOver4);
-      allSeatIds = [seatId, ...extraSeatsForBooking];
-      effectiveSeatId = seatId;
-    }
-
-    // Resolve stop orders for segment availability tracking
-    const fromStopOrder = tripRoute?.routeStops?.find(s => s.stopId === fromStopId)?.order;
-    const toStopOrder = tripRoute?.routeStops?.find(s => s.stopId === toStopId)?.order;
-
-    // Guard: if the selected seat already has segment bookings that overlap with the current
-    // segment selection, block the booking and show a warning.
-    if (fromStopOrder !== undefined && toStopOrder !== undefined && !isFreeSeating) {
-      const conflictSeatIds = allSeatIds.filter(sid => {
-        const seatData = selectedTrip.seats.find((s: any) => s.id === sid);
-        if (!seatData) return false;
-        const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
-          (seatData.segmentBookings ?? []).length > 0
-            ? seatData.segmentBookings
-            : (seatData.fromStopOrder !== undefined && seatData.toStopOrder !== undefined
-                ? [{ fromStopOrder: seatData.fromStopOrder, toStopOrder: seatData.toStopOrder }]
-                : []);
-        return segs.some(seg => seg.fromStopOrder < toStopOrder && fromStopOrder < seg.toStopOrder);
-      });
-      if (conflictSeatIds.length > 0) {
-        alert(language === 'vi'
-          ? `Chặng này, ghế ${conflictSeatIds.join(', ')} đã có người ngồi rồi — vui lòng chọn chặng khác.`
-          : `Segment already booked for seat(s) ${conflictSeatIds.join(', ')} — please choose a different segment.`);
-        return;
-      }
-    }
-
-    const bookingData = {
-      customerName: customerNameInput.trim() || (language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
-      phone: phoneInput.trim(),
-      type: 'TRIP',
-      route: selectedTrip.route,
-      date: new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-      time: selectedTrip.time,
-      tripId: selectedTrip.id,
-      seatId: effectiveSeatId,
-      seatIds: allSeatIds,
-      amount: totalAmount,
-      agent: effectiveAgentName,
-      ...(isAgentBooking ? { agentId: currentUser!.id } : {}),
-      status: 'BOOKED',
-      adults,
-      children,
-      pickupPoint,
-      dropoffPoint,
-      ...(pickupAddress ? { pickupAddress } : {}),
-      ...(dropoffAddress ? { dropoffAddress } : {}),
-      paymentMethod: paymentMethodInput,
-      ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
-      selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: addonQuantities[a.id] || 1 })),
-      ...(isFreeSeating ? { freeSeating: true } : {}),
-      // Fare-table fields (Option 2) – present only when a fare was resolved
-      ...(effectiveFareAmount !== null && fromStopId && toStopId ? {
-        fromStopId,
-        toStopId,
-        fareDocId: `${fromStopId}_${toStopId}`,
-        farePricePerPerson: effectiveFareAmount,
-        ...(fareAmount !== null && isAgentBooking && fareAgentAmount !== null ? { fareRetailPricePerPerson: fareAmount } : {}),
-      } : {}),
-    };
-
-    // Seat update payload includes pickup/dropoff for segment availability
-    const seatUpdateData = {
-      status: SeatStatus.BOOKED,
-      customerName: bookingData.customerName,
-      customerPhone: bookingData.phone,
-      ...(pickupPoint ? { pickupPoint } : {}),
-      ...(dropoffPoint ? { dropoffPoint } : {}),
-      ...(pickupAddress ? { pickupAddress } : {}),
-      ...(dropoffAddress ? { dropoffAddress } : {}),
-      ...(fromStopOrder !== undefined ? { fromStopOrder } : {}),
-      ...(toStopOrder !== undefined ? { toStopOrder } : {}),
-      ...(bookingNote.trim() ? { bookingNote: bookingNote.trim() } : {}),
-    };
-
-    // Core save function – shared by both QR and direct booking paths
-    const saveBooking = async () => {
-      try {
-        const result = await transportService.createBooking(bookingData);
-        await transportService.bookSeats(selectedTrip.id, allSeatIds, seatUpdateData);
-        setLastBooking({ ...bookingData, id: result.id, ticketCode: result.ticketCode });
-      } catch (err) {
-        console.error('Failed to save booking:', err);
-        alert(language === 'vi'
-          ? 'Đặt vé thất bại: Không thể kết nối đến máy chủ. Vui lòng thử lại.'
-          : 'Booking failed: Unable to connect to server. Please try again.');
-        return;
-      }
-
-      setIsTicketOpen(true);
-      setShowBookingForm(null);
-
-      // Reset form inputs
-      setCustomerNameInput('');
-      setPhoneInput('');
-      setAdults(1);
-      setChildren(0);
-      setChildrenAges([]);
-      setExtraSeatIds([]);
-      setPickupPoint('');
-      setDropoffPoint('');
-      setPickupAddress('');
-      setDropoffAddress('');
-      setPickupSurcharge(0);
-      setDropoffSurcharge(0);
-      setSurchargeAmount(0);
-      setBookingDiscount(0);
-      setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
-      setAddonQuantities({});
-      setBookingNote('');
-      // Reset fare-table state
-      setFareAmount(null);
-      setFareAgentAmount(null);
-      setFareError('');
-      setFareLoading(false);
-      setFromStopId('');
-      setToStopId('');
-      setSeatSelectionHistory([]);
-
-      // Send real-time notification
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'NEW_BOOKING',
-          customerName: bookingData.customerName,
-          route: bookingData.route,
-          time: bookingData.time,
-          amount: bookingData.amount
-        }));
-      }
-
-      // Optimistic local state update while Firebase listener syncs
-      const applyOptimisticSeatUpdate = (seat: any): any => {
-        if (!allSeatIds.includes(seat.id)) return seat;
-        // For segment bookings: update segmentBookings array instead of just status
-        if (fromStopOrder !== undefined && toStopOrder !== undefined) {
-          const newEntry = {
-            fromStopOrder,
-            toStopOrder,
-            customerName: seatUpdateData.customerName,
-            ...(seatUpdateData.customerPhone ? { customerPhone: seatUpdateData.customerPhone } : {}),
-            ...(seatUpdateData.pickupPoint ? { pickupPoint: seatUpdateData.pickupPoint } : {}),
-            ...(seatUpdateData.dropoffPoint ? { dropoffPoint: seatUpdateData.dropoffPoint } : {}),
-            ...(seatUpdateData.bookingNote ? { bookingNote: seatUpdateData.bookingNote } : {}),
-          };
-          const existingSegs = seat.segmentBookings ?? [];
-          // Determine if the seat already has any segment booking data (same logic as bookSeats)
-          const hasExistingSegmentBooking = existingSegs.length > 0 || (seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined);
-          if (hasExistingSegmentBooking) {
-            let segs = existingSegs;
-            if (existingSegs.length === 0 && seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined) {
-              segs = [{
-                fromStopOrder: seat.fromStopOrder,
-                toStopOrder: seat.toStopOrder,
-                customerName: seat.customerName,
-                customerPhone: seat.customerPhone,
-                pickupPoint: seat.pickupPoint,
-                dropoffPoint: seat.dropoffPoint,
-                bookingNote: seat.bookingNote,
-              }];
-            }
-            return { ...seat, status: SeatStatus.BOOKED, segmentBookings: [...segs, newEntry] };
-          }
-          return { ...seat, ...seatUpdateData, segmentBookings: [newEntry] };
-        }
-        return { ...seat, status: SeatStatus.BOOKED };
-      };
-
-      setTrips(prev => prev.map(trip => {
-        if (trip.id === selectedTrip.id) {
-          return { ...trip, seats: trip.seats.map(applyOptimisticSeatUpdate) };
-        }
-        return trip;
-      }));
-      // Also update selectedTrip immediately so the seat diagram reflects the new status
-      setSelectedTrip((prev: any) => {
-        if (!prev) return prev;
-        return { ...prev, seats: prev.seats.map(applyOptimisticSeatUpdate) };
-      });
-    };
-
-    // When payment method is QR bank transfer, show the QR modal first
-    if (paymentMethodInput === 'Chuyển khoản QR') {
-      const paymentReference = transportService.generateTicketCode();
-      // Store the reference so it shows in the QR modal and is saved with the booking
-      (bookingData as any).paymentRef = paymentReference;
-      setPendingQrBooking({
-        amount: totalAmount,
-        ref: paymentReference,
-        label: bookingData.customerName,
-        execute: saveBooking,
-      });
-      return;
-    }
-
-    // All other payment methods – save immediately
-    await saveBooking();
-  };
 
   // --- Route price period helpers ---
   const getRouteActivePeriod = (route: Route, date: string): PricePeriod | null => {
@@ -2178,6 +1908,72 @@ export default function App() {
       return true;
     });
   };
+
+  // ─── Payment & booking flow (logic extracted to usePayment hook) ─────────────
+  const {
+    paymentMethodInput,
+    setPaymentMethodInput,
+    pendingQrBooking,
+    setPendingQrBooking,
+    agentTopUpModal,
+    setAgentTopUpModal,
+    handleConfirmBooking,
+  } = usePayment({
+    currentUser,
+    language,
+    selectedTrip,
+    routes,
+    adults,
+    children,
+    childrenAges,
+    addonQuantities,
+    pickupSurcharge,
+    dropoffSurcharge,
+    surchargeAmount,
+    bookingDiscount,
+    pickupPoint,
+    dropoffPoint,
+    pickupAddress,
+    dropoffAddress,
+    extraSeatIds,
+    customerNameInput,
+    phoneInput,
+    fromStopId,
+    toStopId,
+    bookingNote,
+    fareAmount,
+    fareAgentAmount,
+    ws,
+    getApplicableRouteSurcharges,
+    setLastBooking,
+    setIsTicketOpen,
+    setShowBookingForm,
+    setCustomerNameInput,
+    setPhoneInput,
+    setAdults,
+    setChildren,
+    setChildrenAges,
+    setExtraSeatIds,
+    setPickupPoint,
+    setDropoffPoint,
+    setPickupAddress,
+    setDropoffAddress,
+    setPickupSurcharge,
+    setDropoffSurcharge,
+    setSurchargeAmount,
+    setBookingDiscount,
+    setAddonQuantities,
+    setBookingNote,
+    setFareAmount,
+    setFareAgentAmount,
+    setFareError,
+    setFareLoading,
+    setFromStopId,
+    setToStopId,
+    setSeatSelectionHistory,
+    setTrips,
+    setSelectedTrip,
+  });
 
   /** Returns true if the address input (pickup or dropoff) should be disabled for the given trip date. */
   const isAddressDisabled = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
@@ -4824,7 +4620,7 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div><h2 className="text-2xl font-bold">{t.agents}</h2><p className="text-sm text-gray-500">{t.agent_desc}</p></div>
-              <button onClick={() => { setShowAddAgent(true); setEditingAgent(null); setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
+              <button onClick={() => { setShowAddAgent(true); setEditingAgent(null); setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '', paymentType: 'POSTPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
             </div>
 
             {/* Add/Edit Agent Modal */}
@@ -6069,7 +5865,7 @@ export default function App() {
       }
 
       case 'vehicles':
-        return <VehiclesPage vehicles={vehicles} language={language} uniqueVehicleTypes={uniqueVehicleTypes} />;
+        return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} />;
 
 
       case 'operations': {

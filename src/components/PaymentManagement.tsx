@@ -466,6 +466,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                   page={agentPage}
                   totalPages={agentTotalPages}
                   total={filteredAgents.length}
+                  language={language}
                   onPage={setAgentPage}
                 />
               )}
@@ -707,6 +708,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                 page={txPage}
                 totalPages={txTotalPages}
                 total={filtered.length}
+                language={language}
                 onPage={setTxPage}
               />
             )}

@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (!currentUser) return false;
     if (currentUser.role === UserRole.MANAGER) return true;
     if (rolePerms) return !!rolePerms[item.id];
-    return item.roles.includes(currentUser.role);
+    return item.roles.includes(currentUser.role as UserRole);
   });
 
   // For non-MANAGER: daiichi items accessible via permissions
