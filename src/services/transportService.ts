@@ -37,6 +37,8 @@ interface TourData {
   surcharge?: number;         // additional surcharge amount (flat fee)
   surchargeNote?: string;     // description of the surcharge
   youtubeUrl?: string;        // optional YouTube video link for the tour
+  startDate?: string;         // tour start date (YYYY-MM-DD)
+  endDate?: string;           // tour end date (YYYY-MM-DD)
   itinerary?: { day: number; content: string }[];
   addons?: { id: string; name: string; price: number; description?: string }[]; // optional add-on services
 }

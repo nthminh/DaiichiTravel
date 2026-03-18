@@ -122,6 +122,8 @@ interface TourItem {
   youtubeUrl?: string;
   itinerary?: { day: number; content: string }[];
   addons?: TourAddonItem[];
+  startDate?: string;
+  endDate?: string;
 }
 
 function getYoutubeEmbedUrl(url: string): string | null {
@@ -4575,12 +4577,19 @@ export default function App() {
               {/* Departure date */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.tour_departure_date}</label>
+                {(selectedTour?.startDate || selectedTour?.endDate) && (
+                  <p className="text-[11px] text-indigo-500 mt-0.5 mb-1">
+                    {language === 'vi' ? '📅 Tour hoạt động' : '📅 Tour operates'}:{' '}
+                    {selectedTour.startDate ? selectedTour.startDate : '?'} → {selectedTour.endDate ? selectedTour.endDate : '?'}
+                  </p>
+                )}
                 <div className="relative mt-1">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
                     type="date"
                     value={tourBookingDate}
-                    min={getLocalDateString(0)}
+                    min={(() => { const today = getLocalDateString(0); return selectedTour?.startDate && selectedTour.startDate > today ? selectedTour.startDate : today; })()}
+                    max={selectedTour?.endDate || undefined}
                     onChange={(e) => setTourBookingDate(e.target.value)}
                     className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                   />
