@@ -15,16 +15,20 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from './ToastContainer';
 import { nowVN } from '../lib/vnDate';
 
-interface PassengerRow {
+interface BookingRow {
+  bookingId: string;          // booking document id, or synthetic key for unmatched seats
   tripId: string;
   tripRoute: string;
   tripDate: string;
   tripTime: string;
   licensePlate: string;
-  seatId: string;
-  seatLabel: string;
+  primarySeatId: string;      // primary seat id used as the key for DriverAssignment
+  seatIds: string[];          // all seat IDs belonging to this booking
+  seatLabels: string;         // comma-separated seat labels, e.g. "A1, A2"
   customerName: string;
   customerPhone: string;
+  adults: number;
+  children: number;
   pickupAddress: string;
   dropoffAddress: string;
   pickupAssignment?: DriverAssignment;
@@ -36,6 +40,7 @@ interface PickupDropoffManagementProps {
   trips: Trip[];
   employees: Employee[];
   driverAssignments: DriverAssignment[];
+  bookings: any[];
   currentUserName: string;
 }
 
@@ -112,6 +117,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   trips,
   employees,
   driverAssignments,
+  bookings,
   currentUserName,
 }) => {
   const t = TRANSLATIONS[language];
@@ -136,26 +142,85 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   useEffect(() => { setPickupPage(1); setDropoffPage(1); }, [filterRoute, filterPlate, filterEmployee, dateFilter, statusFilter]);
 
   // Edit passenger pickup/dropoff
-  const [editingRow, setEditingRow] = useState<PassengerRow | null>(null);
+  const [editingRow, setEditingRow] = useState<BookingRow | null>(null);
   const [editForm, setEditForm]     = useState({ pickupAddress: '', dropoffAddress: '' });
 
   // Assign driver modal
-  const [assignRow, setAssignRow]           = useState<PassengerRow | null>(null);
+  const [assignRow, setAssignRow]           = useState<BookingRow | null>(null);
   const [assignTaskType, setAssignTaskType] = useState<'pickup' | 'dropoff'>('pickup');
   const [assignDriverId, setAssignDriverId] = useState('');
   const [assignNote, setAssignNote]         = useState('');
   const [assignLoading, setAssignLoading]   = useState(false);
   const [assignError, setAssignError]       = useState<string>('');
 
-  // ── Derived: flatten passengers with pickup/dropoff from all trips ─────────
-  const allRows = useMemo<PassengerRow[]>(() => {
-    const rows: PassengerRow[] = [];
+  // ── Derived: group seats by booking for all trips ─────────────────────────
+  const allRows = useMemo<BookingRow[]>(() => {
+    const rows: BookingRow[] = [];
+
+    // Build a map: "tripId:seatId" → booking document (for TICKET bookings)
+    const seatToBookingMap = new Map<string, any>();
+    for (const bk of bookings) {
+      if (!bk.tripId || bk.type === 'TOUR') continue;
+      if (bk.seatId)  seatToBookingMap.set(`${bk.tripId}:${bk.seatId}`, bk);
+      if (bk.seatIds) {
+        for (const sid of bk.seatIds) seatToBookingMap.set(`${bk.tripId}:${sid}`, bk);
+      }
+    }
+
     for (const trip of trips) {
-      for (const seat of (trip.seats || [])) {
-        const hasPickup  = !!(seat.pickupAddress  && seat.pickupAddress.trim());
-        const hasDropoff = !!(seat.dropoffAddress && seat.dropoffAddress.trim());
-        if (!hasPickup && !hasDropoff) continue;
-        if (seat.status === SeatStatus.EMPTY) continue;
+      const seatsWithAddress = (trip.seats || []).filter(
+        (s: Seat) => s.status !== SeatStatus.EMPTY && (s.pickupAddress?.trim() || s.dropoffAddress?.trim()),
+      );
+      if (seatsWithAddress.length === 0) continue;
+
+      // Group seats by their booking id; unmatched seats get their own pseudo-group
+      const processedBookingIds = new Set<string>();
+      const ungroupedSeats: Seat[] = [];
+
+      for (const seat of seatsWithAddress) {
+        const bk = seatToBookingMap.get(`${trip.id}:${seat.id}`);
+        if (!bk) { ungroupedSeats.push(seat); continue; }
+        if (processedBookingIds.has(bk.id)) continue; // already created a row for this booking
+        processedBookingIds.add(bk.id);
+
+        const allSeatIds: string[] = bk.seatIds || (bk.seatId ? [bk.seatId] : [seat.id]);
+        const primarySeatId: string = bk.seatId || seat.id;
+        const primarySeat: Seat = (trip.seats || []).find((s: Seat) => s.id === primarySeatId) || seat;
+
+        const pickupAssignment = driverAssignments.find(
+          a => a.tripId === trip.id && a.seatId === primarySeatId && a.taskType === 'pickup',
+        );
+        const dropoffAssignment = driverAssignments.find(
+          a => a.tripId === trip.id && a.seatId === primarySeatId && a.taskType === 'dropoff',
+        );
+
+        const pickupAddress  = primarySeat.pickupAddress  || bk.pickupAddress  || '';
+        const dropoffAddress = primarySeat.dropoffAddress || bk.dropoffAddress || '';
+        if (!pickupAddress && !dropoffAddress) continue;
+
+        rows.push({
+          bookingId: bk.id,
+          tripId: trip.id,
+          tripRoute: trip.route || '',
+          tripDate: trip.date || '',
+          tripTime: trip.time || '',
+          licensePlate: trip.licensePlate || '',
+          primarySeatId,
+          seatIds: allSeatIds,
+          seatLabels: allSeatIds.join(', '),
+          customerName: bk.customerName || primarySeat.customerName || '',
+          customerPhone: bk.customerPhone || primarySeat.customerPhone || '',
+          adults: bk.adults ?? 1,
+          children: bk.children ?? 0,
+          pickupAddress,
+          dropoffAddress,
+          pickupAssignment,
+          dropoffAssignment,
+        });
+      }
+
+      // Fallback: seats with pickup/dropoff but no matching booking
+      for (const seat of ungroupedSeats) {
         const pickupAssignment = driverAssignments.find(
           a => a.tripId === trip.id && a.seatId === seat.id && a.taskType === 'pickup',
         );
@@ -163,28 +228,33 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           a => a.tripId === trip.id && a.seatId === seat.id && a.taskType === 'dropoff',
         );
         rows.push({
+          bookingId: `${trip.id}:${seat.id}`,
           tripId: trip.id,
           tripRoute: trip.route || '',
           tripDate: trip.date || '',
           tripTime: trip.time || '',
           licensePlate: trip.licensePlate || '',
-          seatId: seat.id,
-          seatLabel: seat.id,
+          primarySeatId: seat.id,
+          seatIds: [seat.id],
+          seatLabels: seat.id,
           customerName: seat.customerName || '',
           customerPhone: seat.customerPhone || '',
-          pickupAddress: seat.pickupAddress  || '',
+          adults: 1,
+          children: 0,
+          pickupAddress:  seat.pickupAddress  || '',
           dropoffAddress: seat.dropoffAddress || '',
           pickupAssignment,
           dropoffAssignment,
         });
       }
     }
+
     rows.sort((a, b) => {
       if (a.tripDate !== b.tripDate) return b.tripDate.localeCompare(a.tripDate);
       return a.tripTime.localeCompare(b.tripTime);
     });
     return rows;
-  }, [trips, driverAssignments]);
+  }, [trips, bookings, driverAssignments]);
 
   // ── Combo-box option lists ─────────────────────────────────────────────────
   const routeOptions   = useMemo(() => [...new Set(allRows.map(r => r.tripRoute).filter(Boolean))], [allRows]);
@@ -192,7 +262,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   const employeeNames  = useMemo(() => employees.filter(e => e.status === 'ACTIVE').map(e => e.name), [employees]);
 
   // ── Shared filter predicate ────────────────────────────────────────────────
-  const applyFilters = (rows: PassengerRow[]) => {
+  const applyFilters = (rows: BookingRow[]) => {
     let result = rows;
     if (filterRoute.trim()) {
       const q = filterRoute.trim().toLowerCase();
@@ -228,7 +298,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   const drivers = employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE');
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleStartEdit = (row: PassengerRow) => {
+  const handleStartEdit = (row: BookingRow) => {
     setEditingRow(row);
     setEditForm({ pickupAddress: row.pickupAddress, dropoffAddress: row.dropoffAddress });
   };
@@ -239,7 +309,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       const trip = trips.find(tr => tr.id === editingRow.tripId);
       if (!trip) return;
       const updatedSeats = trip.seats.map((s: Seat) =>
-        s.id === editingRow.seatId
+        editingRow.seatIds.includes(s.id)
           ? { ...s, pickupAddress: editForm.pickupAddress, dropoffAddress: editForm.dropoffAddress }
           : s
       );
@@ -268,17 +338,17 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
     }
   };
 
-  const handleDeleteRow = async (row: PassengerRow) => {
+  const handleDeleteRow = async (row: BookingRow) => {
     if (!window.confirm(
       language === 'vi'
-        ? 'Xóa điểm đón/trả của hành khách này?'
-        : "Remove this passenger's pickup/dropoff addresses?",
+        ? 'Xóa điểm đón/trả của đơn đặt này?'
+        : "Remove this booking's pickup/dropoff addresses?",
     )) return;
     try {
       const trip = trips.find(tr => tr.id === row.tripId);
       if (!trip) return;
       const updatedSeats = trip.seats.map((s: Seat) =>
-        s.id === row.seatId
+        row.seatIds.includes(s.id)
           ? { ...s, pickupAddress: '', dropoffAddress: '' }
           : s
       );
@@ -297,7 +367,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
     }
   };
 
-  const handleOpenAssign = (row: PassengerRow, taskType: 'pickup' | 'dropoff') => {
+  const handleOpenAssign = (row: BookingRow, taskType: 'pickup' | 'dropoff') => {
     const existing = taskType === 'pickup' ? row.pickupAssignment : row.dropoffAssignment;
     setAssignRow(row);
     setAssignTaskType(taskType);
@@ -331,7 +401,8 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
         await transportService.addDriverAssignment({
           taskType: assignTaskType,
           tripId: assignRow.tripId,
-          seatId: assignRow.seatId,
+          seatId: assignRow.primarySeatId,
+          seatIds: assignRow.seatIds,
           tripRoute: assignRow.tripRoute,
           tripDate: assignRow.tripDate,
           tripTime: assignRow.tripTime,
@@ -389,14 +460,16 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
 
   // ── Export ─────────────────────────────────────────────────────────────────
   const handleExport = () => {
-    const makeRows = (rows: PassengerRow[], section: string) =>
+    const makeRows = (rows: BookingRow[], section: string) =>
       rows.map(r => ({
         [language === 'vi' ? 'Loại' : 'Type']: section,
         [language === 'vi' ? 'Tuyến' : 'Route']: r.tripRoute,
         [language === 'vi' ? 'Ngày' : 'Date']: r.tripDate,
         [language === 'vi' ? 'Giờ' : 'Time']: r.tripTime,
         [language === 'vi' ? 'Biển số' : 'Plate']: r.licensePlate,
-        [language === 'vi' ? 'Ghế' : 'Seat']: r.seatLabel,
+        [language === 'vi' ? 'Ghế' : 'Seat']: r.seatLabels,
+        [language === 'vi' ? 'Người lớn' : 'Adults']: r.adults,
+        [language === 'vi' ? 'Trẻ em' : 'Children']: r.children,
         [language === 'vi' ? 'Khách hàng' : 'Customer']: r.customerName,
         [language === 'vi' ? 'SĐT' : 'Phone']: r.customerPhone,
         [t.pickup_address_col  || 'Điểm đón']: r.pickupAddress,
@@ -440,18 +513,18 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   };
 
   // ── Reusable table renderer ────────────────────────────────────────────────
-  const renderTable = (rows: PassengerRow[], tableType: 'pickup' | 'dropoff') => {
+  const renderTable = (rows: BookingRow[], tableType: 'pickup' | 'dropoff') => {
     const isPickup    = tableType === 'pickup';
     const addressCol  = isPickup ? (t.pickup_address_col  || 'Điểm đón')  : (t.dropoff_address_col || 'Điểm trả');
     const driverCol   = isPickup ? (t.assigned_pickup_driver  || 'Tài xế đón') : (t.assigned_dropoff_driver || 'Tài xế trả');
-    const noRowsText  = isPickup ? (t.no_pickup_rows  || 'Chưa có hành khách nào có điểm đón.') : (t.no_dropoff_rows || 'Chưa có hành khách nào có điểm trả.');
+    const noRowsText  = isPickup ? (t.no_pickup_rows  || 'Chưa có đơn nào có điểm đón.') : (t.no_dropoff_rows || 'Chưa có đơn nào có điểm trả.');
 
     const page        = isPickup ? pickupPage : dropoffPage;
     const setPage     = isPickup ? setPickupPage : setDropoffPage;
     const totalPages  = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
     const pagedRows   = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-    const getAssignment = (row: PassengerRow) => isPickup ? row.pickupAssignment : row.dropoffAssignment;
+    const getAssignment = (row: BookingRow) => isPickup ? row.pickupAssignment : row.dropoffAssignment;
 
     return (
       <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
@@ -481,9 +554,9 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                 </tr>
               ) : pagedRows.map((row, idx) => {
                 const assignment = getAssignment(row);
-                const isEditing  = editingRow?.tripId === row.tripId && editingRow?.seatId === row.seatId;
+                const isEditing  = editingRow?.tripId === row.tripId && editingRow?.primarySeatId === row.primarySeatId;
                 return (
-                  <tr key={`${tableType}-${row.tripId}-${row.seatId}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                  <tr key={`${tableType}-${row.tripId}-${row.primarySeatId}-${idx}`} className="hover:bg-gray-50 transition-colors">
                     {/* Trip info */}
                     <td className="px-5 py-4">
                       <p className="font-bold text-gray-800">{row.tripRoute}</p>
@@ -493,14 +566,18 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                       <div className="flex items-center gap-1.5 mt-1">
                         <Bus size={11} className="text-gray-400" />
                         <span className="text-[10px] text-gray-400">{row.licensePlate}</span>
-                        <span className="text-[10px] text-gray-300">• {language === 'vi' ? 'Ghế' : 'Seat'} {row.seatLabel}</span>
+                        <span className="text-[10px] text-gray-300">• {language === 'vi' ? 'Ghế' : 'Seat'} {row.seatLabels}</span>
                       </div>
                     </td>
 
-                    {/* Passenger */}
+                    {/* Passenger / booking info */}
                     <td className="px-5 py-4">
                       <p className="font-semibold text-gray-800">{row.customerName || '—'}</p>
                       <p className="text-xs text-gray-400">{row.customerPhone || ''}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {row.adults}{language === 'vi' ? ' NL' : ' adult(s)'}
+                        {row.children > 0 && <>, {row.children}{language === 'vi' ? ' TE' : ' child(ren)'}</>}
+                      </p>
                     </td>
 
                     {/* Address */}
@@ -795,6 +872,13 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                 <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Tuyến:' : 'Route:'}</span><span className="font-semibold">{assignRow.tripRoute}</span></div>
                 <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Ngày/Giờ:' : 'Date/Time:'}</span><span>{assignRow.tripDate} {assignRow.tripTime}</span></div>
                 <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Khách:' : 'Customer:'}</span><span>{assignRow.customerName} {assignRow.customerPhone}</span></div>
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Số khách:' : 'Pax:'}</span>
+                  <span>
+                    {assignRow.adults}{language === 'vi' ? ' người lớn' : ' adult(s)'}
+                    {assignRow.children > 0 && <>, {assignRow.children}{language === 'vi' ? ' trẻ em' : ' child(ren)'}</>}
+                  </span>
+                </div>
                 {assignTaskType === 'pickup' && assignRow.pickupAddress && (
                   <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{t.pickup_address_col || 'Điểm đón'}:</span><span className="text-green-700">{assignRow.pickupAddress}</span></div>
                 )}

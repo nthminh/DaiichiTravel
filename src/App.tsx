@@ -7123,6 +7123,7 @@ export default function App() {
             trips={trips}
             employees={employees}
             driverAssignments={driverAssignments}
+            bookings={bookings}
             currentUserName={currentUser?.name || ''}
           />
         );
