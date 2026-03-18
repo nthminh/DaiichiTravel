@@ -4206,18 +4206,18 @@ export default function App() {
                         )}
                         <div className="flex justify-between items-end">
                           <div>
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá tour/người từ' : 'Tour price/person from'}</p>
+                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá toàn tour' : 'Total tour price'}</p>
                             {discountedPrice ? (
                               <>
-                                <p className="text-xl font-bold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
-                                <p className="text-xs text-gray-400 line-through">{effectiveAdultPrice.toLocaleString()}đ</p>
+                                <p className="text-sm text-gray-400 line-through">{effectiveAdultPrice.toLocaleString()}đ</p>
+                                <p className="text-2xl font-extrabold text-daiichi-red">{discountedPrice.toLocaleString()}đ</p>
                               </>
                             ) : (
-                              <p className="text-xl font-bold text-daiichi-red">{effectiveAdultPrice.toLocaleString()}đ</p>
+                              <p className="text-2xl font-extrabold text-daiichi-red">{effectiveAdultPrice.toLocaleString()}đ</p>
                             )}
-                            {tour.priceChild && (
-                              <p className="text-xs text-gray-500">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {tour.priceChild.toLocaleString()}đ</p>
-                            )}
+                            {tour.priceChild ? (
+                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Trẻ em (>4 tuổi)' : 'Child (>4 yrs)'}: {tour.priceChild.toLocaleString()}đ</p>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -4311,12 +4311,21 @@ export default function App() {
           : 0;
         const tourTotal = tourSubtotal - discountAmount;
 
+        // Agent commission: calculate and subtract commission amount based on commission rate when agent is logged in
+        const isTourAgentBooking = currentUser?.role === UserRole.AGENT;
+        const agentData = isTourAgentBooking ? agents.find(a => a.id === currentUser!.id) : null;
+        const agentCommissionRate = agentData?.commissionRate ?? 0;
+        const agentPaymentType = agentData?.paymentType ?? 'PREPAID';
+        const agentCommissionAmount = isTourAgentBooking && agentCommissionRate > 0
+          ? Math.round(tourTotal * agentCommissionRate / 100)
+          : 0;
+        const finalTourTotal = tourTotal - agentCommissionAmount;
+
         const handleTourBooking = async (bookStatus: 'PENDING' | 'CONFIRMED') => {
           if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
           setTourBookingStatus(bookStatus);
           setIsTourBookingLoading(true);
           setTourBookingError('');
-          const isTourAgentBooking = currentUser?.role === UserRole.AGENT;
           const tourAgentName = isTourAgentBooking
             ? (currentUser!.name || currentUser!.address || currentUser!.agentCode || (language === 'vi' ? 'Đại lý' : 'Agent'))
             : 'Trực tiếp';
@@ -4338,10 +4347,13 @@ export default function App() {
             duration: selectedTour.duration || '',
             nights: selectedTour.nights || 0,
             notes: tourNotes,
-            amount: tourTotal,
-            paymentMethod: bookStatus === 'CONFIRMED' ? tourPaymentMethod : (language === 'vi' ? 'Thanh toán sau' : 'Pay later'),
+            amount: finalTourTotal,
+            paymentMethod: bookStatus === 'CONFIRMED'
+              ? (isTourAgentBooking && agentPaymentType === 'PREPAID' ? 'Chuyển khoản QR' : tourPaymentMethod)
+              : (language === 'vi' ? 'Thanh toán sau' : 'Pay later'),
             agent: tourAgentName,
             agentId: isTourAgentBooking ? currentUser!.id : undefined,
+            ...(agentCommissionAmount > 0 ? { agentCommissionRate, agentCommissionAmount } : {}),
             status: bookStatus,
           };
           try {
@@ -4421,7 +4433,7 @@ export default function App() {
                 </div>
                 <div className="border-t border-gray-100 pt-3 flex justify-between">
                   <span className="text-sm font-bold text-gray-500 uppercase">{t.total_amount}</span>
-                  <span className="text-lg font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
+                  <span className="text-lg font-bold text-daiichi-red">{finalTourTotal.toLocaleString()}đ</span>
                 </div>
               </div>
               <div className="flex gap-4 flex-wrap justify-center">
@@ -4827,9 +4839,15 @@ export default function App() {
                   </div>
                 </>
               )}
+              {agentCommissionAmount > 0 && (
+                <div className="flex justify-between text-sm text-orange-600 font-medium">
+                  <span>{language === 'vi' ? `Chiết khấu đại lý ${agentCommissionRate}%` : `Agent commission ${agentCommissionRate}%`}</span>
+                  <span>-{agentCommissionAmount.toLocaleString()}đ</span>
+                </div>
+              )}
               <div className="border-t border-gray-100 pt-3 flex justify-between">
                 <span className="text-sm font-bold text-gray-500 uppercase">{t.total_amount}</span>
-                <span className="text-xl font-bold text-daiichi-red">{tourTotal.toLocaleString()}đ</span>
+                <span className="text-xl font-bold text-daiichi-red">{finalTourTotal.toLocaleString()}đ</span>
               </div>
             </div>
 
@@ -4845,34 +4863,43 @@ export default function App() {
                 {language === 'vi' ? '* Vui lòng điền ngày khởi hành, tên và số điện thoại trước khi đặt.' : '* Please fill in departure date, name and phone before booking.'}
               </p>
             ) : null}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Reserve */}
-              <button
-                type="button"
-                disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
-                onClick={() => handleTourBooking('PENDING')}
-                className={cn(
-                  "w-full py-4 rounded-xl font-bold border-2 flex items-center justify-center gap-2 transition-all",
-                  !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
-                    ? "border-daiichi-red text-daiichi-red hover:bg-daiichi-red/5"
-                    : "border-gray-200 text-gray-300 cursor-not-allowed"
-                )}
-              >
-                🔒 {isTourBookingLoading && tourBookingStatus === 'PENDING'
-                  ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
-                  : (t.tour_reserve || (language === 'vi' ? 'Giữ chỗ (miễn phí)' : 'Reserve (Free)'))}
-              </button>
+            <div className={cn("grid gap-3 grid-cols-1", !(isTourAgentBooking && agentPaymentType === 'PREPAID') && "sm:grid-cols-2")}>
+              {/* Reserve – hidden for PREPAID agents who must pay immediately */}
+              {!(isTourAgentBooking && agentPaymentType === 'PREPAID') && (
+                <button
+                  type="button"
+                  disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
+                  onClick={() => handleTourBooking('PENDING')}
+                  className={cn(
+                    "w-full py-4 rounded-xl font-bold border-2 flex items-center justify-center gap-2 transition-all",
+                    !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
+                      ? "border-daiichi-red text-daiichi-red hover:bg-daiichi-red/5"
+                      : "border-gray-200 text-gray-300 cursor-not-allowed"
+                  )}
+                >
+                  🔒 {isTourBookingLoading && tourBookingStatus === 'PENDING'
+                    ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                    : (t.tour_reserve || (language === 'vi' ? 'Giữ chỗ (miễn phí)' : 'Reserve (Free)'))}
+                </button>
+              )}
               {/* Pay now */}
               <div className="space-y-2">
-                <select
-                  value={tourPaymentMethod}
-                  onChange={(e) => setTourPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
-                >
-                  {PAYMENT_METHODS.map(m => (
-                    <option key={m} value={m}>{t[PAYMENT_METHOD_TRANSLATION_KEYS[m]]}</option>
-                  ))}
-                </select>
+                {isTourAgentBooking && agentPaymentType === 'PREPAID' ? (
+                  /* PREPAID agent: locked to QR payment, no other options */
+                  <div className="w-full px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700 flex items-center gap-2">
+                    📱 {language === 'vi' ? 'Chuyển khoản QR (số dư đại lý sẽ bị trừ)' : 'QR Transfer (agent balance will be deducted)'}
+                  </div>
+                ) : (
+                  <select
+                    value={tourPaymentMethod}
+                    onChange={(e) => setTourPaymentMethod(e.target.value as PaymentMethod)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
+                  >
+                    {PAYMENT_METHODS.map(m => (
+                      <option key={m} value={m}>{t[PAYMENT_METHOD_TRANSLATION_KEYS[m]]}</option>
+                    ))}
+                  </select>
+                )}
                 <button
                   type="button"
                   disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}

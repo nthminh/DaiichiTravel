@@ -797,6 +797,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                 <th className="px-4 py-3 text-left whitespace-nowrap">{language === 'vi' ? 'Thời gian' : 'Duration'}</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">{language === 'vi' ? 'Lịch hoạt động' : 'Schedule'}</th>
                 <th className="px-4 py-3 text-right whitespace-nowrap">{language === 'vi' ? 'Giá NL' : 'Adult Price'}</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">{language === 'vi' ? 'Giá tour' : 'Tour Price'}</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">{language === 'vi' ? 'Giảm giá' : 'Discount'}</th>
                 <th className="px-4 py-3 text-center">{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
               </tr>
@@ -860,6 +861,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                           <p className="font-bold text-daiichi-red">{effectivePrice.toLocaleString()}đ</p>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        <p className="font-bold text-gray-700">{(tour.price || 0).toLocaleString()}đ</p>
+                      </td>
                       <td className="px-4 py-3 text-center">
                         {tour.discountPercent && tour.discountPercent > 0 ? (
                           <span className="inline-block bg-daiichi-red text-white text-[10px] font-bold px-2 py-0.5 rounded-full">-{tour.discountPercent}%</span>
@@ -895,7 +899,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                     </tr>
                     {isExpanded && editingTour && editingTour.id === tour.id && (
                       <tr>
-                        <td colSpan={8} className="p-0">
+                        <td colSpan={9} className="p-0">
                           <div className="p-6 bg-gray-50 border-b border-gray-100">
                             <div className="flex justify-between items-center mb-4">
                               <h3 className="text-lg font-bold text-gray-800">{language === 'vi' ? 'Chỉnh sửa Tour' : 'Edit Tour'}</h3>
