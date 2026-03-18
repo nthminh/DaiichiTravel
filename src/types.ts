@@ -375,6 +375,7 @@ export interface DriverAssignment {
   pickupAddress?: string;
   dropoffAddress?: string;
   // Assignment
+  taskType?: 'pickup' | 'dropoff';  // which task this assignment covers
   driverEmployeeId: string;
   driverName: string;
   assignedBy?: string;   // name of manager who made the assignment
