@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, MapPin, Bus, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, XCircle, MapPin, Bus, Clock, ChevronDown, ChevronUp, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS } from '../constants/translations';
@@ -26,9 +26,10 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
   const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
 
-  // Filter tasks for this driver
+  // Filter tasks for this driver — hide completed tasks so they disappear after completion
   const myTasks = assignments.filter(
-    a => a.driverEmployeeId === driverEmployeeId || a.driverName === driverName
+    a => (a.driverEmployeeId === driverEmployeeId || a.driverName === driverName)
+      && a.status !== 'completed'
   );
 
   const pendingTasks = myTasks.filter(a => a.status === 'pending');
@@ -65,9 +66,24 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
     }
   };
 
+  const handleComplete = async (assignment: DriverAssignment) => {
+    setLoading(assignment.id);
+    try {
+      await transportService.updateDriverAssignment(assignment.id, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Failed to complete task:', err);
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const StatusIcon = ({ status }: { status: DriverAssignment['status'] }) => {
     if (status === 'accepted') return <CheckCircle2 size={14} className="text-green-600" />;
     if (status === 'rejected') return <XCircle size={14} className="text-red-500" />;
+    if (status === 'completed') return <Flag size={14} className="text-blue-600" />;
     return <Clock size={14} className="text-amber-500 animate-pulse" />;
   };
 
@@ -78,6 +94,7 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
         'border rounded-2xl p-4 space-y-3 transition-all',
         a.status === 'pending' ? 'border-amber-200 bg-amber-50/50' :
         a.status === 'accepted' ? 'border-green-200 bg-green-50/50' :
+        a.status === 'completed' ? 'border-blue-200 bg-blue-50/50' :
         'border-red-100 bg-red-50/30'
       )}
     >
@@ -88,10 +105,12 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
             <StatusIcon status={a.status} />
             <span className={cn('text-[10px] font-bold uppercase tracking-widest',
               a.status === 'pending' ? 'text-amber-600' :
-              a.status === 'accepted' ? 'text-green-700' : 'text-red-600'
+              a.status === 'accepted' ? 'text-green-700' :
+              a.status === 'completed' ? 'text-blue-700' : 'text-red-600'
             )}>
               {a.status === 'accepted' ? (t.assignment_accepted || 'Đã nhận') :
                a.status === 'rejected' ? (t.assignment_rejected || 'Từ chối') :
+               a.status === 'completed' ? (t.assignment_completed || 'Hoàn thành') :
                (t.assignment_pending || 'Chờ xác nhận')}
             </span>
           </div>
@@ -180,6 +199,21 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
           )}
         </div>
       )}
+
+      {/* Complete button for accepted tasks */}
+      {a.status === 'accepted' && (
+        <div className="pt-1 border-t border-green-100">
+          <button
+            onClick={() => handleComplete(a)}
+            disabled={loading === a.id}
+            className="w-full py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            <Flag size={13} />
+            {loading === a.id ? '...' : (t.driver_task_complete || 'Hoàn thành')}
+          </button>
+        </div>
+      )}
+
       {a.status === 'rejected' && a.rejectionReason && (
         <p className="text-[10px] text-red-500 italic">{language === 'vi' ? 'Lý do: ' : 'Reason: '}{a.rejectionReason}</p>
       )}
