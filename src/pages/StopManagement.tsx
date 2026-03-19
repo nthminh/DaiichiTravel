@@ -3,8 +3,8 @@ import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter } from 'lucide-rea
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
-import { ResizableTh } from './ResizableTh';
-import { NotePopover } from './NotePopover';
+import { ResizableTh } from '../components/ResizableTh';
+import { NotePopover } from '../components/NotePopover';
 import { matchesSearch } from '../lib/searchUtils';
 import { cn } from '../lib/utils';
 

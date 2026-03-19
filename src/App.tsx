@@ -41,25 +41,25 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy-loaded tab/role components – split into separate chunks to reduce initial bundle
-const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })));
-const TourManagement = lazy(() => import('./components/TourManagement').then(m => ({ default: m.TourManagement })));
-const StopManagement = lazy(() => import('./components/StopManagement').then(m => ({ default: m.StopManagement })));
-const FinancialReport = lazy(() => import('./components/FinancialReport').then(m => ({ default: m.FinancialReport })));
-const UserGuide = lazy(() => import('./components/UserGuide').then(m => ({ default: m.UserGuide })));
-const CustomerManagement = lazy(() => import('./components/CustomerManagement').then(m => ({ default: m.CustomerManagement })));
-const PaymentManagement = lazy(() => import('./components/PaymentManagement').then(m => ({ default: m.PaymentManagement })));
-const PickupDropoffManagement = lazy(() => import('./components/PickupDropoffManagement').then(m => ({ default: m.PickupDropoffManagement })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const TourManagement = lazy(() => import('./pages/TourManagement').then(m => ({ default: m.TourManagement })));
+const StopManagement = lazy(() => import('./pages/StopManagement').then(m => ({ default: m.StopManagement })));
+const FinancialReport = lazy(() => import('./pages/FinancialReport').then(m => ({ default: m.FinancialReport })));
+const UserGuide = lazy(() => import('./pages/UserGuide').then(m => ({ default: m.UserGuide })));
+const CustomerManagement = lazy(() => import('./pages/CustomerManagement').then(m => ({ default: m.CustomerManagement })));
+const PaymentManagement = lazy(() => import('./pages/PaymentManagement').then(m => ({ default: m.PaymentManagement })));
+const PickupDropoffManagement = lazy(() => import('./pages/PickupDropoffManagement').then(m => ({ default: m.PickupDropoffManagement })));
 const StaffChat = lazy(() => import('./components/StaffChat').then(m => ({ default: m.StaffChat })));
-const DriverTaskPanel = lazy(() => import('./components/DriverTaskPanel').then(m => ({ default: m.DriverTaskPanel })));
-const ConsignmentsPage = lazy(() => import('./components/ConsignmentsPage').then(m => ({ default: m.ConsignmentsPage })));
-const VehiclesPage = lazy(() => import('./components/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
+const DriverTaskPanel = lazy(() => import('./pages/DriverTaskPanel').then(m => ({ default: m.DriverTaskPanel })));
+const ConsignmentsPage = lazy(() => import('./pages/ConsignmentsPage').then(m => ({ default: m.ConsignmentsPage })));
+const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
 const VehicleSeatDiagram = lazy(() => import('./components/VehicleSeatDiagram').then(m => ({ default: m.VehicleSeatDiagram })));
 const TicketModal = lazy(() => import('./components/TicketModal').then(m => ({ default: m.TicketModal })));
 const PaymentQRModal = lazy(() => import('./components/PaymentQRModal').then(m => ({ default: m.PaymentQRModal })));
 const AgentTopUpQRModal = lazy(() => import('./components/PaymentQRModal').then(m => ({ default: m.AgentTopUpQRModal })));
-const MyTickets = lazy(() => import('./components/MyTickets').then(m => ({ default: m.MyTickets })));
-const AgentBookings = lazy(() => import('./components/AgentBookings').then(m => ({ default: m.AgentBookings })));
+const MyTickets = lazy(() => import('./pages/MyTickets').then(m => ({ default: m.MyTickets })));
+const AgentBookings = lazy(() => import('./pages/AgentBookings').then(m => ({ default: m.AgentBookings })));
 import { DriverAssignment, StaffMessage } from './types';
 
 // Re-export types for components

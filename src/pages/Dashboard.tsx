@@ -12,7 +12,7 @@ import { cn, getTodayVN } from '../lib/utils';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
-import { ResizableTh } from './ResizableTh';
+import { ResizableTh } from '../components/ResizableTh';
 
 interface DashboardProps {
   language: Language;

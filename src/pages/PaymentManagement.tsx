@@ -8,9 +8,9 @@ import {
 import { cn } from '../lib/utils';
 import { Language, TRANSLATIONS, User, UserRole } from '../App';
 import { Agent } from '../types';
-import { AgentTopUpQRModal } from './PaymentQRModal';
+import { AgentTopUpQRModal } from '../components/PaymentQRModal';
 import { transportService } from '../services/transportService';
-import { NotePopover } from './NotePopover';
+import { NotePopover } from '../components/NotePopover';
 
 interface PaymentManagementProps {
   language: Language;
