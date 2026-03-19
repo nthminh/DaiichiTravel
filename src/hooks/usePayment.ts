@@ -137,10 +137,10 @@ export function usePayment(ctx: BookingContext) {
           ? (c.selectedTrip.agentPriceChild || c.selectedTrip.agentPrice || c.selectedTrip.priceChild || basePriceAdult)
           : (c.selectedTrip.priceChild || basePriceAdult));
 
-    // Children over 4 years old are charged adult price and need their own seat
+    // Children aged 4 and above are charged adult price and need their own seat
     const { childrenOver4, childrenUnder4 } = c.childrenAges.reduce(
       (acc, age) => {
-        if ((age ?? 0) > 4) acc.childrenOver4++;
+        if ((age ?? 0) >= 4) acc.childrenOver4++;
         else acc.childrenUnder4++;
         return acc;
       },
