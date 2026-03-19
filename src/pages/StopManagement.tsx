@@ -14,7 +14,7 @@ interface StopManagementProps {
   onUpdateStops: (stops: Stop[]) => void;
 }
 
-const CATEGORY_LABELS: Record<Stop['category'], Record<Language, string>> = {
+const CATEGORY_LABELS: Record<NonNullable<Stop['category']>, Record<Language, string>> = {
   MAJOR:      { vi: 'Điểm dừng lớn',    en: 'Major Stop',    ja: '主要停留所' },
   MINOR:      { vi: 'Điểm dừng nhỏ',    en: 'Minor Stop',    ja: '簡易停留所' },
   TOLL:       { vi: 'Trạm thu phí',      en: 'Toll Booth',    ja: '料金所' },
@@ -103,7 +103,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     setFormData({
       name: stop.name,
       address: stop.address,
-      category: stop.category,
+      category: stop.category ?? 'MAJOR',
       surcharge: stop.surcharge,
       distanceKm: stop.distanceKm,
       type: stop.type ?? 'STOP',
@@ -137,7 +137,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     return (
       matchesSearch(s.name, searchTerm) ||
       matchesSearch(s.address, searchTerm) ||
-      matchesSearch(s.category, searchTerm) ||
+      matchesSearch(s.category ?? '', searchTerm) ||
       matchesSearch(terminalName, searchTerm)
     );
   });
@@ -519,7 +519,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                     {/* Category */}
                     <td className="px-4 py-5">
                       <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
-                        {CATEGORY_LABELS[stop.category][language]}
+                        {CATEGORY_LABELS[stop.category ?? 'MAJOR'][language]}
                       </span>
                     </td>
 

@@ -332,7 +332,7 @@ export interface Stop {
   id: string;
   name: string;
   address: string;
-  category: 'MAJOR' | 'MINOR' | 'TOLL' | 'RESTAURANT' | 'QUICK' | 'TRANSIT' | 'OFFICE';
+  category?: 'MAJOR' | 'MINOR' | 'TOLL' | 'RESTAURANT' | 'QUICK' | 'TRANSIT' | 'OFFICE';
   surcharge: number;
   distanceKm?: number; // distance from the main route stop (km), used for pickup surcharge display
   note?: string;
