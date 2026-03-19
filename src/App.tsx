@@ -304,6 +304,7 @@ export default function App() {
   const [showAddAgent, setShowAddAgent] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [agentForm, setAgentForm] = useState({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', paymentType: 'POSTPAID' as 'POSTPAID' | 'PREPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] as AgentPaymentOption[] });
+  const [agentFormError, setAgentFormError] = useState('');
 
   // Agent search / filter state
   const [agentSearch, setAgentSearch] = useState('');
@@ -315,6 +316,7 @@ export default function App() {
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', note: '' });
+  const [employeeFormError, setEmployeeFormError] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
   const [showEmployeeFilters, setShowEmployeeFilters] = useState(false);
@@ -780,9 +782,31 @@ export default function App() {
     });
   };
 
+  // Helper: check if a username is already taken by another agent or employee
+  const isUsernameTaken = (username: string, excludeAgentId?: string, excludeEmployeeId?: string): boolean => {
+    const normalized = username.trim().toLowerCase();
+    const takenByAgent = agents.some(a =>
+      a.username && String(a.username).trim().toLowerCase() === normalized &&
+      (!excludeAgentId || a.id !== excludeAgentId)
+    );
+    const takenByEmployee = employees.some(emp =>
+      emp.username && String(emp.username).trim().toLowerCase() === normalized &&
+      (!excludeEmployeeId || emp.id !== excludeEmployeeId)
+    );
+    return takenByAgent || takenByEmployee;
+  };
+
   // --- Agent CRUD handlers ---
   const handleSaveAgent = async () => {
     try {
+      // Check for duplicate username across agents and employees
+      if (agentForm.username && agentForm.username.trim()) {
+        if (isUsernameTaken(agentForm.username, editingAgent?.id, undefined)) {
+          setAgentFormError(language === 'vi' ? 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác.' : 'This username already exists, please choose another.');
+          return;
+        }
+      }
+      setAgentFormError('');
       if (editingAgent) {
         await transportService.updateAgent(editingAgent.id, agentForm);
       } else {
@@ -808,6 +832,7 @@ export default function App() {
   const handleStartEditAgent = (agent: Agent) => {
     setEditingAgent(agent);
     setAgentForm({ name: String(agent.name ?? ''), code: String(agent.code ?? ''), phone: String(agent.phone ?? ''), email: String(agent.email ?? ''), address: String(agent.address ?? ''), commissionRate: agent.commissionRate, balance: agent.balance, status: agent.status, username: String(agent.username ?? ''), password: String(agent.password ?? ''), paymentType: agent.paymentType ?? 'POSTPAID', creditLimit: agent.creditLimit ?? 0, depositAmount: agent.depositAmount ?? 0, holdTicketHours: agent.holdTicketHours ?? 24, allowedPaymentOptions: agent.allowedPaymentOptions ?? [] });
+    setAgentFormError('');
     setShowAddAgent(true);
   };
 
@@ -822,6 +847,14 @@ export default function App() {
   // --- Employee CRUD handlers ---
   const handleSaveEmployee = async () => {
     try {
+      // Check for duplicate username across employees and agents
+      if (employeeForm.username && employeeForm.username.trim()) {
+        if (isUsernameTaken(employeeForm.username, undefined, editingEmployee?.id)) {
+          setEmployeeFormError(language === 'vi' ? 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác.' : 'This username already exists, please choose another.');
+          return;
+        }
+      }
+      setEmployeeFormError('');
       if (editingEmployee) {
         await transportService.updateEmployee(editingEmployee.id, employeeForm);
       } else {
@@ -847,6 +880,7 @@ export default function App() {
   const handleStartEditEmployee = (employee: Employee) => {
     setEditingEmployee(employee);
     setEmployeeForm({ name: String(employee.name ?? ''), phone: String(employee.phone ?? ''), email: String(employee.email ?? ''), address: String(employee.address ?? ''), role: employee.role, position: String(employee.position ?? ''), status: employee.status, username: String(employee.username ?? ''), password: String(employee.password ?? ''), note: String(employee.note ?? '') });
+    setEmployeeFormError('');
     setShowAddEmployee(true);
   };
 
@@ -4635,7 +4669,7 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div><h2 className="text-2xl font-bold">{t.agents}</h2><p className="text-sm text-gray-500">{t.agent_desc}</p></div>
-              <button onClick={() => { setShowAddAgent(true); setEditingAgent(null); setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '', paymentType: 'POSTPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
+              <button onClick={() => { setShowAddAgent(true); setEditingAgent(null); setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '', paymentType: 'POSTPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] }); setAgentFormError(''); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_agent}</button>
             </div>
 
             {/* Add/Edit Agent Modal */}
@@ -4644,7 +4678,7 @@ export default function App() {
                 <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-bold">{editingAgent ? (language === 'vi' ? 'Chỉnh sửa đại lý' : 'Edit Agent') : (language === 'vi' ? 'Thêm đại lý mới' : 'Add New Agent')}</h3>
-                    <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); setAgentFormError(''); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tên đại lý' : 'Agent Name'}</label><input type="text" value={agentForm.name} onChange={e => setAgentForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
@@ -4654,7 +4688,7 @@ export default function App() {
                     <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Địa chỉ' : 'Address'}</label><input type="text" value={agentForm.address} onChange={e => setAgentForm(p => ({ ...p, address: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.commission} (%)</label><input type="number" min="0" max="100" value={agentForm.commissionRate} onChange={e => setAgentForm(p => ({ ...p, commissionRate: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label><select value={agentForm.status} onChange={e => setAgentForm(p => ({ ...p, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none"><option value="ACTIVE">{t.status_active}</option><option value="INACTIVE">{t.status_locked}</option></select></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={agentForm.username} onChange={e => setAgentForm(p => ({ ...p, username: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={agentForm.username} onChange={e => { setAgentForm(p => ({ ...p, username: e.target.value })); setAgentFormError(''); }} className={`w-full mt-1 px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 ${agentFormError ? 'border-red-400' : 'border-gray-100'}`} />{agentFormError && <p className="text-xs text-red-500 mt-1 ml-1">{agentFormError}</p>}</div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mật khẩu' : 'Password'}</label><input type="text" value={agentForm.password} onChange={e => setAgentForm(p => ({ ...p, password: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     {/* Payment Type section */}
                     <div className="col-span-2 border-t border-gray-100 pt-4 mt-2">
@@ -4700,7 +4734,7 @@ export default function App() {
                     )}
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); setAgentFormError(''); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
                     <button onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.code} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingAgent ? t.save : t.add_agent}</button>
                   </div>
                 </div>
@@ -4897,7 +4931,7 @@ export default function App() {
                 <h2 className="text-2xl font-bold">{t.employee_management || 'Quản lý Nhân viên'}</h2>
                 <p className="text-sm text-gray-500">{t.employee_desc || 'Quản lý nhân viên, tài xế và tài khoản đăng nhập'}</p>
               </div>
-              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: availableRoles[0] || 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
+              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: availableRoles[0] || 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); setEmployeeFormError(''); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
             </div>
 
             {/* Add/Edit Employee Modal */}
@@ -4906,7 +4940,7 @@ export default function App() {
                 <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-bold">{editingEmployee ? (language === 'vi' ? 'Chỉnh sửa nhân viên' : 'Edit Employee') : (language === 'vi' ? 'Thêm nhân viên mới' : 'Add New Employee')}</h3>
-                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_name || 'Họ tên'}</label><input type="text" value={employeeForm.name} onChange={e => setEmployeeForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
@@ -4949,11 +4983,11 @@ export default function App() {
                     <div className="col-span-2 border-t border-gray-100 pt-4">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Tài khoản đăng nhập hệ thống' : 'System Login Credentials'}</p>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={employeeForm.username} onChange={e => setEmployeeForm(p => ({ ...p, username: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={employeeForm.username} onChange={e => { setEmployeeForm(p => ({ ...p, username: e.target.value })); setEmployeeFormError(''); }} className={`w-full mt-1 px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 ${employeeFormError ? 'border-red-400' : 'border-gray-100'}`} />{employeeFormError && <p className="text-xs text-red-500 mt-1 ml-1">{employeeFormError}</p>}</div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mật khẩu' : 'Password'}</label><input type="text" value={employeeForm.password} onChange={e => setEmployeeForm(p => ({ ...p, password: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                   </div>
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
                     <button onClick={handleSaveEmployee} disabled={!employeeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingEmployee ? t.save : (t.add_employee || 'Thêm nhân viên')}</button>
                   </div>
                 </div>
