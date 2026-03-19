@@ -17,6 +17,9 @@ import {
 } from './constants/translations';
 import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_PAYMENT_METHOD, PAYMENT_METHOD_TRANSLATION_KEYS } from './constants/paymentMethods';
 import { usePayment } from './hooks/usePayment';
+import { useAgents } from './hooks/useAgents';
+import { useRoutes } from './hooks/useRoutes';
+import { useTrips } from './hooks/useTrips';
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
@@ -304,12 +307,7 @@ export default function App() {
   // State to prompt user to re-enter email when localStorage key is missing (cross-device scenario)
   const [emailLinkReenter, setEmailLinkReenter] = useState(false);
 
-  // Agent CRUD state
-  const [showAddAgent, setShowAddAgent] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [agentForm, setAgentForm] = useState({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', paymentType: 'POSTPAID' as 'POSTPAID' | 'PREPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] as AgentPaymentOption[] });
-  const [agentFormError, setAgentFormError] = useState('');
-
+  // Agent CRUD state – managed by useAgents hook (called later once agents/employees are available)
   // Agent search / filter state
   const [agentSearch, setAgentSearch] = useState('');
   const [agentStatusFilter, setAgentStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -353,54 +351,14 @@ export default function App() {
   const [completedTripFilterDateFrom, setCompletedTripFilterDateFrom] = useState('');
   const [completedTripFilterDateTo, setCompletedTripFilterDateTo] = useState('');
 
-  // Route CRUD state
-  const [showAddRoute, setShowAddRoute] = useState(false);
-  const [editingRoute, setEditingRoute] = useState<Route | null>(null);
-  const [isCopyingRoute, setIsCopyingRoute] = useState(false);
-  const [routeForm, setRouteForm] = useState({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', images: [] as string[], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
-  const [routePricePeriods, setRoutePricePeriods] = useState<PricePeriod[]>([]);
-  const [showAddPricePeriod, setShowAddPricePeriod] = useState(false);
-  const [pricePeriodForm, setPricePeriodForm] = useState({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
-  const [editingPricePeriodId, setEditingPricePeriodId] = useState<string | null>(null);
-  const [routeSurcharges, setRouteSurcharges] = useState<RouteSurcharge[]>([]);
-  const [showAddRouteSurcharge, setShowAddRouteSurcharge] = useState(false);
-  const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id' | 'amount'> & { amount: number | '' }>({ name: '', type: 'FUEL', amount: '', isActive: true });
-  const [editingRouteSurchargeId, setEditingRouteSurchargeId] = useState<string | null>(null);
+  // Route CRUD state – managed by useRoutes hook (called later once routes/storage are available)
 
   // Auto-generated stop IDs for departure and arrival (not real stops from the stops collection)
   const STOP_ID_DEPARTURE = '__departure__';
   const STOP_ID_ARRIVAL = '__arrival__';
 
-  // Route stops (intermediate stops for a route)
-  const [routeFormStops, setRouteFormStops] = useState<RouteStop[]>([]);
-  const routeFormStopsRef = useRef<RouteStop[]>([]);
-  useEffect(() => { routeFormStopsRef.current = routeFormStops; }, [routeFormStops]);
-  // Ref to track current routeForm values (used in fare subscription to resolve stop names)
-  const routeFormRef = useRef(routeForm);
-  useEffect(() => { routeFormRef.current = routeForm; }, [routeForm]);
-  // All route stops including auto-generated departure (__departure__) and arrival (__arrival__) entries.
-  // Intermediate stops (routeFormStops) are re-numbered 1..N; departure is order 0, arrival is order N+1.
-  const allRouteStops: RouteStop[] = useMemo(() => [
-    ...(routeForm.departurePoint ? [{ stopId: STOP_ID_DEPARTURE, stopName: routeForm.departurePoint, order: 0 }] : []),
-    ...routeFormStops.map((s, i) => ({ ...s, order: i + 1 })),
-    ...(routeForm.arrivalPoint ? [{ stopId: STOP_ID_ARRIVAL, stopName: routeForm.arrivalPoint, order: routeFormStops.length + 1 }] : []),
-  ], [routeForm.departurePoint, routeForm.arrivalPoint, routeFormStops]);
-  const [showAddRouteStop, setShowAddRouteStop] = useState(false);
-  const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
-  const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
-  // Undo history for route stop list and seat selection
-  const [routeFormStopsHistory, setRouteFormStopsHistory] = useState<RouteStop[][]>([]);
-  const [routeFormFaresHistory, setRouteFormFaresHistory] = useState<Array<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>>([]);
+  // Undo history for seat selection (shared with routes hook via routeFormStopsHistory/routeFormFaresHistory)
   const [seatSelectionHistory, setSeatSelectionHistory] = useState<{primarySeat: string | null; extraSeats: string[]}[]>([]);
-
-  // Fare table for route (retail + agent price per segment)
-  const [routeFormFares, setRouteFormFares] = useState<Array<{ fromStopId: string; toStopId: string; fromName: string; toName: string; price: number; agentPrice: number; startDate: string; endDate: string }>>([]);
-  // Tracks the fareDocIds (fromStopId_toStopId) that exist in Firestore for the route being edited.
-  // Used in handleSaveRoute to delete fares the user removed from the local list.
-  const originalFareDocIdsRef = useRef<Set<string>>(new Set());
-  const [showAddRouteFare, setShowAddRouteFare] = useState(false);
-  const [editingRouteFareIdx, setEditingRouteFareIdx] = useState<number | null>(null);
-  const [routeFareForm, setRouteFareForm] = useState({ fromStopId: '', toStopId: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
 
   // Vehicle CRUD state (managed by VehiclesPage)
 
@@ -408,17 +366,7 @@ export default function App() {
 
   // Excel import refs removed
 
-  // Trip CRUD state
-  const [showAddTrip, setShowAddTrip] = useState(false);
-  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
-  const [isCopyingTrip, setIsCopyingTrip] = useState(false);
-  const [tripForm, setTripForm] = useState({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING });
-
-  // Batch trip creation state
-  const [showBatchAddTrip, setShowBatchAddTrip] = useState(false);
-  const [batchTripForm, setBatchTripForm] = useState({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
-  const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
-  const [batchTripLoading, setBatchTripLoading] = useState(false);
+  // Trip CRUD state – managed by useTrips hook (called later once vehicles are available)
 
   // Offline state (used only for UI connectivity indicator)
   const isOffline = !db;
@@ -531,6 +479,112 @@ export default function App() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [adminCredentials, setAdminCredentials] = useState({ username: 'admin', password: 'admin' });
   const [securityConfig, setSecurityConfig] = useState<{ phoneVerificationEnabled: boolean; phoneNumbers: string[] }>({ phoneVerificationEnabled: false, phoneNumbers: [] });
+
+  // ─── Agent CRUD (logic extracted to useAgents hook) ──────────────────────────
+  const {
+    showAddAgent,
+    setShowAddAgent,
+    editingAgent,
+    setEditingAgent,
+    agentForm,
+    setAgentForm,
+    agentFormError,
+    setAgentFormError,
+    handleSaveAgent,
+    handleDeleteAgent,
+    handleStartEditAgent,
+    handleSaveAgentNote,
+  } = useAgents({ agents, employees, language });
+
+  // ─── Route CRUD (logic extracted to useRoutes hook) ──────────────────────────
+  const {
+    showAddRoute,
+    setShowAddRoute,
+    editingRoute,
+    setEditingRoute,
+    isCopyingRoute,
+    setIsCopyingRoute,
+    routeForm,
+    setRouteForm,
+    routePricePeriods,
+    setRoutePricePeriods,
+    showAddPricePeriod,
+    setShowAddPricePeriod,
+    pricePeriodForm,
+    setPricePeriodForm,
+    editingPricePeriodId,
+    setEditingPricePeriodId,
+    routeSurcharges,
+    setRouteSurcharges,
+    showAddRouteSurcharge,
+    setShowAddRouteSurcharge,
+    routeSurchargeForm,
+    setRouteSurchargeForm,
+    editingRouteSurchargeId,
+    setEditingRouteSurchargeId,
+    routeFormStops,
+    setRouteFormStops,
+    routeFormStopsRef,
+    routeFormRef,
+    allRouteStops,
+    showAddRouteStop,
+    setShowAddRouteStop,
+    editingRouteStop,
+    setEditingRouteStop,
+    routeStopForm,
+    setRouteStopForm,
+    routeFormStopsHistory,
+    setRouteFormStopsHistory,
+    routeFormFaresHistory,
+    setRouteFormFaresHistory,
+    routeFormFares,
+    setRouteFormFares,
+    originalFareDocIdsRef,
+    showAddRouteFare,
+    setShowAddRouteFare,
+    editingRouteFareIdx,
+    setEditingRouteFareIdx,
+    routeFareForm,
+    setRouteFareForm,
+    routeImageUploading,
+    routeModalEditingId,
+    setRouteModalEditingId,
+    handleSaveRoute,
+    handleRouteImageUpload,
+    handleDeleteRoute,
+    handleStartEditRoute,
+    handleCopyRoute,
+    handleSaveRouteNote,
+  } = useRoutes({ routes, language, storage });
+
+  // ─── Trip CRUD (logic extracted to useTrips hook) ────────────────────────────
+  const {
+    showAddTrip,
+    setShowAddTrip,
+    editingTrip,
+    setEditingTrip,
+    isCopyingTrip,
+    setIsCopyingTrip,
+    tripForm,
+    setTripForm,
+    showBatchAddTrip,
+    setShowBatchAddTrip,
+    batchTripForm,
+    setBatchTripForm,
+    batchTimeSlots,
+    setBatchTimeSlots,
+    batchTripLoading,
+    buildSeatsForVehicle,
+    handleSaveTrip,
+    handleStartEditTrip,
+    handleCopyTrip,
+    handleCopyTripsToDate,
+    handleDeleteTrip,
+    handleSaveTripNote,
+    handleTripVehicleSelect,
+    handleBatchVehicleSelect,
+    handleBatchAddTrips,
+  } = useTrips({ vehicles, language });
 
   // Subscribe to admin credentials changes in real-time
   useEffect(() => {
@@ -700,40 +754,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailLinkPending, customers]);
 
-  // Subscribe to route fares in real-time when the route edit modal is open
-  const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
-  const [routeImageUploading, setRouteImageUploading] = useState(false);
-  useEffect(() => {
-    if (!routeModalEditingId) return;
-    // Reset tracked original IDs for this editing session
-    originalFareDocIdsRef.current = new Set();
-    let initialLoadDone = false;
-    const unsubFares = transportService.subscribeToRouteFares(routeModalEditingId, (fares) => {
-      const currentStops = routeFormStopsRef.current;
-      // On first callback, record which fareDocIds exist in Firestore
-      if (!initialLoadDone) {
-        originalFareDocIdsRef.current = new Set(fares.map(f => `${f.fromStopId}_${f.toStopId}`));
-        initialLoadDone = true;
-      }
-      const resolveStopName = (stopId: string) => {
-        if (stopId === '__departure__') return routeFormRef.current.departurePoint || stopId;
-        if (stopId === '__arrival__') return routeFormRef.current.arrivalPoint || stopId;
-        return currentStops.find(s => s.stopId === stopId)?.stopName || stopId;
-      };
-      setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
-        fromStopId: f.fromStopId,
-        toStopId: f.toStopId,
-        fromName: resolveStopName(f.fromStopId),
-        toName: resolveStopName(f.toStopId),
-        price: f.price,
-        agentPrice: f.agentPrice || 0,
-        startDate: f.startDate || '',
-        endDate: f.endDate || '',
-      })));
-    });
-    return () => unsubFares();
-  }, [routeModalEditingId]);
-
   // Reset inquiry form state when search parameters change
   useEffect(() => {
     setShowInquiryForm(false);
@@ -821,7 +841,7 @@ export default function App() {
     });
   };
 
-  // Helper: check if a username is already taken by another agent or employee
+  // Helper: check if a username is already taken by another agent or employee (used by employee handlers)
   const isUsernameTaken = (username: string, excludeAgentId?: string, excludeEmployeeId?: string): boolean => {
     const normalized = username.trim().toLowerCase();
     const takenByAgent = agents.some(a =>
@@ -833,54 +853,6 @@ export default function App() {
       (!excludeEmployeeId || emp.id !== excludeEmployeeId)
     );
     return takenByAgent || takenByEmployee;
-  };
-
-  // --- Agent CRUD handlers ---
-  const handleSaveAgent = async () => {
-    try {
-      // Check for duplicate username across agents and employees
-      if (agentForm.username && agentForm.username.trim()) {
-        if (isUsernameTaken(agentForm.username, editingAgent?.id, undefined)) {
-          setAgentFormError(language === 'vi' ? 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác.' : 'This username already exists, please choose another.');
-          return;
-        }
-      }
-      setAgentFormError('');
-      if (editingAgent) {
-        await transportService.updateAgent(editingAgent.id, agentForm);
-      } else {
-        await transportService.addAgent(agentForm);
-      }
-      setShowAddAgent(false);
-      setEditingAgent(null);
-      setAgentForm({ name: '', code: '', phone: '', email: '', address: '', commissionRate: 10, balance: 0, status: 'ACTIVE', username: '', password: '', paymentType: 'POSTPAID', creditLimit: 0, depositAmount: 0, holdTicketHours: 24, allowedPaymentOptions: [] });
-    } catch (err) {
-      console.error('Failed to save agent:', err);
-    }
-  };
-
-  const handleDeleteAgent = async (agentId: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa đại lý này?' : 'Delete this agent?')) return;
-    try {
-      await transportService.deleteAgent(agentId);
-    } catch (err) {
-      console.error('Failed to delete agent:', err);
-    }
-  };
-
-  const handleStartEditAgent = (agent: Agent) => {
-    setEditingAgent(agent);
-    setAgentForm({ name: String(agent.name ?? ''), code: String(agent.code ?? ''), phone: String(agent.phone ?? ''), email: String(agent.email ?? ''), address: String(agent.address ?? ''), commissionRate: agent.commissionRate, balance: agent.balance, status: agent.status, username: String(agent.username ?? ''), password: String(agent.password ?? ''), paymentType: agent.paymentType ?? 'POSTPAID', creditLimit: agent.creditLimit ?? 0, depositAmount: agent.depositAmount ?? 0, holdTicketHours: agent.holdTicketHours ?? 24, allowedPaymentOptions: agent.allowedPaymentOptions ?? [] });
-    setAgentFormError('');
-    setShowAddAgent(true);
-  };
-
-  const handleSaveAgentNote = async (agentId: string, note: string) => {
-    try {
-      await transportService.updateAgent(agentId, { note } as Partial<Agent>);
-    } catch (err) {
-      console.error('Failed to save agent note:', err);
-    }
   };
 
   // --- Employee CRUD handlers ---
@@ -923,189 +895,6 @@ export default function App() {
     setShowAddEmployee(true);
   };
 
-
-  // --- Route CRUD handlers ---
-  const handleSaveRoute = async () => {
-    try {
-      // Build full routeStops: auto-generated departure/arrival + user-defined intermediate stops
-      const intermediateStops = routeFormStops.map((s, i) => ({ ...s, order: i + 1 }));
-      const fullRouteStops: RouteStop[] = [
-        ...(routeForm.departurePoint ? [{ stopId: '__departure__', stopName: routeForm.departurePoint, order: 0 }] : []),
-        ...intermediateStops,
-        ...(routeForm.arrivalPoint ? [{ stopId: '__arrival__', stopName: routeForm.arrivalPoint, order: intermediateStops.length + 1 }] : []),
-      ];
-      const routeData = { ...routeForm, pricePeriods: routePricePeriods, surcharges: routeSurcharges, routeStops: fullRouteStops };
-      let routeId = editingRoute?.id;
-      if (editingRoute) {
-        await transportService.updateRoute(editingRoute.id, routeData);
-      } else {
-        const docRef = await transportService.addRoute(routeData);
-        routeId = docRef?.id;
-      }
-      // Save fare table entries: upsert current fares and delete removed ones
-      if (routeId) {
-        // Upsert all current fares, saving their display index as sortOrder
-        for (let fareIdx = 0; fareIdx < routeFormFares.length; fareIdx++) {
-          const fare = routeFormFares[fareIdx];
-          try {
-            await transportService.upsertFare(routeId, fare.fromStopId, fare.toStopId, fare.price, fare.agentPrice > 0 ? fare.agentPrice : undefined, 'VND', fare.startDate || undefined, fare.endDate || undefined, fareIdx);
-          } catch (err) {
-            console.error('Failed to save fare:', fare, err);
-          }
-        }
-        // Delete fares that existed in Firestore but were removed by the user
-        const currentFareDocIds = new Set(routeFormFares.map(f => `${f.fromStopId}_${f.toStopId}`));
-        for (const originalId of originalFareDocIdsRef.current) {
-          if (!currentFareDocIds.has(originalId)) {
-            try {
-              await transportService.deleteFare(routeId, originalId);
-            } catch (err) {
-              console.error('Failed to delete fare:', originalId, err);
-            }
-          }
-        }
-        originalFareDocIdsRef.current = new Set();
-      }
-      setShowAddRoute(false);
-      setEditingRoute(null);
-      setIsCopyingRoute(false);
-      setRouteForm({ stt: 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' });
-    } catch (err) {
-      console.error('Failed to save route:', err);
-    }
-  };
-
-  // Upload one or more route destination images and append their URLs to routeForm.images
-  const handleRouteImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0 || !storage) {
-      if (!storage) alert('Firebase Storage is not configured.');
-      return;
-    }
-    setRouteImageUploading(true);
-    try {
-      const urls: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const compressed = await compressImage(file, 0.75, 1280);
-        const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
-        const task = uploadBytesResumable(sRef, compressed, { contentType: 'image/jpeg' });
-        await new Promise<void>((resolve, reject) => {
-          task.on('state_changed', undefined,
-            (err) => { console.error('Upload error:', err); reject(err); },
-            async () => {
-              const url = await getDownloadURL(task.snapshot.ref);
-              urls.push(url);
-              resolve();
-            }
-          );
-        });
-      }
-      setRouteForm(prev => {
-        const combined = [...(prev.images || []), ...urls];
-        return { ...prev, images: combined, imageUrl: combined[0] || '' };
-      });
-    } catch (err) {
-      console.error('Route image upload failed:', err);
-      alert('Upload failed. Please check your Firebase configuration.');
-    } finally {
-      setRouteImageUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleDeleteRoute = async (routeId: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa tuyến này?' : 'Delete this route?')) return;
-    try {
-      await transportService.deleteRoute(routeId);
-    } catch (err) {
-      console.error('Failed to delete route:', err);
-    }
-  };
-
-  const handleStartEditRoute = (route: Route) => {
-    setEditingRoute(route);
-    setIsCopyingRoute(false);
-    setRouteForm({ stt: route.stt, name: route.name, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', images: route.images || [], vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
-    setRoutePricePeriods(route.pricePeriods || []);
-    setRouteSurcharges(route.surcharges || []);
-    setShowAddPricePeriod(false);
-    setEditingPricePeriodId(null);
-    setShowAddRouteSurcharge(false);
-    setEditingRouteSurchargeId(null);
-    // Load route stops – filter out auto-generated departure/arrival stops so only intermediate stops are editable
-    const loadedStops = (route.routeStops || [])
-      .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
-      .slice().sort((a, b) => a.order - b.order)
-      .map((s, i) => ({ ...s, order: i + 1 }));
-    setRouteFormStops(loadedStops);
-    setShowAddRouteStop(false);
-    // Clear fares and subscribe to real-time updates for this route
-    setRouteFormFares([]);
-    setShowAddRouteFare(false);
-    setEditingRouteFareIdx(null);
-    setRouteModalEditingId(route.id || null);
-    setRouteFormStopsHistory([]);
-    setRouteFormFaresHistory([]);
-    setShowAddRoute(true);
-  };
-
-  const handleSaveRouteNote = async (routeId: string, note: string) => {
-    try {
-      await transportService.updateRoute(routeId, { note });
-    } catch (err) {
-      console.error('Failed to save route note:', err);
-    }
-  };
-
-  // Open the add-route modal pre-filled from an existing route (copy mode – no ID)
-  const handleCopyRoute = (route: Route) => {
-    setEditingRoute(null);
-    setIsCopyingRoute(true);
-    const copySuffix = language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
-    const copiedName = `${route.name}${copySuffix}`;
-    setRouteForm({ stt: routes.length + 1, name: copiedName, departurePoint: route.departurePoint, arrivalPoint: route.arrivalPoint, price: route.price, agentPrice: route.agentPrice || 0, details: route.details || '', imageUrl: route.imageUrl || '', images: route.images || [], vehicleImageUrl: route.vehicleImageUrl || '', disablePickupAddress: route.disablePickupAddress || false, disablePickupAddressFrom: route.disablePickupAddressFrom || '', disablePickupAddressTo: route.disablePickupAddressTo || '', disableDropoffAddress: route.disableDropoffAddress || false, disableDropoffAddressFrom: route.disableDropoffAddressFrom || '', disableDropoffAddressTo: route.disableDropoffAddressTo || '' });
-    const now = Date.now();
-    setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
-    setRouteSurcharges((route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })));
-    const loadedStops = (route.routeStops || [])
-      .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
-      .slice().sort((a, b) => a.order - b.order)
-      .map((s, i) => ({ ...s, order: i + 1 }));
-    setRouteFormStops(loadedStops);
-    setShowAddPricePeriod(false);
-    setEditingPricePeriodId(null);
-    setShowAddRouteSurcharge(false);
-    setEditingRouteSurchargeId(null);
-    setShowAddRouteStop(false);
-    setRouteFormFares([]);
-    setShowAddRouteFare(false);
-    setEditingRouteFareIdx(null);
-    // No real-time subscription for copy (no ID yet); load fares once as initial values
-    setRouteModalEditingId(null);
-    setRouteFormStopsHistory([]);
-    setRouteFormFaresHistory([]);
-    if (route.id) {
-      transportService.getRouteFares(route.id).then((fares) => {
-        const allStops = [
-          ...(route.departurePoint ? [{ stopId: '__departure__', stopName: route.departurePoint }] : []),
-          ...loadedStops,
-          ...(route.arrivalPoint ? [{ stopId: '__arrival__', stopName: route.arrivalPoint }] : []),
-        ];
-        setRouteFormFares(fares.filter(f => f.active !== false).map(f => ({
-          fromStopId: f.fromStopId,
-          toStopId: f.toStopId,
-          fromName: allStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
-          toName: allStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
-          price: f.price,
-          agentPrice: f.agentPrice || 0,
-          startDate: f.startDate || '',
-          endDate: f.endDate || '',
-        })));
-      }).catch((err) => { console.error('Failed to load route fares for copy:', err); });
-    }
-    setShowAddRoute(true);
-  };
 
   // --- Trip CRUD handlers ---
   const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
@@ -1154,66 +943,6 @@ export default function App() {
     const aKey = `${aDate}T${aTime}`;
     const bKey = `${bDate}T${bTime}`;
     return aKey.localeCompare(bKey);
-  };
-
-  const handleSaveTrip = async () => {
-    try {
-      const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
-      const tripVehicle = vehicles.find(v => v.licensePlate === tripForm.licensePlate);
-      const seatType = tripVehicle?.seatType || 'assigned';
-      if (editingTrip) {
-        await transportService.updateTrip(editingTrip.id, { time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status });
-      } else {
-        await transportService.addTrip({ time: tripForm.time, date: tripForm.date, route: tripForm.route, licensePlate: tripForm.licensePlate, driverName: tripForm.driverName, price: tripForm.price, agentPrice: tripForm.agentPrice, status: tripForm.status, seats, addons: [], seatType });
-      }
-      setShowAddTrip(false);
-      setEditingTrip(null);
-      setIsCopyingTrip(false);
-      setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING });
-    } catch (err) {
-      console.error('Failed to save trip:', err);
-    }
-  };
-
-  const handleStartEditTrip = (trip: Trip) => {
-    setEditingTrip(trip);
-    setIsCopyingTrip(false);
-    setTripForm({ time: trip.time, date: trip.date || '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, agentPrice: trip.agentPrice || 0, seatCount: trip.seats?.length || 11, status: trip.status });
-    setShowAddTrip(true);
-  };
-
-  // Open the add-trip modal pre-filled from an existing trip (copy mode – no ID, fresh seats)
-  const handleCopyTrip = (trip: Trip) => {
-    setEditingTrip(null);
-    setIsCopyingTrip(true);
-    setTripForm({ time: trip.time, date: '', route: trip.route, licensePlate: trip.licensePlate, driverName: trip.driverName, price: trip.price, agentPrice: trip.agentPrice || 0, seatCount: trip.seats?.length || 11, status: TripStatus.WAITING });
-    setShowAddTrip(true);
-  };
-
-  // Open the batch-add modal pre-filled with time slots from selected trips
-  const handleCopyTripsToDate = (sourceTrips: Trip[]) => {
-    const times = sourceTrips.map(t => t.time).filter(Boolean);
-    const firstTrip = sourceTrips[0];
-    setBatchTripForm({ dateFrom: '', dateTo: '', route: firstTrip?.route || '', licensePlate: firstTrip?.licensePlate || '', driverName: firstTrip?.driverName || '', price: firstTrip?.price || 0, agentPrice: firstTrip?.agentPrice || 0, seatCount: firstTrip?.seats?.length || 11 });
-    setBatchTimeSlots(times.length > 0 ? times : ['']);
-    setShowBatchAddTrip(true);
-  };
-
-  const handleDeleteTrip = async (tripId: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa chuyến này?' : 'Delete this trip?')) return;
-    try {
-      await transportService.deleteTrip(tripId);
-    } catch (err) {
-      console.error('Failed to delete trip:', err);
-    }
-  };
-
-  const handleSaveTripNote = async (tripId: string, note: string) => {
-    try {
-      await transportService.updateTrip(tripId, { note } as Partial<Trip>);
-    } catch (err) {
-      console.error('Failed to save trip note:', err);
-    }
   };
 
   const handleClosePassengerModal = () => {
@@ -1709,84 +1438,6 @@ export default function App() {
       printWindow.document.close();
       printWindow.focus();
       setTimeout(() => { printWindow.print(); }, 500);
-    }
-  };
-
-  const buildSeatsForVehicle = (licensePlate: string, seatCount: number) => {
-    const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
-    // For free seating vehicles, generate simple numbered seats (used only for capacity tracking)
-    if (vehicle?.seatType === 'free') {
-      const FREE_SEATING_COLS = 4; // seats per row for internal grid layout (not displayed to user)
-      return Array.from({ length: seatCount }, (_, i) => ({
-        id: String(i + 1),
-        row: Math.floor(i / FREE_SEATING_COLS),
-        col: i % FREE_SEATING_COLS,
-        deck: 0,
-        status: SeatStatus.EMPTY,
-      }));
-    }
-    const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
-    if (savedLayout && savedLayout.length > 0) {
-      return savedLayout.map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
-    }
-    const generatedLayout = generateVehicleLayout(vehicle?.type || 'Ghế ngồi', seatCount);
-    return serializeLayout(generatedLayout).map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
-  };
-
-  const handleTripVehicleSelect = (licensePlate: string) => {
-    const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
-    const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
-    const layoutSeatCount = savedLayout && savedLayout.length > 0 ? savedLayout.length : null;
-    setTripForm(p => ({ ...p, licensePlate, seatCount: layoutSeatCount ?? vehicle?.seats ?? p.seatCount }));
-  };
-
-  const handleBatchVehicleSelect = (licensePlate: string) => {
-    const vehicle = vehicles.find(v => v.licensePlate === licensePlate);
-    const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
-    const layoutSeatCount = savedLayout && savedLayout.length > 0 ? savedLayout.length : null;
-    setBatchTripForm(p => ({ ...p, licensePlate, seatCount: layoutSeatCount ?? vehicle?.seats ?? p.seatCount }));
-  };
-
-  // --- Batch trip creation ---
-  const handleBatchAddTrips = async () => {
-    const validSlots = batchTimeSlots.filter(t => t.trim() !== '');
-    if (!batchTripForm.dateFrom || !batchTripForm.dateTo || !batchTripForm.route || validSlots.length === 0) return;
-    setBatchTripLoading(true);
-    try {
-      const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
-      const batchVehicle = vehicles.find(v => v.licensePlate === batchTripForm.licensePlate);
-      const seatType = batchVehicle?.seatType || 'assigned';
-      // Build list of all dates in range
-      const dates: string[] = [];
-      const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
-      const end = new Date(batchTripForm.dateTo + 'T00:00:00');
-      while (cur <= end) {
-        dates.push(cur.toISOString().split('T')[0]);
-        cur.setDate(cur.getDate() + 1);
-      }
-      const tripsToCreate = dates.flatMap(date =>
-        validSlots.map(slot => ({
-          time: slot,
-          date,
-          route: batchTripForm.route,
-          licensePlate: batchTripForm.licensePlate,
-          driverName: batchTripForm.driverName,
-          price: batchTripForm.price,
-          agentPrice: batchTripForm.agentPrice,
-          status: TripStatus.WAITING,
-          seats,
-          addons: [] as TripAddon[],
-          seatType,
-        }))
-      );
-      await transportService.addTripsBatch(tripsToCreate);
-      setShowBatchAddTrip(false);
-      setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
-      setBatchTimeSlots(['']);
-    } catch (err) {
-      console.error('Failed to batch create trips:', err);
-    } finally {
-      setBatchTripLoading(false);
     }
   };
 
