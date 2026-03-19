@@ -549,6 +549,21 @@ export default function App() {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
+  const [paymentConfig, setPaymentConfig] = useState<{ bookingCutoffEnabled: boolean; bookingCutoffMinutes: number }>({ bookingCutoffEnabled: true, bookingCutoffMinutes: 60 });
+
+  // Subscribe to payment settings changes in real-time (to get booking cutoff config)
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToPaymentSettings((saved) => {
+      if (saved && typeof saved === 'object') {
+        setPaymentConfig({
+          bookingCutoffEnabled: typeof saved.bookingCutoffEnabled === 'boolean' ? saved.bookingCutoffEnabled : true,
+          bookingCutoffMinutes: typeof saved.bookingCutoffMinutes === 'number' ? saved.bookingCutoffMinutes : 60,
+        });
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, []);
+
   // Booking form inputs
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
@@ -2675,12 +2690,47 @@ export default function App() {
                           )}
                         </div>
                         {/* Select seat CTA */}
-                        <button
-                          onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
-                          className="w-full px-2 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
-                        >
-                          {t.select_seat}
-                        </button>
+                        {(() => {
+                          // Check if departure is within the cutoff window for non-staff users
+                          const isPrivilegedUser = currentUser?.role === UserRole.MANAGER ||
+                            currentUser?.role === 'SUPERVISOR' ||
+                            currentUser?.role === 'STAFF';
+                          let isCutoffBlocked = false;
+                          if (!isPrivilegedUser && paymentConfig.bookingCutoffEnabled && paymentConfig.bookingCutoffMinutes > 0) {
+                            const tripDateStr = trip.date;
+                            const tripTime = trip.time || '00:00';
+                            if (tripDateStr) {
+                              const parts = tripDateStr.split(/[\/\-]/);
+                              if (parts.length === 3) {
+                                let departureDate: Date;
+                                if (tripDateStr.includes('/')) {
+                                  departureDate = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+                                } else {
+                                  departureDate = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+                                }
+                                const [hh, mm] = tripTime.split(':');
+                                departureDate.setHours(+hh || 0, +mm || 0, 0, 0);
+                                const msUntilDeparture = departureDate.getTime() - Date.now();
+                                isCutoffBlocked = msUntilDeparture <= paymentConfig.bookingCutoffMinutes * 60 * 1000;
+                              }
+                            }
+                          }
+                          return isCutoffBlocked ? (
+                            <button
+                              onClick={() => alert(t.booking_cutoff_alert || 'Xe sắp chạy! Vui lòng liên hệ đại lý hoặc nhân viên nhà xe để đặt vé cận giờ.')}
+                              className="w-full px-2 py-1.5 bg-gray-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-gray-400/10 cursor-not-allowed"
+                            >
+                              🔒 {language === 'vi' ? 'Liên hệ đại lý' : language === 'ja' ? '代理店にお問い合わせ' : 'Contact Agent'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
+                              className="w-full px-2 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
+                            >
+                              {t.select_seat}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

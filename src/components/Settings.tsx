@@ -30,6 +30,8 @@ export const Settings: React.FC<SettingsProps> = ({
   const PAGE_LIST = [
     { id: 'home', label: language === 'vi' ? 'Trang chủ' : 'Home' },
     { id: 'book-ticket', label: language === 'vi' ? 'Đặt vé xe' : 'Book Ticket' },
+    { id: 'my-tickets', label: language === 'vi' ? 'Vé đã mua' : 'My Tickets' },
+    { id: 'agent-bookings', label: language === 'vi' ? 'Vé của tôi (Đại lý)' : 'My Bookings (Agent)' },
     { id: 'tours', label: language === 'vi' ? 'Tour du lịch' : 'Tours' },
     { id: 'consignments', label: language === 'vi' ? 'Gửi hàng' : 'Consignments' },
     { id: 'user-guide', label: language === 'vi' ? 'Hướng dẫn sử dụng' : 'User Guide' },
@@ -58,11 +60,11 @@ export const Settings: React.FC<SettingsProps> = ({
   const defaultPerms: Record<string, Record<string, boolean>> = {
     MANAGER: Object.fromEntries(PAGE_LIST.map(p => [p.id, true])),
     SUPERVISOR: Object.fromEntries(PAGE_LIST.filter(p => p.id !== 'financial-report').map(p => [p.id, true])),
-    AGENT: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'user-guide': true, 'settings': true },
+    AGENT: { 'home': true, 'book-ticket': true, 'agent-bookings': true, 'tours': true, 'consignments': true, 'user-guide': true, 'settings': true },
     STAFF: { 'home': true, 'book-ticket': true, 'consignments': true, 'user-guide': true },
     DRIVER: { 'home': true, 'user-guide': true },
-    CUSTOMER: { 'home': true, 'book-ticket': true, 'tours': true, 'consignments': true, 'user-guide': true },
-    GUEST: { 'home': true, 'book-ticket': true, 'tours': true, 'user-guide': true },
+    CUSTOMER: { 'home': true, 'book-ticket': true, 'my-tickets': true, 'tours': true, 'consignments': true, 'user-guide': true },
+    GUEST: { 'home': true, 'book-ticket': true, 'my-tickets': true, 'tours': true, 'user-guide': true },
   };
 
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
@@ -118,6 +120,8 @@ export const Settings: React.FC<SettingsProps> = ({
     vnpayEnabled: false,
     vietinbankEnabled: false,
     shbEnabled: false,
+    bookingCutoffEnabled: true,
+    bookingCutoffMinutes: 60,
     momoPartnerCode: '',
     zalopayAppId: '',
     vnpayTerminalId: '',
@@ -572,6 +576,46 @@ export const Settings: React.FC<SettingsProps> = ({
                       max="72"
                       value={paymentConfig.holdTicketHours}
                       onChange={e => setPaymentConfig(p => ({ ...p, holdTicketHours: parseInt(e.target.value) || 24 }))}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Booking Cutoff Settings */}
+            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-daiichi-accent rounded-2xl flex items-center justify-center text-daiichi-red">
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">{t.booking_cutoff_settings || 'Cài đặt Chặn đặt vé cận giờ'}</h3>
+                  <p className="text-sm text-gray-500">{t.booking_cutoff_note || 'Khách và đại lý không thể chọn ghế khi xe sắp chạy'}</p>
+                </div>
+              </div>
+              <div className="space-y-5 max-w-md">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                  <div>
+                    <p className="text-sm font-bold text-gray-700">{t.booking_cutoff_enabled || 'Kích hoạt chặn đặt vé cận giờ'}</p>
+                    <p className="text-xs text-gray-400">{t.booking_cutoff_note || 'Nhân viên và admin vẫn có thể đặt vé'}</p>
+                  </div>
+                  <button
+                    onClick={() => setPaymentConfig(p => ({ ...p, bookingCutoffEnabled: !p.bookingCutoffEnabled }))}
+                    className={cn("transition-colors", paymentConfig.bookingCutoffEnabled ? "text-green-500" : "text-gray-300")}
+                  >
+                    {paymentConfig.bookingCutoffEnabled ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+                  </button>
+                </div>
+                {paymentConfig.bookingCutoffEnabled && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_cutoff_minutes || 'Thời gian chặn trước khi xe chạy (phút)'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="1440"
+                      value={paymentConfig.bookingCutoffMinutes}
+                      onChange={e => setPaymentConfig(p => ({ ...p, bookingCutoffMinutes: Math.max(0, parseInt(e.target.value) || 0) }))}
                       className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                     />
                   </div>
