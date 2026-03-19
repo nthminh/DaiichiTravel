@@ -206,13 +206,18 @@ service cloud.firestore {
     }
 
     // Staff messages: authenticated read/write (internal messaging)
+    // Supports text messages (content non-empty) and voice messages (voiceUrl present, content may be empty)
     match /staffMessages/{message} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
                     && request.resource.data.keys().hasAll(['senderId', 'senderName', 'content', 'createdAt'])
-                    && request.resource.data.keys().size() <= 20
+                    && request.resource.data.keys().size() <= 25
                     && isShortString(request.resource.data.content)
-                    && isShortString(request.resource.data.senderName);
+                    && isShortString(request.resource.data.senderName)
+                    && (request.resource.data.content.size() > 0
+                        || (request.resource.data.keys().hasAny(['voiceUrl'])
+                            && request.resource.data.voiceUrl is string
+                            && request.resource.data.voiceUrl.matches('https://firebasestorage\\.googleapis\\.com/.*')));
       allow delete: if isSignedIn();
     }
     // Settings: public read (needed for login credential check), authenticated write
