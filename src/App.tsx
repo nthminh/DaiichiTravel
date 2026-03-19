@@ -2900,8 +2900,8 @@ export default function App() {
       case 'seat-mapping':
         if (!selectedTrip) return null;
         {
-          const childrenOver4Count = childrenAges.filter(age => age >= 4).length;
-          const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
+          const childrenOver5Count = childrenAges.filter(age => age >= 5).length;
+          const extraSeatsNeeded = (adults - 1) + childrenOver5Count;
           // Look up route once for this render block (used for surcharges, fare table, and blocker check)
           const tripRoute = routes.find(r => r.name === selectedTrip.route);
           // Also disable confirmation when a fare lookup error exists for a route with configured stops
@@ -2910,7 +2910,7 @@ export default function App() {
           const canConfirmBooking = isFreeSeatingTrip
             ? !hasFareBlocker
             : (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
-          const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
+          const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver5Count > 0);
 
           // Route-level surcharges
           const tripDate = selectedTrip.date || '';
@@ -3351,8 +3351,8 @@ export default function App() {
                           <button type="button" onClick={() => {
                             const newAdults = Math.max(1, adults - 1);
                             setAdults(newAdults);
-                            const currentOver4Count = childrenAges.filter(age => age >= 4).length;
-                            const newExtraSeatsNeeded = (newAdults - 1) + currentOver4Count;
+                            const currentOver5Count = childrenAges.filter(age => age >= 5).length;
+                            const newExtraSeatsNeeded = (newAdults - 1) + currentOver5Count;
                             setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
                           }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                           <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
@@ -3367,8 +3367,8 @@ export default function App() {
                             setChildren(count);
                             setChildrenAges(prev => prev.slice(0, count));
                             const newAges = childrenAges.slice(0, count);
-                            const newOver4Count = newAges.filter(age => age >= 4).length;
-                            setExtraSeatIds(prev => prev.slice(0, newOver4Count));
+                            const newOver5Count = newAges.filter(age => age >= 5).length;
+                            setExtraSeatIds(prev => prev.slice(0, newOver5Count));
                           }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                           <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
                           <button type="button" onClick={() => {
@@ -3388,7 +3388,7 @@ export default function App() {
                     {children > 0 && (
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
                         <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 4 and above are charged adult price and need their own seat'}</p>
+                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</p>
                         <div className="grid grid-cols-3 gap-2">
                           {Array.from({ length: children }).map((_, i) => (
                             <div key={i} className="relative">
@@ -3403,13 +3403,13 @@ export default function App() {
                                   const parsed = parseInt(e.target.value);
                                   ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
                                   setChildrenAges(ages);
-                                  // Trim extra seats if children over 4 count decreased
-                                  const newOver4Count = ages.filter(age => (age ?? 0) >= 4).length;
-                                  setExtraSeatIds(prev => prev.slice(0, newOver4Count));
+                                  // Trim extra seats if children over 5 count decreased
+                                  const newOver5Count = ages.filter(age => (age ?? 0) >= 5).length;
+                                  setExtraSeatIds(prev => prev.slice(0, newOver5Count));
                                 }}
                                 className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
                               />
-                              {(childrenAges[i] ?? 0) >= 4 && (
+                              {(childrenAges[i] ?? 0) >= 5 && (
                                 <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                                   {t.child_counted_as_adult || 'Adult'}
                                 </span>
@@ -3801,14 +3801,15 @@ export default function App() {
                           : (isAgentBookingForm
                               ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
                               : (selectedTrip.priceChild || basePriceAdult));
-                        const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
-                          (acc, age) => age >= 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
-                          { childrenOver4: 0, childrenUnder4: 0 }
+                        const { childrenOver5, childrenUnder5 } = childrenAges.reduce(
+                          (acc, age) => age >= 5 ? { ...acc, childrenOver5: acc.childrenOver5 + 1 } : { ...acc, childrenUnder5: acc.childrenUnder5 + 1 },
+                          { childrenOver5: 0, childrenUnder5: 0 }
                         );
-                        const effectiveAdults = adults + childrenOver4;
-                        const effectiveChildren = childrenUnder4 + Math.max(0, children - childrenAges.length);
-                        const baseTotal = (effectiveAdults * basePriceAdult) + (effectiveChildren * basePriceChild);
-                        const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * (effectiveAdults + effectiveChildren), 0);
+                        const effectiveAdults = adults + childrenOver5;
+                        const effectiveChildren = childrenUnder5 + Math.max(0, children - childrenAges.length);
+                        // Children under 5 are free; only charge adults (which includes children aged 5+)
+                        const baseTotal = (effectiveAdults * basePriceAdult);
+                        const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
                         const allSurcharges = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
                         const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
                         const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
@@ -3832,7 +3833,7 @@ export default function App() {
                             {applicableRouteSurcharges.map(sc => (
                               <div key={sc.id} className="flex justify-between items-center text-xs text-amber-600">
                                 <span>+ {sc.name}</span>
-                                <span>+{(sc.amount * (effectiveAdults + effectiveChildren)).toLocaleString()}đ</span>
+                                <span>+{(sc.amount * effectiveAdults).toLocaleString()}đ</span>
                               </div>
                             ))}
                             {pickupSurcharge > 0 && (
