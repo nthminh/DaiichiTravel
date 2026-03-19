@@ -2238,16 +2238,31 @@ export default function App() {
           const tripDate = selectedTrip.date || '';
           const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
           // Pre-compute stop name lists for pickup/dropoff address selects.
-          // When the route's departure/arrival points map to TERMINAL stops, only show child stops
-          // (terminalId === terminal.id). Falls back to all stops for backwards-compat.
-          const departureTerminal = stops.find(s => s.type === 'TERMINAL' && s.name === tripRoute?.departurePoint);
-          const arrivalTerminal = stops.find(s => s.type === 'TERMINAL' && s.name === tripRoute?.arrivalPoint);
+          // Only show STOP-type (điểm dừng) entries – never major TERMINAL stations (ga lớn).
+          // Use the user-selected departure/arrival (pickupPoint/dropoffPoint) as the effective
+          // terminal name; fall back to the route's fixed departure/arrival point.
+          // If the selected name is itself a STOP (not a TERMINAL), find its parent TERMINAL
+          // so that all sibling stops under the same terminal are offered.
+          const resolveTerminal = (selectedName: string | undefined, routeDefaultName: string | undefined) => {
+            const name = selectedName || routeDefaultName;
+            if (!name) return undefined;
+            // Direct match: the name is a TERMINAL stop
+            const direct = stops.find(s => s.type === 'TERMINAL' && s.name === name);
+            if (direct) return direct;
+            // Indirect match: the name is a STOP – find its parent TERMINAL
+            const parentId = stops.find(s => s.name === name)?.terminalId;
+            if (parentId) return stops.find(s => s.id === parentId);
+            return undefined;
+          };
+          const departureTerminal = resolveTerminal(pickupPoint, tripRoute?.departurePoint);
+          const arrivalTerminal = resolveTerminal(dropoffPoint, tripRoute?.arrivalPoint);
+          // Only include child STOP entries; when no terminal is resolved, show all non-TERMINAL stops
           const pickupStopNames = departureTerminal
             ? stops.filter(s => s.terminalId === departureTerminal.id).map(s => s.name)
-            : stops.map(s => s.name);
+            : stops.filter(s => s.type !== 'TERMINAL').map(s => s.name);
           const dropoffStopNames = arrivalTerminal
             ? stops.filter(s => s.terminalId === arrivalTerminal.id).map(s => s.name)
-            : stops.map(s => s.name);
+            : stops.filter(s => s.type !== 'TERMINAL').map(s => s.name);
 
           // Build seat status lookup
           const seatStatusMap: Record<string, SeatStatus> = {};
@@ -2796,6 +2811,7 @@ export default function App() {
                               value={pickupPoint}
                               onChange={(val) => {
                                 setPickupPoint(val);
+                                setPickupAddress(''); // clear sub-stop when departure changes
                                 // Determine stop ID: prefer routeStops match, fall back to global stops
                                 const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
                                 const globalStop = stops.find(s => s.name === val);
@@ -2852,6 +2868,7 @@ export default function App() {
                               value={dropoffPoint}
                               onChange={(val) => {
                                 setDropoffPoint(val);
+                                setDropoffAddress(''); // clear sub-stop when destination changes
                                 // Determine stop ID: prefer routeStops match, fall back to global stops
                                 const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
                                 const globalStop = stops.find(s => s.name === val);
