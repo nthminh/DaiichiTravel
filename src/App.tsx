@@ -358,7 +358,7 @@ export default function App() {
   const [editingPricePeriodId, setEditingPricePeriodId] = useState<string | null>(null);
   const [routeSurcharges, setRouteSurcharges] = useState<RouteSurcharge[]>([]);
   const [showAddRouteSurcharge, setShowAddRouteSurcharge] = useState(false);
-  const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id'>>({ name: '', type: 'FUEL', amount: 0, isActive: true });
+  const [routeSurchargeForm, setRouteSurchargeForm] = useState<Omit<RouteSurcharge, 'id' | 'amount'> & { amount: number | '' }>({ name: '', type: 'FUEL', amount: '', isActive: true });
   const [editingRouteSurchargeId, setEditingRouteSurchargeId] = useState<string | null>(null);
 
   // Auto-generated stop IDs for departure and arrival (not real stops from the stops collection)
@@ -5311,7 +5311,7 @@ export default function App() {
                           <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Phụ thu xăng dầu, lễ tết, và các khoản phụ thu khác' : language === 'ja' ? '燃料、祝日、その他の追加料金' : 'Fuel, holiday, and other surcharges'}</p>
                         </div>
                         {!showAddRouteSurcharge && (
-                          <button onClick={() => { setShowAddRouteSurcharge(true); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true }); }} className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100">
+                          <button onClick={() => { setShowAddRouteSurcharge(true); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: '', isActive: true }); }} className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100">
                             + {language === 'vi' ? 'Thêm phụ thu' : language === 'ja' ? '追加料金を追加' : 'Add Surcharge'}
                           </button>
                         )}
@@ -5366,7 +5366,7 @@ export default function App() {
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{language === 'vi' ? 'Số tiền/người (đ)' : language === 'ja' ? '金額/人 (đ)' : 'Amount/person (đ)'}</label>
-                              <input type="number" min="0" value={routeSurchargeForm.amount} onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                              <input type="number" min="0" step="1" value={routeSurchargeForm.amount} placeholder="0" onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày (tuỳ chọn)' : language === 'ja' ? '開始日（任意）' : 'From date (optional)'}</label>
@@ -5385,19 +5385,20 @@ export default function App() {
                             </label>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                            <button
+                            <button onClick={() => { setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: '', isActive: true }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                             <button
                               disabled={!routeSurchargeForm.name || (!!routeSurchargeForm.startDate !== !!routeSurchargeForm.endDate)}
                               onClick={() => {
+                                const formToSave = { ...routeSurchargeForm, amount: Number(routeSurchargeForm.amount) || 0 };
                                 if (editingRouteSurchargeId) {
-                                  setRouteSurcharges(prev => prev.map(s => s.id === editingRouteSurchargeId ? { ...s, ...routeSurchargeForm } : s));
+                                  setRouteSurcharges(prev => prev.map(s => s.id === editingRouteSurchargeId ? { ...s, ...formToSave } : s));
                                   setEditingRouteSurchargeId(null);
                                 } else {
-                                  const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...routeSurchargeForm };
+                                  const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...formToSave };
                                   setRouteSurcharges(prev => [...prev, newSurcharge]);
                                 }
                                 setShowAddRouteSurcharge(false);
-                                setRouteSurchargeForm({ name: '', type: 'FUEL', amount: 0, isActive: true });
+                                setRouteSurchargeForm({ name: '', type: 'FUEL', amount: '', isActive: true });
                               }}
                               className="px-4 py-1.5 bg-amber-500 text-white text-xs rounded-lg font-bold disabled:opacity-50"
                             >
