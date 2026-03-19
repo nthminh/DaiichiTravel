@@ -265,6 +265,15 @@ export default function App() {
     [vehicles]
   );
 
+  // Terminal stops (Ga/Bến) used as departure/arrival options in route form
+  const terminalStops = useMemo(
+    () => {
+      const terminals = stops.filter(s => s.type === 'TERMINAL');
+      return terminals.length > 0 ? terminals : stops;
+    },
+    [stops]
+  );
+
   // Tours state (for customer-facing page)
   const [tours, setTours] = useState<TourItem[]>([]);
 
@@ -3800,8 +3809,32 @@ export default function App() {
                         <p className="text-[10px] text-orange-500 mt-1 ml-1">{language === 'vi' ? '* Chỉ hiển thị cho đại lý' : '* Visible to agents only'}</p>
                       </div>
                     </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label><input type="text" value={routeForm.departurePoint} onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label><input type="text" value={routeForm.arrivalPoint} onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label>
+                      <select
+                        value={routeForm.departurePoint}
+                        onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                      >
+                        <option value="">{language === 'vi' ? '-- Chọn bến đi --' : '-- Select departure terminal --'}</option>
+                        {terminalStops.map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label>
+                      <select
+                        value={routeForm.arrivalPoint}
+                        onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                      >
+                        <option value="">{language === 'vi' ? '-- Chọn bến đến --' : '-- Select arrival terminal --'}</option>
+                        {terminalStops.map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_details}</label>
                       <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
