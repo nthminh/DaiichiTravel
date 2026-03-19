@@ -58,6 +58,8 @@ const VehicleSeatDiagram = lazy(() => import('./components/VehicleSeatDiagram').
 const TicketModal = lazy(() => import('./components/TicketModal').then(m => ({ default: m.TicketModal })));
 const PaymentQRModal = lazy(() => import('./components/PaymentQRModal').then(m => ({ default: m.PaymentQRModal })));
 const AgentTopUpQRModal = lazy(() => import('./components/PaymentQRModal').then(m => ({ default: m.AgentTopUpQRModal })));
+const MyTickets = lazy(() => import('./components/MyTickets').then(m => ({ default: m.MyTickets })));
+const AgentBookings = lazy(() => import('./components/AgentBookings').then(m => ({ default: m.AgentBookings })));
 import { DriverAssignment, StaffMessage } from './types';
 
 // Re-export types for components
@@ -737,6 +739,24 @@ export default function App() {
       if (phone) setPhoneInput(prev => prev || phone);
     }
   }, [showBookingForm, currentUser?.role, currentUser?.name, currentUser?.phone]);
+
+  // Set default payment method when booking form opens based on user role
+  useEffect(() => {
+    if (!showBookingForm) return;
+    if (currentUser?.role === UserRole.AGENT) {
+      const agentInfo = agents.find(a => a.id === currentUser.id);
+      const isPostpaid = agentInfo?.paymentType === 'POSTPAID' || !agentInfo?.paymentType;
+      if (isPostpaid) {
+        setPaymentMethodInput('Giữ vé');
+      } else {
+        setPaymentMethodInput('Chuyển khoản QR');
+      }
+    } else {
+      // CUSTOMER / GUEST: force QR
+      setPaymentMethodInput('Chuyển khoản QR');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBookingForm]);
 
   // Global Ctrl+Z / Cmd+Z undo handler
   useEffect(() => {
@@ -2114,6 +2134,27 @@ export default function App() {
 
       case 'customers':
         return <CustomerManagement language={language} customers={customers} />;
+
+      case 'my-tickets':
+        return (
+          <MyTickets
+            language={language}
+            currentUser={currentUser}
+            bookings={bookings}
+          />
+        );
+
+      case 'agent-bookings':
+        return (
+          <AgentBookings
+            language={language}
+            currentUser={currentUser}
+            bookings={bookings}
+            trips={trips}
+            setTrips={setTrips}
+            setBookings={setBookings}
+          />
+        );
       
       case 'home':
         return (
@@ -3610,36 +3651,73 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Discount selector */}
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_discount}</label>
-                      <select
-                        value={bookingDiscount}
-                        onChange={(e) => setBookingDiscount(parseInt(e.target.value))}
-                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                      >
-                        <option value={0}>{t.no_discount}</option>
-                        {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map(pct => (
-                          <option key={pct} value={pct}>-{pct}%</option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* Payment Method – shown conditionally based on user role */}
+                    {(() => {
+                      const isManager = currentUser?.role === UserRole.MANAGER;
+                      const isAgent = currentUser?.role === UserRole.AGENT;
+                      const agentDataForBooking = isAgent ? agents.find(a => a.id === currentUser?.id) : null;
+                      const isPostpaidAgent = isAgent && (agentDataForBooking?.paymentType === 'POSTPAID' || !agentDataForBooking?.paymentType);
 
-                    {/* Payment Method */}
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
-                      <select
-                        value={paymentMethodInput}
-                        onChange={(e) => setPaymentMethodInput(e.target.value as PaymentMethod)}
-                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                      >
-                        {PAYMENT_METHODS.map(method => (
-                          <option key={method} value={method}>
-                            {t[PAYMENT_METHOD_TRANSLATION_KEYS[method]]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      if (isManager) {
+                        // Manager: show all payment methods
+                        return (
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                            <select
+                              value={paymentMethodInput}
+                              onChange={(e) => setPaymentMethodInput(e.target.value as PaymentMethod)}
+                              className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            >
+                              {PAYMENT_METHODS.map(method => (
+                                <option key={method} value={method}>
+                                  {t[PAYMENT_METHOD_TRANSLATION_KEYS[method]]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      if (isPostpaidAgent) {
+                        // POSTPAID agent: only "Giữ vé" or "Thanh toán sau"
+                        return (
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                            <select
+                              value={paymentMethodInput === 'Giữ vé' || paymentMethodInput === 'Thanh toán sau' ? paymentMethodInput : 'Giữ vé'}
+                              onChange={(e) => setPaymentMethodInput(e.target.value as PaymentMethod)}
+                              className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            >
+                              <option value="Giữ vé">{t.payment_hold || 'Giữ vé (có thể chỉnh sửa)'}</option>
+                              <option value="Thanh toán sau">{t.payment_later || 'Thanh toán sau (công nợ)'}</option>
+                            </select>
+                            <p className="text-[10px] text-purple-500 mt-1 ml-1">
+                              {language === 'vi'
+                                ? '"Giữ vé" có thể chỉnh sửa/xóa trước 24h xe chạy. "Thanh toán sau" xuất vé ngay, tính vào công nợ.'
+                                : '"Hold Ticket" can be edited/deleted up to 24h before departure. "Pay Later" issues immediately, billed to your account.'}
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      // Customer / Guest / PREPAID agent: locked to QR payment
+                      return (
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                          <div className="w-full mt-1 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold text-blue-700 flex items-center gap-2">
+                            <span>📱</span>
+                            <span>{t.payment_qr || 'Chuyển khoản QR'}</span>
+                          </div>
+                          <p className="text-[10px] text-blue-400 mt-1 ml-1">
+                            {language === 'vi'
+                              ? 'Thanh toán QR bắt buộc. Thời gian chờ thanh toán: 30 phút.'
+                              : language === 'ja'
+                              ? 'QR支払い必須。支払い待機時間：30分。'
+                              : 'QR payment required. Payment window: 30 minutes.'}
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                     {/* Booking Note */}
                     <div>
@@ -3682,7 +3760,7 @@ export default function App() {
                         const allSurcharges = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
                         const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
                         const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
-                        const finalTotal = Math.round((baseTotal + allSurcharges + addonsTotalInForm) * (1 - bookingDiscount / 100));
+                        const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
                         return (
                           <>
                             <div className="flex justify-between items-center text-xs text-gray-500">
@@ -3734,9 +3812,6 @@ export default function App() {
                               <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
                               <span className="text-xl font-bold text-daiichi-red">{finalTotal.toLocaleString()}đ</span>
                             </div>
-                            {bookingDiscount > 0 && (
-                              <p className="text-xs text-green-600 font-bold text-right">-{bookingDiscount}% {t.booking_discount}</p>
-                            )}
                           </>
                         );
                       })()}
