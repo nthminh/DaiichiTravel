@@ -8,7 +8,7 @@ import {
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from './lib/utils';
+import { cn, getYoutubeEmbedUrl, getLocalDateString, getOffsetDayLabel } from './lib/utils';
 
 // Import Constants & Types
 import { 
@@ -64,6 +64,11 @@ const AgentTopUpQRModal = lazy(() => import('./components/PaymentQRModal').then(
 const MyTickets = lazy(() => import('./pages/MyTickets').then(m => ({ default: m.MyTickets })));
 const AgentBookings = lazy(() => import('./pages/AgentBookings').then(m => ({ default: m.AgentBookings })));
 const TourBookingForm = lazy(() => import('./components/TourBookingForm').then(m => ({ default: m.TourBookingForm })));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
+const ToursPage = lazy(() => import('./pages/ToursPage').then(m => ({ default: m.ToursPage })));
+const CompletedTripsPage = lazy(() => import('./pages/CompletedTripsPage').then(m => ({ default: m.CompletedTripsPage })));
+const RouteManagementPage = lazy(() => import('./pages/RouteManagementPage').then(m => ({ default: m.RouteManagementPage })));
+const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
 import { DriverAssignment, StaffMessage } from './types';
 import type { TourItem } from './components/TourBookingForm';
 
@@ -86,11 +91,6 @@ export interface User {
 }
 
 
-function getYoutubeEmbedUrl(url: string): string | null {
-  if (!url) return null;
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
-}
 
 /** Small overlay shown when a magic-link email is opened on a different device than where it was requested */
 function EmailLinkReenterForm({ language, onSubmit, onCancel }: { language: Language; onSubmit: (email: string) => void; onCancel: () => void }) {
@@ -881,20 +881,7 @@ export default function App() {
     return `${dow}, ${dd}/${mm}`;
   };
 
-  const getLocalDateString = (offsetDays: number = 0): string => {
-    // Get today in Vietnam timezone as a YYYY-MM-DD string, then offset from that date
-    const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const d = new Date(todayVN + 'T00:00:00');
-    d.setDate(d.getDate() + offsetDays);
-    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-  };
-
-  const getOffsetDayLabel = (offsetDays: number): string => {
-    const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const d = new Date(todayVN + 'T00:00:00');
-    d.setDate(d.getDate() + offsetDays);
-    return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
-  };
+  // getLocalDateString and getOffsetDayLabel are imported from lib/utils
 
   const compareTripDateTime = (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => {
     const aDate = a.date || '9999-12-31';
@@ -3227,280 +3214,49 @@ export default function App() {
           );
         }
 
-      case 'tours': {
-        // Apply advanced filters
-        const filteredPublicTours = tours.filter(tour => {
-          const tourPriceAdult = tour.priceAdult || tour.price;
-          const tourPriceChild = tour.priceChild ?? Math.round(tourPriceAdult * 0.5);
-          const effectivePrice =
-            tourPriceAdult * (tour.numAdults ?? 1) +
-            tourPriceChild * (tour.numChildren ?? 0) +
-            (tour.nights ?? 0) * (tour.pricePerNight ?? 0) +
-            (tour.breakfastCount ?? 0) * (tour.pricePerBreakfast ?? 0) +
-            (tour.surcharge ?? 0);
-          if (tourDurationFilter) {
-            const q = tourDurationFilter.toLowerCase();
-            const matchesTitle = tour.title.toLowerCase().includes(q);
-            const matchesDescription = (tour.description || '').toLowerCase().includes(q);
-            const matchesDuration = (tour.duration || '').toLowerCase().includes(q);
-            if (!matchesTitle && !matchesDescription && !matchesDuration) return false;
-          }
-          if (tourPriceMin) {
-            const min = parseInt(tourPriceMin);
-            if (!isNaN(min) && effectivePrice < min) return false;
-          }
-          if (tourPriceMax) {
-            const max = parseInt(tourPriceMax);
-            if (!isNaN(max) && effectivePrice > max) return false;
-          }
-          return true;
-        });
-
+      case 'tours':
         return (
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-bold">{t.tours}</h2>
-              <p className="text-sm text-gray-500">{language === 'vi' ? 'Khám phá các tour du lịch hấp dẫn' : 'Explore our amazing tour packages'}</p>
-            </div>
-
-            {/* Advanced search bar */}
-            <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
-              <div className="flex flex-col sm:flex-row gap-4 items-end">
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tìm kiếm tour' : 'Search tours'}</label>
-                  <div className="relative mt-1">
-                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                     <input
-                       type="text"
-                       value={tourDurationFilter}
-                       onChange={e => setTourDurationFilter(e.target.value)}
-                       placeholder={language === 'vi' ? 'Tìm theo tên, nội dung, thời gian...' : 'Search by name, content, duration...'}
-                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                     />
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá từ (đ)' : 'Price from'}</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={tourPriceMin}
-                      onChange={e => setTourPriceMin(e.target.value)}
-                      placeholder="0"
-                      className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'đến (đ)' : 'to'}</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={tourPriceMax}
-                      onChange={e => setTourPriceMax(e.target.value)}
-                      placeholder="∞"
-                      className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
-                  </div>
-                  <button
-                    onClick={() => setTourHasSearched(true)}
-                    className="px-6 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center gap-2"
-                  >
-                    <Search size={16} />
-                    {language === 'vi' ? 'Tìm' : 'Search'}
-                  </button>
-                  {(tourDurationFilter || tourPriceMin || tourPriceMax) && (
-                    <button
-                      onClick={() => { setTourDurationFilter(''); setTourPriceMin(''); setTourPriceMax(''); setTourHasSearched(false); }}
-                      className="px-4 py-3 text-gray-400 hover:text-gray-600 text-sm"
-                    >
-                      {language === 'vi' ? 'Xóa bộ lọc' : 'Clear'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {tours.length === 0 ? (
-              <div className="text-center py-20">
-                <Star className="mx-auto text-gray-300 mb-4" size={48} />
-                <p className="text-gray-400">{language === 'vi' ? 'Chưa có tour nào. Liên hệ để biết thêm!' : 'No tours available yet. Contact us for more info!'}</p>
-              </div>
-            ) : filteredPublicTours.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <Search size={40} className="mx-auto mb-3 opacity-40" />
-                <p className="font-medium">{language === 'vi' ? 'Không tìm thấy tour phù hợp' : 'No tours match your search'}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredPublicTours.map((tour) => {
-                  const allTourImages = tour.images && tour.images.length > 0
-                    ? tour.images
-                    : (tour.imageUrl ? [tour.imageUrl] : []);
-                  const effectiveAdultPrice = tour.priceAdult || tour.price;
-                  const effectiveChildPrice = tour.priceChild ?? Math.round(effectiveAdultPrice * 0.5);
-                  const fullTourPrice =
-                    effectiveAdultPrice * (tour.numAdults ?? 1) +
-                    effectiveChildPrice * (tour.numChildren ?? 0) +
-                    (tour.nights ?? 0) * (tour.pricePerNight ?? 0) +
-                    (tour.breakfastCount ?? 0) * (tour.pricePerBreakfast ?? 0) +
-                    (tour.surcharge ?? 0);
-                  const discountedFullPrice = tour.discountPercent && tour.discountPercent > 0
-                    ? Math.round(fullTourPrice * (1 - tour.discountPercent / 100))
-                    : null;
-                  const displayImg = allTourImages[0] || '';
-                  const isLiked = likedTours.has(tour.id);
-                  const embedUrl = tour.youtubeUrl ? getYoutubeEmbedUrl(tour.youtubeUrl) : null;
-                  const isTourRevealed = tourHasSearched || clearedTourCards.has(tour.id);
-                  return (
-                    <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
-                      <div className="relative h-48 overflow-hidden">
-                        {displayImg && (
-                          <img
-                            src={displayImg}
-                            alt={tour.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700"
-                            style={{ filter: isTourRevealed ? 'none' : 'blur(10px)', transform: isTourRevealed ? 'scale(1)' : 'scale(1.1)' }}
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                        {!isTourRevealed && displayImg && (
-                          <div
-                            className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
-                            onClick={() => setClearedTourCards(prev => new Set([...prev, tour.id]))}
-                          >
-                            <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full">
-                              {language === 'vi' ? '👆 Chạm để xem ảnh' : '👆 Tap to reveal'}
-                            </span>
-                          </div>
-                        )}
-                        {allTourImages.length > 1 && isTourRevealed && (
-                          <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            +{allTourImages.length - 1} {language === 'vi' ? 'ảnh' : 'photos'}
-                          </div>
-                        )}
-                        {tour.discountPercent && tour.discountPercent > 0 ? (
-                          <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
-                            -{tour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
-                          </div>
-                        ) : null}
-                        {tour.duration && (
-                          <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
-                            {tour.duration}
-                          </div>
-                        )}
-                      </div>
-                      {/* YouTube video embed */}
-                      {embedUrl && (
-                        <div className="border-t border-gray-100">
-                          {expandedVideoTourId === tour.id ? (
-                            <div>
-                              <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
-                                <iframe
-                                  src={embedUrl}
-                                  title={tour.title}
-                                  className="absolute inset-0 w-full h-full"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                />
-                              </div>
-                              <button
-                                onClick={() => setExpandedVideoTourId(null)}
-                                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1"
-                              >
-                                <span>▲</span> {language === 'vi' ? 'Ẩn video' : 'Hide video'}
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setExpandedVideoTourId(tour.id)}
-                              className="w-full py-3 flex items-center justify-center gap-2 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <span className="w-7 h-7 bg-daiichi-red text-white rounded-full flex items-center justify-center text-xs">▶</span>
-                              {language === 'vi' ? 'Xem video tour' : 'Watch tour video'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <div className="p-6">
-                        <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
-                        <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>
-                        {/* Overnight & Breakfast badges */}
-                        {((tour.nights ?? 0) > 0 || (tour.breakfastCount ?? 0) > 0) && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {(tour.nights ?? 0) > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                                🌙 {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
-                              </span>
-                            )}
-                            {(tour.breakfastCount ?? 0) > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                                ☕ {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex justify-between items-end">
-                          <div>
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá toàn tour' : 'Total tour price'}</p>
-                            {discountedFullPrice !== null ? (
-                              <>
-                                <p className="text-sm text-gray-400 line-through">{fullTourPrice.toLocaleString()}đ</p>
-                                <p className="text-2xl font-extrabold text-daiichi-red">{discountedFullPrice.toLocaleString()}đ</p>
-                              </>
-                            ) : (
-                              <p className="text-2xl font-extrabold text-daiichi-red">{fullTourPrice.toLocaleString()}đ</p>
-                            )}
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá người lớn' : 'Adult unit price'}: {effectiveAdultPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
-                            {effectiveChildPrice > 0 && (
-                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá trẻ em (dưới 4 tuổi)' : 'Child unit price (<4 yrs)'}: {effectiveChildPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedTour(tour);
-                                // Pre-fill booking form from tour data
-                                setTourBookingName('');
-                                setTourBookingPhone('');
-                                setTourBookingEmail('');
-                                setTourBookingDate('');
-                                setTourBookingAdults(tour.numAdults ?? 1);
-                                setTourBookingChildren(tour.numChildren ?? 0);
-                                setTourBookingNights(tour.nights ?? 0);
-                                setTourBookingBreakfasts(tour.breakfastCount ?? 0);
-                                setTourAccommodation('none');
-                                setTourMealPlan('none');
-                                setTourSelectedAddons(new Set());
-                                setTourNotes('');
-                                setTourPaymentMethod(DEFAULT_PAYMENT_METHOD);
-                                setTourBookingSuccess(false);
-                                setTourBookingError('');
-                                setTourBookingStatus('PENDING');
-                                setActiveTab('book-tour');
-                              }}
-                              className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
-                            >
-                              {t.book_tour || (language === 'vi' ? 'Đặt tour' : 'Book Tour')}
-                            </button>
-                            <button
-                              onClick={() => toggleLike(tour.id)}
-                              className={`p-2.5 rounded-xl border transition-all hover:scale-110 ${isLiked ? 'bg-pink-50 border-pink-200 text-pink-500' : 'bg-gray-50 border-gray-100 text-gray-400 hover:text-pink-400'}`}
-                              title={isLiked ? (language === 'vi' ? 'Bỏ thích' : 'Unlike') : (language === 'vi' ? 'Thích tour này' : 'Like this tour')}
-                            >
-                              <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <ToursPage
+              tours={tours}
+              tourHasSearched={tourHasSearched}
+              clearedTourCards={clearedTourCards}
+              tourPriceMin={tourPriceMin}
+              tourPriceMax={tourPriceMax}
+              tourDurationFilter={tourDurationFilter}
+              expandedVideoTourId={expandedVideoTourId}
+              likedTours={likedTours}
+              language={language}
+              setTourHasSearched={setTourHasSearched}
+              setClearedTourCards={setClearedTourCards}
+              setTourPriceMin={setTourPriceMin}
+              setTourPriceMax={setTourPriceMax}
+              setTourDurationFilter={setTourDurationFilter}
+              setExpandedVideoTourId={setExpandedVideoTourId}
+              toggleLike={toggleLike}
+              onSelectTour={(tour) => {
+                setSelectedTour(tour);
+                setTourBookingName('');
+                setTourBookingPhone('');
+                setTourBookingEmail('');
+                setTourBookingDate('');
+                setTourBookingAdults(tour.numAdults ?? 1);
+                setTourBookingChildren(tour.numChildren ?? 0);
+                setTourBookingNights(tour.nights ?? 0);
+                setTourBookingBreakfasts(tour.breakfastCount ?? 0);
+                setTourAccommodation('none');
+                setTourMealPlan('none');
+                setTourSelectedAddons(new Set());
+                setTourNotes('');
+                setTourPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setTourBookingSuccess(false);
+                setTourBookingError('');
+                setTourBookingStatus('PENDING');
+                setActiveTab('book-tour');
+              }}
+            />
+          </Suspense>
         );
-      }
 
       case 'book-tour':
         return (
@@ -3553,2139 +3309,275 @@ export default function App() {
       case 'agents':
         return <AgentsPage agents={agents} employees={employees} language={language} />;
 
-      case 'employees': {
-        const filteredEmployees = employees.filter(emp => {
-          const q = employeeSearch.toLowerCase();
-          const matchSearch = !q ||
-            String(emp.name ?? '').toLowerCase().includes(q) ||
-            String(emp.phone ?? '').toLowerCase().includes(q) ||
-            String(emp.email ?? '').toLowerCase().includes(q) ||
-            String(emp.username ?? '').toLowerCase().includes(q);
-          const matchRole = employeeRoleFilter === 'ALL' || emp.role === employeeRoleFilter;
-          return matchSearch && matchRole;
-        });
-
-        const EMPLOYEE_ROLE_LABELS: Record<string, string> = {
-          SUPERVISOR: language === 'vi' ? 'Quản lý' : 'Supervisor',
-          STAFF: t.role_staff || 'Nhân viên',
-          DRIVER: t.role_driver || 'Tài xế',
-          ACCOUNTANT: t.role_accountant || 'Kế toán',
-          OTHER: t.role_other || 'Khác',
-          AGENT: language === 'vi' ? 'Đại lý' : 'Agent',
-        };
-        const EMPLOYEE_ROLE_COLORS: Record<string, string> = {
-          SUPERVISOR: 'bg-indigo-50 text-indigo-600',
-          STAFF: 'bg-blue-50 text-blue-600',
-          DRIVER: 'bg-green-50 text-green-600',
-          ACCOUNTANT: 'bg-purple-50 text-purple-600',
-          OTHER: 'bg-gray-100 text-gray-500',
-          AGENT: 'bg-orange-50 text-orange-600',
-        };
-
-        // Derive available permission groups from the permissions config (exclude MANAGER, CUSTOMER and GUEST)
-        const availableRoles = permissions
-          ? Object.keys(permissions).filter(r => r !== 'MANAGER' && r !== 'CUSTOMER' && r !== 'GUEST')
-          : [];
-
+      case 'employees':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">{t.employee_management || 'Quản lý Nhân viên'}</h2>
-                <p className="text-sm text-gray-500">{t.employee_desc || 'Quản lý nhân viên, tài xế và tài khoản đăng nhập'}</p>
-              </div>
-              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: availableRoles[0] || 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); setEmployeeFormError(''); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
-            </div>
-
-            {/* Add/Edit Employee Modal */}
-            {showAddEmployee && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{editingEmployee ? (language === 'vi' ? 'Chỉnh sửa nhân viên' : 'Edit Employee') : (language === 'vi' ? 'Thêm nhân viên mới' : 'Add New Employee')}</h3>
-                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_name || 'Họ tên'}</label><input type="text" value={employeeForm.name} onChange={e => setEmployeeForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.phone_number}</label><input type="text" value={employeeForm.phone} onChange={e => setEmployeeForm(p => ({ ...p, phone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Email</label><input type="email" value={employeeForm.email} onChange={e => setEmployeeForm(p => ({ ...p, email: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Địa chỉ' : 'Address'}</label><input type="text" value={employeeForm.address} onChange={e => setEmployeeForm(p => ({ ...p, address: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_role || 'Chức vụ'}</label>
-                      <input
-                        list="position-suggestions"
-                        type="text"
-                        value={employeeForm.position}
-                        onChange={e => setEmployeeForm(p => ({ ...p, position: e.target.value }))}
-                        placeholder={language === 'vi' ? 'Nhập hoặc chọn chức vụ...' : 'Type or select position...'}
-                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      />
-                      <datalist id="position-suggestions">
-                        <option value={t.role_staff || 'Nhân viên'} />
-                        <option value={t.role_driver || 'Tài xế'} />
-                        <option value={t.role_accountant || 'Kế toán'} />
-                        <option value={language === 'vi' ? 'Trợ lý' : 'Assistant'} />
-                        <option value={language === 'vi' ? 'Trưởng nhóm' : 'Team Lead'} />
-                      </datalist>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_permissions || 'Nhóm phân quyền'}</label>
-                      <select value={employeeForm.role} onChange={e => setEmployeeForm(p => ({ ...p, role: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        {availableRoles.map(roleId => (
-                          <option key={roleId} value={roleId}>{EMPLOYEE_ROLE_LABELS[roleId] || roleId}</option>
-                        ))}
-                      </select>
-                      <p className="text-[9px] text-gray-400 mt-1 ml-1">{language === 'vi' ? '* Xác định trang được phép truy cập (cấu hình tại Cài đặt → Phân quyền)' : '* Determines accessible pages (configure in Settings → Permissions)'}</p>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
-                      <select value={employeeForm.status} onChange={e => setEmployeeForm(p => ({ ...p, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="ACTIVE">{t.status_active}</option>
-                        <option value="INACTIVE">{t.status_locked}</option>
-                      </select>
-                    </div>
-                    <div className="col-span-2 border-t border-gray-100 pt-4">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Tài khoản đăng nhập hệ thống' : 'System Login Credentials'}</p>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={employeeForm.username} onChange={e => { setEmployeeForm(p => ({ ...p, username: e.target.value })); setEmployeeFormError(''); }} className={`w-full mt-1 px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 ${employeeFormError ? 'border-red-400' : 'border-gray-100'}`} />{employeeFormError && <p className="text-xs text-red-500 mt-1 ml-1">{employeeFormError}</p>}</div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mật khẩu' : 'Password'}</label><input type="text" value={employeeForm.password} onChange={e => setEmployeeForm(p => ({ ...p, password: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveEmployee} disabled={!employeeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingEmployee ? t.save : (t.add_employee || 'Thêm nhân viên')}</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { label: t.total_employees || 'Tổng nhân viên', value: filteredEmployees.length, icon: Users, color: 'text-blue-600' },
-                { label: t.active_employees || 'Đang làm việc', value: filteredEmployees.filter(e => e.status === 'ACTIVE').length, icon: Users, color: 'text-green-600' },
-                { label: t.role_driver || 'Tài xế', value: filteredEmployees.filter(e => e.role === 'DRIVER').length, icon: Truck, color: 'text-orange-500' },
-              ].map((s, i) => (
-                <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{s.label}</p>
-                      <h3 className="text-2xl font-bold mt-2">{s.value}</h3>
-                    </div>
-                    <div className={cn("p-3 rounded-xl bg-gray-50", s.color)}><s.icon size={20} /></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Search & Filter */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="flex-1 min-w-[200px] relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder={language === 'vi' ? 'Tìm theo tên, SĐT, tài khoản...' : 'Search by name, phone, username...'} value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                </div>
-                <button onClick={() => setShowEmployeeFilters(p => !p)} className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all', showEmployeeFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                  <Filter size={15} />
-                  {language === 'vi' ? 'Lọc theo chức vụ' : 'Filter by Role'}
-                </button>
-                {(employeeSearch || employeeRoleFilter !== 'ALL') && (
-                  <button onClick={() => { setEmployeeSearch(''); setEmployeeRoleFilter('ALL'); }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                    <X size={14} />{language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                )}
-              </div>
-              {showEmployeeFilters && (
-                <div className="flex gap-2 flex-wrap pt-1 border-t border-gray-100">
-                  {(['ALL', ...availableRoles]).map(r => (
-                    <button key={r} onClick={() => setEmployeeRoleFilter(r)} className={cn('px-3 py-1.5 rounded-lg text-xs font-bold transition-all', employeeRoleFilter === r ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
-                      {r === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : (EMPLOYEE_ROLE_LABELS[r] || r)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Table */}
-            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_name || 'Nhân viên'}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_role || 'Chức vụ'}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_permissions || 'Phân quyền'}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.phone_number}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.username}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredEmployees.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-8 py-12 text-center text-gray-400 text-sm">
-                          {language === 'vi' ? 'Chưa có nhân viên nào. Nhấn "+ Thêm nhân viên" để bắt đầu.' : 'No employees yet. Click "+ Add Employee" to get started.'}
-                        </td>
-                      </tr>
-                    ) : filteredEmployees.map((emp) => {
-                      return (
-                      <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-8 py-5">
-                          <p className="font-bold text-gray-800">{emp.name}</p>
-                          {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
-                            {emp.position || EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5">
-                          {emp.role ? (
-                            <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
-                              {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-8 py-5 text-sm text-gray-700">{emp.phone || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-8 py-5">
-                          {emp.username ? (
-                            <div>
-                              <p className="text-xs font-bold text-gray-700">User: <span className="text-daiichi-red">{emp.username}</span></p>
-                              <p className="text-[10px] text-gray-400">Pass: {emp.password ? '••••••' : <span className="text-gray-300">—</span>}</p>
-                            </div>
-                          ) : <span className="text-gray-300 text-sm">—</span>}
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", emp.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>
-                            {emp.status === 'ACTIVE' ? t.status_active : t.status_locked}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5">
-                          <div className="flex gap-3 items-center">
-                            <button onClick={() => handleStartEditEmployee(emp)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>
-                            <button onClick={() => handleDeleteEmployee(emp.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <EmployeesPage
+              employees={employees}
+              employeeSearch={employeeSearch}
+              employeeRoleFilter={employeeRoleFilter}
+              showEmployeeFilters={showEmployeeFilters}
+              showAddEmployee={showAddEmployee}
+              editingEmployee={editingEmployee}
+              employeeForm={employeeForm}
+              employeeFormError={employeeFormError}
+              language={language}
+              permissions={permissions}
+              handleSaveEmployee={handleSaveEmployee}
+              handleDeleteEmployee={handleDeleteEmployee}
+              handleStartEditEmployee={handleStartEditEmployee}
+              setShowAddEmployee={setShowAddEmployee}
+              setEditingEmployee={setEditingEmployee}
+              setEmployeeForm={setEmployeeForm}
+              setEmployeeFormError={setEmployeeFormError}
+              setEmployeeSearch={setEmployeeSearch}
+              setEmployeeRoleFilter={setEmployeeRoleFilter}
+              setShowEmployeeFilters={setShowEmployeeFilters}
+            />
+          </Suspense>
         );
-      }
 
-      case 'routes': {
-        const filteredRoutes = routes.filter(route => {
-          if (routeFilterDeparture && !(route.departurePoint || '').toLowerCase().includes(routeFilterDeparture.toLowerCase())) return false;
-          if (routeFilterArrival && !(route.arrivalPoint || '').toLowerCase().includes(routeFilterArrival.toLowerCase())) return false;
-          if (!routeSearch) return true;
-          const q = routeSearch.toLowerCase();
-          return (
-            (route.name || '').toLowerCase().includes(q) ||
-            (route.departurePoint || '').toLowerCase().includes(q) ||
-            (route.arrivalPoint || '').toLowerCase().includes(q)
-          );
-        });
+      case 'routes':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center flex-wrap gap-3">
-              <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
-              <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
-              </div>
-            </div>
-
-            {/* Add/Edit Route Modal */}
-            {showAddRoute && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">
-                      {editingRoute
-                        ? (language === 'vi' ? 'Chỉnh sửa tuyến' : 'Edit Route')
-                        : isCopyingRoute
-                          ? `📋 ${t.copy_route_title}`
-                          : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}
-                    </h3>
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">STT</label><input type="number" value={routeForm.stt} onChange={e => setRouteForm(p => ({ ...p, stt: parseInt(e.target.value) || 1 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label><input type="text" value={routeForm.name} onChange={e => setRouteForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: Hà Nội - Cát Bà' : 'e.g. Hanoi - Cat Ba'} /></div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={routeForm.price} onChange={e => setRouteForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label>
-                        <input type="number" min="0" value={routeForm.agentPrice} onChange={e => setRouteForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
-                        <p className="text-[10px] text-orange-500 mt-1 ml-1">{language === 'vi' ? '* Chỉ hiển thị cho đại lý' : '* Visible to agents only'}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label>
-                      <select
-                        value={routeForm.departurePoint}
-                        onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))}
-                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      >
-                        <option value="">{language === 'vi' ? '-- Chọn bến đi --' : '-- Select departure terminal --'}</option>
-                        {terminalStops.map(s => (
-                          <option key={s.id} value={s.name}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label>
-                      <select
-                        value={routeForm.arrivalPoint}
-                        onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))}
-                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      >
-                        <option value="">{language === 'vi' ? '-- Chọn bến đến --' : '-- Select arrival terminal --'}</option>
-                        {terminalStops.map(s => (
-                          <option key={s.id} value={s.name}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_details}</label>
-                      <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
-                    </div>
-
-                    {/* Route images (location photos) */}
-                    <div className="space-y-3">
-                      {/* Destination images – multiple allowed */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh điểm đến (có thể tải nhiều ảnh)' : 'Destination Photos (multiple allowed)'}</label>
-                        {/* Uploaded images gallery */}
-                        {(routeForm.images && routeForm.images.length > 0) && (
-                          <div className="mt-1 flex flex-wrap gap-2">
-                            {routeForm.images.map((url, idx) => (
-                              <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-100">
-                                <img src={url} alt={`Route ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                <button
-                                  onClick={() => {
-                                    const newImages = routeForm.images.filter((_, i) => i !== idx);
-                                    setRouteForm(p => ({ ...p, images: newImages, imageUrl: newImages[0] || '' }));
-                                  }}
-                                  className="absolute top-1 right-1 p-0.5 bg-black/60 text-white rounded-lg"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Upload area */}
-                        <div className="relative mt-1 h-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex flex-col items-center justify-center gap-1">
-                          {routeImageUploading ? (
-                            <Loader2 className="animate-spin text-daiichi-red" size={24} />
-                          ) : (
-                            <>
-                              <span className="text-xs text-gray-400">{language === 'vi' ? 'Chọn ảnh (nhiều ảnh)' : 'Select photos (multiple)'}</span>
-                              <input type="file" accept="image/*" multiple onChange={handleRouteImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Price Periods (Seasonal Pricing) */}
-                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-gray-700">{t.price_periods}</p>
-                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá thay đổi theo mùa / dịp lễ tết' : 'Prices that vary by season or holiday'}</p>
-                        </div>
-                        {!showAddPricePeriod && (
-                          <button onClick={() => { setShowAddPricePeriod(true); setPricePeriodForm({ name: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100">
-                            + {t.add_price_period}
-                          </button>
-                        )}
-                      </div>
-
-                      {routePricePeriods.length === 0 && !showAddPricePeriod && (
-                        <p className="text-xs text-gray-400 text-center py-2">{t.no_price_periods}</p>
-                      )}
-
-                      {routePricePeriods.map((period) => (
-                        <div key={period.id} className="flex items-center gap-3 bg-blue-50 rounded-xl p-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-gray-800 truncate">{period.name || (language === 'vi' ? 'Kỳ giá' : 'Period')}</p>
-                            <p className="text-xs text-gray-500">{period.startDate} → {period.endDate}</p>
-                            <div className="flex gap-3 mt-1">
-                              <span className="text-xs font-bold text-daiichi-red">{period.price.toLocaleString()}đ</span>
-                              <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {period.agentPrice.toLocaleString()}đ</span>
-                            </div>
-                          </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => { setEditingPricePeriodId(period.id); setPricePeriodForm({ name: period.name || '', price: period.price, agentPrice: period.agentPrice, startDate: period.startDate, endDate: period.endDate }); setShowAddPricePeriod(true); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg flex-shrink-0">
-                              <Edit3 size={14} />
-                            </button>
-                            <button onClick={() => setRoutePricePeriods(prev => prev.filter(p => p.id !== period.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-
-                      {showAddPricePeriod && (
-                        <div className="border border-dashed border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/50">
-                          <p className="text-xs font-bold text-blue-700">{editingPricePeriodId ? (language === 'vi' ? 'Hiệu chỉnh kỳ giá' : language === 'ja' ? '価格期間を編集' : 'Edit price period') : (language === 'vi' ? 'Thêm kỳ giá mới' : language === 'ja' ? '価格期間を追加' : 'Add price period')}</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="col-span-2">
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_name}</label>
-                              <input type="text" value={pricePeriodForm.name} onChange={e => setPricePeriodForm(p => ({ ...p, name: e.target.value }))} placeholder={language === 'vi' ? 'VD: Tết 2026, Hè 2025...' : 'e.g. Tet 2026, Summer 2025...'} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_start}</label>
-                              <input type="date" value={pricePeriodForm.startDate} onChange={e => setPricePeriodForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_end}</label>
-                              <input type="date" value={pricePeriodForm.endDate} onChange={e => setPricePeriodForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.price_period_retail} (đ)</label>
-                              <input type="number" min="0" value={pricePeriodForm.price} onChange={e => setPricePeriodForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.price_period_agent} (đ)</label>
-                              <input type="number" min="0" value={pricePeriodForm.agentPrice} onChange={e => setPricePeriodForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowAddPricePeriod(false); setEditingPricePeriodId(null); setPricePeriodForm({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                            <button
-                              disabled={!pricePeriodForm.startDate || !pricePeriodForm.endDate}
-                              onClick={() => {
-                                if (editingPricePeriodId) {
-                                  setRoutePricePeriods(prev => prev.map(p => p.id === editingPricePeriodId ? { ...p, name: pricePeriodForm.name, price: pricePeriodForm.price, agentPrice: pricePeriodForm.agentPrice, startDate: pricePeriodForm.startDate, endDate: pricePeriodForm.endDate } : p));
-                                  setEditingPricePeriodId(null);
-                                } else {
-                                  const newPeriod: PricePeriod = {
-                                    id: crypto.randomUUID(),
-                                    name: pricePeriodForm.name,
-                                    price: pricePeriodForm.price,
-                                    agentPrice: pricePeriodForm.agentPrice,
-                                    startDate: pricePeriodForm.startDate,
-                                    endDate: pricePeriodForm.endDate,
-                                  };
-                                  setRoutePricePeriods(prev => [...prev, newPeriod]);
-                                }
-                                setShowAddPricePeriod(false);
-                                setPricePeriodForm({ name: '', price: 0, agentPrice: 0, startDate: '', endDate: '' });
-                              }}
-                              className="px-4 py-1.5 bg-blue-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
-                            >
-                              {t.save}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Route Surcharges */}
-                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Phụ thu tuyến đường' : language === 'ja' ? 'ルート追加料金' : 'Route Surcharges'}</p>
-                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Phụ thu xăng dầu, lễ tết, và các khoản phụ thu khác' : language === 'ja' ? '燃料、祝日、その他の追加料金' : 'Fuel, holiday, and other surcharges'}</p>
-                        </div>
-                        {!showAddRouteSurcharge && (
-                          <button onClick={() => { setShowAddRouteSurcharge(true); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: '', isActive: true }); }} className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100">
-                            + {language === 'vi' ? 'Thêm phụ thu' : language === 'ja' ? '追加料金を追加' : 'Add Surcharge'}
-                          </button>
-                        )}
-                      </div>
-
-                      {routeSurcharges.length === 0 && !showAddRouteSurcharge && (
-                        <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có phụ thu nào' : language === 'ja' ? '追加料金なし' : 'No surcharges defined'}</p>
-                      )}
-
-                      {routeSurcharges.map((sc) => (
-                        <div key={sc.id} className={`flex items-center gap-3 rounded-xl p-3 ${sc.isActive ? 'bg-amber-50' : 'bg-gray-50 opacity-60'}`}>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-bold text-sm text-gray-800 truncate">{sc.name}</p>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.type === 'FUEL' ? 'bg-orange-100 text-orange-600' : sc.type === 'HOLIDAY' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
-                                {sc.type === 'FUEL' ? (language === 'vi' ? 'Xăng dầu' : language === 'ja' ? '燃料' : 'Fuel') : sc.type === 'HOLIDAY' ? (language === 'vi' ? 'Lễ tết' : language === 'ja' ? '祝日' : 'Holiday') : (language === 'vi' ? 'Khác' : language === 'ja' ? 'その他' : 'Other')}
-                              </span>
-                              {!sc.isActive && <span className="text-[10px] text-gray-400 font-bold">{language === 'vi' ? '(Tạm dừng)' : '(Paused)'}</span>}
-                            </div>
-                            {sc.startDate && sc.endDate && <p className="text-xs text-gray-500">{sc.startDate} → {sc.endDate}</p>}
-                            <p className="text-xs font-bold text-amber-600">+{sc.amount.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '人' : 'person'}</p>
-                          </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => setRouteSurcharges(prev => prev.map(s => s.id === sc.id ? { ...s, isActive: !s.isActive } : s))} className={`p-1.5 rounded-lg text-xs font-bold transition-all ${sc.isActive ? 'text-amber-600 hover:bg-amber-100' : 'text-gray-400 hover:bg-gray-100'}`} title={sc.isActive ? (language === 'vi' ? 'Tạm dừng' : 'Pause') : (language === 'vi' ? 'Kích hoạt' : 'Activate')}>
-                              {sc.isActive ? '✓' : '○'}
-                            </button>
-                            <button onClick={() => { setEditingRouteSurchargeId(sc.id); setRouteSurchargeForm({ name: sc.name, type: sc.type, amount: sc.amount, isActive: sc.isActive, startDate: sc.startDate, endDate: sc.endDate }); setShowAddRouteSurcharge(true); }} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-100 rounded-lg flex-shrink-0">
-                              <Edit3 size={14} />
-                            </button>
-                            <button onClick={() => setRouteSurcharges(prev => prev.filter(s => s.id !== sc.id))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-
-                      {showAddRouteSurcharge && (
-                        <div className="border border-dashed border-amber-200 rounded-xl p-4 space-y-3 bg-amber-50/50">
-                          <p className="text-xs font-bold text-amber-700">{editingRouteSurchargeId ? (language === 'vi' ? 'Hiệu chỉnh phụ thu' : language === 'ja' ? '追加料金を編集' : 'Edit surcharge') : (language === 'vi' ? 'Thêm phụ thu mới' : language === 'ja' ? '追加料金を追加' : 'Add surcharge')}</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="col-span-2">
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Tên phụ thu' : language === 'ja' ? '追加料金名' : 'Surcharge Name'}</label>
-                              <input type="text" value={routeSurchargeForm.name} onChange={e => setRouteSurchargeForm(p => ({ ...p, name: e.target.value }))} placeholder={language === 'vi' ? 'VD: Phụ thu Tết 2026, Phụ thu xăng...' : 'e.g. Tet 2026, Fuel Q1...'} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Loại phụ thu' : language === 'ja' ? '追加料金タイプ' : 'Type'}</label>
-                              <select value={routeSurchargeForm.type} onChange={e => setRouteSurchargeForm(p => ({ ...p, type: e.target.value as RouteSurcharge['type'] }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200">
-                                <option value="FUEL">{language === 'vi' ? 'Xăng dầu' : language === 'ja' ? '燃料' : 'Fuel'}</option>
-                                <option value="HOLIDAY">{language === 'vi' ? 'Lễ tết / Mùa cao điểm' : language === 'ja' ? '祝日/ピーク' : 'Holiday / Peak Season'}</option>
-                                <option value="OTHER">{language === 'vi' ? 'Khác' : language === 'ja' ? 'その他' : 'Other'}</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{language === 'vi' ? 'Số tiền/người (đ)' : language === 'ja' ? '金額/人 (đ)' : 'Amount/person (đ)'}</label>
-                              <input type="number" min="0" step="1" value={routeSurchargeForm.amount} placeholder="0" onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày (tuỳ chọn)' : language === 'ja' ? '開始日（任意）' : 'From date (optional)'}</label>
-                              <input type="date" value={routeSurchargeForm.startDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày (tuỳ chọn)' : language === 'ja' ? '終了日（任意）' : 'To date (optional)'}</label>
-                              <input type="date" value={routeSurchargeForm.endDate || ''} onChange={e => setRouteSurchargeForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                            </div>
-                          </div>
-                          <p className="text-[10px] text-gray-400 italic">{language === 'vi' ? 'Để trống cả hai ngày nếu phụ thu áp dụng toàn thời gian. Phải điền cả hai ngày để giới hạn khoảng thời gian áp dụng.' : language === 'ja' ? '常時適用する場合は両方の日付を空白にしてください。期間を設定する場合は両方の日付が必要です。' : 'Leave both dates empty if the surcharge applies at all times. Both dates must be set to limit the applied period.'}</p>
-                          <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-                              <input type="checkbox" checked={routeSurchargeForm.isActive} onChange={e => setRouteSurchargeForm(p => ({ ...p, isActive: e.target.checked }))} className="rounded" />
-                              {language === 'vi' ? 'Đang áp dụng' : language === 'ja' ? '有効' : 'Active now'}
-                            </label>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteSurchargeForm({ name: '', type: 'FUEL', amount: '', isActive: true }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                             <button
-                              disabled={!routeSurchargeForm.name || (!!routeSurchargeForm.startDate !== !!routeSurchargeForm.endDate)}
-                              onClick={() => {
-                                const formToSave = { ...routeSurchargeForm, amount: Number(routeSurchargeForm.amount) || 0 };
-                                if (editingRouteSurchargeId) {
-                                  setRouteSurcharges(prev => prev.map(s => s.id === editingRouteSurchargeId ? { ...s, ...formToSave } : s));
-                                  setEditingRouteSurchargeId(null);
-                                } else {
-                                  const newSurcharge: RouteSurcharge = { id: crypto.randomUUID(), ...formToSave };
-                                  setRouteSurcharges(prev => [...prev, newSurcharge]);
-                                }
-                                setShowAddRouteSurcharge(false);
-                                setRouteSurchargeForm({ name: '', type: 'FUEL', amount: '', isActive: true });
-                              }}
-                              className="px-4 py-1.5 bg-amber-500 text-white text-xs rounded-lg font-bold disabled:opacity-50"
-                            >
-                              {t.save}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Route Stops (Intermediate Stops / Sub-route) */}
-                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Điểm dừng / Tuyến phụ' : language === 'ja' ? '経由地 / サブルート' : 'Stops / Sub-routes'}</p>
-                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Điểm xuất phát và điểm đến được tạo tự động. Thêm điểm dừng trung gian nếu cần.' : 'Departure and arrival are auto-generated. Add intermediate stops as needed.'}</p>
-                        </div>
-                        {!showAddRouteStop && (
-                          <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
-                            + {language === 'vi' ? 'Thêm điểm dừng' : 'Add stop'}
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Auto-generated departure stop */}
-                      {routeForm.departurePoint && (
-                        <div className="flex items-center gap-3 bg-green-50 rounded-xl p-3">
-                          <span className="w-6 h-6 flex-shrink-0 bg-green-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">A</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-gray-800 truncate">{routeForm.departurePoint}</p>
-                            <p className="text-[10px] text-green-600">{language === 'vi' ? 'Điểm xuất phát (tự động)' : 'Departure (auto-generated)'}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {routeFormStops.length === 0 && !showAddRouteStop && (
-                        <p className="text-xs text-gray-400 text-center py-1">{language === 'vi' ? 'Không có điểm dừng trung gian – nhấn "Thêm điểm dừng" để thêm' : 'No intermediate stops – click "Add stop" to add one'}</p>
-                      )}
-
-                      {[...routeFormStops].sort((a, b) => a.order - b.order).map((stop, idx, sortedArr) => (
-                        <div key={stop.stopId || idx} className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
-                          <span className="w-6 h-6 flex-shrink-0 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-gray-800 truncate">{stop.stopName}</p>
-                            <p className="text-[10px] text-gray-400">{stop.stopId}</p>
-                          </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button
-                              onClick={() => {
-                                if (idx === 0) return;
-                                const prevStop = sortedArr[idx - 1];
-                                setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
-                                setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
-                                setRouteFormStops(prev => prev.map(s => {
-                                  if (s.stopId === stop.stopId) return { ...s, order: prevStop.order };
-                                  if (s.stopId === prevStop.stopId) return { ...s, order: stop.order };
-                                  return s;
-                                }));
-                              }}
-                              disabled={idx === 0}
-                              className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold"
-                            >↑</button>
-                            <button
-                              onClick={() => {
-                                if (idx === sortedArr.length - 1) return;
-                                const nextStop = sortedArr[idx + 1];
-                                setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
-                                setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
-                                setRouteFormStops(prev => prev.map(s => {
-                                  if (s.stopId === stop.stopId) return { ...s, order: nextStop.order };
-                                  if (s.stopId === nextStop.stopId) return { ...s, order: stop.order };
-                                  return s;
-                                }));
-                              }}
-                              disabled={idx === sortedArr.length - 1}
-                              className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30 text-xs font-bold"
-                            >↓</button>
-                            <button
-                              onClick={() => {
-                                setEditingRouteStop(stop);
-                                setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order });
-                                setShowAddRouteStop(true);
-                              }}
-                              className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                            ><Edit3 size={12} /></button>
-                            <button onClick={() => { setRouteFormStopsHistory(prev => [...prev, routeFormStops]); setRouteFormFaresHistory(prev => [...prev, routeFormFares]); setRouteFormStops(prev => prev.filter(s => s.stopId !== stop.stopId).map((s, i) => ({ ...s, order: i + 1 }))); setRouteFormFares(prev => prev.filter(f => f.fromStopId !== stop.stopId && f.toStopId !== stop.stopId)); }} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 size={12} /></button>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* Auto-generated arrival stop */}
-                      {routeForm.arrivalPoint && (
-                        <div className="flex items-center gap-3 bg-blue-50 rounded-xl p-3">
-                          <span className="w-6 h-6 flex-shrink-0 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">B</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-gray-800 truncate">{routeForm.arrivalPoint}</p>
-                            <p className="text-[10px] text-blue-600">{language === 'vi' ? 'Điểm đến (tự động)' : 'Destination (auto-generated)'}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {showAddRouteStop && (
-                        <div className="border border-dashed border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/50">
-                          <p className="text-xs font-bold text-purple-600">{editingRouteStop ? (language === 'vi' ? 'Chỉnh sửa điểm dừng' : 'Edit Stop') : (language === 'vi' ? 'Thêm điểm dừng' : 'Add Stop')}</p>
-                          <div className="grid grid-cols-1 gap-3">
-                            <div>
-                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Chọn điểm dừng' : 'Select stop'}</label>
-                              <select
-                                value={routeStopForm.stopId}
-                                onChange={e => {
-                                  const stop = stops.find(s => s.id === e.target.value);
-                                  setRouteStopForm(p => ({ ...p, stopId: e.target.value, stopName: stop?.name || '' }));
-                                }}
-                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
-                              >
-                                <option value="">{language === 'vi' ? '-- Chọn điểm dừng --' : '-- Select stop --'}</option>
-                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id) || s.id === editingRouteStop?.stopId).map(s => (
-                                  <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                            <button
-                              disabled={!routeStopForm.stopId}
-                              onClick={() => {
-                                const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order };
-                                setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
-                                setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
-                                if (editingRouteStop) {
-                                  setRouteFormStops(prev => {
-                                    const updated = prev.map(s => s.stopId === editingRouteStop.stopId ? newStop : s);
-                                    return [...updated].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
-                                  });
-                                  // If the stop ID changed, remove fares referencing the old stopId
-                                  // because the old fare's Firestore docId encodes the original stopIds
-                                  // and cannot be remapped without creating new Firestore documents.
-                                  if (editingRouteStop.stopId !== newStop.stopId) {
-                                    setRouteFormFares(prev => prev.filter(f => f.fromStopId !== editingRouteStop.stopId && f.toStopId !== editingRouteStop.stopId));
-                                  }
-                                } else {
-                                  setRouteFormStops(prev => {
-                                    const updated = [...prev, newStop].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 }));
-                                    return updated;
-                                  });
-                                }
-                                setShowAddRouteStop(false);
-                                setEditingRouteStop(null);
-                                setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2 });
-                              }}
-                              className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
-                            >
-                              {t.save}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Fare Table (per-segment pricing) */}
-                    {(routeForm.departurePoint && routeForm.arrivalPoint) && (
-                      <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Bảng giá theo chặng' : language === 'ja' ? '区間別運賃表' : 'Segment Fare Table'}</p>
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá vé lẻ và đại lý cho từng cặp điểm đón/trả (có thể đặt thời hạn áp dụng)' : 'Retail and agent prices for each from→to stop pair (optional date range)'}</p>
-                          </div>
-                          {!showAddRouteFare && (
-                            <button onClick={() => { setShowAddRouteFare(true); setEditingRouteFareIdx(null); setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-100">
-                              + {language === 'vi' ? 'Thêm giá chặng' : 'Add fare'}
-                            </button>
-                          )}
-                        </div>
-
-                        {routeFormFares.length === 0 && !showAddRouteFare && (
-                          <p className="text-xs text-gray-400 text-center py-2">{language === 'vi' ? 'Chưa có giá chặng – nhấn nút để thêm' : 'No segment fares yet – click to add'}</p>
-                        )}
-
-                        {routeFormFares.map((fare, idx) => (
-                          <div key={idx} className="flex items-center gap-3 bg-teal-50 rounded-xl p-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-bold text-sm text-gray-800 truncate">{fare.fromName} → {fare.toName}</p>
-                              <div className="flex gap-3 mt-1 flex-wrap">
-                                <span className="text-xs font-bold text-daiichi-red">{fare.price.toLocaleString()}đ</span>
-                                {fare.agentPrice > 0 && <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {fare.agentPrice.toLocaleString()}đ</span>}
-                                {(fare.startDate || fare.endDate) && (
-                                  <span className="text-xs text-gray-400">
-                                    {fare.startDate && fare.endDate ? `${fare.startDate} → ${fare.endDate}` : fare.startDate ? `${language === 'vi' ? 'Từ' : 'From'} ${fare.startDate}` : `${language === 'vi' ? 'Đến' : 'To'} ${fare.endDate}`}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex flex-col gap-0.5 flex-shrink-0">
-                              <button
-                                onClick={() => {
-                                  if (idx === 0) return;
-                                  setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
-                                  setRouteFormFares(prev => {
-                                    const next = [...prev];
-                                    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-                                    return next;
-                                  });
-                                }}
-                                disabled={idx === 0}
-                                className="p-0.5 text-gray-400 hover:text-teal-600 disabled:opacity-30 text-xs font-bold leading-none"
-                              >↑</button>
-                              <button
-                                onClick={() => {
-                                  if (idx === routeFormFares.length - 1) return;
-                                  setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
-                                  setRouteFormFares(prev => {
-                                    const next = [...prev];
-                                    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-                                    return next;
-                                  });
-                                }}
-                                disabled={idx === routeFormFares.length - 1}
-                                className="p-0.5 text-gray-400 hover:text-teal-600 disabled:opacity-30 text-xs font-bold leading-none"
-                              >↓</button>
-                            </div>
-                            <button onClick={() => { setEditingRouteFareIdx(idx); setRouteFareForm({ fromStopId: fare.fromStopId, toStopId: fare.toStopId, price: fare.price, agentPrice: fare.agentPrice, startDate: fare.startDate, endDate: fare.endDate }); setShowAddRouteFare(true); }} className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-100 rounded-lg flex-shrink-0">
-                              <Edit3 size={14} />
-                            </button>
-                            <button onClick={() => setRouteFormFares(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
-
-                        {showAddRouteFare && (
-                          <div className="border border-dashed border-teal-200 rounded-xl p-4 space-y-3 bg-teal-50/50">
-                            <p className="text-xs font-bold text-teal-700">{editingRouteFareIdx !== null ? (language === 'vi' ? 'Hiệu chỉnh giá chặng' : language === 'ja' ? '区間運賃を編集' : 'Edit segment fare') : (language === 'vi' ? 'Thêm giá chặng mới' : language === 'ja' ? '区間運賃を追加' : 'Add segment fare')}</p>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ điểm' : 'From stop'}</label>
-                                <select value={routeFareForm.fromStopId} onChange={e => setRouteFareForm(p => ({ ...p, fromStopId: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
-                                  <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
-                                  {allRouteStops.map(s => (
-                                    <option key={s.stopId} value={s.stopId}>{s.stopName}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến điểm' : 'To stop'}</label>
-                                <select value={routeFareForm.toStopId} onChange={e => setRouteFareForm(p => ({ ...p, toStopId: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200">
-                                  <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
-                                  {allRouteStops.filter(s => s.stopId !== routeFareForm.fromStopId).map(s => (
-                                    <option key={s.stopId} value={s.stopId}>{s.stopName}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_price} (đ)</label>
-                                <input type="number" min="0" value={routeFareForm.price} onChange={e => setRouteFareForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" />
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.agent_price} (đ)</label>
-                                <input type="number" min="0" value={routeFareForm.agentPrice} onChange={e => setRouteFareForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Áp dụng từ ngày' : 'Valid from'}</label>
-                                <input type="date" value={routeFareForm.startDate} onChange={e => setRouteFareForm(p => ({ ...p, startDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" />
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày' : 'Valid until'}</label>
-                                <input type="date" value={routeFareForm.endDate} onChange={e => setRouteFareForm(p => ({ ...p, endDate: e.target.value }))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200" />
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <button onClick={() => { setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                              <button
-                                disabled={!routeFareForm.fromStopId || !routeFareForm.toStopId || routeFareForm.fromStopId === routeFareForm.toStopId}
-                                onClick={() => {
-                                  const fromStop = allRouteStops.find(s => s.stopId === routeFareForm.fromStopId);
-                                  const toStop = allRouteStops.find(s => s.stopId === routeFareForm.toStopId);
-                                  if (!fromStop || !toStop) return;
-                                  // Validate order: from must come before to
-                                  if (fromStop.order >= toStop.order) {
-                                    alert(language === 'vi' ? 'Điểm đón phải nằm trước điểm trả trong hành trình' : 'From stop must come before to stop in route order');
-                                    return;
-                                  }
-                                  const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice, startDate: routeFareForm.startDate, endDate: routeFareForm.endDate };
-                                  if (editingRouteFareIdx !== null) {
-                                    // Check for duplicate pair (excluding the current editing index)
-                                    const duplicate = routeFormFares.findIndex((f, i) => i !== editingRouteFareIdx && f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
-                                    if (duplicate >= 0) {
-                                      alert(language === 'vi' ? 'Giá chặng cho cặp điểm này đã tồn tại' : 'A fare for this stop pair already exists');
-                                      return;
-                                    }
-                                    // Update the fare at the editing index
-                                    setRouteFormFares(prev => prev.map((f, i) => i === editingRouteFareIdx ? newFare : f));
-                                  } else {
-                                    setRouteFormFares(prev => {
-                                      const existing = prev.findIndex(f => f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
-                                      if (existing >= 0) {
-                                        return prev.map((f, i) => i === existing ? newFare : f);
-                                      }
-                                      return [...prev, newFare];
-                                    });
-                                  }
-                                  setShowAddRouteFare(false);
-                                  setEditingRouteFareIdx(null);
-                                  setRouteFareForm({ fromStopId: '', toStopId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '' });
-                                }}
-                                className="px-4 py-1.5 bg-teal-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
-                              >
-                                {t.save}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Pickup / Dropoff Address Settings (Cấu hình điểm đón / điểm trả) */}
-                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
-                      <div>
-                        <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Cấu hình điểm đón / điểm trả' : language === 'ja' ? '乗降地点の設定' : 'Pickup / Dropoff Settings'}</p>
-                        <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Bật vô hiệu hóa để ẩn ô nhập điểm đón hoặc điểm trả trên trang đặt vé' : 'Enable to hide pickup or dropoff address input on the booking page'}</p>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <label className="flex items-center gap-3 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={routeForm.disablePickupAddress}
-                              onChange={e => setRouteForm(f => ({ ...f, disablePickupAddress: e.target.checked }))}
-                              className="w-4 h-4 accent-daiichi-red rounded"
-                            />
-                            <span className="text-sm text-gray-700">{language === 'vi' ? 'Vô hiệu hóa ô nhập điểm đón' : language === 'ja' ? '乗車地点の入力を無効化' : 'Disable pickup address input'}</span>
-                          </label>
-                          {routeForm.disablePickupAddress && (
-                            <div className="ml-7 flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disablePickupAddressFrom}
-                                onChange={e => setRouteForm(f => ({ ...f, disablePickupAddressFrom: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'đến ngày' : language === 'ja' ? '終了日' : 'to'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disablePickupAddressTo}
-                                onChange={e => setRouteForm(f => ({ ...f, disablePickupAddressTo: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-[10px] text-gray-400">{language === 'vi' ? '(để trống = luôn vô hiệu)' : '(leave empty = always disabled)'}</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <label className="flex items-center gap-3 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={routeForm.disableDropoffAddress}
-                              onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddress: e.target.checked }))}
-                              className="w-4 h-4 accent-daiichi-red rounded"
-                            />
-                            <span className="text-sm text-gray-700">{language === 'vi' ? 'Vô hiệu hóa ô nhập điểm trả' : language === 'ja' ? '降車地点の入力を無効化' : 'Disable dropoff address input'}</span>
-                          </label>
-                          {routeForm.disableDropoffAddress && (
-                            <div className="ml-7 flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disableDropoffAddressFrom}
-                                onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddressFrom: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'đến ngày' : language === 'ja' ? '終了日' : 'to'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disableDropoffAddressTo}
-                                onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddressTo: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-[10px] text-gray-400">{language === 'vi' ? '(để trống = luôn vô hiệu)' : '(leave empty = always disabled)'}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : t.add_route}</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Search bar + Advanced Filter Toggle */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input
-                    type="text"
-                    value={routeSearch}
-                    onChange={e => setRouteSearch(e.target.value)}
-                    placeholder={language === 'vi' ? 'Tìm kiếm tuyến đường...' : 'Search routes...'}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                  />
-                  {routeSearch && (
-                    <button onClick={() => setRouteSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowRouteFilters(p => !p)}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
-                    showRouteFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  )}
-                >
-                  <Filter size={15} />
-                  {language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filter'}
-                  {(routeFilterDeparture || routeFilterArrival) && (
-                    <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded text-[10px] font-bold">
-                      {[routeFilterDeparture, routeFilterArrival].filter(Boolean).length}
-                    </span>
-                  )}
-                </button>
-                {(routeSearch || routeFilterDeparture || routeFilterArrival) && (
-                  <button
-                    onClick={() => { setRouteSearch(''); setRouteFilterDeparture(''); setRouteFilterArrival(''); }}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
-                  >
-                    <X size={14} />
-                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                )}
-              </div>
-              {showRouteFilters && (
-                <div className="flex gap-4 flex-wrap pt-1 border-t border-gray-100">
-                  <div className="flex-1 min-w-[180px]">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.departure_point}</label>
-                    <input
-                      type="text"
-                      value={routeFilterDeparture}
-                      onChange={e => setRouteFilterDeparture(e.target.value)}
-                      placeholder={language === 'vi' ? 'Lọc theo điểm đi...' : 'Filter by departure...'}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-[180px]">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{t.arrival_point}</label>
-                    <input
-                      type="text"
-                      value={routeFilterArrival}
-                      onChange={e => setRouteFilterArrival(e.target.value)}
-                      placeholder={language === 'vi' ? 'Lọc theo điểm đến...' : 'Filter by arrival...'}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <ResizableTh width={routeColWidths.stt} onResize={(w) => setRouteColWidths(p => ({ ...p, stt: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">STT</ResizableTh>
-                    <ResizableTh width={routeColWidths.name} onResize={(w) => setRouteColWidths(p => ({ ...p, name: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.route_name}</ResizableTh>
-                    <ResizableTh width={routeColWidths.departure} onResize={(w) => setRouteColWidths(p => ({ ...p, departure: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.departure_point}</ResizableTh>
-                    <ResizableTh width={routeColWidths.arrival} onResize={(w) => setRouteColWidths(p => ({ ...p, arrival: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.arrival_point}</ResizableTh>
-                    <ResizableTh width={routeColWidths.price} onResize={(w) => setRouteColWidths(p => ({ ...p, price: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_price}</ResizableTh>
-                    <ResizableTh width={routeColWidths.agentPrice} onResize={(w) => setRouteColWidths(p => ({ ...p, agentPrice: w }))} className="px-6 py-5 text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.agent_price}</ResizableTh>
-                    <ResizableTh width={routeColWidths.options} onResize={(w) => setRouteColWidths(p => ({ ...p, options: w }))} className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</ResizableTh>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredRoutes.map((route) => (
-                    <tr key={route.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-6 text-sm text-gray-500">{route.stt}</td>
-                      <td className="px-6 py-6">
-                        <p className="font-bold text-gray-800">{route.name}</p>
-                        {(route.pricePeriods || []).length > 0 && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
-                            <Calendar size={10} /> {(route.pricePeriods || []).length} {language === 'vi' ? 'kỳ giá' : 'periods'}
-                          </span>
-                        )}
-                        {(() => {
-                          const intermediateStops = (route.routeStops || []).filter(s => s.stopId !== STOP_ID_DEPARTURE && s.stopId !== STOP_ID_ARRIVAL);
-                          return intermediateStops.length > 0 ? (
-                            <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[10px] font-bold">
-                              {intermediateStops.length} {language === 'vi' ? 'điểm dừng' : 'stops'}
-                            </span>
-                          ) : null;
-                        })()}
-                      </td>
-                      <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.departurePoint}</p></td>
-                      <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
-                      <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
-                      <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
-                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => exportRouteToPDF(route)} title={language === 'vi' ? 'Xuất PDF' : language === 'ja' ? 'PDFを出力' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={18} /></button><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
-                    </tr>
-                  ))}
-                  {filteredRoutes.length === 0 && (
-                    <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Không tìm thấy tuyến đường nào.' : 'No routes found.'}</td></tr>
-                  )}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <RouteManagementPage
+              routes={routes}
+              stops={stops}
+              terminalStops={terminalStops}
+              language={language}
+              t={t}
+              routeSearch={routeSearch}
+              setRouteSearch={setRouteSearch}
+              showRouteFilters={showRouteFilters}
+              setShowRouteFilters={setShowRouteFilters}
+              routeFilterDeparture={routeFilterDeparture}
+              setRouteFilterDeparture={setRouteFilterDeparture}
+              routeFilterArrival={routeFilterArrival}
+              setRouteFilterArrival={setRouteFilterArrival}
+              routeColWidths={routeColWidths}
+              setRouteColWidths={setRouteColWidths}
+              showAddRoute={showAddRoute}
+              setShowAddRoute={setShowAddRoute}
+              editingRoute={editingRoute}
+              setEditingRoute={setEditingRoute}
+              isCopyingRoute={isCopyingRoute}
+              setIsCopyingRoute={setIsCopyingRoute}
+              routeForm={routeForm}
+              setRouteForm={setRouteForm}
+              routePricePeriods={routePricePeriods}
+              setRoutePricePeriods={setRoutePricePeriods}
+              showAddPricePeriod={showAddPricePeriod}
+              setShowAddPricePeriod={setShowAddPricePeriod}
+              pricePeriodForm={pricePeriodForm}
+              setPricePeriodForm={setPricePeriodForm}
+              editingPricePeriodId={editingPricePeriodId}
+              setEditingPricePeriodId={setEditingPricePeriodId}
+              routeSurcharges={routeSurcharges}
+              setRouteSurcharges={setRouteSurcharges}
+              showAddRouteSurcharge={showAddRouteSurcharge}
+              setShowAddRouteSurcharge={setShowAddRouteSurcharge}
+              routeSurchargeForm={routeSurchargeForm}
+              setRouteSurchargeForm={setRouteSurchargeForm}
+              editingRouteSurchargeId={editingRouteSurchargeId}
+              setEditingRouteSurchargeId={setEditingRouteSurchargeId}
+              routeFormStops={routeFormStops}
+              setRouteFormStops={setRouteFormStops}
+              allRouteStops={allRouteStops}
+              showAddRouteStop={showAddRouteStop}
+              setShowAddRouteStop={setShowAddRouteStop}
+              editingRouteStop={editingRouteStop}
+              setEditingRouteStop={setEditingRouteStop}
+              routeStopForm={routeStopForm}
+              setRouteStopForm={setRouteStopForm}
+              routeFormStopsHistory={routeFormStopsHistory}
+              setRouteFormStopsHistory={setRouteFormStopsHistory}
+              routeFormFaresHistory={routeFormFaresHistory}
+              setRouteFormFaresHistory={setRouteFormFaresHistory}
+              routeFormFares={routeFormFares}
+              setRouteFormFares={setRouteFormFares}
+              showAddRouteFare={showAddRouteFare}
+              setShowAddRouteFare={setShowAddRouteFare}
+              editingRouteFareIdx={editingRouteFareIdx}
+              setEditingRouteFareIdx={setEditingRouteFareIdx}
+              routeFareForm={routeFareForm}
+              setRouteFareForm={setRouteFareForm}
+              routeImageUploading={routeImageUploading}
+              setRouteModalEditingId={setRouteModalEditingId}
+              handleSaveRoute={handleSaveRoute}
+              handleRouteImageUpload={handleRouteImageUpload}
+              handleDeleteRoute={handleDeleteRoute}
+              handleStartEditRoute={handleStartEditRoute}
+              handleCopyRoute={handleCopyRoute}
+              handleSaveRouteNote={handleSaveRouteNote}
+            />
+          </Suspense>
         );
-      }
 
-      case 'vehicles':
+            case 'vehicles':
         return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} />;
 
 
-      case 'operations': {
-        // Pre-compute active employee names (drivers first) for driver select
-        const activeEmployeeNames = [
-          ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
-          ...employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
-        ];
-        const filteredTrips = trips.filter(trip => {
-          if (trip.status === TripStatus.COMPLETED) return false;
-          // Quick dropdown filters
-          if (tripFilterStatus !== 'ALL' && trip.status !== tripFilterStatus) return false;
-          if (tripFilterRoute && trip.route !== tripFilterRoute) return false;
-          if (tripFilterTime && trip.time !== tripFilterTime) return false;
-          if (tripFilterVehicle && trip.licensePlate !== tripFilterVehicle) return false;
-          if (tripFilterDriver && trip.driverName !== tripFilterDriver) return false;
-          // Advanced date-range filters
-          if (tripFilterDateFrom && trip.date && trip.date < tripFilterDateFrom) return false;
-          if (tripFilterDateTo && trip.date && trip.date > tripFilterDateTo) return false;
-          if (!tripSearch) return true;
-          const q = tripSearch.toLowerCase();
-          return (
-            (trip.time || '').toLowerCase().includes(q) ||
-            (trip.route || '').toLowerCase().includes(q) ||
-            (trip.licensePlate || '').toLowerCase().includes(q) ||
-            (trip.driverName || '').toLowerCase().includes(q)
-          );
-        }).sort((a, b) => compareTripDateTime(a, b));
+      case 'operations':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">{t.operation_management}</h2>
-              <div className="flex gap-2">
-                <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
-                <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
-              </div>
-            </div>
-
-            {/* Add/Edit Trip Modal */}
-            {showAddTrip && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">
-                      {editingTrip
-                        ? (language === 'vi' ? 'Chỉnh sửa chuyến' : 'Edit Trip')
-                        : isCopyingTrip
-                          ? `📋 ${t.copy_trip}`
-                          : (language === 'vi' ? 'Thêm chuyến mới' : 'Add New Trip')}
-                    </h3>
-                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={tripForm.date} min={editingTrip ? undefined : getLocalDateString(0)} onChange={e => {
-                        const date = e.target.value;
-                        const selectedRoute = routes.find(r => r.name === tripForm.route);
-                        if (selectedRoute) {
-                          const period = getRouteActivePeriod(selectedRoute, date);
-                          const price = period ? period.price : selectedRoute.price;
-                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
-                          setTripForm(p => ({ ...p, date, price, agentPrice }));
-                        } else {
-                          setTripForm(p => ({ ...p, date }));
-                        }
-                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_time}</label><input type="time" value={tripForm.time} onChange={e => setTripForm(p => ({ ...p, time: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={tripForm.agentPrice} onChange={e => setTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
-                      {tripForm.date && (
-                        <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
-                          {language === 'vi' ? '* Chỉ hiển thị tuyến có hiệu lực vào ngày đã chọn' : '* Only showing routes valid for selected date'}
-                        </p>
-                      )}
-                      <select value={tripForm.route} onChange={e => {
-                        const routeName = e.target.value;
-                        const selectedRoute = routes.find(r => r.name === routeName);
-                        if (selectedRoute) {
-                          const period = getRouteActivePeriod(selectedRoute, tripForm.date);
-                          const price = period ? period.price : selectedRoute.price;
-                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
-                          setTripForm(p => ({ ...p, route: routeName, price, agentPrice }));
-                        } else {
-                          setTripForm(p => ({ ...p, route: routeName }));
-                        }
-                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
-                        {routes.filter(r => isRouteValidForDate(r, tripForm.date)).map(r => {
-                          const period = getRouteActivePeriod(r, tripForm.date);
-                          return <option key={r.id} value={r.name}>{formatRouteOption(r, period, language)}</option>;
-                        })}
-                      </select>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate} <span className="normal-case font-normal text-gray-400">({language === 'vi' ? 'tùy chọn' : 'optional'})</span></label>
-                      <select value={tripForm.licensePlate} onChange={e => handleTripVehicleSelect(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="">{language === 'vi' ? '-- Chọn xe (tùy chọn) --' : '-- Select Vehicle (optional) --'}</option>
-                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label>
-                      <SearchableSelect
-                        options={activeEmployeeNames}
-                        value={tripForm.driverName}
-                        onChange={(val) => setTripForm(p => ({ ...p, driverName: val }))}
-                        placeholder={language === 'vi' ? 'Chọn hoặc nhập tên tài xế...' : 'Select or type driver name...'}
-                        className="mt-1"
-                      />
-                    </div>
-                    {!editingTrip && (
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={tripForm.seatCount} onChange={e => setTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    )}
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
-                      <select value={tripForm.status} onChange={e => setTripForm(p => ({ ...p, status: e.target.value as TripStatus }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value={TripStatus.WAITING}>{language === 'vi' ? 'Chờ khởi hành' : 'Waiting'}</option>
-                        <option value={TripStatus.RUNNING}>{language === 'vi' ? 'Đang chạy' : 'Running'}</option>
-                        <option value={TripStatus.COMPLETED}>{language === 'vi' ? 'Hoàn thành' : 'Completed'}</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : isCopyingTrip ? t.create_copy : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Batch Create Trips Modal */}
-            {showBatchAddTrip && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xl font-bold">⚡ {t.batch_add_trips}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{language === 'vi' ? 'Chọn khoảng ngày và nhiều khung giờ để tạo nhiều chuyến cùng lúc' : 'Select a date range and multiple time slots to create many trips at once'}</p>
-                    </div>
-                    <button onClick={() => setShowBatchAddTrip(false)} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.batch_date_from}</label>
-                      <input type="date" value={batchTripForm.dateFrom} min={getLocalDateString(0)} onChange={e => {
-                        const dateFrom = e.target.value;
-                        const selectedRoute = routes.find(r => r.name === batchTripForm.route);
-                        if (selectedRoute) {
-                          const period = getRouteActivePeriod(selectedRoute, dateFrom);
-                          const price = period ? period.price : selectedRoute.price;
-                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
-                          setBatchTripForm(p => ({ ...p, dateFrom, dateTo: p.dateTo && p.dateTo < dateFrom ? dateFrom : p.dateTo, price, agentPrice }));
-                        } else {
-                          setBatchTripForm(p => ({ ...p, dateFrom, dateTo: p.dateTo && p.dateTo < dateFrom ? dateFrom : p.dateTo }));
-                        }
-                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.batch_date_to}</label>
-                      <input type="date" value={batchTripForm.dateTo} min={batchTripForm.dateFrom || getLocalDateString(0)} onChange={e => {
-                        setBatchTripForm(p => ({ ...p, dateTo: e.target.value }));
-                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.select_times}</label>
-                      <div className="mt-2 space-y-2">
-                        {batchTimeSlots.map((slot, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <input type="time" value={slot} onChange={e => { const updated = [...batchTimeSlots]; updated[idx] = e.target.value; setBatchTimeSlots(updated); }} className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                            {batchTimeSlots.length > 1 && (
-                              <button onClick={() => setBatchTimeSlots(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
-                            )}
-                          </div>
-                        ))}
-                        <button onClick={() => setBatchTimeSlots(prev => [...prev, ''])} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-xl border border-dashed border-blue-200">
-                          <span>+</span> {t.add_time_slot}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
-                      {batchTripForm.dateFrom && (
-                        <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
-                          {language === 'vi' ? '* Giá hiển thị theo kỳ cao điểm (nếu có), ngày thường dùng giá mặc định' : '* Price shown by peak period (if any), regular dates use default price'}
-                        </p>
-                      )}
-                      <select value={batchTripForm.route} onChange={e => {
-                        const routeName = e.target.value;
-                        const selectedRoute = routes.find(r => r.name === routeName);
-                        if (selectedRoute) {
-                          const period = getRouteActivePeriod(selectedRoute, batchTripForm.dateFrom);
-                          const price = period ? period.price : selectedRoute.price;
-                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
-                          setBatchTripForm(p => ({ ...p, route: routeName, price, agentPrice }));
-                        } else {
-                          setBatchTripForm(p => ({ ...p, route: routeName }));
-                        }
-                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
-                        {routes.filter(r => isRouteValidForDate(r, batchTripForm.dateFrom)).map(r => {
-                          const period = getRouteActivePeriod(r, batchTripForm.dateFrom);
-                          return <option key={r.id} value={r.name}>{formatRouteOption(r, period, language)}</option>;
-                        })}
-                      </select>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate} <span className="normal-case font-normal text-gray-400">({language === 'vi' ? 'tùy chọn' : 'optional'})</span></label>
-                      <select value={batchTripForm.licensePlate} onChange={e => handleBatchVehicleSelect(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="">{language === 'vi' ? '-- Chọn xe (tùy chọn) --' : '-- Select Vehicle (optional) --'}</option>
-                        {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate} - {v.type} ({v.seats} {t.seats})</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.driver}</label>
-                      <SearchableSelect
-                        options={activeEmployeeNames}
-                        value={batchTripForm.driverName}
-                        onChange={(val) => setBatchTripForm(p => ({ ...p, driverName: val }))}
-                        placeholder={language === 'vi' ? 'Chọn hoặc nhập tên tài xế...' : 'Select or type driver name...'}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div className="col-span-2 grid grid-cols-2 gap-4">
-                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={batchTripForm.price} onChange={e => setBatchTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                      <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={batchTripForm.agentPrice} onChange={e => setBatchTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={batchTripForm.seatCount} onChange={e => setBatchTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                  </div>
-                  {(() => {
-                    const validSlots = batchTimeSlots.filter(s => s);
-                    let dayCount = 0;
-                    if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
-                      const from = new Date(batchTripForm.dateFrom + 'T00:00:00');
-                      const to = new Date(batchTripForm.dateTo + 'T00:00:00');
-                      dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
-                    }
-                    const totalTrips = dayCount * validSlots.length;
-                    if (!batchTripForm.dateFrom || !batchTripForm.dateTo || validSlots.length === 0) return null;
-                    return (
-                      <div className="bg-blue-50 rounded-xl p-4">
-                        <p className="text-sm font-bold text-blue-700 mb-2">
-                          📋 {t.trips_to_create}: {dayCount} {language === 'vi' ? 'ngày' : 'days'} × {validSlots.length} {language === 'vi' ? 'khung giờ' : 'time slots'} = <span className="text-blue-900">{totalTrips} {language === 'vi' ? 'chuyến' : 'trips'}</span>
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {validSlots.map((slot, i) => (
-                            <span key={i} className="px-3 py-1 bg-white text-blue-700 text-xs font-bold rounded-full border border-blue-200">{slot}</span>
-                          ))}
-                        </div>
-                        {dayCount > 0 && (
-                          <p className="text-xs text-blue-500 mt-2">{batchTripForm.dateFrom} → {batchTripForm.dateTo}</p>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => setShowBatchAddTrip(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    {(() => {
-                      const validSlots = batchTimeSlots.filter(s => s).length;
-                      let dayCount = 0;
-                      if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
-                        const from = new Date(batchTripForm.dateFrom + 'T00:00:00');
-                        const to = new Date(batchTripForm.dateTo + 'T00:00:00');
-                        dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
-                      }
-                      const totalTrips = dayCount * validSlots;
-                      const isDisabled = batchTripLoading || !batchTripForm.dateFrom || !batchTripForm.dateTo || batchTripForm.dateTo < batchTripForm.dateFrom || !batchTripForm.route || validSlots === 0;
-                      return (
-                        <button onClick={handleBatchAddTrips} disabled={isDisabled} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
-                          {batchTripLoading && <span className="animate-spin">⚡</span>}
-                          {language === 'vi' ? `Tạo ${totalTrips} chuyến` : `Create ${totalTrips} Trips`}
-                        </button>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Trip Add-ons Management Modal */}
-            {showTripAddons && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xl font-bold">{t.manage_addons}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{showTripAddons.time} · {showTripAddons.route}</p>
-                    </div>
-                    <button onClick={() => { setShowTripAddons(null); setShowAddTripAddon(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="space-y-3">
-                    {(showTripAddons.addons || []).length === 0 && !showAddTripAddon && (
-                      <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
-                    )}
-                    {(showTripAddons.addons || []).map(addon => (
-                      <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm">{addon.name}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}</span>
-                          </div>
-                          {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
-                          <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
-                        </div>
-                        <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
-                      </div>
-                    ))}
-                    {showAddTripAddon ? (
-                      <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={tripAddonForm.name} onChange={e => setTripAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={tripAddonForm.price} onChange={e => setTripAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
-                            <select value={tripAddonForm.type} onChange={e => setTripAddonForm(p => ({ ...p, type: e.target.value as any }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                              <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
-                              <option value="TRANSPORT">{t.addon_type_transport}</option>
-                              <option value="FOOD">{t.addon_type_food}</option>
-                              <option value="OTHER">{t.addon_type_other}</option>
-                            </select>
-                          </div>
-                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                          <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setShowAddTripAddon(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Quick Dropdown Filters: route, time, vehicle, driver */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <select
-                value={tripFilterRoute}
-                onChange={e => setTripFilterRoute(e.target.value)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterRoute ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
-              >
-                <option value="">{t.all_routes}</option>
-                {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-              </select>
-              <select
-                value={tripFilterTime}
-                onChange={e => setTripFilterTime(e.target.value)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterTime ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
-              >
-                <option value="">{language === 'vi' ? 'Tất cả giờ' : 'All Times'}</option>
-                {Array.from(new Set(trips.filter(t => t.status !== TripStatus.COMPLETED && t.time).map(t => t.time))).sort().map(time => (
-                  <option key={time} value={time}>{time}</option>
-                ))}
-              </select>
-              <select
-                value={tripFilterVehicle}
-                onChange={e => setTripFilterVehicle(e.target.value)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterVehicle ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
-              >
-                <option value="">{t.all_vehicles}</option>
-                {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate}</option>)}
-              </select>
-              <select
-                value={tripFilterDriver}
-                onChange={e => setTripFilterDriver(e.target.value)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterDriver ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
-              >
-                <option value="">{t.all_drivers}</option>
-                {activeEmployeeNames.map(name => <option key={name} value={name}>{name}</option>)}
-              </select>
-              {(tripFilterRoute || tripFilterTime || tripFilterVehicle || tripFilterDriver) && (
-                <button
-                  onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); }}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1"
-                >
-                  <X size={12} /> {language === 'vi' ? 'Xóa lọc' : 'Clear'}
-                </button>
-              )}
-            </div>
-
-            {/* Search bar + Column Toggle */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="text"
-                  value={tripSearch}
-                  onChange={e => setTripSearch(e.target.value)}
-                  placeholder={language === 'vi' ? 'Tìm kiếm chuyến xe, tuyến, biển số, tài xế...' : 'Search trips by route, plate, driver...'}
-                  className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
-                />
-                {tripSearch && (
-                  <button onClick={() => setTripSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => setShowTripColPanel(v => !v)}
-                className={cn('flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all border whitespace-nowrap', showTripColPanel ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50')}
-              >
-                <Columns size={16} />
-                {language === 'vi' ? 'Tùy chỉnh cột' : 'Columns'}
-              </button>
-              <button
-                onClick={() => setShowTripAdvancedFilter(v => !v)}
-                className={cn('flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all border whitespace-nowrap', showTripAdvancedFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50')}
-              >
-                <Filter size={16} />
-                {language === 'vi' ? 'Lọc nâng cao' : 'Advanced'}
-              </button>
-            </div>
-
-            {/* Column Visibility Panel */}
-            {showTripColPanel && (
-              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    { key: 'time', label: language === 'vi' ? 'Giờ khởi hành' : 'Departure Time' },
-                    { key: 'licensePlate', label: language === 'vi' ? 'Biển số xe' : 'License Plate' },
-                    { key: 'route', label: language === 'vi' ? 'Tuyến' : 'Route' },
-                    { key: 'driver', label: language === 'vi' ? 'Tài xế' : 'Driver' },
-                    { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
-                    { key: 'seats', label: language === 'vi' ? 'Ghế còn' : 'Avail. Seats' },
-                    { key: 'passengers', label: language === 'vi' ? 'Hành khách' : 'Passengers' },
-                    { key: 'addons', label: language === 'vi' ? 'Dịch vụ thêm' : 'Add-ons' },
-                  ] as { key: keyof typeof tripColVisibility; label: string }[]).map(({ key, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => setTripColVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
-                      className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all', tripColVisibility[key] ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-400 border-gray-200')}
-                    >
-                      {tripColVisibility[key] ? '✓ ' : ''}{label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Advanced Filter Panel */}
-            {showTripAdvancedFilter && (
-              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filters'}</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Trạng thái' : 'Status'}</label>
-                    <select value={tripFilterStatus} onChange={e => setTripFilterStatus(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none">
-                      <option value="ALL">{language === 'vi' ? 'Tất cả' : 'All'}</option>
-                      <option value={TripStatus.WAITING}>{language === 'vi' ? 'Chờ khởi hành' : 'Waiting'}</option>
-                      <option value={TripStatus.RUNNING}>{language === 'vi' ? 'Đang chạy' : 'Running'}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Từ ngày' : 'From Date'}</label>
-                    <input type="date" value={tripFilterDateFrom} onChange={e => setTripFilterDateFrom(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Đến ngày' : 'To Date'}</label>
-                    <input type="date" value={tripFilterDateTo} onChange={e => setTripFilterDateTo(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
-                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Passenger List Modal */}
-            {showTripPassengers && (() => {
-              // Pre-compute ticketCode map and group seats by booking
-              const seatTicketCodeMap = buildSeatTicketCodeMap(showTripPassengers.id);
-              const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
-              const passengerGroups = buildPassengerGroups(showTripPassengers.id, bookedSeats);
-              return (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
-                  {/* Header */}
-                  <div className="flex justify-between items-start px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0">
-                    <div>
-                      <h3 className="text-xl font-bold">{language === 'vi' ? 'Danh sách hành khách' : 'Passenger List'}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{showTripPassengers.route} · {formatTripDisplayTime(showTripPassengers)}{showTripPassengers.licensePlate ? ` · ${showTripPassengers.licensePlate}` : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <button
-                        onClick={() => setShowPassengerColPanel(v => !v)}
-                        className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all', showPassengerColPanel ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100')}
-                        title={language === 'vi' ? 'Tùy chỉnh cột' : 'Customize columns'}
-                      >
-                        <SlidersHorizontal size={13} />{language === 'vi' ? 'Cột' : 'Columns'}
-                      </button>
-                      <button onClick={handleClosePassengerModal} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                    </div>
-                  </div>
-                  {/* Column visibility panel */}
-                  {showPassengerColPanel && (
-                    <div className="px-6 py-3 bg-white border-b border-gray-100 flex-shrink-0">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {([
-                          { key: 'ticketCode', label: language === 'vi' ? 'Mã vé' : 'Ticket Code' },
-                          { key: 'seat', label: language === 'vi' ? 'Ghế' : 'Seat' },
-                          { key: 'name', label: language === 'vi' ? 'Tên khách' : 'Name' },
-                          { key: 'phone', label: language === 'vi' ? 'Số điện thoại' : 'Phone' },
-                          { key: 'pickup', label: language === 'vi' ? 'Điểm đón' : 'Pickup' },
-                          { key: 'dropoff', label: language === 'vi' ? 'Điểm trả' : 'Dropoff' },
-                          { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
-                          { key: 'price', label: language === 'vi' ? 'Giá vé' : 'Price' },
-                          { key: 'note', label: language === 'vi' ? 'Ghi chú' : 'Note' },
-                        ] as { key: keyof typeof passengerColVisibility; label: string }[]).map(({ key, label }) => (
-                          <button
-                            key={key}
-                            onClick={() => setPassengerColVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
-                            className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all', passengerColVisibility[key] ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-400 border-gray-200')}
-                          >
-                            {passengerColVisibility[key] ? '✓ ' : ''}{label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Seat stats + export buttons */}
-                  {(() => {
-                    const allSeats = showTripPassengers.seats || [];
-                    const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
-                    const paid = allSeats.filter((s: any) => s.status === SeatStatus.PAID);
-                    const empty = allSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
-                    return (
-                      <div className="px-6 py-3 bg-gray-50 flex flex-wrap gap-3 items-center flex-shrink-0 border-b border-gray-100">
-                        <span className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Tổng' : 'Total'}: {allSeats.length}</span>
-                        <span className="text-sm font-bold text-green-600">✓ {language === 'vi' ? 'Đã thanh toán' : 'Paid'}: {paid.length}</span>
-                        <span className="text-sm font-bold text-blue-600">◉ {language === 'vi' ? 'Đã đặt' : 'Booked'}: {booked.length - paid.length}</span>
-                        <span className="text-sm font-bold text-gray-400">○ {language === 'vi' ? 'Còn trống' : 'Empty'}: {empty.length}</span>
-                        <div className="ml-auto flex gap-2">
-                          <button onClick={() => exportTripToExcelHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"><Download size={12} /> Excel</button>
-                          <button onClick={() => exportTripToPDFHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"><FileText size={12} /> PDF</button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  {/* Passenger table – one row per booking group */}
-                  <div className="flex-1 overflow-y-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-10">STT</th>
-                          {passengerColVisibility.ticketCode && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Mã vé' : 'Ticket Code'}</th>}
-                          {passengerColVisibility.seat && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>}
-                          {passengerColVisibility.name && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>}
-                          {passengerColVisibility.phone && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>}
-                          {passengerColVisibility.pickup && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>}
-                          {passengerColVisibility.dropoff && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>}
-                          {passengerColVisibility.status && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>}
-                          {passengerColVisibility.price && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Giá vé' : 'Price'}</th>}
-                          {passengerColVisibility.note && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>}
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-20">{t.options}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {passengerGroups.map((group, idx) => {
-                          const primarySeat = group.seats[0];
-                          const isGroup = group.seats.length > 1;
-                          const seatIds = group.seats.map((s: any) => s.id).join(', ');
-                          const ticketCode = group.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
-                          const allPaid = group.seats.every((s: any) => s.status === SeatStatus.PAID);
-                          const rowStatus = allPaid ? SeatStatus.PAID : SeatStatus.BOOKED;
-                          const totalAmount = group.booking?.amount ?? (showTripPassengers.price || 0) * group.seats.length;
-                          const isEditing = editingPassengerSeatId === primarySeat.id;
-                          const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
-                          return isEditing ? (
-                            <tr key={rowKey} className="bg-blue-50">
-                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{ticketCode}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3"><input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3"><input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.status && <td className="px-4 py-3">
-                                <select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none">
-                                  <option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
-                                  <option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
-                                </select>
-                              </td>}
-                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              <td className="px-4 py-3">
-                                <div className="flex gap-1">
-                                  <button onClick={handleSavePassengerEdit} className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">{t.save}</button>
-                                  <button onClick={() => setEditingPassengerSeatId(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">{t.cancel}</button>
-                                </div>
-                              </td>
-                            </tr>
-                          ) : (
-                            <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40')}>
-                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{ticketCode}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">
-                                {seatIds}
-                                {isGroup && <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold">👥 {group.seats.length}</span>}
-                              </td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{primarySeat.pickupAddress || '—'}</td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{primarySeat.dropoffAddress || '—'}</td>}
-                              {passengerColVisibility.status && <td className="px-4 py-3">
-                                <span className={cn('px-2 py-1 rounded-full text-xs font-bold', rowStatus === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
-                                  {rowStatus === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
-                                </span>
-                              </td>}
-                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{primarySeat.bookingNote || '—'}</td>}
-                              <td className="px-4 py-3">
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => {
-                                      setEditingPassengerSeatId(primarySeat.id);
-                                      setPassengerEditForm({
-                                        customerName: primarySeat.customerName || '',
-                                        customerPhone: primarySeat.customerPhone || '',
-                                        pickupAddress: primarySeat.pickupAddress || '',
-                                        dropoffAddress: primarySeat.dropoffAddress || '',
-                                        status: rowStatus,
-                                        bookingNote: primarySeat.bookingNote || '',
-                                      });
-                                    }}
-                                    className="text-gray-400 hover:text-daiichi-red p-1 rounded"
-                                    title={language === 'vi' ? 'Chỉnh sửa' : 'Edit'}
-                                  >
-                                    <Edit3 size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeletePassenger(primarySeat.id)}
-                                    className="text-gray-400 hover:text-red-600 p-1 rounded"
-                                    title={language === 'vi' ? 'Xóa hành khách' : 'Remove passenger'}
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {passengerGroups.length === 0 && (
-                          <tr><td colSpan={2 + Object.values(passengerColVisibility).filter(Boolean).length} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-              );
-            })()}
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    {tripColVisibility.time && <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>}
-                    {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
-                    {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
-                    {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
-                    {tripColVisibility.status && <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>}
-                    {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế còn' : 'Avail.'}</th>}
-                    {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách' : 'Passengers'}</th>}
-                    {tripColVisibility.addons && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>}
-                    <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredTrips.map((trip) => {
-                    const emptySeats = (trip.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
-                    const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length;
-                    const totalSeats = (trip.seats || []).length;
-                    const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
-                    const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
-                    return (
-                      <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                        {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
-                        {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium whitespace-nowrap" onClick={openPassengerList}>{trip.licensePlate}</td>}
-                        {tripColVisibility.route && <td className="px-6 py-4 overflow-hidden" style={{ maxWidth: tripColWidths.route }} onClick={openPassengerList}>
-                          {(() => {
-                            const r = routes.find(rt => rt.name === trip.route);
-                            return r ? (
-                              <div>
-                                <p className="font-semibold text-sm text-gray-800 truncate">{r.name}</p>
-                                <p className="text-xs text-gray-500 truncate">{r.departurePoint} → {r.arrivalPoint}</p>
-                              </div>
-                            ) : <span className="text-sm text-gray-500 truncate block">{trip.route}</span>;
-                          })()}
-                        </td>}
-                        {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600 whitespace-nowrap" onClick={openPassengerList}>{trip.driverName}</td>}
-                        {tripColVisibility.status && <td className="px-6 py-4" onClick={openPassengerList}><StatusBadge status={trip.status} language={language} /></td>}
-                        {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className={cn('text-sm font-bold', emptySeats === 0 ? 'text-red-500' : emptySeats <= 3 ? 'text-orange-500' : 'text-green-600')}>{emptySeats}</span>
-                            <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
-                          </div>
-                        </td>}
-                        {tripColVisibility.passengers && <td className="px-6 py-4">
-                          <button
-                            onClick={openPassengerList}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors"
-                          >
-                            <Users size={12} />
-                            <span>{bookedCount}</span>
-                          </button>
-                        </td>}
-                        {tripColVisibility.addons && <td className="px-6 py-4">
-                          <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
-                            <span>{(trip.addons || []).length}</span>
-                            <span>{t.manage_addons}</span>
-                          </button>
-                        </td>}
-                        <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={goToSeatMap} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
-                      </tr>
-                    );
-                  })}
-                  {filteredTrips.length === 0 && (
-                    <tr><td colSpan={Object.values(tripColVisibility).filter(Boolean).length + 1} className="px-6 py-10 text-center text-sm text-gray-400">{t.no_trips_found}</td></tr>
-                  )}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <OperationsPage
+              trips={trips}
+              routes={routes}
+              vehicles={vehicles}
+              bookings={bookings}
+              employees={employees}
+              language={language}
+              t={t}
+              tripSearch={tripSearch}
+              setTripSearch={setTripSearch}
+              showTripAdvancedFilter={showTripAdvancedFilter}
+              setShowTripAdvancedFilter={setShowTripAdvancedFilter}
+              tripFilterRoute={tripFilterRoute}
+              setTripFilterRoute={setTripFilterRoute}
+              tripFilterStatus={tripFilterStatus}
+              setTripFilterStatus={setTripFilterStatus}
+              tripFilterDateFrom={tripFilterDateFrom}
+              setTripFilterDateFrom={setTripFilterDateFrom}
+              tripFilterDateTo={tripFilterDateTo}
+              setTripFilterDateTo={setTripFilterDateTo}
+              tripFilterTime={tripFilterTime}
+              setTripFilterTime={setTripFilterTime}
+              tripFilterVehicle={tripFilterVehicle}
+              setTripFilterVehicle={setTripFilterVehicle}
+              tripFilterDriver={tripFilterDriver}
+              setTripFilterDriver={setTripFilterDriver}
+              showAddTrip={showAddTrip}
+              setShowAddTrip={setShowAddTrip}
+              editingTrip={editingTrip}
+              setEditingTrip={setEditingTrip}
+              isCopyingTrip={isCopyingTrip}
+              setIsCopyingTrip={setIsCopyingTrip}
+              tripForm={tripForm}
+              setTripForm={setTripForm}
+              showBatchAddTrip={showBatchAddTrip}
+              setShowBatchAddTrip={setShowBatchAddTrip}
+              batchTripForm={batchTripForm}
+              setBatchTripForm={setBatchTripForm}
+              batchTimeSlots={batchTimeSlots}
+              setBatchTimeSlots={setBatchTimeSlots}
+              batchTripLoading={batchTripLoading}
+              showTripAddons={showTripAddons}
+              setShowTripAddons={setShowTripAddons}
+              showAddTripAddon={showAddTripAddon}
+              setShowAddTripAddon={setShowAddTripAddon}
+              tripAddonForm={tripAddonForm}
+              setTripAddonForm={setTripAddonForm}
+              tripColWidths={tripColWidths}
+              setTripColWidths={setTripColWidths}
+              tripColVisibility={tripColVisibility}
+              setTripColVisibility={setTripColVisibility}
+              showTripColPanel={showTripColPanel}
+              setShowTripColPanel={setShowTripColPanel}
+              showTripPassengers={showTripPassengers}
+              setShowTripPassengers={setShowTripPassengers}
+              editingPassengerSeatId={editingPassengerSeatId}
+              setEditingPassengerSeatId={setEditingPassengerSeatId}
+              passengerEditForm={passengerEditForm}
+              setPassengerEditForm={setPassengerEditForm}
+              passengerColVisibility={passengerColVisibility}
+              setPassengerColVisibility={setPassengerColVisibility}
+              showPassengerColPanel={showPassengerColPanel}
+              setShowPassengerColPanel={setShowPassengerColPanel}
+              showAddonDetailTrip={showAddonDetailTrip}
+              setShowAddonDetailTrip={setShowAddonDetailTrip}
+              setSelectedTrip={setSelectedTrip}
+              setPreviousTab={setPreviousTab}
+              setActiveTab={setActiveTab}
+              compareTripDateTime={compareTripDateTime}
+              formatTripDisplayTime={formatTripDisplayTime}
+              buildSeatTicketCodeMap={buildSeatTicketCodeMap}
+              buildPassengerGroups={buildPassengerGroups}
+              handleClosePassengerModal={handleClosePassengerModal}
+              handleSavePassengerEdit={handleSavePassengerEdit}
+              handleDeletePassenger={handleDeletePassenger}
+              handleAddTripAddon={handleAddTripAddon}
+              handleDeleteTripAddon={handleDeleteTripAddon}
+              exportTripToExcelHandler={exportTripToExcelHandler}
+              exportTripToPDFHandler={exportTripToPDFHandler}
+              handleSaveTrip={handleSaveTrip}
+              handleStartEditTrip={handleStartEditTrip}
+              handleCopyTrip={handleCopyTrip}
+              handleCopyTripsToDate={handleCopyTripsToDate}
+              handleDeleteTrip={handleDeleteTrip}
+              handleSaveTripNote={handleSaveTripNote}
+              handleTripVehicleSelect={handleTripVehicleSelect}
+              handleBatchVehicleSelect={handleBatchVehicleSelect}
+              handleBatchAddTrips={handleBatchAddTrips}
+              getRouteActivePeriod={getRouteActivePeriod}
+              isRouteValidForDate={isRouteValidForDate}
+              formatRouteOption={formatRouteOption}
+            />
+          </Suspense>
         );
-      }
 
       case 'tour-management':
         return <TourManagement language={language} />;
 
-      case 'completed-trips': {
-        const completedTrips = trips.filter(trip => {
-          if (trip.status !== TripStatus.COMPLETED) return false;
-          if (completedTripDateQuickFilter && trip.date !== completedTripDateQuickFilter) return false;
-          if (completedTripFilterRoute && !(trip.route || '').toLowerCase().includes(completedTripFilterRoute.toLowerCase())) return false;
-          if (completedTripFilterDateFrom && trip.date && trip.date < completedTripFilterDateFrom) return false;
-          if (completedTripFilterDateTo && trip.date && trip.date > completedTripFilterDateTo) return false;
-          if (!tripSearch) return true;
-          const q = tripSearch.toLowerCase();
-          return (
-            (trip.time || '').toLowerCase().includes(q) ||
-            (trip.route || '').toLowerCase().includes(q) ||
-            (trip.licensePlate || '').toLowerCase().includes(q) ||
-            (trip.driverName || '').toLowerCase().includes(q)
-          );
-        }).sort((a, b) => compareTripDateTime(b, a));
+      case 'completed-trips':
         return (
-          <div className="space-y-6">
-            {/* Passenger List Modal */}
-            {showTripPassengers && (() => {
-              const seatTicketCodeMap = buildSeatTicketCodeMap(showTripPassengers.id);
-              const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
-              const passengerGroups = buildPassengerGroups(showTripPassengers.id, bookedSeats);
-              return (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
-                  <div className="flex justify-between items-start px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0">
-                    <div>
-                      <h3 className="text-xl font-bold">{language === 'vi' ? 'Danh sách hành khách' : 'Passenger List'}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{showTripPassengers.route} · {formatTripDisplayTime(showTripPassengers)}{showTripPassengers.licensePlate ? ` · ${showTripPassengers.licensePlate}` : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <button onClick={() => setShowPassengerColPanel(v => !v)} className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all', showPassengerColPanel ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100')} title={language === 'vi' ? 'Tùy chỉnh cột' : 'Customize columns'}><SlidersHorizontal size={13} />{language === 'vi' ? 'Cột' : 'Columns'}</button>
-                      <button onClick={handleClosePassengerModal} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                    </div>
-                  </div>
-                  {showPassengerColPanel && (
-                    <div className="px-6 py-3 bg-white border-b border-gray-100 flex-shrink-0">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {([
-                          { key: 'ticketCode', label: language === 'vi' ? 'Mã vé' : 'Ticket Code' },
-                          { key: 'seat', label: language === 'vi' ? 'Ghế' : 'Seat' },
-                          { key: 'name', label: language === 'vi' ? 'Tên khách' : 'Name' },
-                          { key: 'phone', label: language === 'vi' ? 'Số điện thoại' : 'Phone' },
-                          { key: 'pickup', label: language === 'vi' ? 'Điểm đón' : 'Pickup' },
-                          { key: 'dropoff', label: language === 'vi' ? 'Điểm trả' : 'Dropoff' },
-                          { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
-                          { key: 'price', label: language === 'vi' ? 'Giá vé' : 'Price' },
-                          { key: 'note', label: language === 'vi' ? 'Ghi chú' : 'Note' },
-                        ] as { key: keyof typeof passengerColVisibility; label: string }[]).map(({ key, label }) => (
-                          <button key={key} onClick={() => setPassengerColVisibility(prev => ({ ...prev, [key]: !prev[key] }))} className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all', passengerColVisibility[key] ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-400 border-gray-200')}>{passengerColVisibility[key] ? '✓ ' : ''}{label}</button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(() => {
-                    const allSeats = showTripPassengers.seats || [];
-                    const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
-                    const paid = allSeats.filter((s: any) => s.status === SeatStatus.PAID);
-                    const empty = allSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
-                    return (
-                      <div className="px-6 py-3 bg-gray-50 flex flex-wrap gap-3 items-center flex-shrink-0 border-b border-gray-100">
-                        <span className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Tổng' : 'Total'}: {allSeats.length}</span>
-                        <span className="text-sm font-bold text-green-600">✓ {language === 'vi' ? 'Đã thanh toán' : 'Paid'}: {paid.length}</span>
-                        <span className="text-sm font-bold text-blue-600">◉ {language === 'vi' ? 'Đã đặt' : 'Booked'}: {booked.length - paid.length}</span>
-                        <span className="text-sm font-bold text-gray-400">○ {language === 'vi' ? 'Còn trống' : 'Empty'}: {empty.length}</span>
-                        <div className="ml-auto flex gap-2">
-                          <button onClick={() => exportTripToExcelHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"><Download size={12} /> Excel</button>
-                          <button onClick={() => exportTripToPDFHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"><FileText size={12} /> PDF</button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="flex-1 overflow-y-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-10">STT</th>
-                          {passengerColVisibility.ticketCode && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Mã vé' : 'Ticket Code'}</th>}
-                          {passengerColVisibility.seat && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>}
-                          {passengerColVisibility.name && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>}
-                          {passengerColVisibility.phone && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>}
-                          {passengerColVisibility.pickup && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>}
-                          {passengerColVisibility.dropoff && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>}
-                          {passengerColVisibility.status && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>}
-                          {passengerColVisibility.price && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Giá vé' : 'Price'}</th>}
-                          {passengerColVisibility.note && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>}
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-20">{t.options}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {passengerGroups.map((group, idx) => {
-                          const primarySeat = group.seats[0];
-                          const isGroup = group.seats.length > 1;
-                          const seatIds = group.seats.map((s: any) => s.id).join(', ');
-                          const ticketCode = group.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
-                          const allPaid = group.seats.every((s: any) => s.status === SeatStatus.PAID);
-                          const rowStatus = allPaid ? SeatStatus.PAID : SeatStatus.BOOKED;
-                          const totalAmount = group.booking?.amount ?? (showTripPassengers.price || 0) * group.seats.length;
-                          const isEditing = editingPassengerSeatId === primarySeat.id;
-                          const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
-                          return isEditing ? (
-                            <tr key={rowKey} className="bg-blue-50">
-                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{ticketCode}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3"><input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3"><input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.status && <td className="px-4 py-3"><select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none"><option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option><option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option></select></td>}
-                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              <td className="px-4 py-3"><div className="flex gap-1"><button onClick={handleSavePassengerEdit} className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">{t.save}</button><button onClick={() => setEditingPassengerSeatId(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">{t.cancel}</button></div></td>
-                            </tr>
-                          ) : (
-                            <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40')}>
-                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{ticketCode}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}{isGroup && <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold">👥 {group.seats.length}</span>}</td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{primarySeat.pickupAddress || '—'}</td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{primarySeat.dropoffAddress || '—'}</td>}
-                              {passengerColVisibility.status && <td className="px-4 py-3"><span className={cn('px-2 py-1 rounded-full text-xs font-bold', rowStatus === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>{rowStatus === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}</span></td>}
-                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{primarySeat.bookingNote || '—'}</td>}
-                              <td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => { setEditingPassengerSeatId(primarySeat.id); setPassengerEditForm({ customerName: primarySeat.customerName || '', customerPhone: primarySeat.customerPhone || '', pickupAddress: primarySeat.pickupAddress || '', dropoffAddress: primarySeat.dropoffAddress || '', status: rowStatus, bookingNote: primarySeat.bookingNote || '' }); }} className="text-gray-400 hover:text-daiichi-red p-1 rounded" title={language === 'vi' ? 'Chỉnh sửa' : 'Edit'}><Edit3 size={14} /></button><button onClick={() => handleDeletePassenger(primarySeat.id)} className="text-gray-400 hover:text-red-600 p-1 rounded" title={language === 'vi' ? 'Xóa hành khách' : 'Remove passenger'}><Trash2 size={14} /></button></div></td>
-                            </tr>
-                          );
-                        })}
-                        {passengerGroups.length === 0 && (
-                          <tr><td colSpan={2 + Object.values(passengerColVisibility).filter(Boolean).length} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-              );
-            })()}
-
-            {/* Trip Add-ons Management Modal */}
-            {showTripAddons && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xl font-bold">{t.manage_addons}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{showTripAddons.time} · {showTripAddons.route}</p>
-                    </div>
-                    <button onClick={() => { setShowTripAddons(null); setShowAddTripAddon(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="space-y-3">
-                    {(showTripAddons.addons || []).length === 0 && !showAddTripAddon && (
-                      <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
-                    )}
-                    {(showTripAddons.addons || []).map(addon => (
-                      <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm">{addon.name}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}</span>
-                          </div>
-                          {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
-                          <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
-                        </div>
-                        <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
-                      </div>
-                    ))}
-                    {showAddTripAddon ? (
-                      <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={tripAddonForm.name} onChange={e => setTripAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={tripAddonForm.price} onChange={e => setTripAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
-                            <select value={tripAddonForm.type} onChange={e => setTripAddonForm(p => ({ ...p, type: e.target.value as any }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                              <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
-                              <option value="TRANSPORT">{t.addon_type_transport}</option>
-                              <option value="FOOD">{t.addon_type_food}</option>
-                              <option value="OTHER">{t.addon_type_other}</option>
-                            </select>
-                          </div>
-                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                          <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setShowAddTripAddon(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">{language === 'vi' ? 'Chuyến xe đã hoàn thành' : 'Completed Trips'}</h2>
-                <p className="text-sm text-gray-500">{language === 'vi' ? 'Các chuyến đã kết thúc hoặc đã hoàn thành' : 'Trips that have ended or been completed'}</p>
-              </div>
-            </div>
-
-            {/* Quick Date Filter Buttons */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: language === 'vi' ? 'Tất cả' : 'All', value: '' },
-                { label: language === 'vi' ? 'Hôm nay' : 'Today', value: getLocalDateString(0) },
-                { label: language === 'vi' ? 'Hôm qua' : 'Yesterday', value: getLocalDateString(-1) },
-                ...Array.from({ length: 5 }, (_, i) => ({
-                  label: getOffsetDayLabel(-i - 2),
-                  value: getLocalDateString(-i - 2),
-                })),
-              ].map(({ label, value }) => (
-                <button
-                  key={value}
-                  onClick={() => setCompletedTripDateQuickFilter(value)}
-                  className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap', completedTripDateQuickFilter === value ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search bar + Advanced Filter Toggle */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="text"
-                  value={tripSearch}
-                  onChange={e => setTripSearch(e.target.value)}
-                  placeholder={language === 'vi' ? 'Tìm kiếm chuyến xe, tuyến, biển số, tài xế...' : 'Search trips by route, plate, driver...'}
-                  className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
-                />
-                {tripSearch && (
-                  <button onClick={() => setTripSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={14} /></button>
-                )}
-              </div>
-              <button
-                onClick={() => setShowCompletedTripAdvancedFilter(v => !v)}
-                className={cn('flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all border whitespace-nowrap', showCompletedTripAdvancedFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50')}
-              >
-                <Filter size={16} />
-                {language === 'vi' ? 'Lọc nâng cao' : 'Advanced'}
-              </button>
-            </div>
-
-            {/* Advanced Filter Panel */}
-            {showCompletedTripAdvancedFilter && (
-              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filters'}</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Tuyến đường' : 'Route'}</label>
-                    <input type="text" value={completedTripFilterRoute} onChange={e => setCompletedTripFilterRoute(e.target.value)} placeholder={language === 'vi' ? 'Lọc theo tuyến...' : 'Filter by route...'} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Từ ngày' : 'From Date'}</label>
-                    <input type="date" value={completedTripFilterDateFrom} onChange={e => setCompletedTripFilterDateFrom(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Đến ngày' : 'To Date'}</label>
-                    <input type="date" value={completedTripFilterDateTo} onChange={e => setCompletedTripFilterDateTo(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button onClick={() => { setCompletedTripFilterRoute(''); setCompletedTripFilterDateFrom(''); setCompletedTripFilterDateTo(''); setCompletedTripDateQuickFilter(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
-                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      {tripColVisibility.time && <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>}
-                      {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
-                      {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
-                      {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
-                      {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế đã đặt' : 'Booked'}</th>}
-                      {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách' : 'Passengers'}</th>}
-                      {tripColVisibility.addons && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>}
-                      <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {completedTrips.map((trip) => {
-                      const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
-                      const bookedCount = bookedSeats.length;
-                      const totalSeats = (trip.seats || []).length;
-                      const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
-                      return (
-                        <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                          {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
-                          {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium whitespace-nowrap" onClick={openPassengerList}>{trip.licensePlate}</td>}
-                          {tripColVisibility.route && <td className="px-6 py-4 overflow-hidden" style={{ maxWidth: tripColWidths.route }} onClick={openPassengerList}>
-                            {(() => {
-                              const r = routes.find(rt => rt.name === trip.route);
-                              return r ? (
-                                <div>
-                                  <p className="font-semibold text-sm text-gray-800 truncate">{r.name}</p>
-                                  <p className="text-xs text-gray-500 truncate">{r.departurePoint} → {r.arrivalPoint}</p>
-                                </div>
-                              ) : <span className="text-sm text-gray-500 truncate block">{trip.route}</span>;
-                            })()}
-                          </td>}
-                          {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600 whitespace-nowrap" onClick={openPassengerList}>{trip.driverName}</td>}
-                          {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-bold text-gray-700">{bookedCount}</span>
-                              <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
-                            </div>
-                          </td>}
-                          {tripColVisibility.passengers && <td className="px-6 py-4">
-                            <button onClick={openPassengerList} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors">
-                              <Users size={12} />
-                              <span>{bookedCount}</span>
-                            </button>
-                          </td>}
-                          {tripColVisibility.addons && <td className="px-6 py-4">
-                            <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
-                              <span>{(trip.addons || []).length}</span>
-                              <span>{t.manage_addons}</span>
-                            </button>
-                          </td>}
-                          <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setPreviousTab('completed-trips'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
-                        </tr>
-                      );
-                    })}
-                    {completedTrips.length === 0 && (
-                      <tr><td colSpan={['time','licensePlate','route','driver','seats','passengers','addons'].filter(k => tripColVisibility[k as keyof typeof tripColVisibility]).length + 1} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có chuyến nào hoàn thành' : 'No completed trips yet'}</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <CompletedTripsPage
+              trips={trips}
+              bookings={bookings}
+              routes={routes}
+              language={language}
+              tripSearch={tripSearch}
+              setTripSearch={setTripSearch}
+              completedTripDateQuickFilter={completedTripDateQuickFilter}
+              setCompletedTripDateQuickFilter={setCompletedTripDateQuickFilter}
+              showCompletedTripAdvancedFilter={showCompletedTripAdvancedFilter}
+              setShowCompletedTripAdvancedFilter={setShowCompletedTripAdvancedFilter}
+              completedTripFilterRoute={completedTripFilterRoute}
+              setCompletedTripFilterRoute={setCompletedTripFilterRoute}
+              completedTripFilterDateFrom={completedTripFilterDateFrom}
+              setCompletedTripFilterDateFrom={setCompletedTripFilterDateFrom}
+              completedTripFilterDateTo={completedTripFilterDateTo}
+              setCompletedTripFilterDateTo={setCompletedTripFilterDateTo}
+              showTripPassengers={showTripPassengers}
+              setShowTripPassengers={setShowTripPassengers}
+              editingPassengerSeatId={editingPassengerSeatId}
+              setEditingPassengerSeatId={setEditingPassengerSeatId}
+              passengerEditForm={passengerEditForm}
+              setPassengerEditForm={setPassengerEditForm}
+              passengerColVisibility={passengerColVisibility}
+              setPassengerColVisibility={setPassengerColVisibility}
+              showPassengerColPanel={showPassengerColPanel}
+              setShowPassengerColPanel={setShowPassengerColPanel}
+              showTripAddons={showTripAddons}
+              setShowTripAddons={setShowTripAddons}
+              showAddTripAddon={showAddTripAddon}
+              setShowAddTripAddon={setShowAddTripAddon}
+              tripAddonForm={tripAddonForm}
+              setTripAddonForm={setTripAddonForm}
+              tripColVisibility={tripColVisibility}
+              tripColWidths={tripColWidths}
+              setTripColWidths={setTripColWidths}
+              formatTripDisplayTime={formatTripDisplayTime}
+              compareTripDateTime={compareTripDateTime}
+              buildSeatTicketCodeMap={buildSeatTicketCodeMap}
+              buildPassengerGroups={buildPassengerGroups}
+              handleClosePassengerModal={handleClosePassengerModal}
+              handleSavePassengerEdit={handleSavePassengerEdit}
+              handleDeletePassenger={handleDeletePassenger}
+              exportTripToExcelHandler={exportTripToExcelHandler}
+              exportTripToPDFHandler={exportTripToPDFHandler}
+              handleCopyTrip={handleCopyTrip}
+              handleStartEditTrip={handleStartEditTrip}
+              handleDeleteTrip={handleDeleteTrip}
+              handleSaveTripNote={handleSaveTripNote}
+              handleAddTripAddon={handleAddTripAddon}
+              handleDeleteTripAddon={handleDeleteTripAddon}
+              setSelectedTrip={setSelectedTrip}
+              setPreviousTab={setPreviousTab}
+              setActiveTab={setActiveTab}
+            />
+          </Suspense>
         );
-      }
 
       case 'stop-management':
         return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
