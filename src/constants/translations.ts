@@ -720,6 +720,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     staff_chat_placeholder: 'Nhập tin nhắn... dùng @tên để nhắc ai đó',
     staff_chat_send: 'Gửi',
     staff_chat_you: 'Bạn',
+    staff_chat_record_voice: 'Ghi âm tin nhắn thoại',
+    staff_chat_stop_recording: 'Dừng ghi âm',
+    staff_chat_recording: 'Đang ghi âm...',
+    staff_chat_voice_message: 'Tin nhắn thoại',
+    staff_chat_mic_error: 'Không thể truy cập micro. Vui lòng kiểm tra quyền trình duyệt.',
   },
   en: {
     // Auth
@@ -1421,6 +1426,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     staff_chat_placeholder: 'Type a message... use @name to mention someone',
     staff_chat_send: 'Send',
     staff_chat_you: 'You',
+    staff_chat_record_voice: 'Record voice message',
+    staff_chat_stop_recording: 'Stop recording',
+    staff_chat_recording: 'Recording...',
+    staff_chat_voice_message: 'Voice message',
+    staff_chat_mic_error: 'Cannot access microphone. Please check browser permissions.',
   },
   ja: {
     // Auth
@@ -2122,5 +2132,10 @@ export const TRANSLATIONS: Record<Language, any> = {
     staff_chat_placeholder: 'メッセージを入力... @名前でメンション',
     staff_chat_send: '送信',
     staff_chat_you: 'あなた',
+    staff_chat_record_voice: '音声メッセージを録音',
+    staff_chat_stop_recording: '録音を停止',
+    staff_chat_recording: '録音中...',
+    staff_chat_voice_message: '音声メッセージ',
+    staff_chat_mic_error: 'マイクにアクセスできません。ブラウザの権限を確認してください。',
   }
 };

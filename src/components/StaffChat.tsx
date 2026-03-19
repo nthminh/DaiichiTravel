@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, AtSign } from 'lucide-react';
+import { MessageCircle, X, Send, AtSign, Mic, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS } from '../constants/translations';
 import type { Language } from '../constants/translations';
 import { StaffMessage, Employee } from '../types';
 import { transportService } from '../services/transportService';
+import { storage } from '../lib/firebase';
 
 interface StaffChatProps {
   language: Language;
@@ -31,6 +33,13 @@ export const StaffChat: React.FC<StaffChatProps> = ({
   const [cursorPos, setCursorPos] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Count unread (messages not from me since last open) – simple badge
   const [lastReadCount, setLastReadCount] = useState(messages.length);
@@ -119,6 +128,85 @@ export const StaffChat: React.FC<StaffChatProps> = ({
       handleSend();
     }
     if (e.key === 'Escape') setShowMentions(false);
+  };
+
+  // ── Voice recording ────────────────────────────────────────────────────────
+  const sendVoiceMessage = async (blob: Blob) => {
+    if (!storage) {
+      alert(t.staff_chat_mic_error || 'Firebase Storage is not configured.');
+      return;
+    }
+    setSending(true);
+    try {
+      const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm';
+      const sRef = storageRef(storage, `chatAudio/${Date.now()}_${currentUserId}.${ext}`);
+      await uploadBytes(sRef, blob, { contentType: blob.type || 'audio/webm' });
+      const voiceUrl = await getDownloadURL(sRef);
+      await transportService.addStaffMessage({
+        senderId: currentUserId,
+        senderName: currentUserName,
+        content: '',
+        mentions: [],
+        createdAt: new Date().toISOString(),
+        voiceUrl,
+        messageType: 'voice',
+      });
+    } catch (err) {
+      console.error('Failed to send voice message:', err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+        sendVoiceMessage(blob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds(s => s + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to start recording:', err);
+      alert(t.staff_chat_mic_error || 'Cannot access microphone. Please check browser permissions.');
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      setIsRecording(false);
+      setRecordingSeconds(0);
+    }
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
+
+  const formatRecordingTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
   };
 
   // ── Render message content with highlighted @mentions ─────────────────────
@@ -231,9 +319,19 @@ export const StaffChat: React.FC<StaffChatProps> = ({
                               ? 'bg-daiichi-red text-white rounded-tr-sm'
                               : isMentioned
                                 ? 'bg-amber-50 border border-amber-200 text-gray-800 rounded-tl-sm'
-                                : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-sm'
+                                : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-sm',
+                            msg.voiceUrl ? 'px-2 py-1.5' : ''
                           )}>
-                            {renderContent(msg.content)}
+                            {msg.voiceUrl ? (
+                              <audio
+                                controls
+                                src={msg.voiceUrl}
+                                className="max-w-full h-8"
+                                aria-label={t.staff_chat_voice_message || 'Voice message'}
+                              />
+                            ) : (
+                              renderContent(msg.content)
+                            )}
                           </div>
                           <span className={cn('text-[10px] text-gray-400', isMe ? 'text-right mr-1' : 'ml-1')}>
                             {formatTime(msg.createdAt)}
@@ -265,24 +363,52 @@ export const StaffChat: React.FC<StaffChatProps> = ({
 
             {/* Input area */}
             <div className="border-t border-gray-100 px-4 py-3 bg-white flex items-end gap-2">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                placeholder={t.staff_chat_placeholder || 'Nhập tin nhắn... dùng @tên để nhắc ai đó'}
-                className="flex-1 resize-none px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 max-h-24 overflow-y-auto"
-                style={{ minHeight: '40px' }}
-              />
+              {isRecording ? (
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl" style={{ minHeight: '40px' }}>
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  <span className="text-sm text-red-600 font-medium tabular-nums">
+                    {formatRecordingTime(recordingSeconds)}
+                  </span>
+                  <span className="text-xs text-red-500 truncate">{t.staff_chat_recording || 'Đang ghi âm...'}</span>
+                </div>
+              ) : (
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  placeholder={t.staff_chat_placeholder || 'Nhập tin nhắn... dùng @tên để nhắc ai đó'}
+                  className="flex-1 resize-none px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 max-h-24 overflow-y-auto"
+                  style={{ minHeight: '40px' }}
+                />
+              )}
+              {/* Microphone / stop-recording button */}
               <button
-                onClick={handleSend}
-                disabled={!input.trim() || sending}
-                className="w-9 h-9 rounded-xl bg-daiichi-red text-white flex items-center justify-center shrink-0 disabled:opacity-40 hover:bg-red-700 transition-colors"
-                aria-label={t.staff_chat_send || 'Gửi'}
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                disabled={sending}
+                className={cn(
+                  'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors disabled:opacity-40',
+                  isRecording
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                )}
+                aria-label={isRecording ? (t.staff_chat_stop_recording || 'Dừng ghi âm') : (t.staff_chat_record_voice || 'Ghi âm tin nhắn thoại')}
+                title={isRecording ? (t.staff_chat_stop_recording || 'Dừng ghi âm') : (t.staff_chat_record_voice || 'Ghi âm tin nhắn thoại')}
               >
-                <Send size={15} />
+                {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={15} />}
               </button>
+              {/* Send text button – hidden while recording */}
+              {!isRecording && (
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || sending}
+                  className="w-9 h-9 rounded-xl bg-daiichi-red text-white flex items-center justify-center shrink-0 disabled:opacity-40 hover:bg-red-700 transition-colors"
+                  aria-label={t.staff_chat_send || 'Gửi'}
+                >
+                  <Send size={15} />
+                </button>
+              )}
             </div>
           </motion.div>
         )}

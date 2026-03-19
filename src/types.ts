@@ -403,6 +403,8 @@ export interface StaffMessage {
   mentions: string[];     // list of mentioned names (extracted from @name patterns)
   createdAt: string;      // ISO timestamp
   assignmentId?: string;  // optional – links message to a driver assignment thread
+  voiceUrl?: string;      // optional – Firebase Storage URL for voice message audio
+  messageType?: 'text' | 'voice';  // optional – defaults to 'text'
 }
 
 // Customer profile stored in Firestore customers collection
