@@ -7,6 +7,7 @@ import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constan
 import { Language, TRANSLATIONS } from '../App';
 
 const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
+const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
 
 interface PaymentQRModalProps {
   /** Total amount to pay in VND */
@@ -52,10 +53,10 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
     return () => clearInterval(intervalId);
   }, []);
 
-  // Auto-cancel 3 seconds after timer expires
+  // Auto-cancel after EXPIRED_AUTO_CLOSE_MS when timer expires
   useEffect(() => {
     if (expired) {
-      const timer = setTimeout(onCancel, 3000);
+      const timer = setTimeout(onCancel, EXPIRED_AUTO_CLOSE_MS);
       return () => clearTimeout(timer);
     }
   }, [expired, onCancel]);

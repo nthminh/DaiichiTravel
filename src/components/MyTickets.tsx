@@ -26,7 +26,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
   }, []);
 
   // For logged-in customers, also fetch tickets from Firestore by phone
-  const customerPhone = (currentUser?.role === UserRole.CUSTOMER || currentUser?.role === UserRole.AGENT)
+  const customerPhone = currentUser?.role === UserRole.CUSTOMER
     ? currentUser?.phone
     : null;
 
