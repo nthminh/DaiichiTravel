@@ -144,6 +144,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     price_range: 'Lọc theo giá',
     price_min_placeholder: 'Giá từ (đ)',
     price_max_placeholder: 'Đến (đ)',
+    time_filter: 'Lọc theo giờ khởi hành',
+    time_from: 'Từ giờ',
+    time_to: 'Đến giờ',
     no_trips_found: 'Không tìm thấy chuyến xe phù hợp',
     
     // Seat Mapping
@@ -666,7 +669,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Round-trip two-phase booking
     round_trip_step_1: 'Bước 1/2: Chọn chuyến đi',
     round_trip_step_2: 'Bước 2/2: Chọn chuyến về',
-    round_trip_outbound_done: '✓ Đã đặt chuyến đi',
+    round_trip_outbound_done: '✓ Đã chọn chuyến đi',
     round_trip_complete: 'Đặt vé khứ hồi hoàn tất!',
     round_trip_complete_desc: 'Cả hai chiều đi và về đều đã được đặt thành công.',
     back_to_outbound: '← Quay lại chọn chuyến đi',
@@ -674,6 +677,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     round_trip_no_return: 'Chưa đặt chiều về',
     seat_map_outbound: 'Sơ đồ ghế – Chiều đi',
     seat_map_return: 'Sơ đồ ghế – Chiều về',
+    round_trip_ticket_outbound: 'Chiều đi',
+    round_trip_ticket_return: 'Chiều về',
+    round_trip_ticket_title: 'Vé khứ hồi',
 
     // Customer Management
     customers: 'Khách hàng',
@@ -875,6 +881,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     price_range: 'Filter by Price',
     price_min_placeholder: 'Min price (đ)',
     price_max_placeholder: 'Max price (đ)',
+    time_filter: 'Filter by Departure Time',
+    time_from: 'From',
+    time_to: 'To',
     no_trips_found: 'No matching trips found',
     
     // Seat Mapping
@@ -1397,7 +1406,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Round-trip two-phase booking
     round_trip_step_1: 'Step 1/2: Select departure trip',
     round_trip_step_2: 'Step 2/2: Select return trip',
-    round_trip_outbound_done: '✓ Departure trip booked',
+    round_trip_outbound_done: '✓ Departure trip selected',
     round_trip_complete: 'Round trip booking complete!',
     round_trip_complete_desc: 'Both departure and return trips have been successfully booked.',
     back_to_outbound: '← Back to departure trip',
@@ -1405,6 +1414,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     round_trip_no_return: 'Return trip not booked yet',
     seat_map_outbound: 'Seat Map – Departure',
     seat_map_return: 'Seat Map – Return',
+    round_trip_ticket_outbound: 'Outbound',
+    round_trip_ticket_return: 'Return',
+    round_trip_ticket_title: 'Round-Trip Ticket',
 
     // Customer Management
     customers: 'Customers',
@@ -1606,6 +1618,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     price_range: '価格でフィルター',
     price_min_placeholder: '最低価格 (đ)',
     price_max_placeholder: '最高価格 (đ)',
+    time_filter: '出発時刻でフィルター',
+    time_from: '開始時刻',
+    time_to: '終了時刻',
     no_trips_found: '条件に合う運行が見つかりません',
     
     // Seat Mapping
@@ -2128,7 +2143,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Round-trip two-phase booking
     round_trip_step_1: 'ステップ 1/2: 出発便を選択',
     round_trip_step_2: 'ステップ 2/2: 帰路便を選択',
-    round_trip_outbound_done: '✓ 出発便予約済み',
+    round_trip_outbound_done: '✓ 出発便を選択済み',
     round_trip_complete: '往復予約完了！',
     round_trip_complete_desc: '出発便と帰路便の両方が正常に予約されました。',
     back_to_outbound: '← 出発便の選択に戻る',
@@ -2136,6 +2151,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     round_trip_no_return: '帰路便はまだ予約されていません',
     seat_map_outbound: '座席表 – 出発',
     seat_map_return: '座席表 – 帰路',
+    round_trip_ticket_outbound: '出発',
+    round_trip_ticket_return: '帰路',
+    round_trip_ticket_title: '往復チケット',
 
     // Customer Management
     customers: '顧客',

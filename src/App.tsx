@@ -245,6 +245,8 @@ export default function App() {
   const [bookTicketSearch, setBookTicketSearch] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [searchTimeFrom, setSearchTimeFrom] = useState('');
+  const [searchTimeTo, setSearchTimeTo] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [clearedTripCards, setClearedTripCards] = useState<Set<string>>(new Set());
   // Tour advanced search
@@ -2002,6 +2004,8 @@ export default function App() {
     agentTopUpModal,
     setAgentTopUpModal,
     handleConfirmBooking,
+    capturedOutboundLeg,
+    setCapturedOutboundLeg,
   } = usePayment({
     currentUser,
     language,
@@ -2029,6 +2033,13 @@ export default function App() {
     fareAgentAmount,
     ws,
     getApplicableRouteSurcharges,
+    tripType,
+    roundTripPhase,
+    onRoundTripOutboundCaptured: (summary) => {
+      setOutboundBookingData(summary);
+      setRoundTripPhase('return');
+      setActiveTab('book-ticket');
+    },
     setLastBooking,
     setIsTicketOpen,
     setShowBookingForm,
@@ -2404,9 +2415,9 @@ export default function App() {
 
             {/* Search & Price Filter Bar */}
             <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
                 {/* Keyword Search */}
-                <div className="flex-1">
+                <div className="flex-1 min-w-[180px]">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.keyword_search}</label>
                   <div className="relative mt-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -2417,6 +2428,35 @@ export default function App() {
                       placeholder={t.keyword_search_placeholder}
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
                     />
+                  </div>
+                </div>
+                {/* Time Range Filter */}
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.time_filter}</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input
+                          type="time"
+                          value={searchTimeFrom}
+                          onChange={e => setSearchTimeFrom(e.target.value)}
+                          title={t.time_from}
+                          className="w-32 pl-9 pr-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                        />
+                      </div>
+                      <span className="text-gray-400 font-bold">—</span>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input
+                          type="time"
+                          value={searchTimeTo}
+                          onChange={e => setSearchTimeTo(e.target.value)}
+                          title={t.time_to}
+                          className="w-32 pl-9 pr-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 {/* Price Range Filter */}
@@ -2443,9 +2483,9 @@ export default function App() {
                       />
                     </div>
                   </div>
-                  {(bookTicketSearch || priceMin || priceMax) && (
+                  {(bookTicketSearch || priceMin || priceMax || searchTimeFrom || searchTimeTo) && (
                     <button
-                      onClick={() => { setBookTicketSearch(''); setPriceMin(''); setPriceMax(''); }}
+                      onClick={() => { setBookTicketSearch(''); setPriceMin(''); setPriceMax(''); setSearchTimeFrom(''); setSearchTimeTo(''); }}
                       className="px-4 py-3 text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-2xl transition-colors"
                     >
                       <X size={16} />
@@ -2518,6 +2558,10 @@ export default function App() {
                     const maxVal = parseInt(priceMax);
                     if (!isNaN(maxVal) && trip.price > maxVal) return false;
                   }
+                  // Time-range filter: HH:MM strings compare correctly lexicographically
+                  // (e.g. '06:00' < '14:30' < '23:59'), so a direct string comparison is safe.
+                  if (searchTimeFrom && trip.time && trip.time < searchTimeFrom) return false;
+                  if (searchTimeTo && trip.time && trip.time > searchTimeTo) return false;
                   const totalPassengers = searchAdults + searchChildren;
                   const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
                   if (emptySeats < totalPassengers) return false;
@@ -7248,48 +7292,23 @@ export default function App() {
           isOpen={isTicketOpen}
           onClose={() => {
             setIsTicketOpen(false);
-            // Handle round-trip continuation: after outbound booking → move to return trip selection
-            if (tripType === 'ROUND_TRIP' && roundTripPhase === 'outbound' && previousTab === 'book-ticket') {
-              setOutboundBookingData(lastBooking);
-              setRoundTripPhase('return');
+            // Combined round-trip ticket: reset round-trip state and go to book-ticket
+            if (lastBooking?.isRoundTrip && previousTab === 'book-ticket') {
+              setRoundTripPhase('outbound');
+              setOutboundBookingData(null);
+              setCapturedOutboundLeg(null);
               setActiveTab('book-ticket');
-              // Reset seat selection state so user starts fresh for return trip
+              setSelectedTrip(null);
               setShowBookingForm(null);
               setExtraSeatIds([]);
               setAddonQuantities({});
-            setSelectedTrip(null);
-            setSeatSelectionHistory([]);
-            setFareAmount(null);
-            setFareAgentAmount(null);
-            setFareError('');
-            setFareLoading(false);
-            setFromStopId('');
-            setToStopId('');
-            setPickupPoint('');
-            setDropoffPoint('');
-            setPickupAddress('');
-            setDropoffAddress('');
-            setPickupSurcharge(0);
-            setDropoffSurcharge(0);
-            setSurchargeAmount(0);
-            setBookingDiscount(0);
-            setBookingNote('');
-          } else if (tripType === 'ROUND_TRIP' && roundTripPhase === 'return' && previousTab === 'book-ticket') {
-            // Both legs done – reset round-trip state and go back to book-ticket
-            setRoundTripPhase('outbound');
-            setOutboundBookingData(null);
-            setActiveTab('book-ticket');
-            setSelectedTrip(null);
-            setShowBookingForm(null);
-            setExtraSeatIds([]);
-            setAddonQuantities({});
-            setSeatSelectionHistory([]);
-          }
-        }}
-        booking={lastBooking}
-        language={language}
-        onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
-      />
+              setSeatSelectionHistory([]);
+            }
+          }}
+          booking={lastBooking}
+          language={language}
+          onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
+        />
       </Suspense>
       <Sidebar 
         activeTab={activeTab} 
