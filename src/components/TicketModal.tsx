@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  X, Download, Share2, CheckCircle2, 
+  X, Download, Share2, CheckCircle2, ArrowLeftRight,
   MapPin, Calendar, Clock, User, Users,
   CreditCard, QrCode, Copy, Palmtree, Moon, Coffee
 } from 'lucide-react';
@@ -22,6 +22,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
   if (!booking) return null;
 
   const isTour = booking.type === 'TOUR';
+  const isRoundTrip = !!booking.isRoundTrip;
 
   const handleDownload = () => {
     window.print();
@@ -40,6 +41,16 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `👥 ${booking.adults} ${language === 'vi' ? 'người lớn' : 'adults'}${booking.children > 0 ? `, ${booking.children} ${language === 'vi' ? 'trẻ em' : 'children'}` : ''}`,
         `💰 ${(booking.amount || 0).toLocaleString()}đ`,
       ].filter(Boolean).join('\n');
+    } else if (isRoundTrip) {
+      const ob = booking.outboundLeg;
+      text = [
+        `🎫 ${language === 'vi' ? 'Vé khứ hồi Daiichi Travel' : 'Daiichi Travel Round-Trip Ticket'}`,
+        `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: ${ob?.ticketCode || '#' + (ob?.id || '')} / ${booking.ticketCode || '#' + booking.id}`,
+        `🚌 ${language === 'vi' ? 'Chiều đi' : 'Outbound'}: ${ob?.route} – ${ob?.date} ${ob?.time}`,
+        `🚌 ${language === 'vi' ? 'Chiều về' : 'Return'}: ${booking.route} – ${booking.date} ${booking.time}`,
+        `👤 ${booking.customerName} - ${booking.phone}`,
+        `💰 ${(booking.amount || 0).toLocaleString()}đ`,
+      ].join('\n');
     } else {
       text = [
         `🎫 ${language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket'}`,
@@ -108,7 +119,9 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                   <p className="text-[10px] text-gray-400 uppercase tracking-widest">
                     {isTour
                       ? (language === 'vi' ? 'Xác nhận tour' : language === 'ja' ? 'ツアー確認' : 'Tour Confirmation')
-                      : (language === 'vi' ? 'Vé xe khách' : language === 'ja' ? 'バスチケット' : 'Bus Ticket')}
+                      : isRoundTrip
+                        ? (t.round_trip_ticket_title || (language === 'vi' ? 'Vé khứ hồi' : language === 'ja' ? '往復チケット' : 'Round-Trip Ticket'))
+                        : (language === 'vi' ? 'Vé xe khách' : language === 'ja' ? 'バスチケット' : 'Bus Ticket')}
                   </p>
                 </div>
               </div>
@@ -222,8 +235,100 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                     </div>
                   </div>
                 </div>
+              ) : isRoundTrip ? (
+                /* ── ROUND-TRIP BUS TICKET BODY ── */
+                (() => {
+                  const ob = booking.outboundLeg;
+                  const renderLeg = (leg: any, label: string, colorClass: string) => (
+                    <div className={`p-4 rounded-3xl border ${colorClass} space-y-3`}>
+                      <div className="flex items-center gap-2">
+                        <ArrowLeftRight size={14} className="text-daiichi-red shrink-0" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-daiichi-red">{label}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex items-center gap-1 text-gray-400 mb-0.5">
+                            <MapPin size={12} />
+                            <span className="text-[9px] font-bold uppercase tracking-widest">{t.trip}</span>
+                          </div>
+                          <p className="font-bold text-gray-800 text-sm">{leg?.route}</p>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1 text-gray-400 mb-0.5">
+                            <Calendar size={12} />
+                            <span className="text-[9px] font-bold uppercase tracking-widest">{t.departure}</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800">{leg?.date}</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Clock size={11} className="text-gray-400" />
+                            <span className="text-sm font-bold text-gray-800">{leg?.time}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          {leg?.freeSeating ? (
+                            <p className="text-xs font-bold text-blue-500">🪑 {language === 'vi' ? 'Ghế tự do' : 'Free Seating'}</p>
+                          ) : (
+                            <>
+                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{t.seat}</p>
+                              <p className="text-lg font-bold text-daiichi-red">
+                                {(leg?.seatIds && leg.seatIds.length > 1) ? leg.seatIds.join(', ') : leg?.seatId}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_code}</p>
+                          <p className="text-sm font-mono font-bold text-gray-700">{leg?.ticketCode || `#${leg?.id}`}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Passenger info */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <User size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{t.passenger}</span>
+                          </div>
+                          <p className="font-bold text-gray-800">{booking.customerName}</p>
+                          <p className="text-xs text-gray-500">{booking.phone}</p>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <Users size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{t.passengers}</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-700">{booking.adults} {t.adults}, {booking.children} {t.children}</p>
+                        </div>
+                      </div>
+
+                      {/* Outbound leg */}
+                      {renderLeg(ob, t.round_trip_ticket_outbound || (language === 'vi' ? 'Chiều đi' : 'Outbound'), 'bg-blue-50 border-blue-100')}
+
+                      {/* Return leg */}
+                      {renderLeg(booking, t.round_trip_ticket_return || (language === 'vi' ? 'Chiều về' : 'Return'), 'bg-green-50 border-green-100')}
+
+                      {/* Combined total */}
+                      <div className="flex items-center justify-between p-5 bg-gray-50 rounded-3xl border border-gray-100">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Trạng thái' : 'Status'}</p>
+                          <p className="text-base font-bold text-emerald-600">{language === 'vi' ? 'Đã đặt' : 'Booked'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
+                          <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
-                /* ── BUS TICKET BODY ── */
+                /* ── ONE-WAY BUS TICKET BODY ── */
                 <>
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-4">
@@ -321,6 +426,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                   )}
                 </>
               )}
+
 
               <div className="flex flex-col items-center gap-4 pt-4">
                 <div className="p-4 bg-white border-2 border-gray-50 rounded-3xl shadow-sm">

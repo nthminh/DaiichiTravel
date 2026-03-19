@@ -20,6 +20,17 @@ function saveTicketToLocalStorage(booking: any) {
   }
 }
 
+/** Internal type holding a captured (unsaved) outbound leg for round-trip bookings */
+interface CapturedOutboundLeg {
+  bookingData: any;
+  seatUpdateData: any;
+  allSeatIds: string[];
+  tripId: string;
+  amount: number;
+  // Optimistic seat update function (per-seat)
+  applyOptimisticSeatUpdate: (seat: any) => any;
+}
+
 /** All state values and setters that handleConfirmBooking reads/writes from App.tsx */
 export interface BookingContext {
   currentUser: User | null;
@@ -50,6 +61,11 @@ export interface BookingContext {
   ws: WebSocket | null;
   /** Helper to compute active route-level surcharges for the trip's date */
   getApplicableRouteSurcharges: (route: Route | undefined, date: string) => any[];
+  /** Round-trip phase support */
+  tripType: 'ONE_WAY' | 'ROUND_TRIP';
+  roundTripPhase: 'outbound' | 'return';
+  /** Called by the hook when the outbound leg has been captured; App.tsx should advance the phase */
+  onRoundTripOutboundCaptured: (outboundSummary: { route: string; time: string; date: string }) => void;
   // Setters
   setLastBooking: (booking: any) => void;
   setIsTicketOpen: (open: boolean) => void;
@@ -104,11 +120,17 @@ export function usePayment(ctx: BookingContext) {
   const [paymentMethodInput, setPaymentMethodInput] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [pendingQrBooking, setPendingQrBooking] = useState<PendingQrBooking | null>(null);
   const [agentTopUpModal, setAgentTopUpModal] = useState(false);
+  // Holds captured outbound leg data during round-trip two-phase booking
+  const [capturedOutboundLeg, setCapturedOutboundLeg] = useState<CapturedOutboundLeg | null>(null);
 
   // Keep a mutable ref to the latest context so the async handler always reads
   // up-to-date values without needing to be recreated every render.
   const ctxRef = useRef<BookingContext>(ctx);
   ctxRef.current = ctx;
+
+  // Ref for captured outbound leg to access inside async closures
+  const capturedOutboundRef = useRef<CapturedOutboundLeg | null>(capturedOutboundLeg);
+  capturedOutboundRef.current = capturedOutboundLeg;
 
   // Similarly track the latest paymentMethodInput via a ref for use inside the async closure.
   const paymentMethodRef = useRef<PaymentMethod>(paymentMethodInput);
@@ -258,6 +280,224 @@ export function usePayment(ctx: BookingContext) {
       ...(c.bookingNote.trim() ? { bookingNote: c.bookingNote.trim() } : {}),
     };
 
+    // Build optimistic seat updater for a given set of seatIds / stop orders
+    const buildOptimisticUpdater = (targetSeatIds: string[], fso: number | undefined, tso: number | undefined, sud: typeof seatUpdateData) => (seat: any): any => {
+      if (!targetSeatIds.includes(seat.id)) return seat;
+      if (fso !== undefined && tso !== undefined) {
+        const newEntry = {
+          fromStopOrder: fso,
+          toStopOrder: tso,
+          customerName: sud.customerName,
+          ...(sud.customerPhone ? { customerPhone: sud.customerPhone } : {}),
+          ...(sud.pickupPoint ? { pickupPoint: sud.pickupPoint } : {}),
+          ...(sud.dropoffPoint ? { dropoffPoint: sud.dropoffPoint } : {}),
+          ...(sud.bookingNote ? { bookingNote: sud.bookingNote } : {}),
+        };
+        const existingSegs = seat.segmentBookings ?? [];
+        const hasExistingSegmentBooking = existingSegs.length > 0 || (seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined);
+        if (hasExistingSegmentBooking) {
+          let segs = existingSegs;
+          if (existingSegs.length === 0 && seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined) {
+            segs = [{
+              fromStopOrder: seat.fromStopOrder,
+              toStopOrder: seat.toStopOrder,
+              customerName: seat.customerName,
+              customerPhone: seat.customerPhone,
+              pickupPoint: seat.pickupPoint,
+              dropoffPoint: seat.dropoffPoint,
+              bookingNote: seat.bookingNote,
+            }];
+          }
+          return { ...seat, status: SeatStatus.BOOKED, segmentBookings: [...segs, newEntry] };
+        }
+        return { ...seat, ...sud, segmentBookings: [newEntry] };
+      }
+      return { ...seat, status: SeatStatus.BOOKED };
+    };
+
+    // Core save function for a single booking – also applies optimistic UI update
+    const saveSingleBooking = async (bd: any, sud2: typeof seatUpdateData, sids: string[], tripId: string, applyOpt: (seat: any) => any): Promise<any | null> => {
+      const ctx2 = ctxRef.current;
+      try {
+        const result = await transportService.createBooking(bd);
+        await transportService.bookSeats(tripId, sids, sud2);
+        const savedBooking = { ...bd, id: result.id, ticketCode: result.ticketCode };
+        // Optimistic local state update
+        ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+          if (trip.id === tripId) {
+            return { ...trip, seats: trip.seats.map(applyOpt) };
+          }
+          return trip;
+        }));
+        ctx2.setSelectedTrip((prev: any) => {
+          if (!prev || prev.id !== tripId) return prev;
+          return { ...prev, seats: prev.seats.map(applyOpt) };
+        });
+        return savedBooking;
+      } catch (err) {
+        console.error('Failed to save booking:', err);
+        return null;
+      }
+    };
+
+    // Helper: reset all booking form state after a booking is completed
+    const resetFormState = () => {
+      const ctx2 = ctxRef.current;
+      ctx2.setShowBookingForm(null);
+      ctx2.setCustomerNameInput('');
+      ctx2.setPhoneInput('');
+      ctx2.setAdults(1);
+      ctx2.setChildren(0);
+      ctx2.setChildrenAges([]);
+      ctx2.setExtraSeatIds([]);
+      ctx2.setPickupPoint('');
+      ctx2.setDropoffPoint('');
+      ctx2.setPickupAddress('');
+      ctx2.setDropoffAddress('');
+      ctx2.setPickupSurcharge(0);
+      ctx2.setDropoffSurcharge(0);
+      ctx2.setSurchargeAmount(0);
+      ctx2.setBookingDiscount(0);
+      setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
+      ctx2.setAddonQuantities({});
+      ctx2.setBookingNote('');
+      ctx2.setFareAmount(null);
+      ctx2.setFareAgentAmount(null);
+      ctx2.setFareError('');
+      ctx2.setFareLoading(false);
+      ctx2.setFromStopId('');
+      ctx2.setToStopId('');
+      ctx2.setSeatSelectionHistory([]);
+    };
+
+    // ── ROUND-TRIP OUTBOUND PHASE ─────────────────────────────────────────────
+    // Capture outbound data without saving or charging; signal App.tsx to advance to return phase.
+    if (c.tripType === 'ROUND_TRIP' && c.roundTripPhase === 'outbound') {
+      const outboundApplyOpt = buildOptimisticUpdater(allSeatIds, fromStopOrder, toStopOrder, seatUpdateData);
+      setCapturedOutboundLeg({
+        bookingData: { ...bookingData },
+        seatUpdateData: { ...seatUpdateData },
+        allSeatIds: [...allSeatIds],
+        tripId: c.selectedTrip.id,
+        amount: totalAmount,
+        applyOptimisticSeatUpdate: outboundApplyOpt,
+      });
+      resetFormState();
+      c.onRoundTripOutboundCaptured({
+        route: c.selectedTrip.route,
+        time: c.selectedTrip.time,
+        date: c.selectedTrip.date || '',
+      });
+      return;
+    }
+
+    // ── ROUND-TRIP RETURN PHASE ──────────────────────────────────────────────
+    // Combine outbound + return totals, show QR for combined amount, then save both.
+    if (c.tripType === 'ROUND_TRIP' && c.roundTripPhase === 'return') {
+      const outboundLeg = capturedOutboundRef.current;
+      if (!outboundLeg) {
+        // Shouldn't happen – fall back to single booking
+        // (outbound data was lost, e.g. page refresh). Just save current leg.
+      } else {
+        const combinedAmount = outboundLeg.amount + totalAmount;
+        const isCustomerOrGuest = c.currentUser?.role === UserRole.CUSTOMER || c.currentUser?.role === 'GUEST';
+        const returnApplyOpt = buildOptimisticUpdater(allSeatIds, fromStopOrder, toStopOrder, seatUpdateData);
+
+        const saveBothBookings = async () => {
+          const ctx2 = ctxRef.current;
+          const capturedLeg = capturedOutboundRef.current!;
+
+          // Save outbound
+          const savedOutbound = await saveSingleBooking(
+            capturedLeg.bookingData,
+            capturedLeg.seatUpdateData,
+            capturedLeg.allSeatIds,
+            capturedLeg.tripId,
+            capturedLeg.applyOptimisticSeatUpdate,
+          );
+          if (!savedOutbound) {
+            alert(ctx2.language === 'vi'
+              ? 'Đặt vé chuyến đi thất bại. Vui lòng thử lại.'
+              : 'Outbound booking failed. Please try again.');
+            return;
+          }
+
+          // Save return
+          const returnBookingData = {
+            ...bookingData,
+            // For combined round-trip, amount on each leg is its own price;
+            // the combined total is for display/payment purposes only
+          };
+          const savedReturn = await saveSingleBooking(
+            returnBookingData,
+            seatUpdateData,
+            allSeatIds,
+            c.selectedTrip.id,
+            returnApplyOpt,
+          );
+          if (!savedReturn) {
+            alert(ctx2.language === 'vi'
+              ? 'Đặt vé chuyến về thất bại. Vé chuyến đi đã được lưu. Vui lòng liên hệ nhân viên.'
+              : 'Return booking failed. Outbound ticket was saved. Please contact staff.');
+            // Still show outbound ticket
+            ctx2.setLastBooking(savedOutbound);
+            ctx2.setIsTicketOpen(true);
+            setCapturedOutboundLeg(null);
+            resetFormState();
+            return;
+          }
+
+          // Combine into a single "round-trip ticket" for display
+          const combinedTicket = {
+            ...savedReturn,
+            isRoundTrip: true,
+            amount: combinedAmount,
+            outboundLeg: savedOutbound,
+          };
+          ctx2.setLastBooking(combinedTicket);
+          // Persist to localStorage for CUSTOMER / GUEST
+          if (ctx2.currentUser?.role === UserRole.CUSTOMER || ctx2.currentUser?.role === 'GUEST') {
+            saveTicketToLocalStorage(combinedTicket);
+          }
+          ctx2.setIsTicketOpen(true);
+
+          // Send real-time notification
+          if (ctx2.ws && ctx2.ws.readyState === WebSocket.OPEN) {
+            ctx2.ws.send(JSON.stringify({
+              type: 'NEW_BOOKING',
+              customerName: combinedTicket.customerName,
+              route: `${savedOutbound.route} ↔ ${savedReturn.route}`,
+              time: savedOutbound.time,
+              amount: combinedAmount,
+            }));
+          }
+
+          setCapturedOutboundLeg(null);
+          resetFormState();
+        };
+
+        if (payMethod === 'Chuyển khoản QR' || isCustomerOrGuest) {
+          const paymentReference = transportService.generateTicketCode();
+          outboundLeg.bookingData.paymentRef = paymentReference;
+          outboundLeg.bookingData.paymentMethod = 'Chuyển khoản QR';
+          bookingData.paymentRef = paymentReference;
+          bookingData.paymentMethod = 'Chuyển khoản QR';
+          setPendingQrBooking({
+            amount: combinedAmount,
+            ref: paymentReference,
+            label: bookingData.customerName,
+            execute: saveBothBookings,
+          });
+          return;
+        }
+
+        // Non-QR payment – save directly
+        await saveBothBookings();
+        return;
+      }
+    }
+
+    // ── SINGLE-LEG (ONE_WAY) OR FALLBACK ─────────────────────────────────────
     // Core save function – shared by both QR and direct booking paths
     const saveBooking = async () => {
       const ctx2 = ctxRef.current; // re-read for potential async staleness
@@ -320,39 +560,7 @@ export function usePayment(ctx: BookingContext) {
       }
 
       // Optimistic local state update while Firebase listener syncs
-      const applyOptimisticSeatUpdate = (seat: any): any => {
-        if (!allSeatIds.includes(seat.id)) return seat;
-        if (fromStopOrder !== undefined && toStopOrder !== undefined) {
-          const newEntry = {
-            fromStopOrder,
-            toStopOrder,
-            customerName: seatUpdateData.customerName,
-            ...(seatUpdateData.customerPhone ? { customerPhone: seatUpdateData.customerPhone } : {}),
-            ...(seatUpdateData.pickupPoint ? { pickupPoint: seatUpdateData.pickupPoint } : {}),
-            ...(seatUpdateData.dropoffPoint ? { dropoffPoint: seatUpdateData.dropoffPoint } : {}),
-            ...(seatUpdateData.bookingNote ? { bookingNote: seatUpdateData.bookingNote } : {}),
-          };
-          const existingSegs = seat.segmentBookings ?? [];
-          const hasExistingSegmentBooking = existingSegs.length > 0 || (seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined);
-          if (hasExistingSegmentBooking) {
-            let segs = existingSegs;
-            if (existingSegs.length === 0 && seat.fromStopOrder !== undefined && seat.toStopOrder !== undefined) {
-              segs = [{
-                fromStopOrder: seat.fromStopOrder,
-                toStopOrder: seat.toStopOrder,
-                customerName: seat.customerName,
-                customerPhone: seat.customerPhone,
-                pickupPoint: seat.pickupPoint,
-                dropoffPoint: seat.dropoffPoint,
-                bookingNote: seat.bookingNote,
-              }];
-            }
-            return { ...seat, status: SeatStatus.BOOKED, segmentBookings: [...segs, newEntry] };
-          }
-          return { ...seat, ...seatUpdateData, segmentBookings: [newEntry] };
-        }
-        return { ...seat, status: SeatStatus.BOOKED };
-      };
+      const applyOptimisticSeatUpdate = buildOptimisticUpdater(allSeatIds, fromStopOrder, toStopOrder, seatUpdateData);
 
       ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
         if (trip.id === ctx2.selectedTrip.id) {
@@ -393,5 +601,7 @@ export function usePayment(ctx: BookingContext) {
     agentTopUpModal,
     setAgentTopUpModal,
     handleConfirmBooking,
+    capturedOutboundLeg,
+    setCapturedOutboundLeg,
   };
 }
