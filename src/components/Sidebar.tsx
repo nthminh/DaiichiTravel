@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard
+  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -48,6 +48,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const otherMenuItems = [
     { id: 'home', label: t.home, icon: Home, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
     { id: 'book-ticket', label: t.book_ticket, icon: Bus, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
+    { id: 'my-tickets', label: t.my_tickets || 'Vé đã mua', icon: Ticket, roles: [UserRole.CUSTOMER, UserRole.GUEST] },
+    { id: 'agent-bookings', label: t.agent_bookings || 'Vé của tôi', icon: Ticket, roles: [UserRole.AGENT] },
     { id: 'tours', label: t.tours, icon: Star, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
     { id: 'consignments', label: t.consignments, icon: Package, roles: [UserRole.MANAGER, UserRole.AGENT] },
     { id: 'user-guide', label: t.user_guide ?? 'Hướng dẫn sử dụng', icon: BookOpen, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST, 'STAFF', 'DRIVER'] as UserRole[] },

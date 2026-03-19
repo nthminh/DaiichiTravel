@@ -3,6 +3,23 @@ import { DEFAULT_PAYMENT_METHOD, PaymentMethod } from '../constants/paymentMetho
 import { transportService } from '../services/transportService';
 import { SeatStatus, TripAddon, UserRole, User, Route } from '../types';
 
+const MY_TICKETS_KEY = 'daiichi_my_tickets';
+
+/** Persist a booking to localStorage (for CUSTOMER / GUEST) */
+function saveTicketToLocalStorage(booking: any) {
+  try {
+    const existing: any[] = JSON.parse(localStorage.getItem(MY_TICKETS_KEY) || '[]');
+    // Avoid duplicates by ticketCode / id
+    const alreadyExists = existing.some(b => b.id === booking.id || (booking.ticketCode && b.ticketCode === booking.ticketCode));
+    if (!alreadyExists) {
+      existing.unshift(booking);
+      localStorage.setItem(MY_TICKETS_KEY, JSON.stringify(existing.slice(0, 100)));
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
 /** All state values and setters that handleConfirmBooking reads/writes from App.tsx */
 export interface BookingContext {
   currentUser: User | null;
@@ -143,7 +160,7 @@ export function usePayment(ctx: BookingContext) {
     // Calculate selected addons total (price × quantity)
     const selectedAddons = (c.selectedTrip.addons || []).filter((a: TripAddon) => (c.addonQuantities[a.id] || 0) > 0);
     const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (c.addonQuantities[a.id] || 1), 0);
-    const totalAmount = Math.round((totalBase + totalSurcharge + addonsTotalPrice) * (1 - c.bookingDiscount / 100));
+    const totalAmount = Math.round(totalBase + totalSurcharge + addonsTotalPrice);
 
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
     const isFreeSeating = c.selectedTrip.seatType === 'free';
@@ -245,7 +262,12 @@ export function usePayment(ctx: BookingContext) {
       try {
         const result = await transportService.createBooking(bookingData);
         await transportService.bookSeats(ctx2.selectedTrip.id, allSeatIds, seatUpdateData);
-        ctx2.setLastBooking({ ...bookingData, id: result.id, ticketCode: result.ticketCode });
+        const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
+        ctx2.setLastBooking(savedBooking);
+        // Persist ticket to localStorage for CUSTOMER and GUEST so they can view it later
+        if (ctx2.currentUser?.role === UserRole.CUSTOMER || ctx2.currentUser?.role === 'GUEST') {
+          saveTicketToLocalStorage(savedBooking);
+        }
       } catch (err) {
         console.error('Failed to save booking:', err);
         alert(ctx2.language === 'vi'
@@ -342,10 +364,12 @@ export function usePayment(ctx: BookingContext) {
       });
     };
 
-    // When payment method is QR bank transfer, show the QR modal first
-    if (payMethod === 'Chuyển khoản QR') {
+    // When payment method is QR bank transfer (or for customer/guest who always use QR), show the QR modal first
+    const isCustomerOrGuest = c.currentUser?.role === UserRole.CUSTOMER || c.currentUser?.role === 'GUEST';
+    if (payMethod === 'Chuyển khoản QR' || isCustomerOrGuest) {
       const paymentReference = transportService.generateTicketCode();
       bookingData.paymentRef = paymentReference;
+      bookingData.paymentMethod = 'Chuyển khoản QR'; // ensure correct method is stored
       setPendingQrBooking({
         amount: totalAmount,
         ref: paymentReference,

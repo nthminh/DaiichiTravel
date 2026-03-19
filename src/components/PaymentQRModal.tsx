@@ -1,10 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone } from 'lucide-react';
+import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constants/bankConfig';
 import { Language, TRANSLATIONS } from '../App';
+
+const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
+const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
 
 interface PaymentQRModalProps {
   /** Total amount to pay in VND */
@@ -32,6 +35,35 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const t = TRANSLATIONS[language];
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
+  const [expired, setExpired] = useState(false);
+
+  // 30-minute countdown timer
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalId);
+          setExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Auto-cancel after EXPIRED_AUTO_CLOSE_MS when timer expires
+  useEffect(() => {
+    if (expired) {
+      const timer = setTimeout(onCancel, EXPIRED_AUTO_CLOSE_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [expired, onCancel]);
+
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = secondsLeft % 60;
+  const timerIsUrgent = secondsLeft <= 300; // last 5 minutes
 
   const description = `${paymentRef}${bookingLabel ? ' ' + bookingLabel : ''}`;
   const qrImageUrl = generateVietQrUrl({ amount, description });
@@ -45,6 +77,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   }, [paymentRef]);
 
   const handleConfirm = async () => {
+    if (expired) return;
     setConfirming(true);
     // Small delay to simulate processing
     await new Promise(r => setTimeout(r, 600));
@@ -62,7 +95,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
           className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 text-white relative">
+          <div className={cn("p-5 text-white relative", expired ? "bg-gradient-to-r from-red-600 to-red-700" : "bg-gradient-to-r from-blue-600 to-blue-700")}>
             <button
               onClick={onCancel}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
@@ -75,26 +108,53 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
               </div>
               <div>
                 <p className="font-bold text-lg leading-tight">
-                  {t.qr_payment_title || 'Thanh toán QR'}
+                  {expired
+                    ? (t.qr_payment_expired_title || 'Hết thời gian thanh toán')
+                    : (t.qr_payment_title || 'Thanh toán QR')}
                 </p>
                 <p className="text-blue-100 text-xs">
                   {t.qr_payment_subtitle || 'Quét mã QR để thanh toán'}
                 </p>
               </div>
             </div>
+            {/* Countdown timer */}
+            <div className={cn(
+              "mt-3 flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold w-fit",
+              expired ? "bg-red-500/40 text-white" : timerIsUrgent ? "bg-orange-400/40 text-orange-100" : "bg-white/20 text-white"
+            )}>
+              <Clock size={12} />
+              <span>
+                {expired
+                  ? (t.qr_payment_expired_title || 'Hết thời gian')
+                  : `${t.qr_payment_timer_label || 'Còn lại'}: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`}
+              </span>
+            </div>
           </div>
 
-          {/* Demo mode banner */}
-          {BANK_CONFIG.isDemoMode && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
-              <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-700 font-medium">
-                {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Thông tin ngân hàng là giả, KHÔNG chuyển tiền thật'}
-              </p>
+          {/* Expired overlay */}
+          {expired && (
+            <div className="p-5 text-center space-y-3">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <Clock size={32} className="text-red-500" />
+              </div>
+              <p className="font-bold text-gray-800 text-lg">{t.qr_payment_expired_title || 'Hết thời gian thanh toán'}</p>
+              <p className="text-sm text-gray-500">{t.qr_payment_expired_msg || 'Phiên đặt chỗ đã hết hạn. Chỗ ngồi được trả về để người khác đặt.'}</p>
+              <p className="text-xs text-gray-400">{language === 'vi' ? 'Tự động đóng...' : language === 'ja' ? '自動クローズ中...' : 'Closing automatically...'}</p>
             </div>
           )}
 
+          {!expired && (
           <div className="p-5 space-y-4">
+            {/* Demo mode banner */}
+            {BANK_CONFIG.isDemoMode && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-700 font-medium">
+                  {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Thông tin ngân hàng là giả, KHÔNG chuyển tiền thật'}
+                </p>
+              </div>
+            )}
+
             {/* Amount */}
             <div className="text-center">
               <p className="text-xs text-gray-400 uppercase font-bold tracking-widest mb-1">
@@ -200,7 +260,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
               <motion.button
                 type="button"
                 onClick={handleConfirm}
-                disabled={confirming}
+                disabled={confirming || expired}
                 whileTap={{ scale: 0.97 }}
                 className={cn(
                   'flex-[2] py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-all',
@@ -215,6 +275,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
               </motion.button>
             </div>
           </div>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>
