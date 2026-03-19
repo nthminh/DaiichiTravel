@@ -2558,7 +2558,8 @@ export default function App() {
                     const maxVal = parseInt(priceMax);
                     if (!isNaN(maxVal) && trip.price > maxVal) return false;
                   }
-                  // Time-range filter: compare HH:MM departure time strings lexicographically
+                  // Time-range filter: HH:MM strings compare correctly lexicographically
+                  // (e.g. '06:00' < '14:30' < '23:59'), so a direct string comparison is safe.
                   if (searchTimeFrom && trip.time && trip.time < searchTimeFrom) return false;
                   if (searchTimeTo && trip.time && trip.time > searchTimeTo) return false;
                   const totalPassengers = searchAdults + searchChildren;

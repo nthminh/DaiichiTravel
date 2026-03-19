@@ -281,12 +281,12 @@ export function usePayment(ctx: BookingContext) {
     };
 
     // Build optimistic seat updater for a given set of seatIds / stop orders
-    const buildOptimisticUpdater = (targetSeatIds: string[], fso: number | undefined, tso: number | undefined, sud: typeof seatUpdateData) => (seat: any): any => {
+    const buildOptimisticUpdater = (targetSeatIds: string[], fromOrder: number | undefined, toOrder: number | undefined, sud: typeof seatUpdateData) => (seat: any): any => {
       if (!targetSeatIds.includes(seat.id)) return seat;
-      if (fso !== undefined && tso !== undefined) {
+      if (fromOrder !== undefined && toOrder !== undefined) {
         const newEntry = {
-          fromStopOrder: fso,
-          toStopOrder: tso,
+          fromStopOrder: fromOrder,
+          toStopOrder: toOrder,
           customerName: sud.customerName,
           ...(sud.customerPhone ? { customerPhone: sud.customerPhone } : {}),
           ...(sud.pickupPoint ? { pickupPoint: sud.pickupPoint } : {}),
@@ -396,8 +396,8 @@ export function usePayment(ctx: BookingContext) {
     if (c.tripType === 'ROUND_TRIP' && c.roundTripPhase === 'return') {
       const outboundLeg = capturedOutboundRef.current;
       if (!outboundLeg) {
-        // Shouldn't happen – fall back to single booking
-        // (outbound data was lost, e.g. page refresh). Just save current leg.
+        // Outbound data was lost (e.g. page refresh) – fall back to saving only the return leg.
+        // Fall through to the standard single-leg path below.
       } else {
         const combinedAmount = outboundLeg.amount + totalAmount;
         const isCustomerOrGuest = c.currentUser?.role === UserRole.CUSTOMER || c.currentUser?.role === 'GUEST';
