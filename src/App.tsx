@@ -2900,7 +2900,7 @@ export default function App() {
       case 'seat-mapping':
         if (!selectedTrip) return null;
         {
-          const childrenOver4Count = childrenAges.filter(age => age > 4).length;
+          const childrenOver4Count = childrenAges.filter(age => age >= 4).length;
           const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
           // Look up route once for this render block (used for surcharges, fare table, and blocker check)
           const tripRoute = routes.find(r => r.name === selectedTrip.route);
@@ -3351,7 +3351,7 @@ export default function App() {
                           <button type="button" onClick={() => {
                             const newAdults = Math.max(1, adults - 1);
                             setAdults(newAdults);
-                            const currentOver4Count = childrenAges.filter(age => age > 4).length;
+                            const currentOver4Count = childrenAges.filter(age => age >= 4).length;
                             const newExtraSeatsNeeded = (newAdults - 1) + currentOver4Count;
                             setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
                           }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
@@ -3367,7 +3367,7 @@ export default function App() {
                             setChildren(count);
                             setChildrenAges(prev => prev.slice(0, count));
                             const newAges = childrenAges.slice(0, count);
-                            const newOver4Count = newAges.filter(age => age > 4).length;
+                            const newOver4Count = newAges.filter(age => age >= 4).length;
                             setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                           }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                           <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
@@ -3388,7 +3388,7 @@ export default function App() {
                     {children > 0 && (
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
                         <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children over 4 are charged adult price and need their own seat'}</p>
+                        <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 4 and above are charged adult price and need their own seat'}</p>
                         <div className="grid grid-cols-3 gap-2">
                           {Array.from({ length: children }).map((_, i) => (
                             <div key={i} className="relative">
@@ -3404,12 +3404,12 @@ export default function App() {
                                   ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
                                   setChildrenAges(ages);
                                   // Trim extra seats if children over 4 count decreased
-                                  const newOver4Count = ages.filter(age => (age ?? 0) > 4).length;
+                                  const newOver4Count = ages.filter(age => (age ?? 0) >= 4).length;
                                   setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                                 }}
                                 className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
                               />
-                              {(childrenAges[i] ?? 0) > 4 && (
+                              {(childrenAges[i] ?? 0) >= 4 && (
                                 <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                                   {t.child_counted_as_adult || 'Adult'}
                                 </span>
@@ -3485,14 +3485,15 @@ export default function App() {
                               <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultDeparture}` : `Default: ${defaultDeparture}`}</p>
                             )}
                           </div>
-                          <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
+                          <div className="pl-3 border-l-2 border-gray-100">
+                            <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.pickup_address || 'Điểm đón'}</label>
                             <SearchableSelect
                               options={allStopNames}
                               value={pickupAddress}
                               onChange={setPickupAddress}
                               placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
-                              className="mt-1"
+                              className="mt-0.5"
+                              inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
                               disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
                             />
                             {isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate) && (
@@ -3590,14 +3591,15 @@ export default function App() {
                               );
                             })()}
                           </div>
-                          <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
+                          <div className="pl-3 border-l-2 border-gray-100">
+                            <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
                             <SearchableSelect
                               options={allStopNames}
                               value={dropoffAddress}
                               onChange={setDropoffAddress}
                               placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
-                              className="mt-1"
+                              className="mt-0.5"
+                              inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
                               disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
                             />
                             {isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate) && (
@@ -3800,7 +3802,7 @@ export default function App() {
                               ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
                               : (selectedTrip.priceChild || basePriceAdult));
                         const { childrenOver4, childrenUnder4 } = childrenAges.reduce(
-                          (acc, age) => age > 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+                          (acc, age) => age >= 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
                           { childrenOver4: 0, childrenUnder4: 0 }
                         );
                         const effectiveAdults = adults + childrenOver4;
@@ -4102,7 +4104,7 @@ export default function App() {
                             )}
                             <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá người lớn' : 'Adult unit price'}: {effectiveAdultPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
                             {effectiveChildPrice > 0 && (
-                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá trẻ em (>4 tuổi)' : 'Child unit price (>4 yrs)'}: {effectiveChildPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
+                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá trẻ em (dưới 4 tuổi)' : 'Child unit price (<4 yrs)'}: {effectiveChildPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
@@ -4494,7 +4496,7 @@ export default function App() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">{t.children} <span className="text-gray-400 font-normal normal-case">{language === 'vi' ? '(>4 tuổi)' : '(>4 yrs)'}</span></label>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.children} <span className="text-gray-400 font-normal normal-case">{language === 'vi' ? '(từ 4 tuổi)' : '(4+ yrs)'}</span></label>
                   <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
                     <button type="button" onClick={() => setTourBookingChildren(Math.max(0, tourBookingChildren - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none">−</button>
                     <span className="flex-1 text-center font-bold text-gray-800">{tourBookingChildren}</span>
