@@ -11,7 +11,7 @@ import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 import { Invoice, InvoiceItem } from '../types';
 import * as XLSX from 'xlsx';
-import { ResizableTh } from './ResizableTh';
+import { ResizableTh } from '../components/ResizableTh';
 
 interface FinancialReportProps {
   language: Language;
