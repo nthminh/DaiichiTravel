@@ -539,6 +539,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     hold_ticket_enabled: 'Cho phép giữ vé trước',
     hold_ticket_duration: 'Thời gian giữ vé mặc định (giờ)',
     hold_ticket_note: 'Khách có thể đặt giữ chỗ trước, thanh toán sau trong thời gian quy định',
+    booking_cutoff_settings: 'Cài đặt Chặn đặt vé cận giờ',
+    booking_cutoff_enabled: 'Kích hoạt chặn đặt vé cận giờ',
+    booking_cutoff_minutes: 'Thời gian chặn trước khi xe chạy (phút)',
+    booking_cutoff_note: 'Khách và đại lý không thể chọn ghế khi xe sắp chạy. Nhân viên và admin vẫn có thể đặt vé.',
+    booking_cutoff_alert: 'Xe sắp chạy! Vui lòng liên hệ đại lý hoặc nhân viên nhà xe để đặt vé cận giờ.',
     payment_settings_saved: 'Đã lưu cài đặt thanh toán',
 
     // Booking hold
@@ -1265,6 +1270,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     hold_ticket_enabled: 'Allow Ticket Hold',
     hold_ticket_duration: 'Default Hold Duration (hours)',
     hold_ticket_note: 'Customers may hold a seat and pay later within the allowed period',
+    booking_cutoff_settings: 'Last-Minute Booking Block',
+    booking_cutoff_enabled: 'Enable last-minute booking block',
+    booking_cutoff_minutes: 'Minutes before departure to block bookings',
+    booking_cutoff_note: 'Customers and agents cannot select seats when departure is imminent. Staff and admin can still book.',
+    booking_cutoff_alert: 'This trip departs soon! Please contact an agent or our staff to book a last-minute ticket.',
     payment_settings_saved: 'Payment settings saved',
 
     // Booking hold
@@ -1991,6 +2001,11 @@ export const TRANSLATIONS: Record<Language, any> = {
     hold_ticket_enabled: 'チケット保留を許可',
     hold_ticket_duration: 'デフォルト保留時間（時間）',
     hold_ticket_note: '顧客は座席を確保し、制限時間内に支払い可能',
+    booking_cutoff_settings: '直前予約ブロック設定',
+    booking_cutoff_enabled: '直前予約ブロックを有効化',
+    booking_cutoff_minutes: '出発前のブロック時間（分）',
+    booking_cutoff_note: '出発が迫っている場合、顧客・代理店は座席選択不可。スタッフ・管理者は引き続き予約可能。',
+    booking_cutoff_alert: 'まもなく出発します！直前の予約は代理店またはスタッフにご連絡ください。',
     payment_settings_saved: '支払い設定を保存しました',
 
     // Booking hold
