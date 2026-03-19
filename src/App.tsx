@@ -8,7 +8,7 @@ import {
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from './lib/utils';
+import { cn, getYoutubeEmbedUrl, getLocalDateString, getOffsetDayLabel } from './lib/utils';
 
 // Import Constants & Types
 import { 
@@ -64,6 +64,9 @@ const AgentTopUpQRModal = lazy(() => import('./components/PaymentQRModal').then(
 const MyTickets = lazy(() => import('./pages/MyTickets').then(m => ({ default: m.MyTickets })));
 const AgentBookings = lazy(() => import('./pages/AgentBookings').then(m => ({ default: m.AgentBookings })));
 const TourBookingForm = lazy(() => import('./components/TourBookingForm').then(m => ({ default: m.TourBookingForm })));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
+const ToursPage = lazy(() => import('./pages/ToursPage').then(m => ({ default: m.ToursPage })));
+const CompletedTripsPage = lazy(() => import('./pages/CompletedTripsPage').then(m => ({ default: m.CompletedTripsPage })));
 import { DriverAssignment, StaffMessage } from './types';
 import type { TourItem } from './components/TourBookingForm';
 
@@ -86,11 +89,6 @@ export interface User {
 }
 
 
-function getYoutubeEmbedUrl(url: string): string | null {
-  if (!url) return null;
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
-}
 
 /** Small overlay shown when a magic-link email is opened on a different device than where it was requested */
 function EmailLinkReenterForm({ language, onSubmit, onCancel }: { language: Language; onSubmit: (email: string) => void; onCancel: () => void }) {
@@ -881,20 +879,7 @@ export default function App() {
     return `${dow}, ${dd}/${mm}`;
   };
 
-  const getLocalDateString = (offsetDays: number = 0): string => {
-    // Get today in Vietnam timezone as a YYYY-MM-DD string, then offset from that date
-    const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const d = new Date(todayVN + 'T00:00:00');
-    d.setDate(d.getDate() + offsetDays);
-    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-  };
-
-  const getOffsetDayLabel = (offsetDays: number): string => {
-    const todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const d = new Date(todayVN + 'T00:00:00');
-    d.setDate(d.getDate() + offsetDays);
-    return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
-  };
+  // getLocalDateString and getOffsetDayLabel are imported from lib/utils
 
   const compareTripDateTime = (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => {
     const aDate = a.date || '9999-12-31';
@@ -3227,280 +3212,49 @@ export default function App() {
           );
         }
 
-      case 'tours': {
-        // Apply advanced filters
-        const filteredPublicTours = tours.filter(tour => {
-          const tourPriceAdult = tour.priceAdult || tour.price;
-          const tourPriceChild = tour.priceChild ?? Math.round(tourPriceAdult * 0.5);
-          const effectivePrice =
-            tourPriceAdult * (tour.numAdults ?? 1) +
-            tourPriceChild * (tour.numChildren ?? 0) +
-            (tour.nights ?? 0) * (tour.pricePerNight ?? 0) +
-            (tour.breakfastCount ?? 0) * (tour.pricePerBreakfast ?? 0) +
-            (tour.surcharge ?? 0);
-          if (tourDurationFilter) {
-            const q = tourDurationFilter.toLowerCase();
-            const matchesTitle = tour.title.toLowerCase().includes(q);
-            const matchesDescription = (tour.description || '').toLowerCase().includes(q);
-            const matchesDuration = (tour.duration || '').toLowerCase().includes(q);
-            if (!matchesTitle && !matchesDescription && !matchesDuration) return false;
-          }
-          if (tourPriceMin) {
-            const min = parseInt(tourPriceMin);
-            if (!isNaN(min) && effectivePrice < min) return false;
-          }
-          if (tourPriceMax) {
-            const max = parseInt(tourPriceMax);
-            if (!isNaN(max) && effectivePrice > max) return false;
-          }
-          return true;
-        });
-
+      case 'tours':
         return (
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-bold">{t.tours}</h2>
-              <p className="text-sm text-gray-500">{language === 'vi' ? 'Khám phá các tour du lịch hấp dẫn' : 'Explore our amazing tour packages'}</p>
-            </div>
-
-            {/* Advanced search bar */}
-            <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
-              <div className="flex flex-col sm:flex-row gap-4 items-end">
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tìm kiếm tour' : 'Search tours'}</label>
-                  <div className="relative mt-1">
-                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                     <input
-                       type="text"
-                       value={tourDurationFilter}
-                       onChange={e => setTourDurationFilter(e.target.value)}
-                       placeholder={language === 'vi' ? 'Tìm theo tên, nội dung, thời gian...' : 'Search by name, content, duration...'}
-                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                     />
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá từ (đ)' : 'Price from'}</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={tourPriceMin}
-                      onChange={e => setTourPriceMin(e.target.value)}
-                      placeholder="0"
-                      className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'đến (đ)' : 'to'}</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={tourPriceMax}
-                      onChange={e => setTourPriceMax(e.target.value)}
-                      placeholder="∞"
-                      className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                    />
-                  </div>
-                  <button
-                    onClick={() => setTourHasSearched(true)}
-                    className="px-6 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center gap-2"
-                  >
-                    <Search size={16} />
-                    {language === 'vi' ? 'Tìm' : 'Search'}
-                  </button>
-                  {(tourDurationFilter || tourPriceMin || tourPriceMax) && (
-                    <button
-                      onClick={() => { setTourDurationFilter(''); setTourPriceMin(''); setTourPriceMax(''); setTourHasSearched(false); }}
-                      className="px-4 py-3 text-gray-400 hover:text-gray-600 text-sm"
-                    >
-                      {language === 'vi' ? 'Xóa bộ lọc' : 'Clear'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {tours.length === 0 ? (
-              <div className="text-center py-20">
-                <Star className="mx-auto text-gray-300 mb-4" size={48} />
-                <p className="text-gray-400">{language === 'vi' ? 'Chưa có tour nào. Liên hệ để biết thêm!' : 'No tours available yet. Contact us for more info!'}</p>
-              </div>
-            ) : filteredPublicTours.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <Search size={40} className="mx-auto mb-3 opacity-40" />
-                <p className="font-medium">{language === 'vi' ? 'Không tìm thấy tour phù hợp' : 'No tours match your search'}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredPublicTours.map((tour) => {
-                  const allTourImages = tour.images && tour.images.length > 0
-                    ? tour.images
-                    : (tour.imageUrl ? [tour.imageUrl] : []);
-                  const effectiveAdultPrice = tour.priceAdult || tour.price;
-                  const effectiveChildPrice = tour.priceChild ?? Math.round(effectiveAdultPrice * 0.5);
-                  const fullTourPrice =
-                    effectiveAdultPrice * (tour.numAdults ?? 1) +
-                    effectiveChildPrice * (tour.numChildren ?? 0) +
-                    (tour.nights ?? 0) * (tour.pricePerNight ?? 0) +
-                    (tour.breakfastCount ?? 0) * (tour.pricePerBreakfast ?? 0) +
-                    (tour.surcharge ?? 0);
-                  const discountedFullPrice = tour.discountPercent && tour.discountPercent > 0
-                    ? Math.round(fullTourPrice * (1 - tour.discountPercent / 100))
-                    : null;
-                  const displayImg = allTourImages[0] || '';
-                  const isLiked = likedTours.has(tour.id);
-                  const embedUrl = tour.youtubeUrl ? getYoutubeEmbedUrl(tour.youtubeUrl) : null;
-                  const isTourRevealed = tourHasSearched || clearedTourCards.has(tour.id);
-                  return (
-                    <div key={tour.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
-                      <div className="relative h-48 overflow-hidden">
-                        {displayImg && (
-                          <img
-                            src={displayImg}
-                            alt={tour.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700"
-                            style={{ filter: isTourRevealed ? 'none' : 'blur(10px)', transform: isTourRevealed ? 'scale(1)' : 'scale(1.1)' }}
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                        {!isTourRevealed && displayImg && (
-                          <div
-                            className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
-                            onClick={() => setClearedTourCards(prev => new Set([...prev, tour.id]))}
-                          >
-                            <span className="text-white text-xs font-bold bg-black/40 px-3 py-1 rounded-full">
-                              {language === 'vi' ? '👆 Chạm để xem ảnh' : '👆 Tap to reveal'}
-                            </span>
-                          </div>
-                        )}
-                        {allTourImages.length > 1 && isTourRevealed && (
-                          <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            +{allTourImages.length - 1} {language === 'vi' ? 'ảnh' : 'photos'}
-                          </div>
-                        )}
-                        {tour.discountPercent && tour.discountPercent > 0 ? (
-                          <div className="absolute top-4 left-4 bg-daiichi-red text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
-                            -{tour.discountPercent}% {language === 'vi' ? 'GIẢM' : 'OFF'}
-                          </div>
-                        ) : null}
-                        {tour.duration && (
-                          <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
-                            {tour.duration}
-                          </div>
-                        )}
-                      </div>
-                      {/* YouTube video embed */}
-                      {embedUrl && (
-                        <div className="border-t border-gray-100">
-                          {expandedVideoTourId === tour.id ? (
-                            <div>
-                              <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
-                                <iframe
-                                  src={embedUrl}
-                                  title={tour.title}
-                                  className="absolute inset-0 w-full h-full"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                />
-                              </div>
-                              <button
-                                onClick={() => setExpandedVideoTourId(null)}
-                                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1"
-                              >
-                                <span>▲</span> {language === 'vi' ? 'Ẩn video' : 'Hide video'}
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setExpandedVideoTourId(tour.id)}
-                              className="w-full py-3 flex items-center justify-center gap-2 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <span className="w-7 h-7 bg-daiichi-red text-white rounded-full flex items-center justify-center text-xs">▶</span>
-                              {language === 'vi' ? 'Xem video tour' : 'Watch tour video'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <div className="p-6">
-                        <h4 className="text-lg font-bold mb-1">{tour.title}</h4>
-                        <p className="text-sm text-gray-500 line-clamp-2 mb-3">{tour.description}</p>
-                        {/* Overnight & Breakfast badges */}
-                        {((tour.nights ?? 0) > 0 || (tour.breakfastCount ?? 0) > 0) && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {(tour.nights ?? 0) > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
-                                🌙 {tour.nights} {language === 'vi' ? 'đêm' : 'nights'}
-                              </span>
-                            )}
-                            {(tour.breakfastCount ?? 0) > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                                ☕ {tour.breakfastCount} {language === 'vi' ? 'bữa sáng' : 'breakfasts'}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex justify-between items-end">
-                          <div>
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Giá toàn tour' : 'Total tour price'}</p>
-                            {discountedFullPrice !== null ? (
-                              <>
-                                <p className="text-sm text-gray-400 line-through">{fullTourPrice.toLocaleString()}đ</p>
-                                <p className="text-2xl font-extrabold text-daiichi-red">{discountedFullPrice.toLocaleString()}đ</p>
-                              </>
-                            ) : (
-                              <p className="text-2xl font-extrabold text-daiichi-red">{fullTourPrice.toLocaleString()}đ</p>
-                            )}
-                            <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá người lớn' : 'Adult unit price'}: {effectiveAdultPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
-                            {effectiveChildPrice > 0 && (
-                              <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Đơn giá trẻ em (dưới 4 tuổi)' : 'Child unit price (<4 yrs)'}: {effectiveChildPrice.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedTour(tour);
-                                // Pre-fill booking form from tour data
-                                setTourBookingName('');
-                                setTourBookingPhone('');
-                                setTourBookingEmail('');
-                                setTourBookingDate('');
-                                setTourBookingAdults(tour.numAdults ?? 1);
-                                setTourBookingChildren(tour.numChildren ?? 0);
-                                setTourBookingNights(tour.nights ?? 0);
-                                setTourBookingBreakfasts(tour.breakfastCount ?? 0);
-                                setTourAccommodation('none');
-                                setTourMealPlan('none');
-                                setTourSelectedAddons(new Set());
-                                setTourNotes('');
-                                setTourPaymentMethod(DEFAULT_PAYMENT_METHOD);
-                                setTourBookingSuccess(false);
-                                setTourBookingError('');
-                                setTourBookingStatus('PENDING');
-                                setActiveTab('book-tour');
-                              }}
-                              className="px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm"
-                            >
-                              {t.book_tour || (language === 'vi' ? 'Đặt tour' : 'Book Tour')}
-                            </button>
-                            <button
-                              onClick={() => toggleLike(tour.id)}
-                              className={`p-2.5 rounded-xl border transition-all hover:scale-110 ${isLiked ? 'bg-pink-50 border-pink-200 text-pink-500' : 'bg-gray-50 border-gray-100 text-gray-400 hover:text-pink-400'}`}
-                              title={isLiked ? (language === 'vi' ? 'Bỏ thích' : 'Unlike') : (language === 'vi' ? 'Thích tour này' : 'Like this tour')}
-                            >
-                              <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <ToursPage
+              tours={tours}
+              tourHasSearched={tourHasSearched}
+              clearedTourCards={clearedTourCards}
+              tourPriceMin={tourPriceMin}
+              tourPriceMax={tourPriceMax}
+              tourDurationFilter={tourDurationFilter}
+              expandedVideoTourId={expandedVideoTourId}
+              likedTours={likedTours}
+              language={language}
+              setTourHasSearched={setTourHasSearched}
+              setClearedTourCards={setClearedTourCards}
+              setTourPriceMin={setTourPriceMin}
+              setTourPriceMax={setTourPriceMax}
+              setTourDurationFilter={setTourDurationFilter}
+              setExpandedVideoTourId={setExpandedVideoTourId}
+              toggleLike={toggleLike}
+              onSelectTour={(tour) => {
+                setSelectedTour(tour);
+                setTourBookingName('');
+                setTourBookingPhone('');
+                setTourBookingEmail('');
+                setTourBookingDate('');
+                setTourBookingAdults(tour.numAdults ?? 1);
+                setTourBookingChildren(tour.numChildren ?? 0);
+                setTourBookingNights(tour.nights ?? 0);
+                setTourBookingBreakfasts(tour.breakfastCount ?? 0);
+                setTourAccommodation('none');
+                setTourMealPlan('none');
+                setTourSelectedAddons(new Set());
+                setTourNotes('');
+                setTourPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setTourBookingSuccess(false);
+                setTourBookingError('');
+                setTourBookingStatus('PENDING');
+                setActiveTab('book-tour');
+              }}
+            />
+          </Suspense>
         );
-      }
 
       case 'book-tour':
         return (
@@ -3553,230 +3307,33 @@ export default function App() {
       case 'agents':
         return <AgentsPage agents={agents} employees={employees} language={language} />;
 
-      case 'employees': {
-        const filteredEmployees = employees.filter(emp => {
-          const q = employeeSearch.toLowerCase();
-          const matchSearch = !q ||
-            String(emp.name ?? '').toLowerCase().includes(q) ||
-            String(emp.phone ?? '').toLowerCase().includes(q) ||
-            String(emp.email ?? '').toLowerCase().includes(q) ||
-            String(emp.username ?? '').toLowerCase().includes(q);
-          const matchRole = employeeRoleFilter === 'ALL' || emp.role === employeeRoleFilter;
-          return matchSearch && matchRole;
-        });
-
-        const EMPLOYEE_ROLE_LABELS: Record<string, string> = {
-          SUPERVISOR: language === 'vi' ? 'Quản lý' : 'Supervisor',
-          STAFF: t.role_staff || 'Nhân viên',
-          DRIVER: t.role_driver || 'Tài xế',
-          ACCOUNTANT: t.role_accountant || 'Kế toán',
-          OTHER: t.role_other || 'Khác',
-          AGENT: language === 'vi' ? 'Đại lý' : 'Agent',
-        };
-        const EMPLOYEE_ROLE_COLORS: Record<string, string> = {
-          SUPERVISOR: 'bg-indigo-50 text-indigo-600',
-          STAFF: 'bg-blue-50 text-blue-600',
-          DRIVER: 'bg-green-50 text-green-600',
-          ACCOUNTANT: 'bg-purple-50 text-purple-600',
-          OTHER: 'bg-gray-100 text-gray-500',
-          AGENT: 'bg-orange-50 text-orange-600',
-        };
-
-        // Derive available permission groups from the permissions config (exclude MANAGER, CUSTOMER and GUEST)
-        const availableRoles = permissions
-          ? Object.keys(permissions).filter(r => r !== 'MANAGER' && r !== 'CUSTOMER' && r !== 'GUEST')
-          : [];
-
+      case 'employees':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">{t.employee_management || 'Quản lý Nhân viên'}</h2>
-                <p className="text-sm text-gray-500">{t.employee_desc || 'Quản lý nhân viên, tài xế và tài khoản đăng nhập'}</p>
-              </div>
-              <button onClick={() => { setShowAddEmployee(true); setEditingEmployee(null); setEmployeeForm({ name: '', phone: '', email: '', address: '', role: availableRoles[0] || 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' }); setEmployeeFormError(''); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_employee || 'Thêm nhân viên'}</button>
-            </div>
-
-            {/* Add/Edit Employee Modal */}
-            {showAddEmployee && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{editingEmployee ? (language === 'vi' ? 'Chỉnh sửa nhân viên' : 'Edit Employee') : (language === 'vi' ? 'Thêm nhân viên mới' : 'Add New Employee')}</h3>
-                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_name || 'Họ tên'}</label><input type="text" value={employeeForm.name} onChange={e => setEmployeeForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.phone_number}</label><input type="text" value={employeeForm.phone} onChange={e => setEmployeeForm(p => ({ ...p, phone: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Email</label><input type="email" value={employeeForm.email} onChange={e => setEmployeeForm(p => ({ ...p, email: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Địa chỉ' : 'Address'}</label><input type="text" value={employeeForm.address} onChange={e => setEmployeeForm(p => ({ ...p, address: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_role || 'Chức vụ'}</label>
-                      <input
-                        list="position-suggestions"
-                        type="text"
-                        value={employeeForm.position}
-                        onChange={e => setEmployeeForm(p => ({ ...p, position: e.target.value }))}
-                        placeholder={language === 'vi' ? 'Nhập hoặc chọn chức vụ...' : 'Type or select position...'}
-                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      />
-                      <datalist id="position-suggestions">
-                        <option value={t.role_staff || 'Nhân viên'} />
-                        <option value={t.role_driver || 'Tài xế'} />
-                        <option value={t.role_accountant || 'Kế toán'} />
-                        <option value={language === 'vi' ? 'Trợ lý' : 'Assistant'} />
-                        <option value={language === 'vi' ? 'Trưởng nhóm' : 'Team Lead'} />
-                      </datalist>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.employee_permissions || 'Nhóm phân quyền'}</label>
-                      <select value={employeeForm.role} onChange={e => setEmployeeForm(p => ({ ...p, role: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        {availableRoles.map(roleId => (
-                          <option key={roleId} value={roleId}>{EMPLOYEE_ROLE_LABELS[roleId] || roleId}</option>
-                        ))}
-                      </select>
-                      <p className="text-[9px] text-gray-400 mt-1 ml-1">{language === 'vi' ? '* Xác định trang được phép truy cập (cấu hình tại Cài đặt → Phân quyền)' : '* Determines accessible pages (configure in Settings → Permissions)'}</p>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
-                      <select value={employeeForm.status} onChange={e => setEmployeeForm(p => ({ ...p, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                        <option value="ACTIVE">{t.status_active}</option>
-                        <option value="INACTIVE">{t.status_locked}</option>
-                      </select>
-                    </div>
-                    <div className="col-span-2 border-t border-gray-100 pt-4">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{language === 'vi' ? 'Tài khoản đăng nhập hệ thống' : 'System Login Credentials'}</p>
-                    </div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.username}</label><input type="text" value={employeeForm.username} onChange={e => { setEmployeeForm(p => ({ ...p, username: e.target.value })); setEmployeeFormError(''); }} className={`w-full mt-1 px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 ${employeeFormError ? 'border-red-400' : 'border-gray-100'}`} />{employeeFormError && <p className="text-xs text-red-500 mt-1 ml-1">{employeeFormError}</p>}</div>
-                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mật khẩu' : 'Password'}</label><input type="text" value={employeeForm.password} onChange={e => setEmployeeForm(p => ({ ...p, password: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleSaveEmployee} disabled={!employeeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingEmployee ? t.save : (t.add_employee || 'Thêm nhân viên')}</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { label: t.total_employees || 'Tổng nhân viên', value: filteredEmployees.length, icon: Users, color: 'text-blue-600' },
-                { label: t.active_employees || 'Đang làm việc', value: filteredEmployees.filter(e => e.status === 'ACTIVE').length, icon: Users, color: 'text-green-600' },
-                { label: t.role_driver || 'Tài xế', value: filteredEmployees.filter(e => e.role === 'DRIVER').length, icon: Truck, color: 'text-orange-500' },
-              ].map((s, i) => (
-                <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{s.label}</p>
-                      <h3 className="text-2xl font-bold mt-2">{s.value}</h3>
-                    </div>
-                    <div className={cn("p-3 rounded-xl bg-gray-50", s.color)}><s.icon size={20} /></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Search & Filter */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="flex-1 min-w-[200px] relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder={language === 'vi' ? 'Tìm theo tên, SĐT, tài khoản...' : 'Search by name, phone, username...'} value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
-                </div>
-                <button onClick={() => setShowEmployeeFilters(p => !p)} className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all', showEmployeeFilters ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                  <Filter size={15} />
-                  {language === 'vi' ? 'Lọc theo chức vụ' : 'Filter by Role'}
-                </button>
-                {(employeeSearch || employeeRoleFilter !== 'ALL') && (
-                  <button onClick={() => { setEmployeeSearch(''); setEmployeeRoleFilter('ALL'); }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                    <X size={14} />{language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                )}
-              </div>
-              {showEmployeeFilters && (
-                <div className="flex gap-2 flex-wrap pt-1 border-t border-gray-100">
-                  {(['ALL', ...availableRoles]).map(r => (
-                    <button key={r} onClick={() => setEmployeeRoleFilter(r)} className={cn('px-3 py-1.5 rounded-lg text-xs font-bold transition-all', employeeRoleFilter === r ? 'bg-daiichi-red text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
-                      {r === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : (EMPLOYEE_ROLE_LABELS[r] || r)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Table */}
-            <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_name || 'Nhân viên'}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_role || 'Chức vụ'}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.employee_permissions || 'Phân quyền'}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.phone_number}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.username}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.status}</th>
-                      <th className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.options}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredEmployees.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-8 py-12 text-center text-gray-400 text-sm">
-                          {language === 'vi' ? 'Chưa có nhân viên nào. Nhấn "+ Thêm nhân viên" để bắt đầu.' : 'No employees yet. Click "+ Add Employee" to get started.'}
-                        </td>
-                      </tr>
-                    ) : filteredEmployees.map((emp) => {
-                      return (
-                      <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-8 py-5">
-                          <p className="font-bold text-gray-800">{emp.name}</p>
-                          {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
-                            {emp.position || EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5">
-                          {emp.role ? (
-                            <span className={cn("px-3 py-1 rounded-full text-xs font-bold", EMPLOYEE_ROLE_COLORS[emp.role] || 'bg-gray-100 text-gray-500')}>
-                              {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-8 py-5 text-sm text-gray-700">{emp.phone || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-8 py-5">
-                          {emp.username ? (
-                            <div>
-                              <p className="text-xs font-bold text-gray-700">User: <span className="text-daiichi-red">{emp.username}</span></p>
-                              <p className="text-[10px] text-gray-400">Pass: {emp.password ? '••••••' : <span className="text-gray-300">—</span>}</p>
-                            </div>
-                          ) : <span className="text-gray-300 text-sm">—</span>}
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", emp.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>
-                            {emp.status === 'ACTIVE' ? t.status_active : t.status_locked}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5">
-                          <div className="flex gap-3 items-center">
-                            <button onClick={() => handleStartEditEmployee(emp)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>
-                            <button onClick={() => handleDeleteEmployee(emp.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <EmployeesPage
+              employees={employees}
+              employeeSearch={employeeSearch}
+              employeeRoleFilter={employeeRoleFilter}
+              showEmployeeFilters={showEmployeeFilters}
+              showAddEmployee={showAddEmployee}
+              editingEmployee={editingEmployee}
+              employeeForm={employeeForm}
+              employeeFormError={employeeFormError}
+              language={language}
+              permissions={permissions}
+              handleSaveEmployee={handleSaveEmployee}
+              handleDeleteEmployee={handleDeleteEmployee}
+              handleStartEditEmployee={handleStartEditEmployee}
+              setShowAddEmployee={setShowAddEmployee}
+              setEditingEmployee={setEditingEmployee}
+              setEmployeeForm={setEmployeeForm}
+              setEmployeeFormError={setEmployeeFormError}
+              setEmployeeSearch={setEmployeeSearch}
+              setEmployeeRoleFilter={setEmployeeRoleFilter}
+              setShowEmployeeFilters={setShowEmployeeFilters}
+            />
+          </Suspense>
         );
-      }
 
       case 'routes': {
         const filteredRoutes = routes.filter(route => {
@@ -5340,352 +4897,66 @@ export default function App() {
       case 'tour-management':
         return <TourManagement language={language} />;
 
-      case 'completed-trips': {
-        const completedTrips = trips.filter(trip => {
-          if (trip.status !== TripStatus.COMPLETED) return false;
-          if (completedTripDateQuickFilter && trip.date !== completedTripDateQuickFilter) return false;
-          if (completedTripFilterRoute && !(trip.route || '').toLowerCase().includes(completedTripFilterRoute.toLowerCase())) return false;
-          if (completedTripFilterDateFrom && trip.date && trip.date < completedTripFilterDateFrom) return false;
-          if (completedTripFilterDateTo && trip.date && trip.date > completedTripFilterDateTo) return false;
-          if (!tripSearch) return true;
-          const q = tripSearch.toLowerCase();
-          return (
-            (trip.time || '').toLowerCase().includes(q) ||
-            (trip.route || '').toLowerCase().includes(q) ||
-            (trip.licensePlate || '').toLowerCase().includes(q) ||
-            (trip.driverName || '').toLowerCase().includes(q)
-          );
-        }).sort((a, b) => compareTripDateTime(b, a));
+      case 'completed-trips':
         return (
-          <div className="space-y-6">
-            {/* Passenger List Modal */}
-            {showTripPassengers && (() => {
-              const seatTicketCodeMap = buildSeatTicketCodeMap(showTripPassengers.id);
-              const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
-              const passengerGroups = buildPassengerGroups(showTripPassengers.id, bookedSeats);
-              return (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
-                  <div className="flex justify-between items-start px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0">
-                    <div>
-                      <h3 className="text-xl font-bold">{language === 'vi' ? 'Danh sách hành khách' : 'Passenger List'}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{showTripPassengers.route} · {formatTripDisplayTime(showTripPassengers)}{showTripPassengers.licensePlate ? ` · ${showTripPassengers.licensePlate}` : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <button onClick={() => setShowPassengerColPanel(v => !v)} className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all', showPassengerColPanel ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100')} title={language === 'vi' ? 'Tùy chỉnh cột' : 'Customize columns'}><SlidersHorizontal size={13} />{language === 'vi' ? 'Cột' : 'Columns'}</button>
-                      <button onClick={handleClosePassengerModal} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                    </div>
-                  </div>
-                  {showPassengerColPanel && (
-                    <div className="px-6 py-3 bg-white border-b border-gray-100 flex-shrink-0">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{language === 'vi' ? 'Hiển thị / ẩn cột' : 'Show / Hide Columns'}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {([
-                          { key: 'ticketCode', label: language === 'vi' ? 'Mã vé' : 'Ticket Code' },
-                          { key: 'seat', label: language === 'vi' ? 'Ghế' : 'Seat' },
-                          { key: 'name', label: language === 'vi' ? 'Tên khách' : 'Name' },
-                          { key: 'phone', label: language === 'vi' ? 'Số điện thoại' : 'Phone' },
-                          { key: 'pickup', label: language === 'vi' ? 'Điểm đón' : 'Pickup' },
-                          { key: 'dropoff', label: language === 'vi' ? 'Điểm trả' : 'Dropoff' },
-                          { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
-                          { key: 'price', label: language === 'vi' ? 'Giá vé' : 'Price' },
-                          { key: 'note', label: language === 'vi' ? 'Ghi chú' : 'Note' },
-                        ] as { key: keyof typeof passengerColVisibility; label: string }[]).map(({ key, label }) => (
-                          <button key={key} onClick={() => setPassengerColVisibility(prev => ({ ...prev, [key]: !prev[key] }))} className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all', passengerColVisibility[key] ? 'bg-daiichi-red/10 text-daiichi-red border-daiichi-red/20' : 'bg-gray-50 text-gray-400 border-gray-200')}>{passengerColVisibility[key] ? '✓ ' : ''}{label}</button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(() => {
-                    const allSeats = showTripPassengers.seats || [];
-                    const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
-                    const paid = allSeats.filter((s: any) => s.status === SeatStatus.PAID);
-                    const empty = allSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
-                    return (
-                      <div className="px-6 py-3 bg-gray-50 flex flex-wrap gap-3 items-center flex-shrink-0 border-b border-gray-100">
-                        <span className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Tổng' : 'Total'}: {allSeats.length}</span>
-                        <span className="text-sm font-bold text-green-600">✓ {language === 'vi' ? 'Đã thanh toán' : 'Paid'}: {paid.length}</span>
-                        <span className="text-sm font-bold text-blue-600">◉ {language === 'vi' ? 'Đã đặt' : 'Booked'}: {booked.length - paid.length}</span>
-                        <span className="text-sm font-bold text-gray-400">○ {language === 'vi' ? 'Còn trống' : 'Empty'}: {empty.length}</span>
-                        <div className="ml-auto flex gap-2">
-                          <button onClick={() => exportTripToExcelHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"><Download size={12} /> Excel</button>
-                          <button onClick={() => exportTripToPDFHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"><FileText size={12} /> PDF</button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="flex-1 overflow-y-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-10">STT</th>
-                          {passengerColVisibility.ticketCode && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Mã vé' : 'Ticket Code'}</th>}
-                          {passengerColVisibility.seat && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>}
-                          {passengerColVisibility.name && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>}
-                          {passengerColVisibility.phone && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>}
-                          {passengerColVisibility.pickup && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>}
-                          {passengerColVisibility.dropoff && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>}
-                          {passengerColVisibility.status && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>}
-                          {passengerColVisibility.price && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Giá vé' : 'Price'}</th>}
-                          {passengerColVisibility.note && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghi chú' : 'Note'}</th>}
-                          <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-20">{t.options}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {passengerGroups.map((group, idx) => {
-                          const primarySeat = group.seats[0];
-                          const isGroup = group.seats.length > 1;
-                          const seatIds = group.seats.map((s: any) => s.id).join(', ');
-                          const ticketCode = group.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
-                          const allPaid = group.seats.every((s: any) => s.status === SeatStatus.PAID);
-                          const rowStatus = allPaid ? SeatStatus.PAID : SeatStatus.BOOKED;
-                          const totalAmount = group.booking?.amount ?? (showTripPassengers.price || 0) * group.seats.length;
-                          const isEditing = editingPassengerSeatId === primarySeat.id;
-                          const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
-                          return isEditing ? (
-                            <tr key={rowKey} className="bg-blue-50">
-                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{ticketCode}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3"><input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3"><input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              {passengerColVisibility.status && <td className="px-4 py-3"><select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none"><option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option><option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option></select></td>}
-                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                              <td className="px-4 py-3"><div className="flex gap-1"><button onClick={handleSavePassengerEdit} className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">{t.save}</button><button onClick={() => setEditingPassengerSeatId(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">{t.cancel}</button></div></td>
-                            </tr>
-                          ) : (
-                            <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40')}>
-                              <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                              {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{ticketCode}</td>}
-                              {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}{isGroup && <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold">👥 {group.seats.length}</span>}</td>}
-                              {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
-                              {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
-                              {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{primarySeat.pickupAddress || '—'}</td>}
-                              {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{primarySeat.dropoffAddress || '—'}</td>}
-                              {passengerColVisibility.status && <td className="px-4 py-3"><span className={cn('px-2 py-1 rounded-full text-xs font-bold', rowStatus === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>{rowStatus === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}</span></td>}
-                              {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                              {passengerColVisibility.note && <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">{primarySeat.bookingNote || '—'}</td>}
-                              <td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => { setEditingPassengerSeatId(primarySeat.id); setPassengerEditForm({ customerName: primarySeat.customerName || '', customerPhone: primarySeat.customerPhone || '', pickupAddress: primarySeat.pickupAddress || '', dropoffAddress: primarySeat.dropoffAddress || '', status: rowStatus, bookingNote: primarySeat.bookingNote || '' }); }} className="text-gray-400 hover:text-daiichi-red p-1 rounded" title={language === 'vi' ? 'Chỉnh sửa' : 'Edit'}><Edit3 size={14} /></button><button onClick={() => handleDeletePassenger(primarySeat.id)} className="text-gray-400 hover:text-red-600 p-1 rounded" title={language === 'vi' ? 'Xóa hành khách' : 'Remove passenger'}><Trash2 size={14} /></button></div></td>
-                            </tr>
-                          );
-                        })}
-                        {passengerGroups.length === 0 && (
-                          <tr><td colSpan={2 + Object.values(passengerColVisibility).filter(Boolean).length} className="px-4 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có hành khách nào' : 'No passengers yet'}</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-              );
-            })()}
-
-            {/* Trip Add-ons Management Modal */}
-            {showTripAddons && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xl font-bold">{t.manage_addons}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{showTripAddons.time} · {showTripAddons.route}</p>
-                    </div>
-                    <button onClick={() => { setShowTripAddons(null); setShowAddTripAddon(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
-                  </div>
-                  <div className="space-y-3">
-                    {(showTripAddons.addons || []).length === 0 && !showAddTripAddon && (
-                      <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
-                    )}
-                    {(showTripAddons.addons || []).map(addon => (
-                      <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm">{addon.name}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}</span>
-                          </div>
-                          {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
-                          <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
-                        </div>
-                        <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
-                      </div>
-                    ))}
-                    {showAddTripAddon ? (
-                      <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={tripAddonForm.name} onChange={e => setTripAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={tripAddonForm.price} onChange={e => setTripAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                          <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
-                            <select value={tripAddonForm.type} onChange={e => setTripAddonForm(p => ({ ...p, type: e.target.value as any }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                              <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
-                              <option value="TRANSPORT">{t.addon_type_transport}</option>
-                              <option value="FOOD">{t.addon_type_food}</option>
-                              <option value="OTHER">{t.addon_type_other}</option>
-                            </select>
-                          </div>
-                          <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                          <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setShowAddTripAddon(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">{language === 'vi' ? 'Chuyến xe đã hoàn thành' : 'Completed Trips'}</h2>
-                <p className="text-sm text-gray-500">{language === 'vi' ? 'Các chuyến đã kết thúc hoặc đã hoàn thành' : 'Trips that have ended or been completed'}</p>
-              </div>
-            </div>
-
-            {/* Quick Date Filter Buttons */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: language === 'vi' ? 'Tất cả' : 'All', value: '' },
-                { label: language === 'vi' ? 'Hôm nay' : 'Today', value: getLocalDateString(0) },
-                { label: language === 'vi' ? 'Hôm qua' : 'Yesterday', value: getLocalDateString(-1) },
-                ...Array.from({ length: 5 }, (_, i) => ({
-                  label: getOffsetDayLabel(-i - 2),
-                  value: getLocalDateString(-i - 2),
-                })),
-              ].map(({ label, value }) => (
-                <button
-                  key={value}
-                  onClick={() => setCompletedTripDateQuickFilter(value)}
-                  className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap', completedTripDateQuickFilter === value ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search bar + Advanced Filter Toggle */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="text"
-                  value={tripSearch}
-                  onChange={e => setTripSearch(e.target.value)}
-                  placeholder={language === 'vi' ? 'Tìm kiếm chuyến xe, tuyến, biển số, tài xế...' : 'Search trips by route, plate, driver...'}
-                  className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 shadow-sm"
-                />
-                {tripSearch && (
-                  <button onClick={() => setTripSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={14} /></button>
-                )}
-              </div>
-              <button
-                onClick={() => setShowCompletedTripAdvancedFilter(v => !v)}
-                className={cn('flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all border whitespace-nowrap', showCompletedTripAdvancedFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50')}
-              >
-                <Filter size={16} />
-                {language === 'vi' ? 'Lọc nâng cao' : 'Advanced'}
-              </button>
-            </div>
-
-            {/* Advanced Filter Panel */}
-            {showCompletedTripAdvancedFilter && (
-              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filters'}</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Tuyến đường' : 'Route'}</label>
-                    <input type="text" value={completedTripFilterRoute} onChange={e => setCompletedTripFilterRoute(e.target.value)} placeholder={language === 'vi' ? 'Lọc theo tuyến...' : 'Filter by route...'} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Từ ngày' : 'From Date'}</label>
-                    <input type="date" value={completedTripFilterDateFrom} onChange={e => setCompletedTripFilterDateFrom(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Đến ngày' : 'To Date'}</label>
-                    <input type="date" value={completedTripFilterDateTo} onChange={e => setCompletedTripFilterDateTo(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button onClick={() => { setCompletedTripFilterRoute(''); setCompletedTripFilterDateFrom(''); setCompletedTripFilterDateTo(''); setCompletedTripDateQuickFilter(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
-                    {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      {tripColVisibility.time && <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>}
-                      {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
-                      {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
-                      {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
-                      {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế đã đặt' : 'Booked'}</th>}
-                      {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách' : 'Passengers'}</th>}
-                      {tripColVisibility.addons && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>}
-                      <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {completedTrips.map((trip) => {
-                      const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
-                      const bookedCount = bookedSeats.length;
-                      const totalSeats = (trip.seats || []).length;
-                      const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
-                      return (
-                        <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                          {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
-                          {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium whitespace-nowrap" onClick={openPassengerList}>{trip.licensePlate}</td>}
-                          {tripColVisibility.route && <td className="px-6 py-4 overflow-hidden" style={{ maxWidth: tripColWidths.route }} onClick={openPassengerList}>
-                            {(() => {
-                              const r = routes.find(rt => rt.name === trip.route);
-                              return r ? (
-                                <div>
-                                  <p className="font-semibold text-sm text-gray-800 truncate">{r.name}</p>
-                                  <p className="text-xs text-gray-500 truncate">{r.departurePoint} → {r.arrivalPoint}</p>
-                                </div>
-                              ) : <span className="text-sm text-gray-500 truncate block">{trip.route}</span>;
-                            })()}
-                          </td>}
-                          {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600 whitespace-nowrap" onClick={openPassengerList}>{trip.driverName}</td>}
-                          {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-bold text-gray-700">{bookedCount}</span>
-                              <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
-                            </div>
-                          </td>}
-                          {tripColVisibility.passengers && <td className="px-6 py-4">
-                            <button onClick={openPassengerList} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors">
-                              <Users size={12} />
-                              <span>{bookedCount}</span>
-                            </button>
-                          </td>}
-                          {tripColVisibility.addons && <td className="px-6 py-4">
-                            <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
-                              <span>{(trip.addons || []).length}</span>
-                              <span>{t.manage_addons}</span>
-                            </button>
-                          </td>}
-                          <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={() => { setSelectedTrip(trip); setPreviousTab('completed-trips'); setActiveTab('seat-mapping'); }} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
-                        </tr>
-                      );
-                    })}
-                    {completedTrips.length === 0 && (
-                      <tr><td colSpan={['time','licensePlate','route','driver','seats','passengers','addons'].filter(k => tripColVisibility[k as keyof typeof tripColVisibility]).length + 1} className="px-6 py-10 text-center text-sm text-gray-400">{language === 'vi' ? 'Chưa có chuyến nào hoàn thành' : 'No completed trips yet'}</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <CompletedTripsPage
+              trips={trips}
+              bookings={bookings}
+              routes={routes}
+              language={language}
+              tripSearch={tripSearch}
+              setTripSearch={setTripSearch}
+              completedTripDateQuickFilter={completedTripDateQuickFilter}
+              setCompletedTripDateQuickFilter={setCompletedTripDateQuickFilter}
+              showCompletedTripAdvancedFilter={showCompletedTripAdvancedFilter}
+              setShowCompletedTripAdvancedFilter={setShowCompletedTripAdvancedFilter}
+              completedTripFilterRoute={completedTripFilterRoute}
+              setCompletedTripFilterRoute={setCompletedTripFilterRoute}
+              completedTripFilterDateFrom={completedTripFilterDateFrom}
+              setCompletedTripFilterDateFrom={setCompletedTripFilterDateFrom}
+              completedTripFilterDateTo={completedTripFilterDateTo}
+              setCompletedTripFilterDateTo={setCompletedTripFilterDateTo}
+              showTripPassengers={showTripPassengers}
+              setShowTripPassengers={setShowTripPassengers}
+              editingPassengerSeatId={editingPassengerSeatId}
+              setEditingPassengerSeatId={setEditingPassengerSeatId}
+              passengerEditForm={passengerEditForm}
+              setPassengerEditForm={setPassengerEditForm}
+              passengerColVisibility={passengerColVisibility}
+              setPassengerColVisibility={setPassengerColVisibility}
+              showPassengerColPanel={showPassengerColPanel}
+              setShowPassengerColPanel={setShowPassengerColPanel}
+              showTripAddons={showTripAddons}
+              setShowTripAddons={setShowTripAddons}
+              showAddTripAddon={showAddTripAddon}
+              setShowAddTripAddon={setShowAddTripAddon}
+              tripAddonForm={tripAddonForm}
+              setTripAddonForm={setTripAddonForm}
+              tripColVisibility={tripColVisibility}
+              tripColWidths={tripColWidths}
+              setTripColWidths={setTripColWidths}
+              formatTripDisplayTime={formatTripDisplayTime}
+              compareTripDateTime={compareTripDateTime}
+              buildSeatTicketCodeMap={buildSeatTicketCodeMap}
+              buildPassengerGroups={buildPassengerGroups}
+              handleClosePassengerModal={handleClosePassengerModal}
+              handleSavePassengerEdit={handleSavePassengerEdit}
+              handleDeletePassenger={handleDeletePassenger}
+              exportTripToExcelHandler={exportTripToExcelHandler}
+              exportTripToPDFHandler={exportTripToPDFHandler}
+              handleCopyTrip={handleCopyTrip}
+              handleStartEditTrip={handleStartEditTrip}
+              handleDeleteTrip={handleDeleteTrip}
+              handleSaveTripNote={handleSaveTripNote}
+              handleAddTripAddon={handleAddTripAddon}
+              handleDeleteTripAddon={handleDeleteTripAddon}
+              setSelectedTrip={setSelectedTrip}
+              setPreviousTab={setPreviousTab}
+              setActiveTab={setActiveTab}
+            />
+          </Suspense>
         );
-      }
 
       case 'stop-management':
         return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
