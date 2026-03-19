@@ -339,12 +339,14 @@ export default function App() {
 
   // Trip / Operations search state
   const [tripSearch, setTripSearch] = useState('');
-  const [tripDateQuickFilter, setTripDateQuickFilter] = useState<string>('');
   const [showTripAdvancedFilter, setShowTripAdvancedFilter] = useState(false);
   const [tripFilterRoute, setTripFilterRoute] = useState('');
   const [tripFilterStatus, setTripFilterStatus] = useState<string>('ALL');
   const [tripFilterDateFrom, setTripFilterDateFrom] = useState('');
   const [tripFilterDateTo, setTripFilterDateTo] = useState('');
+  const [tripFilterTime, setTripFilterTime] = useState('');
+  const [tripFilterVehicle, setTripFilterVehicle] = useState('');
+  const [tripFilterDriver, setTripFilterDriver] = useState('');
   const [completedTripDateQuickFilter, setCompletedTripDateQuickFilter] = useState<string>('');
   const [showCompletedTripAdvancedFilter, setShowCompletedTripAdvancedFilter] = useState(false);
   const [completedTripFilterRoute, setCompletedTripFilterRoute] = useState('');
@@ -414,7 +416,7 @@ export default function App() {
 
   // Batch trip creation state
   const [showBatchAddTrip, setShowBatchAddTrip] = useState(false);
-  const [batchTripForm, setBatchTripForm] = useState({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
+  const [batchTripForm, setBatchTripForm] = useState({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
 
@@ -1192,7 +1194,7 @@ export default function App() {
   const handleCopyTripsToDate = (sourceTrips: Trip[]) => {
     const times = sourceTrips.map(t => t.time).filter(Boolean);
     const firstTrip = sourceTrips[0];
-    setBatchTripForm({ date: '', route: firstTrip?.route || '', licensePlate: firstTrip?.licensePlate || '', driverName: firstTrip?.driverName || '', price: firstTrip?.price || 0, agentPrice: firstTrip?.agentPrice || 0, seatCount: firstTrip?.seats?.length || 11 });
+    setBatchTripForm({ dateFrom: '', dateTo: '', route: firstTrip?.route || '', licensePlate: firstTrip?.licensePlate || '', driverName: firstTrip?.driverName || '', price: firstTrip?.price || 0, agentPrice: firstTrip?.agentPrice || 0, seatCount: firstTrip?.seats?.length || 11 });
     setBatchTimeSlots(times.length > 0 ? times : ['']);
     setShowBatchAddTrip(true);
   };
@@ -1748,28 +1750,38 @@ export default function App() {
   // --- Batch trip creation ---
   const handleBatchAddTrips = async () => {
     const validSlots = batchTimeSlots.filter(t => t.trim() !== '');
-    if (!batchTripForm.date || !batchTripForm.route || validSlots.length === 0) return;
+    if (!batchTripForm.dateFrom || !batchTripForm.dateTo || !batchTripForm.route || validSlots.length === 0) return;
     setBatchTripLoading(true);
     try {
       const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
       const batchVehicle = vehicles.find(v => v.licensePlate === batchTripForm.licensePlate);
       const seatType = batchVehicle?.seatType || 'assigned';
-      const tripsToCreate = validSlots.map(slot => ({
-        time: slot,
-        date: batchTripForm.date,
-        route: batchTripForm.route,
-        licensePlate: batchTripForm.licensePlate,
-        driverName: batchTripForm.driverName,
-        price: batchTripForm.price,
-        agentPrice: batchTripForm.agentPrice,
-        status: TripStatus.WAITING,
-        seats,
-        addons: [] as TripAddon[],
-        seatType,
-      }));
+      // Build list of all dates in range
+      const dates: string[] = [];
+      const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
+      const end = new Date(batchTripForm.dateTo + 'T00:00:00');
+      while (cur <= end) {
+        dates.push(cur.toISOString().split('T')[0]);
+        cur.setDate(cur.getDate() + 1);
+      }
+      const tripsToCreate = dates.flatMap(date =>
+        validSlots.map(slot => ({
+          time: slot,
+          date,
+          route: batchTripForm.route,
+          licensePlate: batchTripForm.licensePlate,
+          driverName: batchTripForm.driverName,
+          price: batchTripForm.price,
+          agentPrice: batchTripForm.agentPrice,
+          status: TripStatus.WAITING,
+          seats,
+          addons: [] as TripAddon[],
+          seatType,
+        }))
+      );
       await transportService.addTripsBatch(tripsToCreate);
       setShowBatchAddTrip(false);
-      setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
+      setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 });
       setBatchTimeSlots(['']);
     } catch (err) {
       console.error('Failed to batch create trips:', err);
@@ -6098,11 +6110,13 @@ export default function App() {
         ];
         const filteredTrips = trips.filter(trip => {
           if (trip.status === TripStatus.COMPLETED) return false;
-          // Quick date filter
-          if (tripDateQuickFilter && trip.date !== tripDateQuickFilter) return false;
-          // Advanced filters
+          // Quick dropdown filters
           if (tripFilterStatus !== 'ALL' && trip.status !== tripFilterStatus) return false;
-          if (tripFilterRoute && !(trip.route || '').toLowerCase().includes(tripFilterRoute.toLowerCase())) return false;
+          if (tripFilterRoute && trip.route !== tripFilterRoute) return false;
+          if (tripFilterTime && trip.time !== tripFilterTime) return false;
+          if (tripFilterVehicle && trip.licensePlate !== tripFilterVehicle) return false;
+          if (tripFilterDriver && trip.driverName !== tripFilterDriver) return false;
+          // Advanced date-range filters
           if (tripFilterDateFrom && trip.date && trip.date < tripFilterDateFrom) return false;
           if (tripFilterDateTo && trip.date && trip.date > tripFilterDateTo) return false;
           if (!tripSearch) return true;
@@ -6119,7 +6133,7 @@ export default function App() {
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">{t.operation_management}</h2>
               <div className="flex gap-2">
-                <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
+                <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
                 <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
               </div>
             </div>
@@ -6226,23 +6240,32 @@ export default function App() {
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-xl font-bold">⚡ {t.batch_add_trips}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{language === 'vi' ? 'Chọn ngày và nhiều giờ để tạo nhiều chuyến cùng lúc' : 'Select a date and multiple times to create many trips at once'}</p>
+                      <p className="text-sm text-gray-500 mt-1">{language === 'vi' ? 'Chọn khoảng ngày và nhiều khung giờ để tạo nhiều chuyến cùng lúc' : 'Select a date range and multiple time slots to create many trips at once'}</p>
                     </div>
                     <button onClick={() => setShowBatchAddTrip(false)} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label><input type="date" value={batchTripForm.date} min={getLocalDateString(0)} onChange={e => {
-                      const date = e.target.value;
-                      const selectedRoute = routes.find(r => r.name === batchTripForm.route);
-                      if (selectedRoute) {
-                        const period = getRouteActivePeriod(selectedRoute, date);
-                        const price = period ? period.price : selectedRoute.price;
-                        const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
-                        setBatchTripForm(p => ({ ...p, date, price, agentPrice }));
-                      } else {
-                        setBatchTripForm(p => ({ ...p, date }));
-                      }
-                    }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.batch_date_from}</label>
+                      <input type="date" value={batchTripForm.dateFrom} min={getLocalDateString(0)} onChange={e => {
+                        const dateFrom = e.target.value;
+                        const selectedRoute = routes.find(r => r.name === batchTripForm.route);
+                        if (selectedRoute) {
+                          const period = getRouteActivePeriod(selectedRoute, dateFrom);
+                          const price = period ? period.price : selectedRoute.price;
+                          const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
+                          setBatchTripForm(p => ({ ...p, dateFrom, dateTo: p.dateTo && p.dateTo < dateFrom ? dateFrom : p.dateTo, price, agentPrice }));
+                        } else {
+                          setBatchTripForm(p => ({ ...p, dateFrom, dateTo: p.dateTo && p.dateTo < dateFrom ? dateFrom : p.dateTo }));
+                        }
+                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.batch_date_to}</label>
+                      <input type="date" value={batchTripForm.dateTo} min={batchTripForm.dateFrom || getLocalDateString(0)} onChange={e => {
+                        setBatchTripForm(p => ({ ...p, dateTo: e.target.value }));
+                      }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
                     <div className="col-span-2">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.select_times}</label>
                       <div className="mt-2 space-y-2">
@@ -6261,7 +6284,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
-                      {batchTripForm.date && (
+                      {batchTripForm.dateFrom && (
                         <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
                           {language === 'vi' ? '* Giá hiển thị theo kỳ cao điểm (nếu có), ngày thường dùng giá mặc định' : '* Price shown by peak period (if any), regular dates use default price'}
                         </p>
@@ -6270,7 +6293,7 @@ export default function App() {
                         const routeName = e.target.value;
                         const selectedRoute = routes.find(r => r.name === routeName);
                         if (selectedRoute) {
-                          const period = getRouteActivePeriod(selectedRoute, batchTripForm.date);
+                          const period = getRouteActivePeriod(selectedRoute, batchTripForm.dateFrom);
                           const price = period ? period.price : selectedRoute.price;
                           const agentPrice = period ? period.agentPrice : (selectedRoute.agentPrice || 0);
                           setBatchTripForm(p => ({ ...p, route: routeName, price, agentPrice }));
@@ -6279,8 +6302,8 @@ export default function App() {
                         }
                       }} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                         <option value="">{language === 'vi' ? '-- Chọn tuyến --' : '-- Select Route --'}</option>
-                        {routes.filter(r => isRouteValidForDate(r, batchTripForm.date)).map(r => {
-                          const period = getRouteActivePeriod(r, batchTripForm.date);
+                        {routes.filter(r => isRouteValidForDate(r, batchTripForm.dateFrom)).map(r => {
+                          const period = getRouteActivePeriod(r, batchTripForm.dateFrom);
                           return <option key={r.id} value={r.name}>{formatRouteOption(r, period, language)}</option>;
                         })}
                       </select>
@@ -6307,22 +6330,51 @@ export default function App() {
                     </div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={batchTripForm.seatCount} onChange={e => setBatchTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                   </div>
-                  {batchTripForm.date && batchTimeSlots.filter(s => s).length > 0 && (
-                    <div className="bg-blue-50 rounded-xl p-4">
-                      <p className="text-sm font-bold text-blue-700 mb-2">📋 {t.trips_to_create}: {batchTimeSlots.filter(s => s).length} {language === 'vi' ? 'chuyến' : 'trips'} vào ngày {batchTripForm.date}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {batchTimeSlots.filter(s => s).map((slot, i) => (
-                          <span key={i} className="px-3 py-1 bg-white text-blue-700 text-xs font-bold rounded-full border border-blue-200">{slot}</span>
-                        ))}
+                  {(() => {
+                    const validSlots = batchTimeSlots.filter(s => s);
+                    let dayCount = 0;
+                    if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
+                      const from = new Date(batchTripForm.dateFrom + 'T00:00:00');
+                      const to = new Date(batchTripForm.dateTo + 'T00:00:00');
+                      dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+                    }
+                    const totalTrips = dayCount * validSlots.length;
+                    if (!batchTripForm.dateFrom || !batchTripForm.dateTo || validSlots.length === 0) return null;
+                    return (
+                      <div className="bg-blue-50 rounded-xl p-4">
+                        <p className="text-sm font-bold text-blue-700 mb-2">
+                          📋 {t.trips_to_create}: {dayCount} {language === 'vi' ? 'ngày' : 'days'} × {validSlots.length} {language === 'vi' ? 'khung giờ' : 'time slots'} = <span className="text-blue-900">{totalTrips} {language === 'vi' ? 'chuyến' : 'trips'}</span>
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {validSlots.map((slot, i) => (
+                            <span key={i} className="px-3 py-1 bg-white text-blue-700 text-xs font-bold rounded-full border border-blue-200">{slot}</span>
+                          ))}
+                        </div>
+                        {dayCount > 0 && (
+                          <p className="text-xs text-blue-500 mt-2">{batchTripForm.dateFrom} → {batchTripForm.dateTo}</p>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   <div className="flex justify-end gap-4 pt-2">
                     <button onClick={() => setShowBatchAddTrip(false)} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleBatchAddTrips} disabled={batchTripLoading || !batchTripForm.date || !batchTripForm.route || batchTimeSlots.filter(s => s).length === 0} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
-                      {batchTripLoading && <span className="animate-spin">⚡</span>}
-                      {language === 'vi' ? `Tạo ${batchTimeSlots.filter(s => s).length} chuyến` : `Create ${batchTimeSlots.filter(s => s).length} Trips`}
-                    </button>
+                    {(() => {
+                      const validSlots = batchTimeSlots.filter(s => s).length;
+                      let dayCount = 0;
+                      if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
+                        const from = new Date(batchTripForm.dateFrom + 'T00:00:00');
+                        const to = new Date(batchTripForm.dateTo + 'T00:00:00');
+                        dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+                      }
+                      const totalTrips = dayCount * validSlots;
+                      const isDisabled = batchTripLoading || !batchTripForm.dateFrom || !batchTripForm.dateTo || batchTripForm.dateTo < batchTripForm.dateFrom || !batchTripForm.route || validSlots === 0;
+                      return (
+                        <button onClick={handleBatchAddTrips} disabled={isDisabled} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
+                          {batchTripLoading && <span className="animate-spin">⚡</span>}
+                          {language === 'vi' ? `Tạo ${totalTrips} chuyến` : `Create ${totalTrips} Trips`}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -6384,25 +6436,50 @@ export default function App() {
               </div>
             )}
 
-            {/* Quick Date Filter Buttons */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: language === 'vi' ? 'Tất cả' : 'All', value: '' },
-                { label: language === 'vi' ? 'Hôm nay' : 'Today', value: getLocalDateString(0) },
-                { label: language === 'vi' ? 'Ngày mai' : 'Tomorrow', value: getLocalDateString(1) },
-                ...Array.from({ length: 5 }, (_, i) => ({
-                  label: getOffsetDayLabel(i + 2),
-                  value: getLocalDateString(i + 2),
-                })),
-              ].map(({ label, value }) => (
+            {/* Quick Dropdown Filters: route, time, vehicle, driver */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={tripFilterRoute}
+                onChange={e => setTripFilterRoute(e.target.value)}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterRoute ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+              >
+                <option value="">{t.all_routes}</option>
+                {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+              </select>
+              <select
+                value={tripFilterTime}
+                onChange={e => setTripFilterTime(e.target.value)}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterTime ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+              >
+                <option value="">{language === 'vi' ? 'Tất cả giờ' : 'All Times'}</option>
+                {Array.from(new Set(trips.filter(t => t.status !== TripStatus.COMPLETED && t.time).map(t => t.time))).sort().map(time => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+              <select
+                value={tripFilterVehicle}
+                onChange={e => setTripFilterVehicle(e.target.value)}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterVehicle ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+              >
+                <option value="">{t.all_vehicles}</option>
+                {vehicles.map(v => <option key={v.id} value={v.licensePlate}>{v.licensePlate}</option>)}
+              </select>
+              <select
+                value={tripFilterDriver}
+                onChange={e => setTripFilterDriver(e.target.value)}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterDriver ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+              >
+                <option value="">{t.all_drivers}</option>
+                {activeEmployeeNames.map(name => <option key={name} value={name}>{name}</option>)}
+              </select>
+              {(tripFilterRoute || tripFilterTime || tripFilterVehicle || tripFilterDriver) && (
                 <button
-                  key={value}
-                  onClick={() => setTripDateQuickFilter(value)}
-                  className={cn('px-3 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap', tripDateQuickFilter === value ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                  onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); }}
+                  className="px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1"
                 >
-                  {label}
+                  <X size={12} /> {language === 'vi' ? 'Xóa lọc' : 'Clear'}
                 </button>
-              ))}
+              )}
             </div>
 
             {/* Search bar + Column Toggle */}
@@ -6469,11 +6546,7 @@ export default function App() {
             {showTripAdvancedFilter && (
               <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Lọc nâng cao' : 'Advanced Filters'}</p>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Tuyến đường' : 'Route'}</label>
-                    <input type="text" value={tripFilterRoute} onChange={e => setTripFilterRoute(e.target.value)} placeholder={language === 'vi' ? 'Lọc theo tuyến...' : 'Filter by route...'} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Trạng thái' : 'Status'}</label>
                     <select value={tripFilterStatus} onChange={e => setTripFilterStatus(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none">
@@ -6492,7 +6565,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <button onClick={() => { setTripFilterRoute(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); setTripDateQuickFilter(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
+                  <button onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
                     {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
                   </button>
                 </div>
