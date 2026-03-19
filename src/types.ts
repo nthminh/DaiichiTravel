@@ -336,6 +336,14 @@ export interface Stop {
   surcharge: number;
   distanceKm?: number; // distance from the main route stop (km), used for pickup surcharge display
   note?: string;
+  /** Hierarchy level.
+   *  - 'TERMINAL': top-level city / station (điểm xuất phát / điểm đến).
+   *  - 'STOP'    : sub-stop belonging to a terminal (điểm đón / điểm trả).
+   *  Undefined means legacy stop (treated as 'STOP' for backwards-compat).
+   */
+  type?: 'TERMINAL' | 'STOP';
+  /** For type='STOP': the `id` of the parent TERMINAL stop. */
+  terminalId?: string;
 }
 
 export interface PickupPoint {

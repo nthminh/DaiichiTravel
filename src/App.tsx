@@ -2228,8 +2228,17 @@ export default function App() {
           // Route-level surcharges
           const tripDate = selectedTrip.date || '';
           const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
-          // Pre-compute all stop names for pickup/dropoff address selects
-          const allStopNames = stops.map(s => s.name);
+          // Pre-compute stop name lists for pickup/dropoff address selects.
+          // When the route's departure/arrival points map to TERMINAL stops, only show child stops
+          // (terminalId === terminal.id). Falls back to all stops for backwards-compat.
+          const departureTerminal = stops.find(s => s.type === 'TERMINAL' && s.name === tripRoute?.departurePoint);
+          const arrivalTerminal = stops.find(s => s.type === 'TERMINAL' && s.name === tripRoute?.arrivalPoint);
+          const pickupStopNames = departureTerminal
+            ? stops.filter(s => s.terminalId === departureTerminal.id).map(s => s.name)
+            : stops.map(s => s.name);
+          const dropoffStopNames = arrivalTerminal
+            ? stops.filter(s => s.terminalId === arrivalTerminal.id).map(s => s.name)
+            : stops.map(s => s.name);
 
           // Build seat status lookup
           const seatStatusMap: Record<string, SeatStatus> = {};
@@ -2801,7 +2810,7 @@ export default function App() {
                           <div className="pl-3 border-l-2 border-gray-100">
                             <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.pickup_address || 'Điểm đón'}</label>
                             <SearchableSelect
-                              options={allStopNames}
+                              options={pickupStopNames}
                               value={pickupAddress}
                               onChange={setPickupAddress}
                               placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
@@ -2907,7 +2916,7 @@ export default function App() {
                           <div className="pl-3 border-l-2 border-gray-100">
                             <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
                             <SearchableSelect
-                              options={allStopNames}
+                              options={dropoffStopNames}
                               value={dropoffAddress}
                               onChange={setDropoffAddress}
                               placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}

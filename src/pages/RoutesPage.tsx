@@ -8,6 +8,7 @@ import { NotePopover } from '../components/NotePopover';
 import { exportRouteToPDF } from '../utils/exportUtils';
 import { useRoutes, DEFAULT_ROUTE_FORM } from '../hooks/useRoutes';
 import { FirebaseStorage } from 'firebase/storage';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const STOP_ID_DEPARTURE = '__departure__';
 const STOP_ID_ARRIVAL = '__arrival__';
@@ -132,8 +133,29 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                   <p className="text-[10px] text-orange-500 mt-1 ml-1">{language === 'vi' ? '* Chỉ hiển thị cho đại lý' : '* Visible to agents only'}</p>
                 </div>
               </div>
-              <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label><input type="text" value={routeForm.departurePoint} onChange={e => setRouteForm(p => ({ ...p, departurePoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-              <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label><input type="text" value={routeForm.arrivalPoint} onChange={e => setRouteForm(p => ({ ...p, arrivalPoint: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+              <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_point}</label>
+                <SearchableSelect
+                  options={stops.filter(s => s.type === 'TERMINAL').map(s => s.name)}
+                  value={routeForm.departurePoint}
+                  onChange={val => setRouteForm(p => ({ ...p, departurePoint: val }))}
+                  placeholder={language === 'vi' ? 'Chọn hoặc nhập điểm xuất phát...' : 'Select or type departure point...'}
+                  className="mt-1"
+                />
+                {stops.filter(s => s.type === 'TERMINAL').length === 0 && (
+                  <p className="text-[10px] text-amber-500 mt-1 ml-1">
+                    {language === 'vi' ? '* Thêm Ga/Bến (cấp Terminal) trong Quản lý Điểm dừng để chọn nhanh hơn.' : '* Add Terminal-level stops in Stop Management for quick selection.'}
+                  </p>
+                )}
+              </div>
+              <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.arrival_point}</label>
+                <SearchableSelect
+                  options={stops.filter(s => s.type === 'TERMINAL').map(s => s.name)}
+                  value={routeForm.arrivalPoint}
+                  onChange={val => setRouteForm(p => ({ ...p, arrivalPoint: val }))}
+                  placeholder={language === 'vi' ? 'Chọn hoặc nhập điểm đến...' : 'Select or type arrival point...'}
+                  className="mt-1"
+                />
+              </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_details}</label>
                 <textarea value={routeForm.details} onChange={e => setRouteForm(p => ({ ...p, details: e.target.value }))} rows={4} placeholder={t.route_details_placeholder} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
