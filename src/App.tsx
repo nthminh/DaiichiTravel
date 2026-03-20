@@ -41,6 +41,9 @@ import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { exportTripToExcel, exportTripToPDF, exportRouteToPDF } from './utils/exportUtils';
+import { EmailLinkReenterForm } from './components/EmailLinkReenterForm';
+import { useEmployees } from './hooks/useEmployees';
+import { getBookingGroupSeatIds, buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGroups as libBuildPassengerGroups } from './lib/bookingUtils';
 
 // Lazy-loaded tab/role components – split into separate chunks to reduce initial bundle
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -93,53 +96,6 @@ export interface User {
 }
 
 
-
-/** Small overlay shown when a magic-link email is opened on a different device than where it was requested */
-function EmailLinkReenterForm({ language, onSubmit, onCancel }: { language: Language; onSubmit: (email: string) => void; onCancel: () => void }) {
-  const [email, setEmail] = React.useState('');
-  const isVi = language === 'vi';
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
-        <p className="text-lg font-bold text-gray-800 text-center">
-          {isVi ? '📧 Xác nhận email đăng nhập' : '📧 Confirm sign-in email'}
-        </p>
-        <p className="text-sm text-gray-500 text-center">
-          {isVi
-            ? 'Vui lòng nhập lại địa chỉ email bạn đã dùng để yêu cầu link đăng nhập.'
-            : 'Please re-enter the email address you used to request the sign-in link.'}
-        </p>
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (email.trim()) onSubmit(email.trim()); }}
-          className="space-y-3"
-        >
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="email@example.com"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-            autoFocus
-            required
-          />
-          <button
-            type="submit"
-            className="w-full py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors"
-          >
-            {isVi ? 'Xác nhận' : 'Confirm'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-full py-2 text-gray-400 text-xs hover:text-gray-600 transition-colors"
-          >
-            {isVi ? 'Huỷ' : 'Cancel'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -289,15 +245,8 @@ export default function App() {
 
   // Agent search / filter state (managed by AgentsPage)
 
-  // Employee CRUD state
+  // Employee data state (must be declared before useEmployees which needs agents)
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [showAddEmployee, setShowAddEmployee] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE', username: '', password: '', note: '' });
-  const [employeeFormError, setEmployeeFormError] = useState('');
-  const [employeeSearch, setEmployeeSearch] = useState('');
-  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
-  const [showEmployeeFilters, setShowEmployeeFilters] = useState(false);
 
   // Driver assignments & staff messages
   const [driverAssignments, setDriverAssignments] = useState<DriverAssignment[]>([]);
@@ -457,6 +406,27 @@ export default function App() {
   const [securityConfig, setSecurityConfig] = useState<{ phoneVerificationEnabled: boolean; phoneNumbers: string[] }>({ phoneVerificationEnabled: false, phoneNumbers: [] });
 
   // ─── Agent CRUD (logic extracted to AgentsPage via useAgents hook) ────────────
+
+  // ─── Employee CRUD (logic extracted to useEmployees hook) ───────────────────
+  const {
+    showAddEmployee,
+    setShowAddEmployee,
+    editingEmployee,
+    setEditingEmployee,
+    employeeForm,
+    setEmployeeForm,
+    employeeFormError,
+    setEmployeeFormError,
+    handleSaveEmployee: _handleSaveEmployee,
+    handleDeleteEmployee,
+    handleStartEditEmployee,
+  } = useEmployees({ language, agents });
+
+  const handleSaveEmployee = () => _handleSaveEmployee(employees);
+
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
+  const [showEmployeeFilters, setShowEmployeeFilters] = useState(false);
 
   // ─── Route CRUD (logic extracted to useRoutes hook) ──────────────────────────
   const {
@@ -803,61 +773,6 @@ export default function App() {
     });
   };
 
-  // Helper: check if a username is already taken by another agent or employee (used by employee handlers)
-  const isUsernameTaken = (username: string, excludeAgentId?: string, excludeEmployeeId?: string): boolean => {
-    const normalized = username.trim().toLowerCase();
-    const takenByAgent = agents.some(a =>
-      a.username && String(a.username).trim().toLowerCase() === normalized &&
-      (!excludeAgentId || a.id !== excludeAgentId)
-    );
-    const takenByEmployee = employees.some(emp =>
-      emp.username && String(emp.username).trim().toLowerCase() === normalized &&
-      (!excludeEmployeeId || emp.id !== excludeEmployeeId)
-    );
-    return takenByAgent || takenByEmployee;
-  };
-
-  // --- Employee CRUD handlers ---
-  const handleSaveEmployee = async () => {
-    try {
-      // Check for duplicate username across employees and agents
-      if (employeeForm.username && employeeForm.username.trim()) {
-        if (isUsernameTaken(employeeForm.username, undefined, editingEmployee?.id)) {
-          setEmployeeFormError(language === 'vi' ? 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác.' : 'This username already exists, please choose another.');
-          return;
-        }
-      }
-      setEmployeeFormError('');
-      if (editingEmployee) {
-        await transportService.updateEmployee(editingEmployee.id, employeeForm);
-      } else {
-        await transportService.addEmployee(employeeForm);
-      }
-      setShowAddEmployee(false);
-      setEditingEmployee(null);
-      setEmployeeForm({ name: '', phone: '', email: '', address: '', role: 'STAFF', position: '', status: 'ACTIVE', username: '', password: '', note: '' });
-    } catch (err) {
-      console.error('Failed to save employee:', err);
-    }
-  };
-
-  const handleDeleteEmployee = async (employeeId: string) => {
-    if (!window.confirm(language === 'vi' ? 'Bạn có chắc muốn xóa nhân viên này?' : 'Delete this employee?')) return;
-    try {
-      await transportService.deleteEmployee(employeeId);
-    } catch (err) {
-      console.error('Failed to delete employee:', err);
-    }
-  };
-
-  const handleStartEditEmployee = (employee: Employee) => {
-    setEditingEmployee(employee);
-    setEmployeeForm({ name: String(employee.name ?? ''), phone: String(employee.phone ?? ''), email: String(employee.email ?? ''), address: String(employee.address ?? ''), role: employee.role, position: String(employee.position ?? ''), status: employee.status, username: String(employee.username ?? ''), password: String(employee.password ?? ''), note: String(employee.note ?? '') });
-    setEmployeeFormError('');
-    setShowAddEmployee(true);
-  };
-
-
   // --- Trip CRUD handlers ---
   const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
     trip.date ? `${trip.date} ${trip.time}` : trip.time;
@@ -1002,43 +917,12 @@ export default function App() {
     }
   };
 
-  const buildSeatTicketCodeMap = (tripId: string): Map<string, string> => {
-    const map = new Map<string, string>();
-    for (const bk of bookings) {
-      if (bk.tripId !== tripId) continue;
-      if (bk.ticketCode) {
-        if (bk.seatId) map.set(bk.seatId, bk.ticketCode);
-        if (bk.seatIds) {
-          for (const sid of bk.seatIds) map.set(sid, bk.ticketCode);
-        }
-      }
-    }
-    return map;
-  };
+  // Wrap imported pure functions with the local `bookings` dependency
+  const buildSeatTicketCodeMap = (tripId: string) =>
+    libBuildSeatTicketCodeMap(tripId, bookings);
 
-  // Helper: get all seat IDs in the same booking group as the given seatId
-  const getBookingGroupSeatIds = (matchingBooking: any, fallbackSeatId: string): string[] => {
-    if (!matchingBooking) return [fallbackSeatId];
-    return matchingBooking.seatIds || (matchingBooking.seatId ? [matchingBooking.seatId] : [fallbackSeatId]);
-  };
-
-  // Helper: group booked seats by booking for a trip – returns ordered list of booking groups
-  const buildPassengerGroups = (tripId: string, bookedSeats: any[]): { booking: any; seats: any[] }[] => {
-    const seatToBookingMap = new Map<string, any>();
-    for (const bk of bookings) {
-      if (bk.tripId !== tripId) continue;
-      if (bk.seatId) seatToBookingMap.set(bk.seatId, bk);
-      if (bk.seatIds) { for (const sid of bk.seatIds) seatToBookingMap.set(sid, bk); }
-    }
-    const groupMap = new Map<string, { booking: any; seats: any[] }>();
-    for (const seat of bookedSeats) {
-      const bk = seatToBookingMap.get(seat.id);
-      const key = bk?.id || bk?.ticketCode || `__${seat.id}`;
-      if (!groupMap.has(key)) groupMap.set(key, { booking: bk, seats: [] });
-      groupMap.get(key)!.seats.push(seat);
-    }
-    return [...groupMap.values()];
-  };
+  const buildPassengerGroups = (tripId: string, bookedSeats: any[]) =>
+    libBuildPassengerGroups(tripId, bookedSeats, bookings);
 
   const exportTripToExcelHandler = (trip: any) => exportTripToExcel(trip, bookings, routes);
   const exportTripToPDFHandler = (trip: any) => exportTripToPDF(trip, bookings, routes);
@@ -1893,7 +1777,7 @@ export default function App() {
           </Suspense>
         );
 
-            case 'vehicles':
+      case 'vehicles':
         return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} />;
 
 
@@ -2079,7 +1963,7 @@ export default function App() {
         );
 
       case 'consignments':
-           return <ConsignmentsPage consignments={consignments} currentUser={currentUser} language={language} />;
+        return <ConsignmentsPage consignments={consignments} currentUser={currentUser} language={language} />;
 
       case 'user-guide':
         return <UserGuide language={language} currentUser={currentUser} userGuides={userGuides} />;
