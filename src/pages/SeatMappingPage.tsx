@@ -36,6 +36,8 @@ interface SeatMappingPageProps {
   toStopId: string;
   pickupSurcharge: number;
   dropoffSurcharge: number;
+  pickupAddressSurcharge: number;
+  dropoffAddressSurcharge: number;
   surchargeAmount: number;
   addonQuantities: Record<string, number>;
   bookingNote: string;
@@ -62,6 +64,8 @@ interface SeatMappingPageProps {
   setToStopId: (v: string) => void;
   setPickupSurcharge: (v: number) => void;
   setDropoffSurcharge: (v: number) => void;
+  setPickupAddressSurcharge: (v: number) => void;
+  setDropoffAddressSurcharge: (v: number) => void;
   setSurchargeAmount: (v: number) => void;
   setAddonQuantities: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   setBookingNote: (v: string) => void;
@@ -101,6 +105,8 @@ export function SeatMappingPage({
   toStopId,
   pickupSurcharge,
   dropoffSurcharge,
+  pickupAddressSurcharge,
+  dropoffAddressSurcharge,
   surchargeAmount,
   addonQuantities,
   bookingNote,
@@ -126,6 +132,8 @@ export function SeatMappingPage({
   setToStopId,
   setPickupSurcharge,
   setDropoffSurcharge,
+  setPickupAddressSurcharge,
+  setDropoffAddressSurcharge,
   setSurchargeAmount,
   setAddonQuantities,
   setBookingNote,
@@ -757,6 +765,7 @@ export function SeatMappingPage({
                       onChange={(val) => {
                         setPickupPoint(val);
                         setPickupAddress(''); // clear sub-stop when departure changes
+                        setPickupAddressSurcharge(0); // clear address-level surcharge
                         // Determine stop ID: prefer routeStops match, fall back to global stops
                         const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
                         const globalStop = stops.find(s => s.name === val);
@@ -782,7 +791,12 @@ export function SeatMappingPage({
                     <SearchableSelect
                       options={pickupStopNames}
                       value={pickupAddress}
-                      onChange={setPickupAddress}
+                      onChange={(val) => {
+                        setPickupAddress(val);
+                        // If value matches a predefined stop, apply its surcharge; otherwise clear it
+                        const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
+                        setPickupAddressSurcharge(matchedStop?.surcharge || 0);
+                      }}
                       placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
                       className="mt-0.5"
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
@@ -790,6 +804,15 @@ export function SeatMappingPage({
                     />
                     {isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate) && (
                       <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : language === 'ja' ? 'この路線では乗車地点の入力が無効です' : 'Pickup address input is disabled for this route'}</p>
+                    )}
+                    {pickupAddress && pickupStopNames.length > 0 && !pickupStopNames.includes(pickupAddress) && (
+                      <p className="mt-1 text-[10px] text-amber-600">
+                        {language === 'vi'
+                          ? '⚠️ Giá vé có thể điều chỉnh nếu điểm đón của bạn quá xa.'
+                          : language === 'ja'
+                            ? '⚠️ 乗車地点が遠い場合、料金が調整される場合があります。'
+                            : '⚠️ Price may be adjusted if your pickup point is too far.'}
+                      </p>
                     )}
                   </div>
                 </>
@@ -814,6 +837,7 @@ export function SeatMappingPage({
                       onChange={(val) => {
                         setDropoffPoint(val);
                         setDropoffAddress(''); // clear sub-stop when destination changes
+                        setDropoffAddressSurcharge(0); // clear address-level surcharge
                         // Determine stop ID: prefer routeStops match, fall back to global stops
                         const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
                         const globalStop = stops.find(s => s.name === val);
@@ -889,7 +913,12 @@ export function SeatMappingPage({
                     <SearchableSelect
                       options={dropoffStopNames}
                       value={dropoffAddress}
-                      onChange={setDropoffAddress}
+                      onChange={(val) => {
+                        setDropoffAddress(val);
+                        // If value matches a predefined stop, apply its surcharge; otherwise clear it
+                        const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
+                        setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
+                      }}
                       placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
                       className="mt-0.5"
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
@@ -897,6 +926,15 @@ export function SeatMappingPage({
                     />
                     {isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate) && (
                       <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : language === 'ja' ? 'この路線では降車地点の入力が無効です' : 'Dropoff address input is disabled for this route'}</p>
+                    )}
+                    {dropoffAddress && dropoffStopNames.length > 0 && !dropoffStopNames.includes(dropoffAddress) && (
+                      <p className="mt-1 text-[10px] text-amber-600">
+                        {language === 'vi'
+                          ? '⚠️ Giá vé có thể điều chỉnh nếu điểm trả của bạn quá xa.'
+                          : language === 'ja'
+                            ? '⚠️ 降車地点が遠い場合、料金が調整される場合があります。'
+                            : '⚠️ Price may be adjusted if your dropoff point is too far.'}
+                      </p>
                     )}
                   </div>
                 </>
@@ -1103,7 +1141,7 @@ export function SeatMappingPage({
                 // Children under 5 are free; only charge adults (which includes children aged 5+)
                 const baseTotal = (effectiveAdults * basePriceAdult);
                 const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
-                const allSurcharges = pickupSurcharge + dropoffSurcharge + surchargeAmount + routeSurchargeTotal;
+                const allSurcharges = pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge + surchargeAmount + routeSurchargeTotal;
                 const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
                 const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
                 const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
@@ -1139,6 +1177,18 @@ export function SeatMappingPage({
                       <div className="flex justify-between items-center text-xs text-gray-500">
                         <span>+ {language === 'vi' ? 'Phụ thu trả khách' : language === 'ja' ? '乗客降車料' : 'Dropoff surcharge'}</span>
                         <span>+{dropoffSurcharge.toLocaleString()}đ</span>
+                      </div>
+                    )}
+                    {pickupAddressSurcharge > 0 && (
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <span>+ {language === 'vi' ? 'Phụ thu điểm đón' : language === 'ja' ? '乗車地点追加料金' : 'Pickup address surcharge'}</span>
+                        <span>+{pickupAddressSurcharge.toLocaleString()}đ</span>
+                      </div>
+                    )}
+                    {dropoffAddressSurcharge > 0 && (
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <span>+ {language === 'vi' ? 'Phụ thu điểm trả' : language === 'ja' ? '降車地点追加料金' : 'Dropoff address surcharge'}</span>
+                        <span>+{dropoffAddressSurcharge.toLocaleString()}đ</span>
                       </div>
                     )}
                     {surchargeAmount > 0 && (

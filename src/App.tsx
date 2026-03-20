@@ -124,6 +124,8 @@ export default function App() {
   const [bookingDiscount, setBookingDiscount] = useState(0);
   const [pickupSurcharge, setPickupSurcharge] = useState(0);
   const [dropoffSurcharge, setDropoffSurcharge] = useState(0);
+  const [pickupAddressSurcharge, setPickupAddressSurcharge] = useState(0);
+  const [dropoffAddressSurcharge, setDropoffAddressSurcharge] = useState(0);
   // Fare-table state (Option 2: explicit fare lookup between stops)
   const [fareAmount, setFareAmount] = useState<number | null>(null);
   const [fareAgentAmount, setFareAgentAmount] = useState<number | null>(null); // agent-specific fare per segment
@@ -900,6 +902,8 @@ export default function App() {
     addonQuantities,
     pickupSurcharge,
     dropoffSurcharge,
+    pickupAddressSurcharge,
+    dropoffAddressSurcharge,
     surchargeAmount,
     bookingDiscount,
     pickupPoint,
@@ -938,6 +942,8 @@ export default function App() {
     setDropoffAddress,
     setPickupSurcharge,
     setDropoffSurcharge,
+    setPickupAddressSurcharge,
+    setDropoffAddressSurcharge,
     setSurchargeAmount,
     setBookingDiscount,
     setAddonQuantities,
@@ -1178,6 +1184,8 @@ export default function App() {
               toStopId={toStopId}
               pickupSurcharge={pickupSurcharge}
               dropoffSurcharge={dropoffSurcharge}
+              pickupAddressSurcharge={pickupAddressSurcharge}
+              dropoffAddressSurcharge={dropoffAddressSurcharge}
               surchargeAmount={surchargeAmount}
               addonQuantities={addonQuantities}
               bookingNote={bookingNote}
@@ -1203,6 +1211,8 @@ export default function App() {
               setToStopId={setToStopId}
               setPickupSurcharge={setPickupSurcharge}
               setDropoffSurcharge={setDropoffSurcharge}
+              setPickupAddressSurcharge={setPickupAddressSurcharge}
+              setDropoffAddressSurcharge={setDropoffAddressSurcharge}
               setSurchargeAmount={setSurchargeAmount}
               setAddonQuantities={setAddonQuantities}
               setBookingNote={setBookingNote}
