@@ -448,6 +448,13 @@ export default function App() {
     handleTripVehicleSelect,
     handleBatchVehicleSelect,
     handleBatchAddTrips,
+    selectedTripIdsForMerge,
+    setSelectedTripIdsForMerge,
+    mergeLoading,
+    mergeError,
+    setMergeError,
+    handleToggleTripForMerge,
+    handleMergeTrips,
   } = useTrips({ vehicles, language });
 
   // ─── Auth helpers (logic extracted to useAuth hook) ──────────────────────────
@@ -1520,6 +1527,13 @@ export default function App() {
               handleTripVehicleSelect={handleTripVehicleSelect}
               handleBatchVehicleSelect={handleBatchVehicleSelect}
               handleBatchAddTrips={handleBatchAddTrips}
+              selectedTripIdsForMerge={selectedTripIdsForMerge}
+              setSelectedTripIdsForMerge={setSelectedTripIdsForMerge}
+              mergeLoading={mergeLoading}
+              mergeError={mergeError}
+              setMergeError={setMergeError}
+              handleToggleTripForMerge={handleToggleTripForMerge}
+              handleMergeTrips={() => handleMergeTrips(bookings)}
               getRouteActivePeriod={getRouteActivePeriod}
               isRouteValidForDate={isRouteValidForDate}
               formatRouteOption={formatRouteOption}

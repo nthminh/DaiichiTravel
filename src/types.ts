@@ -234,6 +234,8 @@ export interface Trip {
   addons?: TripAddon[];
   note?: string;
   seatType?: 'assigned' | 'free'; // 'assigned' = ghế chỉ định (default), 'free' = ghế tự do
+  isMerged?: boolean;             // true when this trip was created by merging two trips
+  mergedFromTripIds?: string[];   // IDs of the source trips that were merged into this one
 }
 
 export interface ConsignmentItem {

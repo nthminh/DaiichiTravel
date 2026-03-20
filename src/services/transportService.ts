@@ -15,7 +15,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage } from '../types';
+import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -819,7 +819,102 @@ export const transportService = {
     await deleteDoc(doc(db, 'trips', tripId));
   },
 
-  // ─── User Guides ───────────────────────────────────────────────────────────
+  /**
+   * Merge two free-seating trips on the same route into one.
+   * - The primary trip (primaryTripId) absorbs all passengers/seats from the secondary.
+   * - Every booking that references secondaryTripId is repointed to primaryTripId with
+   *   updated seat IDs (secondary seats are renumbered starting after the primary's last seat).
+   * - The secondary trip document is deleted.
+   * - The primary trip is flagged with isMerged=true and mergedFromTripIds=[...].
+   *
+   * Validation (throws on failure):
+   *   - Both trips must exist, be free-seating, on the same route, and have WAITING status.
+   *   - Departure times must be within MERGE_MAX_TIME_DIFF_MINUTES of each other.
+   */
+  mergeTrips: async (primaryTripId: string, secondaryTripId: string, allBookings: Booking[]) => {
+    if (!db) throw new Error('Firebase not configured');
+
+    const MERGE_MAX_TIME_DIFF_MINUTES = 60;
+
+    const primaryRef = doc(db, 'trips', primaryTripId);
+    const secondaryRef = doc(db, 'trips', secondaryTripId);
+
+    await runTransaction(db, async (transaction) => {
+      const [primarySnap, secondarySnap] = await Promise.all([
+        transaction.get(primaryRef),
+        transaction.get(secondaryRef),
+      ]);
+
+      if (!primarySnap.exists()) throw new Error('Chuyến chính không tồn tại.');
+      if (!secondarySnap.exists()) throw new Error('Chuyến phụ không tồn tại.');
+
+      const primary = { id: primaryTripId, ...primarySnap.data() } as Trip;
+      const secondary = { id: secondaryTripId, ...secondarySnap.data() } as Trip;
+
+      // Validate free-seating
+      if (primary.seatType !== 'free' || secondary.seatType !== 'free') {
+        throw new Error('Chỉ có thể ghép các chuyến xe ghế tự do.');
+      }
+      // Validate same route
+      if (primary.route !== secondary.route) {
+        throw new Error('Hai chuyến phải cùng tuyến để ghép.');
+      }
+      // Validate status
+      if (primary.status !== TripStatus.WAITING || secondary.status !== TripStatus.WAITING) {
+        throw new Error('Chỉ có thể ghép các chuyến đang chờ khởi hành (WAITING).');
+      }
+
+      // Validate time difference ≤ MERGE_MAX_TIME_DIFF_MINUTES
+      const toMinutes = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+      };
+      const timeDiff = Math.abs(toMinutes(primary.time) - toMinutes(secondary.time));
+      if (timeDiff > MERGE_MAX_TIME_DIFF_MINUTES) {
+        throw new Error(`Hai chuyến phải có giờ xuất phát cách nhau không quá ${MERGE_MAX_TIME_DIFF_MINUTES} phút.`);
+      }
+
+      // Build combined seats: primary seats kept as-is; secondary seats renumbered
+      const primarySeats: Seat[] = primary.seats || [];
+      const secondarySeats: Seat[] = secondary.seats || [];
+      const primarySeatCount = primarySeats.length;
+
+      // Map old secondary seat ID → new seat ID
+      const seatIdRemap = new Map<string, string>();
+      const renumberedSecondarySeats: Seat[] = secondarySeats.map((seat, i) => {
+        const newId = String(primarySeatCount + i + 1);
+        seatIdRemap.set(seat.id, newId);
+        return { ...seat, id: newId };
+      });
+
+      const mergedSeats: Seat[] = [...primarySeats, ...renumberedSecondarySeats];
+
+      const existingMergedIds: string[] = primary.mergedFromTripIds || [];
+      const mergedFromTripIds = [...new Set([...existingMergedIds, secondaryTripId])];
+
+      // Update primary trip
+      transaction.update(primaryRef, {
+        seats: mergedSeats,
+        isMerged: true,
+        mergedFromTripIds,
+      });
+
+      // Delete secondary trip
+      transaction.delete(secondaryRef);
+
+      // Update bookings that reference the secondary trip
+      const secondaryBookings = allBookings.filter(b => b.tripId === secondaryTripId);
+      for (const booking of secondaryBookings) {
+        const bookingRef = doc(db, 'bookings', booking.id);
+        const updatedSeats = (booking.seats || []).map(
+          (sid: string) => seatIdRemap.get(sid) ?? sid,
+        );
+        transaction.update(bookingRef, { tripId: primaryTripId, seats: updatedSeats });
+      }
+    });
+  },
+
+
 
   subscribeToUserGuides: (callback: (guides: UserGuide[]) => void) => {
     if (!db) return () => {};

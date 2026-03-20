@@ -335,6 +335,21 @@ export function BookTicketPage({
             </div>
             {/* Select seat CTA */}
             {(() => {
+              // Merged trips: customers must contact the bus company directly
+              if (trip.isMerged) {
+                return (
+                  <button
+                    onClick={() => alert(language === 'vi'
+                      ? 'Chuyến này đã được ghép lại. Vui lòng liên hệ nhà xe để đặt chỗ.'
+                      : language === 'ja'
+                        ? 'この便は統合されました。座席予約はバス会社にお問い合わせください。'
+                        : 'This trip has been merged. Please contact the bus company to book.')}
+                    className="w-full px-2 py-1.5 bg-orange-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-400/10 cursor-not-allowed"
+                  >
+                    🔗 {language === 'vi' ? 'Liên hệ nhà xe' : language === 'ja' ? 'バス会社に連絡' : 'Contact Bus Co.'}
+                  </button>
+                );
+              }
               // Check if departure is within the cutoff window for non-staff users
               const isPrivilegedUser = currentUser?.role === UserRole.MANAGER ||
                 currentUser?.role === 'SUPERVISOR' ||
