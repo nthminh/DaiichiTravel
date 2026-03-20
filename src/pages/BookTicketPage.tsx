@@ -476,8 +476,8 @@ export function BookTicketPage({
           )}
         </div>
         {/* Passenger count row + search button */}
-        <div className="flex items-end gap-3 mt-4 sm:block sm:mt-0">
-          <div className="flex-1 grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4">
+        <div className="flex items-end gap-3 mt-4 sm:mt-4">
+          <div className="flex-1 sm:flex-none grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 truncate block">{t.num_adults}</label>
               <div className="relative mt-1 flex items-center">
@@ -525,7 +525,7 @@ export function BookTicketPage({
             </div>
           </div>
           {/* Search button – icon-only on mobile, full text on sm+ */}
-          <div className="shrink-0 sm:flex sm:justify-end sm:mt-4">
+          <div className="shrink-0 ml-auto sm:flex sm:mt-4">
             <button onClick={handleSearch} className="px-4 sm:px-8 py-3 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
               <Search size={18} />
               <span className="sm:inline hidden">{t.search_btn}</span>
