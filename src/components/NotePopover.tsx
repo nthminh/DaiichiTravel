@@ -81,7 +81,7 @@ export const NotePopover: React.FC<NotePopoverProps> = ({ note, onSave, language
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
           onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
-          <div className="bg-white rounded-[24px] p-6 w-full max-w-md space-y-4 shadow-2xl">
+          <div className="bg-white rounded-[24px] p-6 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <StickyNote size={20} className="text-amber-500" />

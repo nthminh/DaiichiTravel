@@ -844,7 +844,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-lg w-full shadow-2xl space-y-5"
+              className="bg-white rounded-[32px] p-8 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-bold flex items-center gap-2">

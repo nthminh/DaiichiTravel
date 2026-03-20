@@ -1034,7 +1034,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm p-6"
+              className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold">{t.record_payment || 'Record Payment'}</h3>

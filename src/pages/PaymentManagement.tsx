@@ -720,7 +720,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
       {editBalanceAgent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditBalanceAgent(null)}>
           <div
-            className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4"
+            className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">

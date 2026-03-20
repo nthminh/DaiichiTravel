@@ -727,7 +727,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"
+    <div className="min-h-screen flex items-center justify-center relative overflow-x-hidden p-4"
       style={{ background: 'linear-gradient(145deg, #E31B23 0%, #8B0000 45%, #1a1a2e 100%)' }}
     >
       {/* Animated floating particles */}

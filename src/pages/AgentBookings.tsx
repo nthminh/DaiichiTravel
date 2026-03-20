@@ -270,7 +270,7 @@ export const AgentBookings: React.FC<AgentBookingsProps> = ({
       {/* Delete confirmation modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="font-bold text-gray-800 text-lg">{t.agent_held_delete || 'Xóa vé giữ'}</h3>
             <p className="text-sm text-gray-500">{t.agent_held_delete_confirm || 'Bạn có chắc muốn xóa vé giữ này không? Ghế sẽ được trả về trống.'}</p>
             <div className="flex gap-3">
@@ -297,7 +297,7 @@ export const AgentBookings: React.FC<AgentBookingsProps> = ({
       {/* Edit modal */}
       {editingBooking && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="bg-blue-600 px-6 py-4 text-white">
               <p className="font-bold text-lg">{t.agent_held_edit || 'Chỉnh sửa vé giữ'}</p>
               <p className="text-blue-100 text-xs">{editingBooking.ticketCode || `#${editingBooking.id}`}</p>
