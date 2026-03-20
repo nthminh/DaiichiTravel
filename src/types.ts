@@ -92,6 +92,7 @@ export interface User {
   address?: string;
   agentCode?: string;
   balance?: number;
+  password?: string;
 }
 
 export interface Agent {
