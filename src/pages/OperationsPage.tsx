@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info } from 'lucide-react';
+import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle } from 'lucide-react';
 import { cn, getLocalDateString } from '../lib/utils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
 import { Trip, Route, Vehicle, Employee, PricePeriod } from '../types';
@@ -98,6 +98,13 @@ interface OperationsPageProps {
   handleTripVehicleSelect: (licensePlate: string) => void;
   handleBatchVehicleSelect: (licensePlate: string) => void;
   handleBatchAddTrips: () => void;
+  selectedTripIdsForMerge: string[];
+  setSelectedTripIdsForMerge: React.Dispatch<React.SetStateAction<string[]>>;
+  mergeLoading: boolean;
+  mergeError: string | null;
+  setMergeError: (v: string | null) => void;
+  handleToggleTripForMerge: (tripId: string) => void;
+  handleMergeTrips: () => Promise<boolean>;
   getRouteActivePeriod: (route: Route, date: string) => PricePeriod | null;
   isRouteValidForDate: (route: Route, date: string) => boolean;
   formatRouteOption: (route: Route, period: PricePeriod | null, lang: Language) => string;
@@ -191,10 +198,19 @@ export function OperationsPage({
   handleTripVehicleSelect,
   handleBatchVehicleSelect,
   handleBatchAddTrips,
+  selectedTripIdsForMerge,
+  setSelectedTripIdsForMerge: _setSelectedTripIdsForMerge,
+  mergeLoading,
+  mergeError,
+  setMergeError,
+  handleToggleTripForMerge,
+  handleMergeTrips,
   getRouteActivePeriod,
   isRouteValidForDate,
   formatRouteOption,
 }: OperationsPageProps) {
+  const [showMergeConfirm, setShowMergeConfirm] = React.useState(false);
+
   // Pre-compute active employee names (drivers first) for driver select
   const activeEmployeeNames = [
     ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
@@ -226,10 +242,90 @@ export function OperationsPage({
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">{t.operation_management}</h2>
         <div className="flex gap-2">
+          {selectedTripIdsForMerge.length === 2 && (
+            <button
+              onClick={() => { setMergeError(null); setShowMergeConfirm(true); }}
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-orange-600 transition-colors"
+            >
+              <GitMerge size={16} />
+              {language === 'vi' ? 'Ghép chuyến' : 'Merge Trips'}
+            </button>
+          )}
+          {selectedTripIdsForMerge.length > 0 && (
+            <button
+              onClick={() => { _setSelectedTripIdsForMerge([]); setMergeError(null); }}
+              className="flex items-center gap-1 border border-gray-300 text-gray-600 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+            >
+              <X size={14} />
+              {language === 'vi' ? 'Bỏ chọn' : 'Deselect'}
+            </button>
+          )}
           <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
           <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
         </div>
       </div>
+
+      {/* Merge Trips Confirmation Modal */}
+      {showMergeConfirm && (() => {
+        const [primaryId, secondaryId] = selectedTripIdsForMerge;
+        const primaryTrip = trips.find(t => t.id === primaryId);
+        const secondaryTrip = trips.find(t => t.id === secondaryId);
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-[32px] p-8 max-w-md w-full space-y-5">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <GitMerge size={22} className="text-orange-500" />
+                  {language === 'vi' ? 'Ghép chuyến xe' : 'Merge Trips'}
+                </h3>
+                <button onClick={() => { setShowMergeConfirm(false); setMergeError(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+              </div>
+              <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 space-y-3 text-sm">
+                <p className="font-semibold text-orange-800">{language === 'vi' ? 'Chuyến chính (giữ lại):' : 'Primary trip (kept):'}</p>
+                {primaryTrip && (
+                  <div className="text-gray-700">
+                    <span className="font-bold">{primaryTrip.time}</span> · {primaryTrip.route} · {primaryTrip.licensePlate}
+                    <span className="ml-2 text-xs text-gray-500">({(primaryTrip.seats || []).filter(s => s.status !== SeatStatus.EMPTY).length} {language === 'vi' ? 'hành khách' : 'passengers'})</span>
+                  </div>
+                )}
+                <p className="font-semibold text-orange-800">{language === 'vi' ? 'Chuyến phụ (sẽ bị xóa):' : 'Secondary trip (deleted):'}</p>
+                {secondaryTrip && (
+                  <div className="text-gray-700">
+                    <span className="font-bold">{secondaryTrip.time}</span> · {secondaryTrip.route} · {secondaryTrip.licensePlate}
+                    <span className="ml-2 text-xs text-gray-500">({(secondaryTrip.seats || []).filter(s => s.status !== SeatStatus.EMPTY).length} {language === 'vi' ? 'hành khách' : 'passengers'})</span>
+                  </div>
+                )}
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex gap-2 text-xs text-yellow-800">
+                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                <span>{language === 'vi'
+                  ? 'Sau khi ghép, khách hàng không thể đặt vé online cho chuyến này. Họ chỉ có thể liên hệ nhà xe để đặt chỗ.'
+                  : 'After merging, customers cannot book online for this trip. They must contact the bus company directly.'}</span>
+              </div>
+              {mergeError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 flex gap-2">
+                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                  {mergeError}
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => { setShowMergeConfirm(false); setMergeError(null); }} className="flex-1 border border-gray-200 text-gray-700 py-3 rounded-2xl font-bold hover:bg-gray-50">{language === 'vi' ? 'Hủy' : 'Cancel'}</button>
+                <button
+                  onClick={async () => {
+                    const success = await handleMergeTrips();
+                    if (success) setShowMergeConfirm(false);
+                  }}
+                  disabled={mergeLoading}
+                  className="flex-1 bg-orange-500 text-white py-3 rounded-2xl font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {mergeLoading ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
+                  {language === 'vi' ? 'Xác nhận ghép' : 'Confirm Merge'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Add/Edit Trip Modal */}
       {showAddTrip && (
@@ -856,6 +952,7 @@ export function OperationsPage({
         <table className="w-full text-left">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
+              <th className="px-3 py-4 w-8"></th>
               {tripColVisibility.time && <ResizableTh width={tripColWidths.time} onResize={(w) => setTripColWidths(p => ({ ...p, time: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.departure_time}</ResizableTh>}
               {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
               {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
@@ -874,9 +971,35 @@ export function OperationsPage({
               const totalSeats = (trip.seats || []).length;
               const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
               const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
+              // A trip can be selected for merge only if it's free-seating and WAITING
+              const isMergeable = trip.seatType === 'free' && trip.status === TripStatus.WAITING && !trip.isMerged;
+              const isSelectedForMerge = selectedTripIdsForMerge.includes(trip.id);
+              const isDisabledForMerge = !isMergeable || (selectedTripIdsForMerge.length >= 2 && !isSelectedForMerge);
               return (
-                <tr key={trip.id} className="hover:bg-gray-50 cursor-pointer">
-                  {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>{formatTripDisplayTime(trip)}</td>}
+                <tr key={trip.id} className={cn('hover:bg-gray-50 cursor-pointer', isSelectedForMerge && 'bg-orange-50 hover:bg-orange-50')}>
+                  <td className="px-3 py-4" onClick={e => e.stopPropagation()}>
+                    {isMergeable && (
+                      <input
+                        type="checkbox"
+                        checked={isSelectedForMerge}
+                        disabled={isDisabledForMerge}
+                        onChange={() => handleToggleTripForMerge(trip.id)}
+                        className="w-4 h-4 accent-orange-500 cursor-pointer disabled:cursor-not-allowed"
+                        title={language === 'vi' ? 'Chọn để ghép chuyến' : 'Select to merge'}
+                      />
+                    )}
+                  </td>
+                  {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>
+                    <div className="flex flex-col gap-0.5">
+                      <span>{formatTripDisplayTime(trip)}</span>
+                      {trip.isMerged && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold w-fit">
+                          <GitMerge size={10} />
+                          {language === 'vi' ? 'Đã ghép' : 'Merged'}
+                        </span>
+                      )}
+                    </div>
+                  </td>}
                   {tripColVisibility.licensePlate && <td className="px-6 py-4 font-medium whitespace-nowrap" onClick={openPassengerList}>{trip.licensePlate}</td>}
                   {tripColVisibility.route && <td className="px-6 py-4 overflow-hidden" style={{ maxWidth: tripColWidths.route }} onClick={openPassengerList}>
                     {(() => {
@@ -917,7 +1040,7 @@ export function OperationsPage({
               );
             })}
             {filteredTrips.length === 0 && (
-              <tr><td colSpan={Object.values(tripColVisibility).filter(Boolean).length + 1} className="px-6 py-10 text-center text-sm text-gray-400">{t.no_trips_found}</td></tr>
+              <tr><td colSpan={Object.values(tripColVisibility).filter(Boolean).length + 2} className="px-6 py-10 text-center text-sm text-gray-400">{t.no_trips_found}</td></tr>
             )}
           </tbody>
         </table>

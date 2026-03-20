@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { transportService } from '../services/transportService';
-import { Trip, TripStatus, Vehicle, SeatStatus, TripAddon } from '../types';
+import { Trip, TripStatus, Booking, Vehicle, SeatStatus, TripAddon } from '../types';
 import { generateVehicleLayout, serializeLayout, SerializedSeat } from '../lib/vehicleSeatUtils';
 
 /** External dependencies that useTrips needs from App.tsx */
@@ -50,6 +50,11 @@ export function useTrips(ctx: TripContext) {
   const [batchTripForm, setBatchTripForm] = useState({ ...DEFAULT_BATCH_TRIP_FORM });
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
+
+  // Merge trips state
+  const [selectedTripIdsForMerge, setSelectedTripIdsForMerge] = useState<string[]>([]);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
 
   // Keep a stable ref so async handlers always read the latest context values.
   const ctxRef = useRef<TripContext>(ctx);
@@ -197,6 +202,32 @@ export function useTrips(ctx: TripContext) {
     }
   };
 
+  const handleToggleTripForMerge = (tripId: string) => {
+    setMergeError(null);
+    setSelectedTripIdsForMerge(prev => {
+      if (prev.includes(tripId)) return prev.filter(id => id !== tripId);
+      if (prev.length >= 2) return prev; // max 2 selections
+      return [...prev, tripId];
+    });
+  };
+
+  const handleMergeTrips = async (allBookings: Booking[]): Promise<boolean> => {
+    if (selectedTripIdsForMerge.length !== 2) return false;
+    const [primaryId, secondaryId] = selectedTripIdsForMerge;
+    setMergeLoading(true);
+    setMergeError(null);
+    try {
+      await transportService.mergeTrips(primaryId, secondaryId, allBookings);
+      setSelectedTripIdsForMerge([]);
+      return true;
+    } catch (err: any) {
+      setMergeError(err?.message || 'Ghép chuyến thất bại.');
+      return false;
+    } finally {
+      setMergeLoading(false);
+    }
+  };
+
   const handleTripVehicleSelect = (licensePlate: string) => {
     const vehicle = ctxRef.current.vehicles.find(v => v.licensePlate === licensePlate);
     const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
@@ -286,5 +317,13 @@ export function useTrips(ctx: TripContext) {
     handleTripVehicleSelect,
     handleBatchVehicleSelect,
     handleBatchAddTrips,
+    // Merge trips
+    selectedTripIdsForMerge,
+    setSelectedTripIdsForMerge,
+    mergeLoading,
+    mergeError,
+    setMergeError,
+    handleToggleTripForMerge,
+    handleMergeTrips,
   };
 }
