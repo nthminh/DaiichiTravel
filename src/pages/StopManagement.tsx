@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation, Copy } from 'lucide-react';
+import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
@@ -42,6 +42,17 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const [showStopFilters, setShowStopFilters] = useState(false);
   const [stopCategoryFilter, setStopCategoryFilter] = useState<'ALL' | Stop['category']>('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'TERMINAL' | 'STOP'>('ALL');
+
+  const [collapsedTerminals, setCollapsedTerminals] = useState<Set<string>>(new Set());
+
+  const toggleTerminalCollapse = (terminalId: string) => {
+    setCollapsedTerminals(prev => {
+      const next = new Set(prev);
+      if (next.has(terminalId)) next.delete(terminalId);
+      else next.add(terminalId);
+      return next;
+    });
+  };
 
   const [colWidths, setColWidths] = useState({
     name: 220,
@@ -228,12 +239,15 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     });
     const unaffiliated = filteredStops.filter(s => s.type !== 'TERMINAL' && !s.terminalId);
 
-    const rows: { stop: Stop; isChild: boolean }[] = [];
+    const rows: { stop: Stop; isChild: boolean; childCount: number }[] = [];
     terminals.forEach(terminal => {
-      rows.push({ stop: terminal, isChild: false });
-      (childMap[terminal.id] || []).forEach(child => rows.push({ stop: child, isChild: true }));
+      const children = childMap[terminal.id] || [];
+      rows.push({ stop: terminal, isChild: false, childCount: children.length });
+      if (!collapsedTerminals.has(terminal.id)) {
+        children.forEach(child => rows.push({ stop: child, isChild: true, childCount: 0 }));
+      }
     });
-    unaffiliated.forEach(s => rows.push({ stop: s, isChild: false }));
+    unaffiliated.forEach(s => rows.push({ stop: s, isChild: false, childCount: 0 }));
     return rows;
   })();
 
@@ -551,8 +565,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedDisplay.map(({ stop, isChild }) => {
+              {sortedDisplay.map(({ stop, isChild, childCount }) => {
                 const isTerminal = stop.type === 'TERMINAL';
+                const isCollapsed = isTerminal && collapsedTerminals.has(stop.id);
                 const isEditing = editingId === stop.id;
                 return (
                   <React.Fragment key={stop.id}>
@@ -567,6 +582,23 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                       <td className="px-8 py-5">
                         <div className={cn('flex items-center gap-3', isChild && 'pl-5')}>
                           {isChild && <span className="text-gray-300 text-base leading-none">└</span>}
+                          {isTerminal && childCount > 0 && (
+                            <button
+                              onClick={() => toggleTerminalCollapse(stop.id)}
+                              title={isCollapsed
+                                ? (language === 'vi' ? 'Mở rộng điểm dừng con' : 'Expand child stops')
+                                : (language === 'vi' ? 'Thu gọn điểm dừng con' : 'Collapse child stops')}
+                              aria-label={isCollapsed
+                                ? (language === 'vi' ? 'Mở rộng điểm dừng con' : 'Expand child stops')
+                                : (language === 'vi' ? 'Thu gọn điểm dừng con' : 'Collapse child stops')}
+                              className="w-5 h-5 flex items-center justify-center text-indigo-400 hover:text-indigo-600 transition-colors flex-shrink-0"
+                            >
+                              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                            </button>
+                          )}
+                          {isTerminal && childCount === 0 && (
+                            <span className="w-5 h-5 flex-shrink-0" />
+                          )}
                           <div className={cn(
                             'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
                             isTerminal ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'
@@ -574,6 +606,11 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                             {isTerminal ? <Building2 size={18} /> : <MapPin size={18} />}
                           </div>
                           <span className={cn('font-bold text-gray-800', isTerminal && 'text-indigo-800')}>{stop.name}</span>
+                          {isTerminal && childCount > 0 && isCollapsed && (
+                            <span className="text-xs font-normal text-indigo-400 bg-indigo-100 px-2 py-0.5 rounded-full">
+                              {childCount}
+                            </span>
+                          )}
                         </div>
                       </td>
 
