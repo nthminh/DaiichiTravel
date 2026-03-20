@@ -34,6 +34,12 @@ const EMPTY_FORM: Omit<Stop, 'id'> = {
   terminalId: undefined,
 };
 
+interface CopyModal {
+  stop: Stop;
+  mode: 'new' | 'existing';
+  targetTerminalId: string;
+}
+
 export const StopManagement: React.FC<StopManagementProps> = ({ language, stops, onUpdateStops }) => {
   const t = TRANSLATIONS[language];
   const [isAdding, setIsAdding] = useState(false);
@@ -42,6 +48,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const [showStopFilters, setShowStopFilters] = useState(false);
   const [stopCategoryFilter, setStopCategoryFilter] = useState<'ALL' | Stop['category']>('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'TERMINAL' | 'STOP'>('ALL');
+  const [copyModal, setCopyModal] = useState<CopyModal | null>(null);
 
   const [collapsedTerminals, setCollapsedTerminals] = useState<Set<string>>(new Set());
 
@@ -111,9 +118,21 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     }
   };
 
-  const handleCopyStop = async (stop: Stop) => {
+  const handleCopyStop = (stop: Stop) => {
+    const otherTerminals = stops.filter(s => s.type === 'TERMINAL' && s.id !== stop.id);
+    setCopyModal({
+      stop,
+      mode: 'new',
+      targetTerminalId: otherTerminals[0]?.id ?? '',
+    });
+  };
+
+  const handleConfirmCopy = async () => {
+    if (!copyModal) return;
+    const { stop, mode, targetTerminalId } = copyModal;
     const isTerminal = stop.type === 'TERMINAL';
     const children = isTerminal ? stops.filter(s => s.terminalId === stop.id) : [];
+
     const COPY_SUFFIX: Record<Language, string> = {
       vi: ' (bản sao)',
       en: ' (copy)',
@@ -121,59 +140,78 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     };
     const copySuffix = COPY_SUFFIX[language];
 
-    const confirmMsg = language === 'vi'
-      ? isTerminal && children.length > 0
-        ? `Sao chép ga/bến "${stop.name}" và ${children.length} điểm dừng con?`
-        : `Sao chép điểm dừng "${stop.name}"?`
-      : language === 'ja'
-        ? isTerminal && children.length > 0
-          ? `「${stop.name}」と${children.length}件の子停留所をコピーしますか？`
-          : `「${stop.name}」をコピーしますか？`
-        : isTerminal && children.length > 0
-          ? `Copy terminal "${stop.name}" and ${children.length} child stop(s)?`
-          : `Copy stop "${stop.name}"?`;
-
-    if (!confirm(confirmMsg)) return;
+    setCopyModal(null);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, ...stopData } = stop;
-    const newTerminalData: Omit<Stop, 'id'> = {
-      ...stopData,
-      name: `${stop.name}${copySuffix}`,
-      terminalId: undefined,
-    };
 
-    try {
-      if (isTerminal && children.length > 0) {
-        const newTerminalRef = await transportService.addStop(newTerminalData);
-        if (newTerminalRef) {
+    if (isTerminal) {
+      if (mode === 'new') {
+        // Copy terminal → create new terminal + copy all children under it
+        const newTerminalData: Omit<Stop, 'id'> = {
+          ...stopData,
+          name: `${stop.name}${copySuffix}`,
+          terminalId: undefined,
+        };
+        try {
+          const newTerminalRef = await transportService.addStop(newTerminalData);
+          if (newTerminalRef && children.length > 0) {
+            await Promise.all(children.map(child => {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { id: _cid, ...childData } = child;
+              return transportService.addStop({
+                ...childData,
+                name: `${child.name}${copySuffix}`,
+                terminalId: newTerminalRef.id,
+              });
+            }));
+          }
+        } catch {
+          const newId = Date.now().toString();
+          const newStop: Stop = { ...newTerminalData, id: newId };
+          const childCopies: Stop[] = children.map((child, i) => ({
+            ...child,
+            id: `${newId}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+            name: `${child.name}${copySuffix}`,
+            terminalId: newId,
+          }));
+          onUpdateStops([...stops, newStop, ...childCopies]);
+        }
+      } else {
+        // Copy children → add all child stops to an existing terminal
+        if (!targetTerminalId) return;
+        try {
           await Promise.all(children.map(child => {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { id: _cid, ...childData } = child;
             return transportService.addStop({
               ...childData,
               name: `${child.name}${copySuffix}`,
-              terminalId: newTerminalRef.id,
+              terminalId: targetTerminalId,
             });
           }));
+        } catch {
+          const newId = Date.now().toString();
+          const childCopies: Stop[] = children.map((child, i) => ({
+            ...child,
+            id: `${newId}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+            name: `${child.name}${copySuffix}`,
+            terminalId: targetTerminalId,
+          }));
+          onUpdateStops([...stops, ...childCopies]);
         }
-      } else {
-        await transportService.addStop(newTerminalData);
       }
-    } catch {
-      // Offline fallback — update local state directly
-      const newId = Date.now().toString();
-      const newStop: Stop = { ...newTerminalData, id: newId };
-      if (isTerminal && children.length > 0) {
-        const childCopies: Stop[] = children.map((child, i) => ({
-          ...child,
-          id: `${newId}_${i}_${Math.random().toString(36).slice(2, 7)}`,
-          name: `${child.name}${copySuffix}`,
-          terminalId: newId,
-        }));
-        onUpdateStops([...stops, newStop, ...childCopies]);
-      } else {
-        onUpdateStops([...stops, newStop]);
+    } else {
+      // Copying a non-terminal STOP
+      const newStopData: Omit<Stop, 'id'> = {
+        ...stopData,
+        name: `${stop.name}${copySuffix}`,
+        terminalId: mode === 'existing' && targetTerminalId ? targetTerminalId : stop.terminalId,
+      };
+      try {
+        await transportService.addStop(newStopData);
+      } catch {
+        onUpdateStops([...stops, { ...newStopData, id: Date.now().toString() }]);
       }
     }
   };
@@ -269,6 +307,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const activeFilterCount = (typeFilter !== 'ALL' ? 1 : 0) + (stopCategoryFilter !== 'ALL' ? 1 : 0);
 
   return (
+    <>
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -856,6 +895,214 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
         </div>
       </div>
     </div>
+
+      {/* Copy Stop Modal */}
+      {copyModal && (() => {
+        const isTerminal = copyModal.stop.type === 'TERMINAL';
+        const children = isTerminal ? stops.filter(s => s.terminalId === copyModal.stop.id) : [];
+        const otherTerminals = stops.filter(s => s.type === 'TERMINAL' && s.id !== copyModal.stop.id);
+        const hasOtherTerminals = otherTerminals.length > 0;
+        const firstOtherTerminalId = otherTerminals[0]?.id ?? '';
+
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-md p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-900">{t.copy_stop_modal_title}</h3>
+                <button onClick={() => setCopyModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700">
+                  {isTerminal ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Building2 size={15} className="text-indigo-500" />
+                      {copyModal.stop.name}
+                      {children.length > 0 && (
+                        <span className="text-xs font-normal text-indigo-400 bg-indigo-100 px-2 py-0.5 rounded-full">
+                          {children.length} {language === 'vi' ? 'điểm con' : language === 'ja' ? '子停留所' : 'child stops'}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin size={15} className="text-teal-500" />
+                      {copyModal.stop.name}
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* Mode selector */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {language === 'vi' ? 'Chọn cách sao chép' : language === 'ja' ? 'コピー方法を選択' : 'Choose copy method'}
+                </label>
+
+                {isTerminal ? (
+                  <div className="space-y-2">
+                    <label
+                      className={cn(
+                        'flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all',
+                        copyModal.mode === 'new'
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-100 hover:border-gray-200'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="copyMode"
+                        value="new"
+                        checked={copyModal.mode === 'new'}
+                        onChange={() => setCopyModal(m => m ? { ...m, mode: 'new' } : m)}
+                        className="mt-0.5 accent-indigo-600"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{t.copy_stops_to_new_terminal}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {language === 'vi'
+                            ? `Tạo một bến/ga mới với tên "${copyModal.stop.name} (bản sao)" và sao chép ${children.length} điểm dừng con vào đó`
+                            : language === 'ja'
+                              ? `「${copyModal.stop.name}（コピー）」という新しいターミナルを作成し、${children.length}件の子停留所をコピーします`
+                              : `Create a new terminal named "${copyModal.stop.name} (copy)" and copy ${children.length} child stop(s) into it`}
+                        </p>
+                      </div>
+                    </label>
+
+                    {hasOtherTerminals && (
+                      <label
+                        className={cn(
+                          'flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all',
+                          copyModal.mode === 'existing'
+                            ? 'border-teal-500 bg-teal-50'
+                            : 'border-gray-100 hover:border-gray-200'
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="copyMode"
+                          value="existing"
+                          checked={copyModal.mode === 'existing'}
+                          onChange={() => setCopyModal(m => m ? { ...m, mode: 'existing', targetTerminalId: firstOtherTerminalId } : m)}
+                          className="mt-0.5 accent-teal-600"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-800">{t.copy_stops_to_existing_terminal}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {language === 'vi'
+                              ? `Sao chép ${children.length} điểm dừng con vào một bến/ga hiện có`
+                              : language === 'ja'
+                                ? `${children.length}件の子停留所を既存のターミナルにコピーします`
+                                : `Copy ${children.length} child stop(s) to an existing terminal`}
+                          </p>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label
+                      className={cn(
+                        'flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all',
+                        copyModal.mode === 'new'
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-100 hover:border-gray-200'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="copyMode"
+                        value="new"
+                        checked={copyModal.mode === 'new'}
+                        onChange={() => setCopyModal(m => m ? { ...m, mode: 'new' } : m)}
+                        className="mt-0.5 accent-indigo-600"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{t.copy_stop_to_new_terminal}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {language === 'vi'
+                            ? 'Tạo bản sao của điểm dừng này (giữ nguyên bến/ga cha hiện tại nếu có)'
+                            : language === 'ja'
+                              ? 'この停留所のコピーを作成します（現在の親ターミナルを保持します）'
+                              : 'Create a copy of this stop (keeping its current parent terminal if any)'}
+                        </p>
+                      </div>
+                    </label>
+
+                    {hasOtherTerminals && (
+                      <label
+                        className={cn(
+                          'flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all',
+                          copyModal.mode === 'existing'
+                            ? 'border-teal-500 bg-teal-50'
+                            : 'border-gray-100 hover:border-gray-200'
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="copyMode"
+                          value="existing"
+                          checked={copyModal.mode === 'existing'}
+                          onChange={() => setCopyModal(m => m ? { ...m, mode: 'existing', targetTerminalId: firstOtherTerminalId } : m)}
+                          className="mt-0.5 accent-teal-600"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-800">{t.copy_stop_to_existing_terminal}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {language === 'vi'
+                              ? 'Sao chép điểm dừng này và gắn vào một bến/ga khác'
+                              : language === 'ja'
+                                ? 'この停留所をコピーして別のターミナルに追加します'
+                                : 'Copy this stop and assign it to a different terminal'}
+                          </p>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Target terminal selector (visible when mode='existing') */}
+              {copyModal.mode === 'existing' && hasOtherTerminals && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                    {t.copy_stop_select_terminal}
+                  </label>
+                  <select
+                    value={copyModal.targetTerminalId}
+                    onChange={e => setCopyModal(m => m ? { ...m, targetTerminalId: e.target.value } : m)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                  >
+                    {otherTerminals.map(ts => (
+                      <option key={ts.id} value={ts.id}>{ts.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setCopyModal(null)}
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-all"
+                >
+                  {language === 'vi' ? 'Hủy' : language === 'ja' ? 'キャンセル' : 'Cancel'}
+                </button>
+                <button
+                  onClick={handleConfirmCopy}
+                  disabled={copyModal.mode === 'existing' && !copyModal.targetTerminalId}
+                  className="flex-1 px-4 py-3 rounded-xl bg-purple-600 text-white font-bold shadow-lg shadow-purple-600/20 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  <Copy size={16} />
+                  {t.copy_stop_confirm}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </>
   );
 };
 
