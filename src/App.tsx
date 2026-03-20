@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { 
-  Bus, Users, Package, LayoutDashboard, ChevronRight, 
-  MapPin, Calendar, Truck, Star, Phone, Search, 
+  Users, Package, LayoutDashboard, ChevronRight, 
+  MapPin, Calendar, Truck, Search, 
   Clock, Edit3, Trash2, Wallet, X, CheckCircle2,
   Menu, Bell, Globe, LogOut, Eye, EyeOff, AlertTriangle, Info,
-  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, UserPlus, Loader2,
+  Filter, Gift, Download, FileText, Copy, Columns, SlidersHorizontal, Loader2,
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,7 +18,10 @@ import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_PAYMENT_METHOD, PAYMENT_ME
 import { usePayment } from './hooks/usePayment';
 import { useRoutes } from './hooks/useRoutes';
 import { useTrips } from './hooks/useTrips';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat } from './types';
+import { useWebSocket } from './hooks/useWebSocket';
+import { useAuth } from './hooks/useAuth';
+import { usePassengerManagement } from './hooks/usePassengerManagement';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat, User } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { auth, db, storage } from './lib/firebase';
@@ -31,7 +34,6 @@ import { Header } from './components/Header';
 import { UrgencyNotification } from './components/UrgencyNotification';
 import { StatusBadge } from './components/StatusBadge';
 import { SearchableSelect } from './components/SearchableSelect';
-import { Footer } from './components/Footer';
 import { generateVehicleLayout, serializeLayout, SerializedSeat } from './lib/vehicleSeatUtils';
 import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
@@ -43,7 +45,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { exportTripToExcel, exportTripToPDF, exportRouteToPDF } from './utils/exportUtils';
 import { EmailLinkReenterForm } from './components/EmailLinkReenterForm';
 import { useEmployees } from './hooks/useEmployees';
-import { getBookingGroupSeatIds, buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGroups as libBuildPassengerGroups } from './lib/bookingUtils';
+import { buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGroups as libBuildPassengerGroups } from './lib/bookingUtils';
 
 // Lazy-loaded tab/role components – split into separate chunks to reduce initial bundle
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -74,26 +76,13 @@ const RouteManagementPage = lazy(() => import('./pages/RouteManagementPage').the
 const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
 const BookTicketPage = lazy(() => import('./pages/BookTicketPage').then(m => ({ default: m.BookTicketPage })));
 const SeatMappingPage = lazy(() => import('./pages/SeatMappingPage').then(m => ({ default: m.SeatMappingPage })));
+const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 import { DriverAssignment, StaffMessage } from './types';
 import type { TourItem } from './components/TourBookingForm';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
-export type { Language };
-
-
-export interface User {
-  id: string;
-  username: string;
-  role: UserRole | string; // UserRole for admin/agent/customer, employee role string for staff
-  name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  agentCode?: string;
-  balance?: number;
-  password?: string;
-}
+export type { Language, User };
 
 
 
@@ -196,8 +185,6 @@ export default function App() {
   });
   const [searchAdults, setSearchAdults] = useState(1);
   const [searchChildren, setSearchChildren] = useState(0);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [ws, setWs] = useState<WebSocket | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -311,11 +298,6 @@ export default function App() {
   const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, route: 220, driver: 180, status: 150, options: 180 });
   const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, seats: true, passengers: true, addons: true });
   const [showTripColPanel, setShowTripColPanel] = useState(false);
-  const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
-  const [editingPassengerSeatId, setEditingPassengerSeatId] = useState<string | null>(null);
-  const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
-  const [passengerColVisibility, setPassengerColVisibility] = useState({ ticketCode: true, seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, price: true, note: true });
-  const [showPassengerColPanel, setShowPassengerColPanel] = useState(false);
 
   // Persist user session to localStorage so F5 doesn't log out
   useEffect(() => {
@@ -344,60 +326,8 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // WebSocket setup with exponential backoff reconnect logic
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let reconnectAttempts = 0;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let unmounted = false;
-
-    const MAX_RECONNECT_ATTEMPTS = 10;
-    const BASE_DELAY_MS = 1000;
-    const MAX_DELAY_MS = 30000;
-
-    const connect = () => {
-      if (unmounted) return;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      socket = new WebSocket(`${protocol}//${window.location.host}`);
-
-      socket.onopen = () => {
-        reconnectAttempts = 0;
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'NEW_BOOKING') {
-            const id = Date.now();
-            setNotifications(prev => [{ ...data, id }, ...prev].slice(0, 5));
-            // Auto remove notification after 5 seconds
-            setTimeout(() => {
-              setNotifications(prev => prev.filter(n => n.id !== id));
-            }, 5000);
-          }
-        } catch (e) {
-          console.error("Failed to parse WS message", e);
-        }
-      };
-
-      socket.onclose = () => {
-        if (unmounted || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
-        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, reconnectAttempts), MAX_DELAY_MS);
-        reconnectAttempts++;
-        reconnectTimeout = setTimeout(connect, delay);
-      };
-
-      setWs(socket);
-    };
-
-    connect();
-
-    return () => {
-      unmounted = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      socket?.close();
-    };
-  }, []);
+  // WebSocket setup with exponential backoff reconnect logic (extracted to useWebSocket hook)
+  const { ws, notifications } = useWebSocket();
 
   // Credential states
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -517,6 +447,26 @@ export default function App() {
     handleBatchVehicleSelect,
     handleBatchAddTrips,
   } = useTrips({ vehicles, language });
+
+  // ─── Auth helpers (logic extracted to useAuth hook) ──────────────────────────
+  const { handleRegisterMember, handleOtpMemberLogin } = useAuth({ language, customers });
+
+  // ─── Passenger management (logic extracted to usePassengerManagement hook) ───
+  const {
+    showTripPassengers,
+    setShowTripPassengers,
+    editingPassengerSeatId,
+    setEditingPassengerSeatId,
+    passengerEditForm,
+    setPassengerEditForm,
+    passengerColVisibility,
+    setPassengerColVisibility,
+    showPassengerColPanel,
+    setShowPassengerColPanel,
+    handleClosePassengerModal,
+    handleSavePassengerEdit,
+    handleDeletePassenger,
+  } = usePassengerManagement({ language, bookings, setTrips });
 
   // Subscribe to admin credentials changes in real-time
   useEffect(() => {
@@ -809,114 +759,6 @@ export default function App() {
     return aKey.localeCompare(bKey);
   };
 
-  const handleClosePassengerModal = () => {
-    setShowTripPassengers(null);
-    setEditingPassengerSeatId(null);
-    setShowPassengerColPanel(false);
-  };
-
-  const handleSavePassengerEdit = async () => {
-    if (!showTripPassengers || !editingPassengerSeatId) return;
-    const updates = {
-      customerName: passengerEditForm.customerName,
-      customerPhone: passengerEditForm.customerPhone,
-      pickupAddress: passengerEditForm.pickupAddress,
-      dropoffAddress: passengerEditForm.dropoffAddress,
-      status: passengerEditForm.status,
-      bookingNote: passengerEditForm.bookingNote,
-    };
-    try {
-      // Sync changes to the corresponding booking document
-      const matchingBooking = bookings.find(b =>
-        b.tripId === showTripPassengers.id &&
-        (b.seatId === editingPassengerSeatId || (b.seatIds && b.seatIds.includes(editingPassengerSeatId)))
-      );
-      // All seat IDs in this booking group (for group bookings)
-      const groupSeatIds = getBookingGroupSeatIds(matchingBooking, editingPassengerSeatId);
-
-      // Update all seats in the group
-      await Promise.all(groupSeatIds.map((sid: string) =>
-        transportService.bookSeat(showTripPassengers.id, sid, updates)
-      ));
-
-      if (matchingBooking) {
-        if (passengerEditForm.status === SeatStatus.EMPTY) {
-          await transportService.deleteBooking(matchingBooking.id);
-        } else {
-          await transportService.updateBooking(matchingBooking.id, {
-            customerName: passengerEditForm.customerName,
-            phone: passengerEditForm.customerPhone,
-            pickupAddress: passengerEditForm.pickupAddress,
-            dropoffAddress: passengerEditForm.dropoffAddress,
-            bookingNote: passengerEditForm.bookingNote,
-            status: passengerEditForm.status === SeatStatus.PAID ? 'PAID' : 'BOOKED',
-          });
-        }
-      }
-
-      setTrips(prev => prev.map(trip => {
-        if (trip.id !== showTripPassengers.id) return trip;
-        const updatedSeats = trip.seats.map((s: any) =>
-          groupSeatIds.includes(s.id) ? { ...s, ...updates } : s
-        );
-        const updatedTrip = { ...trip, seats: updatedSeats };
-        setShowTripPassengers(updatedTrip);
-        return updatedTrip;
-      }));
-      setEditingPassengerSeatId(null);
-    } catch (err) {
-      console.error('Failed to save passenger:', err);
-    }
-  };
-
-  const handleDeletePassenger = async (seatId: string) => {
-    if (!showTripPassengers) return;
-    const confirmMsg = language === 'vi'
-      ? 'Bạn có chắc muốn xóa hành khách này khỏi ghế không?'
-      : 'Are you sure you want to remove this passenger from the seat?';
-    if (!window.confirm(confirmMsg)) return;
-    const emptyData = {
-      status: SeatStatus.EMPTY,
-      customerName: '',
-      customerPhone: '',
-      pickupPoint: '',
-      dropoffPoint: '',
-      pickupAddress: '',
-      dropoffAddress: '',
-      bookingNote: '',
-    };
-    try {
-      // Sync: delete the corresponding booking document
-      const matchingBooking = bookings.find(b =>
-        b.tripId === showTripPassengers.id &&
-        (b.seatId === seatId || (b.seatIds && b.seatIds.includes(seatId)))
-      );
-      // All seat IDs in this booking group (clear all for group bookings)
-      const groupSeatIds = getBookingGroupSeatIds(matchingBooking, seatId);
-
-      await Promise.all(groupSeatIds.map((sid: string) =>
-        transportService.bookSeat(showTripPassengers.id, sid, emptyData)
-      ));
-
-      if (matchingBooking) {
-        await transportService.deleteBooking(matchingBooking.id);
-      }
-
-      setTrips(prev => prev.map(trip => {
-        if (trip.id !== showTripPassengers.id) return trip;
-        const updatedSeats = trip.seats.map((s: any) =>
-          groupSeatIds.includes(s.id) ? { ...s, ...emptyData } : s
-        );
-        const updatedTrip = { ...trip, seats: updatedSeats };
-        setShowTripPassengers(updatedTrip);
-        return updatedTrip;
-      }));
-      if (editingPassengerSeatId && groupSeatIds.includes(editingPassengerSeatId)) setEditingPassengerSeatId(null);
-    } catch (err) {
-      console.error('Failed to delete passenger:', err);
-    }
-  };
-
   // Wrap imported pure functions with the local `bookings` dependency
   const buildSeatTicketCodeMap = (tripId: string) =>
     libBuildSeatTicketCodeMap(tripId, bookings);
@@ -981,115 +823,6 @@ export default function App() {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
   };
-
-  const handleRegisterMember = async (data: { name: string; phone: string; email?: string; username?: string; password: string }): Promise<boolean> => {
-    // Check if phone already registered
-    const exists = customers.some(c => c.phone === data.phone);
-    if (exists) return false;
-    // Normalize phone for default username: strip leading + and country code prefix if needed
-    const normalizedPhone = data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
-    // Store username in lowercase so login is case-insensitive
-    const storedUsername = (data.username || normalizedPhone || data.phone).toLowerCase();
-    await transportService.addCustomer({
-      name: data.name || (language === 'vi' ? 'Khách hàng' : 'Customer'),
-      phone: data.phone,
-      email: data.email,
-      username: storedUsername,
-      password: data.password,
-      status: 'ACTIVE',
-      registeredAt: new Date().toISOString(),
-      totalBookings: 1,
-    });
-    return true;
-  };
-
-  /**
-   * OTP / OAuth-based member login and auto-registration.
-   * Called after Firebase phone-OTP or social sign-in succeeds.
-   * Finds an existing customer by phone / email / firebaseUid or creates a new one.
-   */
-  const handleOtpMemberLogin = async (data: {
-    name?: string;
-    phone?: string;
-    email?: string;
-    uid?: string;
-    loginMethod: string;
-  }): Promise<{ id: string; username: string; role: UserRole; name: string; phone?: string; email?: string } | null> => {
-    // Normalise phone for storage/lookup:
-    // - Vietnamese E.164 (+84xxx) → local 0xxx format (consistent with traditional registration)
-    // - International E.164 (+CCxxx) → kept as-is (e.g. +61412345678 for Australia)
-    // - Already local (0xxx): no change
-    const normalizedPhone = data.phone
-      ? data.phone.replace(/^\+84/, '0')
-      : undefined;
-
-    // For phone-auth users who have no email, derive a default email from the
-    // phone number so that email-dependent features (e.g. OTP confirmation,
-    // welcome emails) are never blocked by an empty email field.
-    const phoneDigits = (normalizedPhone || data.phone || '').replace(/[^0-9]/g, '');
-    const effectiveEmail = data.email || (phoneDigits ? `${phoneDigits}@gmail.com` : undefined);
-
-    const defaultName = language === 'vi' ? 'Khách hàng' : 'Customer';
-
-    // 1. Find existing customer by uid, phone, or email
-    // Compare phone digits only to handle format variations (+61..., 61..., 0...).
-    let customer = customers.find(c => {
-      if (data.uid && c.firebaseUid === data.uid) return true;
-      if (normalizedPhone && c.phone) {
-        const normDigits = normalizedPhone.replace(/[^0-9]/g, '');
-        const cDigits = c.phone.replace(/[^0-9]/g, '');
-        if (normDigits && normDigits === cDigits) return true;
-      }
-      if (data.phone && c.phone === data.phone) return true;
-      if (data.email && c.email && c.email.toLowerCase() === data.email.toLowerCase()) return true;
-      return false;
-    });
-
-    if (customer) {
-      // Update profile fields that may have changed
-      const updates: Partial<Omit<CustomerProfile, 'id'>> = {
-        loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
-      };
-      if (data.uid && !customer.firebaseUid) updates.firebaseUid = data.uid;
-      if (data.name && data.name !== customer.name) updates.name = data.name;
-      if (effectiveEmail && !customer.email) updates.email = effectiveEmail;
-      if (normalizedPhone && !customer.phone) updates.phone = normalizedPhone;
-      await transportService.updateCustomer(customer.id, updates);
-
-      return {
-        id: customer.id,
-        username: customer.username || customer.phone || effectiveEmail || 'member',
-        role: UserRole.CUSTOMER,
-        name: customer.name || data.name || defaultName,
-        phone: customer.phone || normalizedPhone,
-        email: customer.email || effectiveEmail,
-      };
-    }
-
-    // 2. Create new customer profile
-    const newCustomer: Omit<CustomerProfile, 'id'> = {
-      name: data.name || defaultName,
-      phone: normalizedPhone || data.phone || '',
-      username: normalizedPhone || effectiveEmail || data.uid || '',
-      loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
-      status: 'ACTIVE',
-      registeredAt: new Date().toISOString(),
-      totalBookings: 0,
-    };
-    if (effectiveEmail) newCustomer.email = effectiveEmail;
-    if (data.uid) newCustomer.firebaseUid = data.uid;
-    const docRef = await transportService.addCustomer(newCustomer);
-
-    return {
-      id: docRef.id,
-      username: normalizedPhone || effectiveEmail || data.uid || 'member',
-      role: UserRole.CUSTOMER,
-      name: data.name || defaultName,
-      phone: normalizedPhone || data.phone,
-      email: effectiveEmail,
-    };
-  };
-
 
   // --- Route price period helpers ---
   const getRouteActivePeriod = (route: Route, date: string): PricePeriod | null => {
@@ -1334,110 +1067,15 @@ export default function App() {
       
       case 'home':
         return (
-          <div className="space-y-12">
-            <div className="relative h-48 sm:h-72 md:h-[400px] rounded-[40px] overflow-hidden">
-              <img 
-                src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/hinhnenhome.png?alt=media&token=4be06677-5484-4225-a48f-2a7f92dc99f4" 
-                alt="Travel Hero" 
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-6 sm:px-12">
-                <div className="max-w-xl text-white">
-                  <motion.h2 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight"
-                  >
-                    {t.hero_title}
-                  </motion.h2>
-                  <p className="text-sm sm:text-base text-white/80 mb-4 sm:mb-8">{t.hero_subtitle}</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button onClick={() => setActiveTab('book-ticket')} className="px-4 py-2 sm:px-8 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-105 transition-all text-sm sm:text-base">{t.book_now}</button>
-                    <button onClick={() => setActiveTab('tours')} className="px-4 py-2 sm:px-8 sm:py-4 bg-white text-daiichi-red rounded-2xl font-bold hover:scale-105 transition-all text-sm sm:text-base">{t.view_hot_tours}</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Agent balance banner – shown when agent is logged in */}
-            {currentUser?.role === UserRole.AGENT && (() => {
-              const agentData = agents.find(a => a.id === currentUser.id);
-              if (!agentData) return null;
-              return (
-                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-3xl p-5 sm:p-8 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
-                    </div>
-                    <div>
-                      <p className="text-white/70 text-xs font-semibold uppercase tracking-wide">{language === 'vi' ? 'Số dư tài khoản đại lý' : 'Agent Account Balance'}</p>
-                      <p className="text-2xl sm:text-3xl font-extrabold mt-0.5">
-                        <span className={(agentData.balance || 0) < 0 ? 'text-red-300' : 'text-white'}>
-                          {(agentData.balance || 0).toLocaleString('vi-VN')}đ
-                        </span>
-                      </p>
-                      <p className="text-white/60 text-xs mt-1">{agentData.name} · {agentData.code}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setAgentTopUpModal(true)}
-                    className="shrink-0 flex items-center gap-2 px-5 py-3 bg-white text-purple-700 rounded-2xl font-bold shadow-lg hover:scale-105 transition-all text-sm whitespace-nowrap"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
-                    {language === 'vi' ? 'Nạp tiền' : 'Top Up'}
-                  </button>
-                </div>
-              );
-            })()}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                { title: t.feature_limo_title, desc: t.feature_limo_desc, icon: Bus },
-                { title: t.feature_tour_title, desc: t.feature_tour_desc, icon: Star },
-                { title: t.feature_support_title, desc: '+84 96 100 47 09', icon: Phone },
-              ].map((f, i) => (
-                <div key={i} className="bg-white p-5 sm:p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
-                  <div className="w-14 h-14 bg-daiichi-accent rounded-2xl flex items-center justify-center text-daiichi-red mb-6">
-                    <f.icon size={28} />
-                  </div>
-                  <h4 className="text-xl font-bold mb-2">{f.title}</h4>
-                  <p className="text-gray-500 leading-relaxed">{f.desc}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Membership invitation banner – shown only to unregistered guests */}
-            {currentUser?.id === 'guest' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden bg-gradient-to-r from-daiichi-red to-rose-500 rounded-[32px] p-7 sm:p-12 text-white"
-              >
-                <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
-                  <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-                      <UserPlus size={28} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl sm:text-2xl font-bold mb-1">{t.member_banner_title || 'Trở Thành Thành Viên Daiichi Travel!'}</h3>
-                      <p className="text-white/80 text-sm max-w-lg leading-relaxed">{t.member_banner_subtitle || 'Đặt vé ngay để đăng ký thành viên miễn phí – tích lũy điểm thưởng, nhận ưu đãi độc quyền và được gợi ý chuyến xe cá nhân hóa.'}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('book-ticket')}
-                    className="shrink-0 px-6 py-3 sm:px-8 sm:py-4 bg-white text-daiichi-red rounded-2xl font-bold shadow-lg hover:scale-105 transition-all text-sm sm:text-base whitespace-nowrap"
-                  >
-                    {t.member_banner_cta || 'Đặt vé & Đăng ký'}
-                  </button>
-                </div>
-                <div className="absolute -right-10 -top-10 w-52 h-52 bg-white/5 rounded-full pointer-events-none" />
-                <div className="absolute -right-4 -bottom-6 w-36 h-36 bg-white/10 rounded-full pointer-events-none" />
-              </motion.div>
-            )}
-
-            <Footer language={language} />
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <HomePage
+              language={language}
+              currentUser={currentUser}
+              agents={agents}
+              setActiveTab={setActiveTab}
+              setAgentTopUpModal={setAgentTopUpModal}
+            />
+          </Suspense>
         );
 
       case 'book-ticket':
