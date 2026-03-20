@@ -299,12 +299,12 @@ export function BookTicketPage({
             <span className="text-[9px] text-gray-400 truncate">{trip.licensePlate}</span>
             {/* Departure time */}
             <div>
-              <p className="text-lg font-bold text-gray-800 leading-tight">{trip.time}</p>
-              <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">{t.departure}</p>
+              <p className="text-2xl font-bold text-green-600 leading-tight">{trip.time}</p>
+              <p className="text-[11px] font-semibold text-green-600 uppercase tracking-wide">{t.departure}</p>
             </div>
             {/* Date */}
             {trip.date && (
-              <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>
+              <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-xs font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-green-50 text-green-600")}>
                 {formatTripDateDisplay(trip.date)}
               </span>
             )}
