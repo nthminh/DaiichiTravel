@@ -145,7 +145,7 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes }: Vehicle
       {/* Add/Edit Vehicle Modal */}
       {showAddVehicle && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6">
+          <div className="bg-white rounded-[32px] p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">
                 {editingVehicle

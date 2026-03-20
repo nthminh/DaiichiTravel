@@ -100,7 +100,7 @@ export function PWAInstallPrompt() {
   if (showIOSModal) {
     return (
       <div className="fixed inset-0 z-[200] flex items-end justify-center p-4 bg-black/40 backdrop-blur-sm">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 pb-8">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 pb-8 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
