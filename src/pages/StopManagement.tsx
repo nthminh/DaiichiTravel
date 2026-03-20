@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
@@ -54,6 +54,8 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   });
 
   const [formData, setFormData] = useState<Omit<Stop, 'id'>>(EMPTY_FORM);
+
+  const editRowRef = useRef<HTMLTableRowElement>(null);
 
   const terminalStops = stops.filter(s => s.type === 'TERMINAL');
 
@@ -112,6 +114,13 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     setIsAdding(true);
   };
 
+  // Scroll inline edit form into view after it renders
+  useEffect(() => {
+    if (editingId) {
+      editRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [editingId]);
+
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM });
     setIsAdding(false);
@@ -161,6 +170,14 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     return rows;
   })();
 
+  const handleEditToggle = (stop: Stop) => {
+    if (editingId === stop.id) {
+      resetForm();
+    } else {
+      startEdit(stop);
+    }
+  };
+
   const stopTypeLabel = (type: Stop['type']) => {
     if (type === 'TERMINAL') return language === 'vi' ? 'Ga/Bến' : language === 'ja' ? 'ターミナル' : 'Terminal';
     return language === 'vi' ? 'Điểm dừng' : language === 'ja' ? '停留所' : 'Stop';
@@ -202,8 +219,8 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
         </div>
       </div>
 
-      {/* Add / Edit Form */}
-      {isAdding && (
+      {/* Add Form (only when adding a new stop, not editing) */}
+      {isAdding && !editingId && (
         <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-bold">
@@ -469,92 +486,251 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
             <tbody className="divide-y divide-gray-100">
               {sortedDisplay.map(({ stop, isChild }) => {
                 const isTerminal = stop.type === 'TERMINAL';
+                const isEditing = editingId === stop.id;
                 return (
-                  <tr
-                    key={stop.id}
-                    className={cn(
-                      'hover:bg-gray-50 transition-colors group',
-                      isTerminal && 'bg-indigo-50/40'
-                    )}
-                  >
-                    {/* Name */}
-                    <td className="px-8 py-5">
-                      <div className={cn('flex items-center gap-3', isChild && 'pl-5')}>
-                        {isChild && <span className="text-gray-300 text-base leading-none">└</span>}
-                        <div className={cn(
-                          'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
-                          isTerminal ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'
-                        )}>
-                          {isTerminal ? <Building2 size={18} /> : <MapPin size={18} />}
-                        </div>
-                        <span className={cn('font-bold text-gray-800', isTerminal && 'text-indigo-800')}>{stop.name}</span>
-                      </div>
-                    </td>
-
-                    {/* Level badge */}
-                    <td className="px-4 py-5">
-                      <span className={cn(
-                        'text-xs font-bold px-2.5 py-1 rounded-lg',
-                        isTerminal ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'
-                      )}>
-                        {stopTypeLabel(stop.type)}
-                      </span>
-                    </td>
-
-                    {/* Parent terminal */}
-                    <td className="px-4 py-5">
-                      {isTerminal ? (
-                        <span className="text-xs text-gray-300 italic">—</span>
-                      ) : stop.terminalId ? (
-                        <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
-                          {terminalName(stop.terminalId)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">
-                          {language === 'vi' ? 'Chưa gắn ga' : 'No terminal'}
-                        </span>
+                  <React.Fragment key={stop.id}>
+                    <tr
+                      className={cn(
+                        'hover:bg-gray-50 transition-colors group',
+                        isTerminal && 'bg-indigo-50/40',
+                        isEditing && 'ring-2 ring-inset ring-daiichi-red/30'
                       )}
-                    </td>
+                    >
+                      {/* Name */}
+                      <td className="px-8 py-5">
+                        <div className={cn('flex items-center gap-3', isChild && 'pl-5')}>
+                          {isChild && <span className="text-gray-300 text-base leading-none">└</span>}
+                          <div className={cn(
+                            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+                            isTerminal ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'
+                          )}>
+                            {isTerminal ? <Building2 size={18} /> : <MapPin size={18} />}
+                          </div>
+                          <span className={cn('font-bold text-gray-800', isTerminal && 'text-indigo-800')}>{stop.name}</span>
+                        </div>
+                      </td>
 
-                    {/* Category */}
-                    <td className="px-4 py-5">
-                      <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
-                        {CATEGORY_LABELS[stop.category ?? 'MAJOR'][language]}
-                      </span>
-                    </td>
+                      {/* Level badge */}
+                      <td className="px-4 py-5">
+                        <span className={cn(
+                          'text-xs font-bold px-2.5 py-1 rounded-lg',
+                          isTerminal ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'
+                        )}>
+                          {stopTypeLabel(stop.type)}
+                        </span>
+                      </td>
 
-                    {/* Address */}
-                    <td className="px-4 py-5 text-sm text-gray-500">{stop.address}</td>
-
-                    {/* Surcharge */}
-                    <td className="px-4 py-5">
-                      <span className="text-sm font-bold text-daiichi-red">
-                        {stop.surcharge > 0 ? `+${stop.surcharge.toLocaleString()}đ` : '0đ'}
-                        {stop.distanceKm !== undefined && stop.distanceKm > 0 && (
-                          <span className="ml-1 text-xs font-normal text-gray-400">({stop.distanceKm}km)</span>
+                      {/* Parent terminal */}
+                      <td className="px-4 py-5">
+                        {isTerminal ? (
+                          <span className="text-xs text-gray-300 italic">—</span>
+                        ) : stop.terminalId ? (
+                          <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                            {terminalName(stop.terminalId)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">
+                            {language === 'vi' ? 'Chưa gắn ga' : 'No terminal'}
+                          </span>
                         )}
-                      </span>
-                    </td>
+                      </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-5 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => startEdit(stop)}
-                          className="p-2 text-gray-600 hover:text-daiichi-red hover:bg-daiichi-red/5 rounded-lg transition-all"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                        <NotePopover note={stop.note} onSave={(note) => handleSaveStopNote(stop.id, note)} language={language} />
-                        <button
-                          onClick={() => handleDeleteStop(stop.id)}
-                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      {/* Category */}
+                      <td className="px-4 py-5">
+                        <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
+                          {CATEGORY_LABELS[stop.category ?? 'MAJOR'][language]}
+                        </span>
+                      </td>
+
+                      {/* Address */}
+                      <td className="px-4 py-5 text-sm text-gray-500">{stop.address}</td>
+
+                      {/* Surcharge */}
+                      <td className="px-4 py-5">
+                        <span className="text-sm font-bold text-daiichi-red">
+                          {stop.surcharge > 0 ? `+${stop.surcharge.toLocaleString()}đ` : '0đ'}
+                          {stop.distanceKm !== undefined && stop.distanceKm > 0 && (
+                            <span className="ml-1 text-xs font-normal text-gray-400">({stop.distanceKm}km)</span>
+                          )}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-5 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleEditToggle(stop)}
+                            className={cn(
+                              'p-2 rounded-lg transition-all',
+                              isEditing
+                                ? 'text-daiichi-red bg-daiichi-red/10 hover:bg-daiichi-red/20'
+                                : 'text-gray-600 hover:text-daiichi-red hover:bg-daiichi-red/5'
+                            )}
+                          >
+                            <Edit3 size={18} />
+                          </button>
+                          <NotePopover note={stop.note} onSave={(note) => handleSaveStopNote(stop.id, note)} language={language} />
+                          <button
+                            onClick={() => handleDeleteStop(stop.id)}
+                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Inline Edit Form — appears right below the row being edited */}
+                    {isEditing && (
+                      <tr ref={editRowRef}>
+                        <td colSpan={7} className="px-4 py-4 bg-gray-50/80 border-b border-gray-100">
+                          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="flex justify-between items-center">
+                              <h3 className="text-lg font-bold">
+                                {language === 'vi' ? 'Chỉnh sửa điểm dừng' : 'Edit Stop'}
+                              </h3>
+                              <button onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X size={22} /></button>
+                            </div>
+
+                            {/* Type selector */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                  {language === 'vi' ? 'Cấp điểm dừng' : 'Stop Level'}
+                                </label>
+                                <div className="flex rounded-xl overflow-hidden border border-gray-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormData(p => ({ ...p, type: 'TERMINAL', terminalId: undefined }))}
+                                    className={cn(
+                                      'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all',
+                                      formData.type === 'TERMINAL'
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                                    )}
+                                  >
+                                    <Building2 size={16} />
+                                    {language === 'vi' ? 'Ga/Bến' : 'Terminal'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormData(p => ({ ...p, type: 'STOP' }))}
+                                    className={cn(
+                                      'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all',
+                                      formData.type !== 'TERMINAL'
+                                        ? 'bg-teal-600 text-white'
+                                        : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                                    )}
+                                  >
+                                    <Navigation size={16} />
+                                    {language === 'vi' ? 'Điểm dừng' : 'Stop'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Parent terminal selector (only for STOP) */}
+                              {formData.type !== 'TERMINAL' && (
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                    {language === 'vi' ? 'Ga/Bến cha' : 'Parent Terminal'}
+                                  </label>
+                                  <select
+                                    value={formData.terminalId ?? ''}
+                                    onChange={e => setFormData(p => ({ ...p, terminalId: e.target.value || undefined }))}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                                  >
+                                    <option value="">{language === 'vi' ? '— Không thuộc ga nào —' : '— No terminal —'}</option>
+                                    {terminalStops.map(ts => (
+                                      <option key={ts.id} value={ts.id}>{ts.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.stop_name}</label>
+                                <input
+                                  type="text"
+                                  value={formData.name}
+                                  onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                                  placeholder={
+                                    formData.type === 'TERMINAL'
+                                      ? (language === 'vi' ? 'Ví dụ: Hà Nội, Hải Phòng...' : 'e.g. Hanoi, Haiphong...')
+                                      : (language === 'vi' ? 'Ví dụ: Văn phòng Hà Nội' : 'e.g. Hanoi Office')
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.stop_address}</label>
+                                <input
+                                  type="text"
+                                  value={formData.address}
+                                  onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                                  placeholder={language === 'vi' ? 'Địa chỉ chi tiết...' : 'Detailed address...'}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                  {language === 'vi' ? 'Loại điểm' : 'Category'}
+                                </label>
+                                <select
+                                  value={formData.category}
+                                  onChange={e => setFormData(prev => ({ ...prev, category: e.target.value as Stop['category'] }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                                >
+                                  {(Object.keys(CATEGORY_LABELS) as Stop['category'][]).map(cat => (
+                                    <option key={cat} value={cat}>{CATEGORY_LABELS[cat][language]}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.surcharge} (đ)</label>
+                                <input
+                                  type="number"
+                                  value={formData.surcharge}
+                                  onChange={e => setFormData(prev => ({ ...prev, surcharge: parseInt(e.target.value) || 0 }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                  {language === 'vi' ? 'Khoảng cách (km)' : language === 'ja' ? '距離 (km)' : 'Distance (km)'}
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.1"
+                                  value={formData.distanceKm ?? ''}
+                                  onChange={e => setFormData(prev => ({ ...prev, distanceKm: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                                  placeholder={language === 'vi' ? 'Tuỳ chọn' : 'Optional'}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-4 pt-2">
+                              <button onClick={resetForm} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">
+                                {t.cancel}
+                              </button>
+                              <button
+                                onClick={handleUpdateStop}
+                                disabled={!formData.name || !formData.address}
+                                className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2"
+                              >
+                                <Save size={18} />
+                                {t.update}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
               {sortedDisplay.length === 0 && (
