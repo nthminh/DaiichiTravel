@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { DEFAULT_PAYMENT_METHOD, PaymentMethod } from '../constants/paymentMethods';
 import { transportService } from '../services/transportService';
 import { SeatStatus, TripAddon, UserRole, User, Route } from '../types';
+import { getApplicableRouteSurcharges } from '../lib/routeUtils';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
 
@@ -59,8 +60,6 @@ export interface BookingContext {
   fareAmount: number | null;
   fareAgentAmount: number | null;
   ws: WebSocket | null;
-  /** Helper to compute active route-level surcharges for the trip's date */
-  getApplicableRouteSurcharges: (route: Route | undefined, date: string) => any[];
   /** Round-trip phase support */
   tripType: 'ONE_WAY' | 'ROUND_TRIP';
   roundTripPhase: 'outbound' | 'return';
@@ -175,7 +174,7 @@ export function usePayment(ctx: BookingContext) {
     // Calculate route-level surcharges (fuel, holiday, etc.)
     const tripRoute = c.routes.find((r: any) => r.name === c.selectedTrip.route);
     const tripDate = c.selectedTrip.date || '';
-    const appliedRouteSurcharges = c.getApplicableRouteSurcharges(tripRoute, tripDate);
+    const appliedRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
     const routeSurchargeTotal = appliedRouteSurcharges.reduce((sum: number, sc: any) => sum + sc.amount * effectiveAdults, 0);
 
     // Children under 5 are free; only charge adults (which includes children aged 5+)

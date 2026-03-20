@@ -43,7 +43,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { exportTripToExcel, exportTripToPDF, exportRouteToPDF } from './utils/exportUtils';
 import { EmailLinkReenterForm } from './components/EmailLinkReenterForm';
 import { useEmployees } from './hooks/useEmployees';
+import { useWebSocket } from './hooks/useWebSocket';
+import { useMemberAuth } from './hooks/useMemberAuth';
+import { usePassengerManagement } from './hooks/usePassengerManagement';
 import { getBookingGroupSeatIds, buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGroups as libBuildPassengerGroups } from './lib/bookingUtils';
+import { getRouteActivePeriod, getApplicableRouteSurcharges, isRouteValidForDate, formatRouteOption } from './lib/routeUtils';
+import { formatTripDisplayTime, getDayOfWeekStr, formatTripDateDisplay as importedFormatTripDateDisplay, compareTripDateTime } from './lib/tripDisplayUtils';
 
 // Lazy-loaded tab/role components – split into separate chunks to reduce initial bundle
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -196,8 +201,7 @@ export default function App() {
   });
   const [searchAdults, setSearchAdults] = useState(1);
   const [searchChildren, setSearchChildren] = useState(0);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [ws, setWs] = useState<WebSocket | null>(null);
+  const { ws, notifications } = useWebSocket();
   const [stops, setStops] = useState<Stop[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -311,11 +315,23 @@ export default function App() {
   const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, route: 220, driver: 180, status: 150, options: 180 });
   const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, seats: true, passengers: true, addons: true });
   const [showTripColPanel, setShowTripColPanel] = useState(false);
-  const [showTripPassengers, setShowTripPassengers] = useState<Trip | null>(null);
-  const [editingPassengerSeatId, setEditingPassengerSeatId] = useState<string | null>(null);
-  const [passengerEditForm, setPassengerEditForm] = useState({ customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '', status: SeatStatus.BOOKED as SeatStatus, bookingNote: '' });
-  const [passengerColVisibility, setPassengerColVisibility] = useState({ ticketCode: true, seat: true, name: true, phone: true, pickup: true, dropoff: true, status: true, price: true, note: true });
-  const [showPassengerColPanel, setShowPassengerColPanel] = useState(false);
+
+  // ─── Passenger management (logic extracted to usePassengerManagement hook) ───
+  const {
+    showTripPassengers,
+    setShowTripPassengers,
+    editingPassengerSeatId,
+    setEditingPassengerSeatId,
+    passengerEditForm,
+    setPassengerEditForm,
+    passengerColVisibility,
+    setPassengerColVisibility,
+    showPassengerColPanel,
+    setShowPassengerColPanel,
+    handleClosePassengerModal,
+    handleSavePassengerEdit,
+    handleDeletePassenger,
+  } = usePassengerManagement({ bookings, setTrips, language });
 
   // Persist user session to localStorage so F5 doesn't log out
   useEffect(() => {
@@ -343,61 +359,6 @@ export default function App() {
       setActiveTab('home');
     }
   }, [currentUser]);
-
-  // WebSocket setup with exponential backoff reconnect logic
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let reconnectAttempts = 0;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let unmounted = false;
-
-    const MAX_RECONNECT_ATTEMPTS = 10;
-    const BASE_DELAY_MS = 1000;
-    const MAX_DELAY_MS = 30000;
-
-    const connect = () => {
-      if (unmounted) return;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      socket = new WebSocket(`${protocol}//${window.location.host}`);
-
-      socket.onopen = () => {
-        reconnectAttempts = 0;
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'NEW_BOOKING') {
-            const id = Date.now();
-            setNotifications(prev => [{ ...data, id }, ...prev].slice(0, 5));
-            // Auto remove notification after 5 seconds
-            setTimeout(() => {
-              setNotifications(prev => prev.filter(n => n.id !== id));
-            }, 5000);
-          }
-        } catch (e) {
-          console.error("Failed to parse WS message", e);
-        }
-      };
-
-      socket.onclose = () => {
-        if (unmounted || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
-        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, reconnectAttempts), MAX_DELAY_MS);
-        reconnectAttempts++;
-        reconnectTimeout = setTimeout(connect, delay);
-      };
-
-      setWs(socket);
-    };
-
-    connect();
-
-    return () => {
-      unmounted = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      socket?.close();
-    };
-  }, []);
 
   // Credential states
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -773,149 +734,12 @@ export default function App() {
     });
   };
 
-  // --- Trip CRUD handlers ---
-  const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
-    trip.date ? `${trip.date} ${trip.time}` : trip.time;
-
-  const getDayOfWeekStr = (dateStr: string): string => {
-    const [y, m, day] = dateStr.split('-').map(Number);
-    const d = new Date(y, m - 1, day);
-    const days: Record<Language, string[]> = {
-      vi: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-      en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      ja: ['日', '月', '火', '水', '木', '金', '土'],
-    };
-    return days[language][d.getDay()];
-  };
-
-  const formatTripDateDisplay = (dateStr: string): string => {
-    const [y, m, day] = dateStr.split('-').map(Number);
-    const d = new Date(y, m - 1, day);
-    const dow = getDayOfWeekStr(dateStr);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${dow}, ${dd}/${mm}`;
-  };
+  // --- Trip CRUD helpers (pure functions imported from lib/tripDisplayUtils) ---
+  // Create language-bound wrappers to keep prop signatures compatible with child pages.
+  const formatTripDateDisplay = (dateStr: string): string =>
+    importedFormatTripDateDisplay(dateStr, language);
 
   // getLocalDateString and getOffsetDayLabel are imported from lib/utils
-
-  const compareTripDateTime = (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => {
-    const aDate = a.date || '9999-12-31';
-    const aTime = a.time || '23:59';
-    const bDate = b.date || '9999-12-31';
-    const bTime = b.time || '23:59';
-    const aKey = `${aDate}T${aTime}`;
-    const bKey = `${bDate}T${bTime}`;
-    return aKey.localeCompare(bKey);
-  };
-
-  const handleClosePassengerModal = () => {
-    setShowTripPassengers(null);
-    setEditingPassengerSeatId(null);
-    setShowPassengerColPanel(false);
-  };
-
-  const handleSavePassengerEdit = async () => {
-    if (!showTripPassengers || !editingPassengerSeatId) return;
-    const updates = {
-      customerName: passengerEditForm.customerName,
-      customerPhone: passengerEditForm.customerPhone,
-      pickupAddress: passengerEditForm.pickupAddress,
-      dropoffAddress: passengerEditForm.dropoffAddress,
-      status: passengerEditForm.status,
-      bookingNote: passengerEditForm.bookingNote,
-    };
-    try {
-      // Sync changes to the corresponding booking document
-      const matchingBooking = bookings.find(b =>
-        b.tripId === showTripPassengers.id &&
-        (b.seatId === editingPassengerSeatId || (b.seatIds && b.seatIds.includes(editingPassengerSeatId)))
-      );
-      // All seat IDs in this booking group (for group bookings)
-      const groupSeatIds = getBookingGroupSeatIds(matchingBooking, editingPassengerSeatId);
-
-      // Update all seats in the group
-      await Promise.all(groupSeatIds.map((sid: string) =>
-        transportService.bookSeat(showTripPassengers.id, sid, updates)
-      ));
-
-      if (matchingBooking) {
-        if (passengerEditForm.status === SeatStatus.EMPTY) {
-          await transportService.deleteBooking(matchingBooking.id);
-        } else {
-          await transportService.updateBooking(matchingBooking.id, {
-            customerName: passengerEditForm.customerName,
-            phone: passengerEditForm.customerPhone,
-            pickupAddress: passengerEditForm.pickupAddress,
-            dropoffAddress: passengerEditForm.dropoffAddress,
-            bookingNote: passengerEditForm.bookingNote,
-            status: passengerEditForm.status === SeatStatus.PAID ? 'PAID' : 'BOOKED',
-          });
-        }
-      }
-
-      setTrips(prev => prev.map(trip => {
-        if (trip.id !== showTripPassengers.id) return trip;
-        const updatedSeats = trip.seats.map((s: any) =>
-          groupSeatIds.includes(s.id) ? { ...s, ...updates } : s
-        );
-        const updatedTrip = { ...trip, seats: updatedSeats };
-        setShowTripPassengers(updatedTrip);
-        return updatedTrip;
-      }));
-      setEditingPassengerSeatId(null);
-    } catch (err) {
-      console.error('Failed to save passenger:', err);
-    }
-  };
-
-  const handleDeletePassenger = async (seatId: string) => {
-    if (!showTripPassengers) return;
-    const confirmMsg = language === 'vi'
-      ? 'Bạn có chắc muốn xóa hành khách này khỏi ghế không?'
-      : 'Are you sure you want to remove this passenger from the seat?';
-    if (!window.confirm(confirmMsg)) return;
-    const emptyData = {
-      status: SeatStatus.EMPTY,
-      customerName: '',
-      customerPhone: '',
-      pickupPoint: '',
-      dropoffPoint: '',
-      pickupAddress: '',
-      dropoffAddress: '',
-      bookingNote: '',
-    };
-    try {
-      // Sync: delete the corresponding booking document
-      const matchingBooking = bookings.find(b =>
-        b.tripId === showTripPassengers.id &&
-        (b.seatId === seatId || (b.seatIds && b.seatIds.includes(seatId)))
-      );
-      // All seat IDs in this booking group (clear all for group bookings)
-      const groupSeatIds = getBookingGroupSeatIds(matchingBooking, seatId);
-
-      await Promise.all(groupSeatIds.map((sid: string) =>
-        transportService.bookSeat(showTripPassengers.id, sid, emptyData)
-      ));
-
-      if (matchingBooking) {
-        await transportService.deleteBooking(matchingBooking.id);
-      }
-
-      setTrips(prev => prev.map(trip => {
-        if (trip.id !== showTripPassengers.id) return trip;
-        const updatedSeats = trip.seats.map((s: any) =>
-          groupSeatIds.includes(s.id) ? { ...s, ...emptyData } : s
-        );
-        const updatedTrip = { ...trip, seats: updatedSeats };
-        setShowTripPassengers(updatedTrip);
-        return updatedTrip;
-      }));
-      if (editingPassengerSeatId && groupSeatIds.includes(editingPassengerSeatId)) setEditingPassengerSeatId(null);
-    } catch (err) {
-      console.error('Failed to delete passenger:', err);
-    }
-  };
 
   // Wrap imported pure functions with the local `bookings` dependency
   const buildSeatTicketCodeMap = (tripId: string) =>
@@ -982,120 +806,10 @@ export default function App() {
     }
   };
 
-  const handleRegisterMember = async (data: { name: string; phone: string; email?: string; username?: string; password: string }): Promise<boolean> => {
-    // Check if phone already registered
-    const exists = customers.some(c => c.phone === data.phone);
-    if (exists) return false;
-    // Normalize phone for default username: strip leading + and country code prefix if needed
-    const normalizedPhone = data.phone.replace(/^\+84/, '0').replace(/[^0-9]/g, '');
-    // Store username in lowercase so login is case-insensitive
-    const storedUsername = (data.username || normalizedPhone || data.phone).toLowerCase();
-    await transportService.addCustomer({
-      name: data.name || (language === 'vi' ? 'Khách hàng' : 'Customer'),
-      phone: data.phone,
-      email: data.email,
-      username: storedUsername,
-      password: data.password,
-      status: 'ACTIVE',
-      registeredAt: new Date().toISOString(),
-      totalBookings: 1,
-    });
-    return true;
-  };
+  // ─── Member auth (logic extracted to useMemberAuth hook) ─────────────────────
+  const { handleRegisterMember, handleOtpMemberLogin } = useMemberAuth({ customers, language });
 
-  /**
-   * OTP / OAuth-based member login and auto-registration.
-   * Called after Firebase phone-OTP or social sign-in succeeds.
-   * Finds an existing customer by phone / email / firebaseUid or creates a new one.
-   */
-  const handleOtpMemberLogin = async (data: {
-    name?: string;
-    phone?: string;
-    email?: string;
-    uid?: string;
-    loginMethod: string;
-  }): Promise<{ id: string; username: string; role: UserRole; name: string; phone?: string; email?: string } | null> => {
-    // Normalise phone for storage/lookup:
-    // - Vietnamese E.164 (+84xxx) → local 0xxx format (consistent with traditional registration)
-    // - International E.164 (+CCxxx) → kept as-is (e.g. +61412345678 for Australia)
-    // - Already local (0xxx): no change
-    const normalizedPhone = data.phone
-      ? data.phone.replace(/^\+84/, '0')
-      : undefined;
-
-    // For phone-auth users who have no email, derive a default email from the
-    // phone number so that email-dependent features (e.g. OTP confirmation,
-    // welcome emails) are never blocked by an empty email field.
-    const phoneDigits = (normalizedPhone || data.phone || '').replace(/[^0-9]/g, '');
-    const effectiveEmail = data.email || (phoneDigits ? `${phoneDigits}@gmail.com` : undefined);
-
-    const defaultName = language === 'vi' ? 'Khách hàng' : 'Customer';
-
-    // 1. Find existing customer by uid, phone, or email
-    // Compare phone digits only to handle format variations (+61..., 61..., 0...).
-    let customer = customers.find(c => {
-      if (data.uid && c.firebaseUid === data.uid) return true;
-      if (normalizedPhone && c.phone) {
-        const normDigits = normalizedPhone.replace(/[^0-9]/g, '');
-        const cDigits = c.phone.replace(/[^0-9]/g, '');
-        if (normDigits && normDigits === cDigits) return true;
-      }
-      if (data.phone && c.phone === data.phone) return true;
-      if (data.email && c.email && c.email.toLowerCase() === data.email.toLowerCase()) return true;
-      return false;
-    });
-
-    if (customer) {
-      // Update profile fields that may have changed
-      const updates: Partial<Omit<CustomerProfile, 'id'>> = {
-        loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
-      };
-      if (data.uid && !customer.firebaseUid) updates.firebaseUid = data.uid;
-      if (data.name && data.name !== customer.name) updates.name = data.name;
-      if (effectiveEmail && !customer.email) updates.email = effectiveEmail;
-      if (normalizedPhone && !customer.phone) updates.phone = normalizedPhone;
-      await transportService.updateCustomer(customer.id, updates);
-
-      return {
-        id: customer.id,
-        username: customer.username || customer.phone || effectiveEmail || 'member',
-        role: UserRole.CUSTOMER,
-        name: customer.name || data.name || defaultName,
-        phone: customer.phone || normalizedPhone,
-        email: customer.email || effectiveEmail,
-      };
-    }
-
-    // 2. Create new customer profile
-    const newCustomer: Omit<CustomerProfile, 'id'> = {
-      name: data.name || defaultName,
-      phone: normalizedPhone || data.phone || '',
-      username: normalizedPhone || effectiveEmail || data.uid || '',
-      loginMethod: data.loginMethod as CustomerProfile['loginMethod'],
-      status: 'ACTIVE',
-      registeredAt: new Date().toISOString(),
-      totalBookings: 0,
-    };
-    if (effectiveEmail) newCustomer.email = effectiveEmail;
-    if (data.uid) newCustomer.firebaseUid = data.uid;
-    const docRef = await transportService.addCustomer(newCustomer);
-
-    return {
-      id: docRef.id,
-      username: normalizedPhone || effectiveEmail || data.uid || 'member',
-      role: UserRole.CUSTOMER,
-      name: data.name || defaultName,
-      phone: normalizedPhone || data.phone,
-      email: effectiveEmail,
-    };
-  };
-
-
-  // --- Route price period helpers ---
-  const getRouteActivePeriod = (route: Route, date: string): PricePeriod | null => {
-    if (!date || !route.pricePeriods || route.pricePeriods.length === 0) return null;
-    return route.pricePeriods.find(p => p.startDate <= date && p.endDate >= date) || null;
-  };
+  // --- Route price period helpers (pure functions imported from lib/routeUtils) ---
 
   /** Submit an inquiry when no matching trip is found – saves to Firestore and
    * triggers the notifyInquiry Cloud Function which emails sale@daiichitravel.com. */
@@ -1130,19 +844,6 @@ export default function App() {
     } finally {
       setInquiryLoading(false);
     }
-  };
-
-  const getApplicableRouteSurcharges = (route: Route | undefined, tripDate: string): RouteSurcharge[] => {
-    if (!route?.surcharges) return [];
-    return route.surcharges.filter(sc => {
-      if (!sc.isActive) return false;
-      // If a date range is configured, only apply within that range
-      if (sc.startDate && sc.endDate) {
-        return !!tripDate && tripDate >= sc.startDate && tripDate <= sc.endDate;
-      }
-      // No date range means the surcharge applies all the time
-      return true;
-    });
   };
 
   // ─── Payment & booking flow (logic extracted to usePayment hook) ─────────────
@@ -1182,7 +883,6 @@ export default function App() {
     fareAmount,
     fareAgentAmount,
     ws,
-    getApplicableRouteSurcharges,
     tripType,
     roundTripPhase,
     onRoundTripOutboundCaptured: (summary) => {

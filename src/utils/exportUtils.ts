@@ -1,14 +1,11 @@
 import * as XLSX from 'xlsx';
 import { Route, SeatStatus } from '../types';
+import { formatTripDisplayTime } from '../lib/tripDisplayUtils';
 
 const COMPANY_LOGO_URL =
   'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
 
 // --- Private helpers ---
-
-const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
-  trip.date ? `${trip.date} ${trip.time}` : trip.time;
-
 const escapeHtml = (str: unknown): string => {
   if (str == null) return '';
   return String(str)

@@ -7,6 +7,7 @@ import { Trip, Route, Stop, Agent, Vehicle, TripAddon, RouteSurcharge } from '..
 import { SerializedSeat } from '../lib/vehicleSeatUtils'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { motion } from 'motion/react'
+import { getApplicableRouteSurcharges } from '../lib/routeUtils'
 
 interface SeatMappingPageProps {
   // Data
@@ -151,18 +152,6 @@ export function SeatMappingPage({
     const afterFrom = fromDate ? tripDate >= fromDate : true;
     const beforeTo = toDate ? tripDate <= toDate : true;
     return !!tripDate && afterFrom && beforeTo;
-  };
-
-  /** Route-level surcharges applicable for the given date. */
-  const getApplicableRouteSurcharges = (route: Route | undefined, tripDate: string): RouteSurcharge[] => {
-    if (!route?.surcharges) return [];
-    return route.surcharges.filter(sc => {
-      if (!sc.isActive) return false;
-      if (sc.startDate && sc.endDate) {
-        return !!tripDate && tripDate >= sc.startDate && tripDate <= sc.endDate;
-      }
-      return true;
-    });
   };
 
   if (!selectedTrip) return null;
