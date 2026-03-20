@@ -933,6 +933,10 @@ export default function App() {
       setOutboundBookingData(summary);
       setRoundTripPhase('return');
       setActiveTab('book-ticket');
+      // Carry over customer name & phone from outbound to return phase
+      const { customerName, phone } = summary;
+      if (customerName) { setCustomerNameInput(customerName); setInquiryName(customerName); }
+      if (phone) { setPhoneInput(phone); setInquiryPhone(phone); }
     },
     setLastBooking,
     setIsTicketOpen,
