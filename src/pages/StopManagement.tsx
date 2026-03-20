@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation } from 'lucide-react';
+import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation, Copy } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop } from '../types';
 import { transportService } from '../services/transportService';
@@ -50,7 +50,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     category: 140,
     address: 240,
     surcharge: 130,
-    actions: 110,
+    actions: 148,
   });
 
   const [formData, setFormData] = useState<Omit<Stop, 'id'>>(EMPTY_FORM);
@@ -97,6 +97,73 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
       await transportService.deleteStop(id);
     } catch {
       onUpdateStops(stops.filter(s => s.id !== id));
+    }
+  };
+
+  const handleCopyStop = async (stop: Stop) => {
+    const isTerminal = stop.type === 'TERMINAL';
+    const children = isTerminal ? stops.filter(s => s.terminalId === stop.id) : [];
+    const COPY_SUFFIX: Record<Language, string> = {
+      vi: ' (bản sao)',
+      en: ' (copy)',
+      ja: '（コピー）',
+    };
+    const copySuffix = COPY_SUFFIX[language];
+
+    const confirmMsg = language === 'vi'
+      ? isTerminal && children.length > 0
+        ? `Sao chép ga/bến "${stop.name}" và ${children.length} điểm dừng con?`
+        : `Sao chép điểm dừng "${stop.name}"?`
+      : language === 'ja'
+        ? isTerminal && children.length > 0
+          ? `「${stop.name}」と${children.length}件の子停留所をコピーしますか？`
+          : `「${stop.name}」をコピーしますか？`
+        : isTerminal && children.length > 0
+          ? `Copy terminal "${stop.name}" and ${children.length} child stop(s)?`
+          : `Copy stop "${stop.name}"?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, ...stopData } = stop;
+    const newTerminalData: Omit<Stop, 'id'> = {
+      ...stopData,
+      name: `${stop.name}${copySuffix}`,
+      terminalId: undefined,
+    };
+
+    try {
+      if (isTerminal && children.length > 0) {
+        const newTerminalRef = await transportService.addStop(newTerminalData);
+        if (newTerminalRef) {
+          await Promise.all(children.map(child => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { id: _cid, ...childData } = child;
+            return transportService.addStop({
+              ...childData,
+              name: `${child.name}${copySuffix}`,
+              terminalId: newTerminalRef.id,
+            });
+          }));
+        }
+      } else {
+        await transportService.addStop(newTerminalData);
+      }
+    } catch {
+      // Offline fallback — update local state directly
+      const newId = Date.now().toString();
+      const newStop: Stop = { ...newTerminalData, id: newId };
+      if (isTerminal && children.length > 0) {
+        const childCopies: Stop[] = children.map((child, i) => ({
+          ...child,
+          id: `${newId}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+          name: `${child.name}${copySuffix}`,
+          terminalId: newId,
+        }));
+        onUpdateStops([...stops, newStop, ...childCopies]);
+      } else {
+        onUpdateStops([...stops, newStop]);
+      }
     }
   };
 
@@ -558,6 +625,13 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                       {/* Actions */}
                       <td className="px-4 py-5 text-right">
                         <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleCopyStop(stop)}
+                            title={t.copy_stop}
+                            className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                          >
+                            <Copy size={18} />
+                          </button>
                           <button
                             onClick={() => handleEditToggle(stop)}
                             className={cn(
