@@ -44,6 +44,8 @@ export interface BookingContext {
   addonQuantities: Record<string, number>;
   pickupSurcharge: number;
   dropoffSurcharge: number;
+  pickupAddressSurcharge: number;
+  dropoffAddressSurcharge: number;
   surchargeAmount: number;
   bookingDiscount: number;
   pickupPoint: string;
@@ -82,6 +84,8 @@ export interface BookingContext {
   setDropoffAddress: (a: string) => void;
   setPickupSurcharge: (n: number) => void;
   setDropoffSurcharge: (n: number) => void;
+  setPickupAddressSurcharge: (n: number) => void;
+  setDropoffAddressSurcharge: (n: number) => void;
   setSurchargeAmount: (n: number) => void;
   setBookingDiscount: (n: number) => void;
   setAddonQuantities: (q: Record<string, number>) => void;
@@ -180,7 +184,7 @@ export function usePayment(ctx: BookingContext) {
 
     // Children under 5 are free; only charge adults (which includes children aged 5+)
     const totalBase = (effectiveAdults * basePriceAdult);
-    const totalSurcharge = c.pickupSurcharge + c.dropoffSurcharge + c.surchargeAmount + routeSurchargeTotal;
+    const totalSurcharge = c.pickupSurcharge + c.dropoffSurcharge + c.pickupAddressSurcharge + c.dropoffAddressSurcharge + c.surchargeAmount + routeSurchargeTotal;
     // Calculate selected addons total (price × quantity)
     const selectedAddons = (c.selectedTrip.addons || []).filter((a: TripAddon) => (c.addonQuantities[a.id] || 0) > 0);
     const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (c.addonQuantities[a.id] || 1), 0);
