@@ -6,6 +6,8 @@ import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '.
 import { matchesSearch } from '../lib/searchUtils'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { motion } from 'motion/react'
+import { useToast } from '../hooks/useToast'
+import { ToastContainer } from '../components/ToastContainer'
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -139,6 +141,7 @@ export function BookTicketPage({
   formatTripDateDisplay,
 }: BookTicketPageProps) {
   const t = TRANSLATIONS[language];
+  const { toasts, showToast, dismissToast } = useToast();
 
   const filterTrip = (trip: Trip, includeDate: boolean) => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
@@ -182,6 +185,16 @@ export function BookTicketPage({
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
     if (emptySeats < totalPassengers) return false;
     return true;
+  };
+
+  const handleSearch = () => {
+    setHasSearched(true);
+    const count = trips.filter(trip => filterTrip(trip, true)).length;
+    if (count > 0) {
+      showToast(t.search_results_found.replace('{count}', String(count)), 'success');
+    } else {
+      showToast(t.no_trips_found, 'info');
+    }
   };
 
   const renderTripCard = (trip: Trip, isSuggestion = false) => {
@@ -511,7 +524,7 @@ export function BookTicketPage({
         </div>
         {/* Search button row */}
         <div className="flex justify-end mt-4">
-          <button onClick={() => setHasSearched(true)} className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+          <button onClick={handleSearch} className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
             <Search size={18} />
             {t.search_btn}
           </button>
@@ -806,6 +819,7 @@ export function BookTicketPage({
           </div>
         </div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -148,6 +148,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     time_from: 'Từ giờ',
     time_to: 'Đến giờ',
     no_trips_found: 'Không tìm thấy chuyến xe phù hợp',
+    search_results_found: 'Tìm thấy {count} chuyến xe phù hợp với tìm kiếm của bạn',
     
     // Seat Mapping
     seat_map_title: 'Sơ đồ ghế ngồi',
@@ -892,6 +893,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     time_from: 'From',
     time_to: 'To',
     no_trips_found: 'No matching trips found',
+    search_results_found: 'Found {count} matching trip(s)',
     
     // Seat Mapping
     seat_map_title: 'Seat Map',
@@ -1636,6 +1638,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     time_from: '開始時刻',
     time_to: '終了時刻',
     no_trips_found: '条件に合う運行が見つかりません',
+    search_results_found: '{count}件の運行が見つかりました',
     
     // Seat Mapping
     seat_map_title: '座席表',
