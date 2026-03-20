@@ -441,9 +441,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
           </div>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giảm giá (%)' : 'Discount (%)'}</label>
-            <input type="number" min="0" max="100" value={form.discountPercent}
+            <input type="number" min="0" max="100" value={form.discountPercent || ''}
               onChange={e => setForm(prev => ({ ...prev, discountPercent: parseInt(e.target.value) || 0 }))}
-              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" placeholder="0" />
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" placeholder="" />
             {form.discountPercent > 0 && (
               <p className="text-[10px] text-daiichi-red mt-0.5 ml-1 font-medium">
                 {language === 'vi' ? 'Áp dụng trên giá tour' : 'Applied to tour price'}
@@ -733,7 +733,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
             type="number"
             value={priceMin}
             onChange={e => setPriceMin(e.target.value)}
-            placeholder="0"
+            placeholder=""
             className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 w-32"
           />
         </div>

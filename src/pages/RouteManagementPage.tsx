@@ -445,7 +445,7 @@ export function RouteManagementPage({
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{language === 'vi' ? 'Số tiền/người (đ)' : language === 'ja' ? '金額/人 (đ)' : 'Amount/person (đ)'}</label>
-                              <input type="number" min="0" step="1" value={routeSurchargeForm.amount} placeholder="0" onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                              <input type="number" min="0" step="1" value={routeSurchargeForm.amount} placeholder="" onChange={e => setRouteSurchargeForm(p => ({ ...p, amount: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2 bg-white border border-amber-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200" />
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày (tuỳ chọn)' : language === 'ja' ? '開始日（任意）' : 'From date (optional)'}</label>

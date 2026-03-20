@@ -104,7 +104,7 @@ export function ToursPage({
                 min="0"
                 value={tourPriceMin}
                 onChange={e => setTourPriceMin(e.target.value)}
-                placeholder="0"
+                placeholder=""
                 className="mt-1 w-32 px-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
               />
             </div>
