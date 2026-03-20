@@ -974,7 +974,16 @@ export function OperationsPage({
               // A trip can be selected for merge only if it's free-seating and WAITING
               const isMergeable = trip.seatType === 'free' && trip.status === TripStatus.WAITING && !trip.isMerged;
               const isSelectedForMerge = selectedTripIdsForMerge.includes(trip.id);
-              const isDisabledForMerge = !isMergeable || (selectedTripIdsForMerge.length >= 2 && !isSelectedForMerge);
+              // When one trip is already selected, only trips with the same route, date and time are compatible
+              const firstSelectedTrip = selectedTripIdsForMerge.length === 1
+                ? trips.find(t => t.id === selectedTripIdsForMerge[0])
+                : null;
+              const isCompatibleWithSelected = !firstSelectedTrip || (
+                trip.route === firstSelectedTrip.route &&
+                trip.date === firstSelectedTrip.date &&
+                trip.time === firstSelectedTrip.time
+              );
+              const isDisabledForMerge = !isMergeable || !isCompatibleWithSelected || (selectedTripIdsForMerge.length >= 2 && !isSelectedForMerge);
               return (
                 <tr key={trip.id} className={cn('hover:bg-gray-50 cursor-pointer', isSelectedForMerge && 'bg-orange-50 hover:bg-orange-50')}>
                   <td className="px-3 py-4" onClick={e => e.stopPropagation()}>
