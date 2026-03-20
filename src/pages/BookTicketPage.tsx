@@ -304,7 +304,7 @@ export function BookTicketPage({
             </div>
             {/* Date */}
             {trip.date && (
-              <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-xs font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-green-50 text-green-600")}>
+              <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-xs font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-red-50 text-daiichi-red")}>
                 {formatTripDateDisplay(trip.date)}
               </span>
             )}
@@ -475,59 +475,62 @@ export function BookTicketPage({
             </div>
           )}
         </div>
-        {/* Passenger count row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-          <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.num_adults}</label>
-            <div className="relative mt-1 flex items-center">
-              <button
-                type="button"
-                onClick={() => setSearchAdults(v => Math.max(1, v - 1))}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
-              >−</button>
-              <input
-                type="number"
-                min="1"
-                value={searchAdults}
-                onChange={e => setSearchAdults(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full text-center px-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
-              />
-              <button
-                type="button"
-                onClick={() => setSearchAdults(v => v + 1)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
-              >+</button>
+        {/* Passenger count row + search button */}
+        <div className="flex items-end gap-3 mt-4 sm:block sm:mt-0">
+          <div className="flex-1 grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4">
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 truncate block">{t.num_adults}</label>
+              <div className="relative mt-1 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setSearchAdults(v => Math.max(1, v - 1))}
+                  className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                >−</button>
+                <input
+                  type="number"
+                  min="1"
+                  value={searchAdults}
+                  onChange={e => setSearchAdults(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full text-center px-8 sm:px-10 py-3 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSearchAdults(v => v + 1)}
+                  className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                >+</button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 truncate block">{t.num_children}</label>
+              <div className="relative mt-1 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setSearchChildren(v => Math.max(0, v - 1))}
+                  className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                >−</button>
+                <input
+                  type="number"
+                  min="0"
+                  value={searchChildren === 0 ? '' : searchChildren}
+                  onChange={e => setSearchChildren(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder=""
+                  className="w-full text-center px-8 sm:px-10 py-3 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSearchChildren(v => v + 1)}
+                  className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
+                >+</button>
+              </div>
             </div>
           </div>
-          <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.num_children}</label>
-            <div className="relative mt-1 flex items-center">
-              <button
-                type="button"
-                onClick={() => setSearchChildren(v => Math.max(0, v - 1))}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
-              >−</button>
-              <input
-                type="number"
-                min="0"
-                value={searchChildren}
-                onChange={e => setSearchChildren(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-full text-center px-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
-              />
-              <button
-                type="button"
-                onClick={() => setSearchChildren(v => v + 1)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
-              >+</button>
-            </div>
+          {/* Search button – icon-only on mobile, full text on sm+ */}
+          <div className="shrink-0 sm:flex sm:justify-end sm:mt-4">
+            <button onClick={handleSearch} className="px-4 sm:px-8 py-3 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+              <Search size={18} />
+              <span className="sm:inline hidden">{t.search_btn}</span>
+            </button>
           </div>
-        </div>
-        {/* Search button row */}
-        <div className="flex justify-end mt-4">
-          <button onClick={handleSearch} className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
-            <Search size={18} />
-            {t.search_btn}
-          </button>
         </div>
       </div>
 

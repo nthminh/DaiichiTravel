@@ -91,7 +91,7 @@ export function AgentsPage({ agents, employees, language }: AgentsPageProps) {
                 </div>
               </div>
               {agentForm.paymentType === 'POSTPAID' && (
-                <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.agent_credit_limit || 'Hạn mức công nợ (đ)'}</label><input type="text" inputMode="numeric" pattern="[0-9]*" value={agentForm.creditLimit || ''} placeholder="0" onChange={e => setAgentForm(p => ({ ...p, creditLimit: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.agent_credit_limit || 'Hạn mức công nợ (đ)'}</label><input type="text" inputMode="numeric" pattern="[0-9]*" value={agentForm.creditLimit || ''} placeholder="" onChange={e => setAgentForm(p => ({ ...p, creditLimit: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
               )}
               {agentForm.paymentType === 'PREPAID' && (
                 <>

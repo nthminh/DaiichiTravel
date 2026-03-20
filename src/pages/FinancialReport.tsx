@@ -1057,7 +1057,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                     onChange={e => setPaymentInput(e.target.value)}
                     min={1}
                     className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-lg font-bold"
-                    placeholder="0"
+                    placeholder=""
                     autoFocus
                   />
                   <button onClick={() => setPaymentInput(showPaymentModal.debtAmount.toString())} className="text-xs text-daiichi-red font-bold hover:underline mt-1">

@@ -397,10 +397,10 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.surcharge} (đ)</label>
               <input
                 type="number"
-                value={formData.surcharge}
+                value={formData.surcharge || ''}
                 onChange={e => setFormData(prev => ({ ...prev, surcharge: parseInt(e.target.value) || 0 }))}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
-                placeholder="0"
+                placeholder=""
               />
             </div>
             <div className="space-y-2">
@@ -765,10 +765,10 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.surcharge} (đ)</label>
                                 <input
                                   type="number"
-                                  value={formData.surcharge}
+                                  value={formData.surcharge || ''}
                                   onChange={e => setFormData(prev => ({ ...prev, surcharge: parseInt(e.target.value) || 0 }))}
                                   className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
-                                  placeholder="0"
+                                  placeholder=""
                                 />
                               </div>
                               <div className="space-y-2">
