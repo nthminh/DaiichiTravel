@@ -834,8 +834,6 @@ export const transportService = {
   mergeTrips: async (primaryTripId: string, secondaryTripId: string, allBookings: Booking[]) => {
     if (!db) throw new Error('Firebase not configured');
 
-    const MERGE_MAX_TIME_DIFF_MINUTES = 60;
-
     const primaryRef = doc(db, 'trips', primaryTripId);
     const secondaryRef = doc(db, 'trips', secondaryTripId);
 
@@ -864,14 +862,17 @@ export const transportService = {
         throw new Error('Chỉ có thể ghép các chuyến đang chờ khởi hành (WAITING).');
       }
 
-      // Validate time difference ≤ MERGE_MAX_TIME_DIFF_MINUTES
-      const toMinutes = (t: string) => {
-        const [h, m] = t.split(':').map(Number);
-        return (h || 0) * 60 + (m || 0);
-      };
-      const timeDiff = Math.abs(toMinutes(primary.time) - toMinutes(secondary.time));
-      if (timeDiff > MERGE_MAX_TIME_DIFF_MINUTES) {
-        throw new Error(`Hai chuyến phải có giờ xuất phát cách nhau không quá ${MERGE_MAX_TIME_DIFF_MINUTES} phút.`);
+      // Validate same date
+      if (!primary.date || !secondary.date) {
+        throw new Error('Không thể ghép chuyến vì thông tin ngày của một hoặc cả hai chuyến bị thiếu.');
+      }
+      if (primary.date !== secondary.date) {
+        throw new Error('Hai chuyến phải cùng ngày để ghép.');
+      }
+
+      // Validate same time
+      if (primary.time !== secondary.time) {
+        throw new Error('Hai chuyến phải cùng giờ xuất phát để ghép.');
       }
 
       // Build combined seats: primary seats kept as-is; secondary seats renumbered
