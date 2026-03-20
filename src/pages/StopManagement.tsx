@@ -186,7 +186,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
             const { id: _cid, ...childData } = child;
             return transportService.addStop({
               ...childData,
-              name: `${child.name}${copySuffix}`,
+              name: child.name,
               terminalId: targetTerminalId,
             });
           }));
@@ -195,7 +195,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
           const childCopies: Stop[] = children.map((child, i) => ({
             ...child,
             id: `${newId}_${i}_${Math.random().toString(36).slice(2, 7)}`,
-            name: `${child.name}${copySuffix}`,
+            name: child.name,
             terminalId: targetTerminalId,
           }));
           onUpdateStops([...stops, ...childCopies]);
