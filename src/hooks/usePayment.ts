@@ -67,7 +67,7 @@ export interface BookingContext {
   tripType: 'ONE_WAY' | 'ROUND_TRIP';
   roundTripPhase: 'outbound' | 'return';
   /** Called by the hook when the outbound leg has been captured; App.tsx should advance the phase */
-  onRoundTripOutboundCaptured: (outboundSummary: { route: string; time: string; date: string }) => void;
+  onRoundTripOutboundCaptured: (outboundSummary: { route: string; time: string; date: string; customerName: string; phone: string }) => void;
   // Setters
   setLastBooking: (booking: any) => void;
   setIsTicketOpen: (open: boolean) => void;
@@ -241,7 +241,7 @@ export function usePayment(ctx: BookingContext) {
       phone: c.phoneInput.trim(),
       type: 'TRIP',
       route: c.selectedTrip.route,
-      date: new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+      date: c.selectedTrip.date || new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       time: c.selectedTrip.time,
       tripId: c.selectedTrip.id,
       seatId: effectiveSeatId,
@@ -377,6 +377,9 @@ export function usePayment(ctx: BookingContext) {
     // ── ROUND-TRIP OUTBOUND PHASE ─────────────────────────────────────────────
     // Capture outbound data without saving or charging; signal App.tsx to advance to return phase.
     if (c.tripType === 'ROUND_TRIP' && c.roundTripPhase === 'outbound') {
+      // Save name/phone before resetFormState clears them, so they carry over to the return phase
+      const savedCustomerName = c.customerNameInput;
+      const savedPhone = c.phoneInput;
       const outboundApplyOpt = buildOptimisticUpdater(allSeatIds, fromStopOrder, toStopOrder, seatUpdateData);
       setCapturedOutboundLeg({
         bookingData: { ...bookingData },
@@ -391,6 +394,8 @@ export function usePayment(ctx: BookingContext) {
         route: c.selectedTrip.route,
         time: c.selectedTrip.time,
         date: c.selectedTrip.date || '',
+        customerName: savedCustomerName,
+        phone: savedPhone,
       });
       return;
     }
