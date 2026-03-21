@@ -261,6 +261,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                           <p className="text-sm font-bold text-gray-800">{leg?.date}</p>
                           <div className="flex items-center gap-1 mt-0.5">
                             <Clock size={11} className="text-gray-400" />
+                            <span className="text-[9px] text-gray-400 font-medium">{language === 'vi' ? 'Thời gian' : language === 'ja' ? '時刻' : 'Time'}:</span>
                             <span className="text-sm font-bold text-gray-800">{leg?.time}</span>
                           </div>
                         </div>
@@ -383,7 +384,10 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                           <Clock size={14} />
                           <span className="text-[10px] font-bold uppercase tracking-widest">{t.departure}</span>
                         </div>
-                        <p className="font-bold text-gray-800">{booking.time}</p>
+                        <p className="font-bold text-gray-800">
+                          <span className="text-[10px] font-normal text-gray-400 mr-1">{language === 'vi' ? 'Thời gian' : language === 'ja' ? '時刻' : 'Time'}:</span>
+                          {booking.time}
+                        </p>
                       </div>
                     </div>
                   </div>

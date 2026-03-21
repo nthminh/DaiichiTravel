@@ -475,6 +475,62 @@ export function SeatMappingPage({
         </div>
       )}
 
+      {/* Step-by-step purchase guide */}
+      {(() => {
+        const currentStep = showBookingForm ? 2 : 1;
+        const steps = language === 'vi'
+          ? ['Chọn ghế', 'Nhập thông tin', 'Thanh toán', 'Tải về']
+          : language === 'ja'
+            ? ['座席を選ぶ', '情報を入力', 'お支払い', 'ダウンロード']
+            : ['Select Seat', 'Enter Info', 'Payment', 'Download'];
+        return (
+          <div className="mb-5 px-1">
+            <div className="flex items-center justify-between">
+              {steps.map((label, idx) => {
+                const stepNum = idx + 1;
+                const isActive = stepNum === currentStep;
+                const isDone = stepNum < currentStep;
+                return (
+                  <React.Fragment key={stepNum}>
+                    <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all shrink-0",
+                        isActive ? "bg-daiichi-red border-daiichi-red text-white shadow-md shadow-daiichi-red/30" :
+                        isDone ? "bg-emerald-500 border-emerald-500 text-white" :
+                        "bg-white border-gray-200 text-gray-400"
+                      )}>
+                        {isDone ? '✓' : stepNum}
+                      </div>
+                      <span className={cn(
+                        "text-[9px] font-bold text-center leading-tight truncate w-full text-center",
+                        isActive ? "text-daiichi-red" : isDone ? "text-emerald-600" : "text-gray-400"
+                      )}>
+                        {label}
+                      </span>
+                    </div>
+                    {idx < steps.length - 1 && (
+                      <div className={cn(
+                        "h-0.5 flex-1 mx-1 mb-4 transition-all",
+                        isDone ? "bg-emerald-400" : "bg-gray-200"
+                      )} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            {currentStep === 1 && (
+              <p className="mt-2 text-[10px] text-gray-400 text-center">
+                {language === 'vi'
+                  ? '👆 Nhấn vào ghế trống (màu trắng) để bắt đầu đặt vé'
+                  : language === 'ja'
+                    ? '👆 空席（白色）をタップして予約を開始してください'
+                    : '👆 Tap an empty seat (white) to start booking'}
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
       {isFreeSeatingTrip ? (
         /* ── FREE SEATING: no seat diagram, show available count + book button ── */
         <div className="max-w-lg mx-auto bg-gray-50 p-6 sm:p-10 rounded-[32px] border border-gray-100 text-center space-y-6">
@@ -1190,10 +1246,15 @@ export function SeatMappingPage({
                 // Children under 5 are free; only charge adults (which includes children aged 5+)
                 const baseTotal = (effectiveAdults * basePriceAdult);
                 const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
-                const allSurcharges = pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge + surchargeAmount + routeSurchargeTotal;
+                // Pickup/dropoff surcharges are per-seat (multiplied by number of passengers)
+                const pickupDropoffSurchargeDisplay = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdults;
+                const allSurcharges = pickupDropoffSurchargeDisplay + surchargeAmount + routeSurchargeTotal;
                 const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
                 const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
                 const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
+                const perSeatSuffix = effectiveAdults > 1
+                  ? ` ×${effectiveAdults}`
+                  : '';
                 return (
                   <>
                     <div className="flex justify-between items-center text-xs text-gray-500">
@@ -1218,26 +1279,26 @@ export function SeatMappingPage({
                     ))}
                     {pickupSurcharge > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu đón khách' : language === 'ja' ? '乗客ピックアップ料' : 'Pickup surcharge'}</span>
-                        <span>+{pickupSurcharge.toLocaleString()}đ</span>
+                        <span>+ {language === 'vi' ? 'Phụ thu đón khách' : language === 'ja' ? '乗客ピックアップ料' : 'Pickup surcharge'}{perSeatSuffix}</span>
+                        <span>+{(pickupSurcharge * effectiveAdults).toLocaleString()}đ</span>
                       </div>
                     )}
                     {dropoffSurcharge > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu trả khách' : language === 'ja' ? '乗客降車料' : 'Dropoff surcharge'}</span>
-                        <span>+{dropoffSurcharge.toLocaleString()}đ</span>
+                        <span>+ {language === 'vi' ? 'Phụ thu trả khách' : language === 'ja' ? '乗客降車料' : 'Dropoff surcharge'}{perSeatSuffix}</span>
+                        <span>+{(dropoffSurcharge * effectiveAdults).toLocaleString()}đ</span>
                       </div>
                     )}
                     {pickupAddressSurcharge > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu điểm đón' : language === 'ja' ? '乗車地点追加料金' : 'Pickup address surcharge'}</span>
-                        <span>+{pickupAddressSurcharge.toLocaleString()}đ</span>
+                        <span>+ {language === 'vi' ? 'Phụ thu điểm đón' : language === 'ja' ? '乗車地点追加料金' : 'Pickup address surcharge'}{perSeatSuffix}</span>
+                        <span>+{(pickupAddressSurcharge * effectiveAdults).toLocaleString()}đ</span>
                       </div>
                     )}
                     {dropoffAddressSurcharge > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu điểm trả' : language === 'ja' ? '降車地点追加料金' : 'Dropoff address surcharge'}</span>
-                        <span>+{dropoffAddressSurcharge.toLocaleString()}đ</span>
+                        <span>+ {language === 'vi' ? 'Phụ thu điểm trả' : language === 'ja' ? '降車地点追加料金' : 'Dropoff address surcharge'}{perSeatSuffix}</span>
+                        <span>+{(dropoffAddressSurcharge * effectiveAdults).toLocaleString()}đ</span>
                       </div>
                     )}
                     {surchargeAmount > 0 && (
