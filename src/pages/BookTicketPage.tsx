@@ -143,6 +143,8 @@ export function BookTicketPage({
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
 
+  const routeByName = new Map(routes.map(r => [r.name, r]));
+
   const filterTrip = (trip: Trip, includeDate: boolean) => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
     const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
@@ -165,8 +167,11 @@ export function BookTicketPage({
       ].join(' ');
       if (!matchesSearch(searchable, bookTicketSearch)) return false;
     }
-    if (effectiveFrom && !matchesSearch(trip.route || '', effectiveFrom)) return false;
-    if (effectiveTo && !matchesSearch(trip.route || '', effectiveTo)) return false;
+    const tripRoute = routeByName.get(trip.route);
+    const departureText = tripRoute ? tripRoute.departurePoint : trip.route || '';
+    const arrivalText = tripRoute ? tripRoute.arrivalPoint : trip.route || '';
+    if (effectiveFrom && !matchesSearch(departureText, effectiveFrom)) return false;
+    if (effectiveTo && !matchesSearch(arrivalText, effectiveTo)) return false;
     if (includeDate && effectiveDate && trip.date && trip.date !== effectiveDate) return false;
     if (vehicleTypeFilter && (!tripVehicle || tripVehicle.type !== vehicleTypeFilter)) return false;
     if (priceMin) {
