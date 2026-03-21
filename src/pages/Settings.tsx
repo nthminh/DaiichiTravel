@@ -121,7 +121,7 @@ export const Settings: React.FC<SettingsProps> = ({
     vietinbankEnabled: false,
     shbEnabled: false,
     bookingCutoffEnabled: true,
-    bookingCutoffMinutes: 60,
+    bookingCutoffMinutes: 120,
     momoPartnerCode: '',
     zalopayAppId: '',
     vnpayTerminalId: '',

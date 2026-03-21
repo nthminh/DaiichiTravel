@@ -261,6 +261,7 @@ export default function App() {
   const [tripFilterTime, setTripFilterTime] = useState('');
   const [tripFilterVehicle, setTripFilterVehicle] = useState('');
   const [tripFilterDriver, setTripFilterDriver] = useState('');
+  const [tripFilterSeatCount, setTripFilterSeatCount] = useState('');
   const [completedTripDateQuickFilter, setCompletedTripDateQuickFilter] = useState<string>('');
   const [showCompletedTripAdvancedFilter, setShowCompletedTripAdvancedFilter] = useState(false);
   const [completedTripFilterRoute, setCompletedTripFilterRoute] = useState('');
@@ -500,7 +501,7 @@ export default function App() {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
-  const [paymentConfig, setPaymentConfig] = useState<{ bookingCutoffEnabled: boolean; bookingCutoffMinutes: number }>({ bookingCutoffEnabled: true, bookingCutoffMinutes: 60 });
+  const [paymentConfig, setPaymentConfig] = useState<{ bookingCutoffEnabled: boolean; bookingCutoffMinutes: number }>({ bookingCutoffEnabled: true, bookingCutoffMinutes: 120 });
 
   // Subscribe to payment settings changes in real-time (to get booking cutoff config)
   useEffect(() => {
@@ -508,7 +509,7 @@ export default function App() {
       if (saved && typeof saved === 'object') {
         setPaymentConfig({
           bookingCutoffEnabled: typeof saved.bookingCutoffEnabled === 'boolean' ? saved.bookingCutoffEnabled : true,
-          bookingCutoffMinutes: typeof saved.bookingCutoffMinutes === 'number' ? saved.bookingCutoffMinutes : 60,
+          bookingCutoffMinutes: typeof saved.bookingCutoffMinutes === 'number' ? saved.bookingCutoffMinutes : 120,
         });
       }
     });
@@ -1479,6 +1480,8 @@ export default function App() {
               setTripFilterVehicle={setTripFilterVehicle}
               tripFilterDriver={tripFilterDriver}
               setTripFilterDriver={setTripFilterDriver}
+              tripFilterSeatCount={tripFilterSeatCount}
+              setTripFilterSeatCount={setTripFilterSeatCount}
               showAddTrip={showAddTrip}
               setShowAddTrip={setShowAddTrip}
               editingTrip={editingTrip}

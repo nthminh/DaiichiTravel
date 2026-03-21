@@ -36,6 +36,8 @@ interface OperationsPageProps {
   setTripFilterVehicle: (v: string) => void;
   tripFilterDriver: string;
   setTripFilterDriver: (v: string) => void;
+  tripFilterSeatCount: string;
+  setTripFilterSeatCount: (v: string) => void;
   showAddTrip: boolean;
   setShowAddTrip: (v: boolean) => void;
   editingTrip: Trip | null;
@@ -136,6 +138,8 @@ export function OperationsPage({
   setTripFilterVehicle,
   tripFilterDriver,
   setTripFilterDriver,
+  tripFilterSeatCount,
+  setTripFilterSeatCount,
   showAddTrip,
   setShowAddTrip,
   editingTrip,
@@ -216,6 +220,10 @@ export function OperationsPage({
     ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
     ...employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
   ];
+  const availableSeatCounts = React.useMemo(
+    () => Array.from(new Set(trips.filter(t => t.status !== TripStatus.COMPLETED).map(t => (t.seats || []).length))).filter(n => n > 0).sort((a, b) => a - b),
+    [trips]
+  );
   const filteredTrips = trips.filter(trip => {
     if (trip.status === TripStatus.COMPLETED) return false;
     // Quick dropdown filters
@@ -224,6 +232,7 @@ export function OperationsPage({
     if (tripFilterTime && trip.time !== tripFilterTime) return false;
     if (tripFilterVehicle && trip.licensePlate !== tripFilterVehicle) return false;
     if (tripFilterDriver && trip.driverName !== tripFilterDriver) return false;
+    if (tripFilterSeatCount && (trip.seats || []).length !== parseInt(tripFilterSeatCount, 10)) return false;
     // Advanced date-range filters
     if (tripFilterDateFrom && trip.date && trip.date < tripFilterDateFrom) return false;
     if (tripFilterDateTo && trip.date && trip.date > tripFilterDateTo) return false;
@@ -661,9 +670,19 @@ export function OperationsPage({
           <option value="">{t.all_drivers}</option>
           {activeEmployeeNames.map(name => <option key={name} value={name}>{name}</option>)}
         </select>
-        {(tripFilterRoute || tripFilterTime || tripFilterVehicle || tripFilterDriver) && (
+        <select
+          value={tripFilterSeatCount}
+          onChange={e => setTripFilterSeatCount(e.target.value)}
+          className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterSeatCount ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+        >
+          <option value="">{language === 'vi' ? 'Tất cả ghế' : 'All Seats'}</option>
+          {availableSeatCounts.map(count => (
+            <option key={count} value={count}>{count} {language === 'vi' ? 'ghế' : 'seats'}</option>
+          ))}
+        </select>
+        {(tripFilterRoute || tripFilterTime || tripFilterVehicle || tripFilterDriver || tripFilterSeatCount) && (
           <button
-            onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); }}
+            onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterSeatCount(''); }}
             className="px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1"
           >
             <X size={12} /> {language === 'vi' ? 'Xóa lọc' : 'Clear'}
@@ -754,7 +773,7 @@ export function OperationsPage({
             </div>
           </div>
           <div className="flex justify-end">
-            <button onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
+            <button onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterSeatCount(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
               {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
             </button>
           </div>
