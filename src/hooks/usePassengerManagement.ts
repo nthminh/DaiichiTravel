@@ -24,6 +24,8 @@ export function usePassengerManagement({ language, bookings, setTrips }: UsePass
     customerPhone: '',
     pickupAddress: '',
     dropoffAddress: '',
+    pickupAddressDetail: '',
+    dropoffAddressDetail: '',
     status: SeatStatus.BOOKED as SeatStatus,
     bookingNote: '',
   });
@@ -53,6 +55,8 @@ export function usePassengerManagement({ language, bookings, setTrips }: UsePass
       customerPhone: passengerEditForm.customerPhone,
       pickupAddress: passengerEditForm.pickupAddress,
       dropoffAddress: passengerEditForm.dropoffAddress,
+      pickupAddressDetail: passengerEditForm.pickupAddressDetail,
+      dropoffAddressDetail: passengerEditForm.dropoffAddressDetail,
       status: passengerEditForm.status,
       bookingNote: passengerEditForm.bookingNote,
     };
@@ -79,6 +83,8 @@ export function usePassengerManagement({ language, bookings, setTrips }: UsePass
             phone: passengerEditForm.customerPhone,
             pickupAddress: passengerEditForm.pickupAddress,
             dropoffAddress: passengerEditForm.dropoffAddress,
+            pickupAddressDetail: passengerEditForm.pickupAddressDetail,
+            dropoffAddressDetail: passengerEditForm.dropoffAddressDetail,
             bookingNote: passengerEditForm.bookingNote,
             status: passengerEditForm.status === SeatStatus.PAID ? 'PAID' : 'BOOKED',
           });
@@ -114,6 +120,8 @@ export function usePassengerManagement({ language, bookings, setTrips }: UsePass
       dropoffPoint: '',
       pickupAddress: '',
       dropoffAddress: '',
+      pickupAddressDetail: '',
+      dropoffAddressDetail: '',
       bookingNote: '',
     };
     try {

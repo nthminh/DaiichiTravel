@@ -11,6 +11,8 @@ interface SearchableSelectProps {
   className?: string;
   inputClassName?: string;
   disabled?: boolean;
+  /** Optional secondary text for each option (e.g. address). Must match options array by index. */
+  optionDetails?: string[];
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -20,7 +22,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   placeholder = 'Select or type...',
   className,
   inputClassName,
-  disabled = false
+  disabled = false,
+  optionDetails,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value);
@@ -40,9 +43,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(option => 
-    matchesSearch(option, searchTerm)
-  );
+  const filteredOptions = options
+    .map((option, idx) => ({ option, detail: optionDetails?.[idx] ?? '' }))
+    .filter(({ option, detail }) =>
+      matchesSearch(option, searchTerm) || matchesSearch(detail, searchTerm)
+    );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
@@ -94,7 +99,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       {isOpen && (searchTerm || filteredOptions.length > 0) && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((option, index) => (
+            filteredOptions.map(({ option, detail }, index) => (
               <button
                 key={index}
                 onClick={() => handleSelectOption(option)}
@@ -103,8 +108,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   value === option ? "text-daiichi-red font-bold bg-daiichi-accent/10" : "text-gray-700"
                 )}
               >
-                <span>{option}</span>
-                {value === option && <div className="w-1.5 h-1.5 rounded-full bg-daiichi-red" />}
+                <span className="flex flex-col min-w-0">
+                  <span className="truncate">{option}</span>
+                  {detail && <span className="text-[11px] text-gray-400 font-normal truncate">{detail}</span>}
+                </span>
+                {value === option && <div className="w-1.5 h-1.5 rounded-full bg-daiichi-red flex-shrink-0 ml-2" />}
               </button>
             ))
           ) : searchTerm && (
