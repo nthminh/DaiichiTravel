@@ -502,14 +502,14 @@ export const transportService = {
   // Add route
   addRoute: async (route: Omit<Route, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
-    return await addDoc(collection(db, 'routes'), route);
+    return await addDoc(collection(db, 'routes'), { ...route, updatedAt: new Date().toISOString() });
   },
 
   // Update route
   updateRoute: async (routeId: string, updates: Partial<Route>) => {
     if (!db) return;
     const ref = doc(db, 'routes', routeId);
-    await updateDoc(ref, updates as Record<string, unknown>);
+    await updateDoc(ref, { ...updates, updatedAt: new Date().toISOString() } as Record<string, unknown>);
   },
 
   // Delete route

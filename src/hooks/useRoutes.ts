@@ -136,15 +136,31 @@ export function useRoutes(ctx: RouteContext) {
   // Saving / error state for route save operations
   const [isSavingRoute, setIsSavingRoute] = useState(false);
   const [routeSaveError, setRouteSaveError] = useState<string | null>(null);
+  // Conflict detection: tracks the updatedAt of the route when editing was opened
+  const editingRouteUpdatedAtRef = useRef<string | null>(null);
+  const [routeConflictWarning, setRouteConflictWarning] = useState(false);
 
   // Keep a stable ref for async handlers to read the latest context.
   const ctxRef = useRef<RouteContext>(ctx);
   ctxRef.current = ctx;
 
-  const handleSaveRoute = async () => {
+  const handleSaveRoute = async (forceOverwrite = false) => {
     setIsSavingRoute(true);
     setRouteSaveError(null);
+    setRouteConflictWarning(false);
     try {
+      // Conflict detection: if this is an edit (not a new route or copy), compare
+      // the updatedAt we recorded when editing started against the live version.
+      if (editingRoute && !forceOverwrite && editingRouteUpdatedAtRef.current !== null) {
+        const liveRoute = ctxRef.current.routes.find(r => r.id === editingRoute.id);
+        const liveUpdatedAt = liveRoute?.updatedAt ?? null;
+        if (liveUpdatedAt && liveUpdatedAt !== editingRouteUpdatedAtRef.current) {
+          // Someone else saved this route while we were editing – warn the user.
+          setRouteConflictWarning(true);
+          setIsSavingRoute(false);
+          return;
+        }
+      }
       const intermediateStops = [...routeFormStopsRef.current]
         .sort((a, b) => a.order - b.order)
         .map((s, i) => ({ ...s, order: i + 1 }));
@@ -293,6 +309,8 @@ export function useRoutes(ctx: RouteContext) {
     setEditingRoute(route);
     setIsCopyingRoute(false);
     setRouteSaveError(null);
+    setRouteConflictWarning(false);
+    editingRouteUpdatedAtRef.current = route.updatedAt ?? null;
     const loadedStops = (route.routeStops || [])
       .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
       .slice()
@@ -473,6 +491,8 @@ export function useRoutes(ctx: RouteContext) {
     }
   };
 
+  const handleForceSaveRoute = () => handleSaveRoute(true);
+
   return {
     showAddRoute,
     setShowAddRoute,
@@ -526,7 +546,10 @@ export function useRoutes(ctx: RouteContext) {
     isSavingRoute,
     routeSaveError,
     setRouteSaveError,
+    routeConflictWarning,
+    setRouteConflictWarning,
     handleSaveRoute,
+    handleForceSaveRoute,
     handleRouteImageUpload,
     handleDeleteRoute,
     handleStartEditRoute,
