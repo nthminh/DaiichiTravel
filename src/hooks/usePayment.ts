@@ -243,7 +243,9 @@ export function usePayment(ctx: BookingContext) {
 
     // Children under 5 are free; only charge adults (which includes children aged 5+)
     const totalBase = (effectiveAdults * basePriceAdult);
-    const totalSurcharge = c.pickupSurcharge + c.dropoffSurcharge + c.pickupAddressSurcharge + c.dropoffAddressSurcharge + c.surchargeAmount + routeSurchargeTotal;
+    // Pickup/dropoff surcharges are per-seat (multiplied by number of passengers)
+    const pickupDropoffSurcharge = (c.pickupSurcharge + c.dropoffSurcharge + c.pickupAddressSurcharge + c.dropoffAddressSurcharge) * effectiveAdults;
+    const totalSurcharge = pickupDropoffSurcharge + c.surchargeAmount + routeSurchargeTotal;
     // Calculate selected addons total (price × quantity)
     const selectedAddons = (c.selectedTrip.addons || []).filter((a: TripAddon) => (c.addonQuantities[a.id] || 0) > 0);
     const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (c.addonQuantities[a.id] || 1), 0);
@@ -302,6 +304,17 @@ export function usePayment(ctx: BookingContext) {
       }
     }
 
+    // Strip '&' from pickup/dropoff address fields before saving to database
+    const stripAmp = (s: string | undefined) => s ? s.replace(/&/g, '') : s;
+    const safePickupPoint = stripAmp(c.pickupPoint) || '';
+    const safeDropoffPoint = stripAmp(c.dropoffPoint) || '';
+    const safePickupAddress = stripAmp(c.pickupAddress) || '';
+    const safeDropoffAddress = stripAmp(c.dropoffAddress) || '';
+    const safePickupAddressDetail = stripAmp(c.pickupAddressDetail) || '';
+    const safeDropoffAddressDetail = stripAmp(c.dropoffAddressDetail) || '';
+    const safePickupStopAddress = stripAmp(c.pickupStopAddress) || '';
+    const safeDropoffStopAddress = stripAmp(c.dropoffStopAddress) || '';
+
     const bookingData: any = {
       customerName: c.customerNameInput.trim() || (c.language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
       phone: c.phoneInput.trim(),
@@ -324,14 +337,14 @@ export function usePayment(ctx: BookingContext) {
       status: 'BOOKED',
       adults: c.adults,
       children: c.children,
-      pickupPoint: c.pickupPoint,
-      dropoffPoint: c.dropoffPoint,
-      ...(c.pickupAddress ? { pickupAddress: c.pickupAddress } : {}),
-      ...(c.dropoffAddress ? { dropoffAddress: c.dropoffAddress } : {}),
-      ...(c.pickupAddressDetail ? { pickupAddressDetail: c.pickupAddressDetail } : {}),
-      ...(c.dropoffAddressDetail ? { dropoffAddressDetail: c.dropoffAddressDetail } : {}),
-      ...(c.pickupStopAddress ? { pickupStopAddress: c.pickupStopAddress } : {}),
-      ...(c.dropoffStopAddress ? { dropoffStopAddress: c.dropoffStopAddress } : {}),
+      pickupPoint: safePickupPoint,
+      dropoffPoint: safeDropoffPoint,
+      ...(safePickupAddress ? { pickupAddress: safePickupAddress } : {}),
+      ...(safeDropoffAddress ? { dropoffAddress: safeDropoffAddress } : {}),
+      ...(safePickupAddressDetail ? { pickupAddressDetail: safePickupAddressDetail } : {}),
+      ...(safeDropoffAddressDetail ? { dropoffAddressDetail: safeDropoffAddressDetail } : {}),
+      ...(safePickupStopAddress ? { pickupStopAddress: safePickupStopAddress } : {}),
+      ...(safeDropoffStopAddress ? { dropoffStopAddress: safeDropoffStopAddress } : {}),
       paymentMethod: payMethod,
       ...(c.bookingNote.trim() ? { bookingNote: c.bookingNote.trim() } : {}),
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: c.addonQuantities[a.id] || 1 })),
@@ -352,14 +365,14 @@ export function usePayment(ctx: BookingContext) {
       status: SeatStatus.BOOKED,
       customerName: bookingData.customerName,
       customerPhone: bookingData.phone,
-      ...(c.pickupPoint ? { pickupPoint: c.pickupPoint } : {}),
-      ...(c.dropoffPoint ? { dropoffPoint: c.dropoffPoint } : {}),
-      ...(c.pickupAddress ? { pickupAddress: c.pickupAddress } : {}),
-      ...(c.dropoffAddress ? { dropoffAddress: c.dropoffAddress } : {}),
-      ...(c.pickupAddressDetail ? { pickupAddressDetail: c.pickupAddressDetail } : {}),
-      ...(c.dropoffAddressDetail ? { dropoffAddressDetail: c.dropoffAddressDetail } : {}),
-      ...(c.pickupStopAddress ? { pickupStopAddress: c.pickupStopAddress } : {}),
-      ...(c.dropoffStopAddress ? { dropoffStopAddress: c.dropoffStopAddress } : {}),
+      ...(safePickupPoint ? { pickupPoint: safePickupPoint } : {}),
+      ...(safeDropoffPoint ? { dropoffPoint: safeDropoffPoint } : {}),
+      ...(safePickupAddress ? { pickupAddress: safePickupAddress } : {}),
+      ...(safeDropoffAddress ? { dropoffAddress: safeDropoffAddress } : {}),
+      ...(safePickupAddressDetail ? { pickupAddressDetail: safePickupAddressDetail } : {}),
+      ...(safeDropoffAddressDetail ? { dropoffAddressDetail: safeDropoffAddressDetail } : {}),
+      ...(safePickupStopAddress ? { pickupStopAddress: safePickupStopAddress } : {}),
+      ...(safeDropoffStopAddress ? { dropoffStopAddress: safeDropoffStopAddress } : {}),
       ...(fromStopOrder !== undefined ? { fromStopOrder } : {}),
       ...(toStopOrder !== undefined ? { toStopOrder } : {}),
       ...(c.bookingNote.trim() ? { bookingNote: c.bookingNote.trim() } : {}),
