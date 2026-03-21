@@ -164,7 +164,6 @@ export const transportService = {
     });
   },
 
-
   subscribeToConsignments: (callback: (consignments: Consignment[]) => void) => {
     if (!db) return () => {};
     const q = query(collection(db, 'consignments'), orderBy('createdAt', 'desc'));

@@ -562,18 +562,20 @@ export function usePayment(ctx: BookingContext) {
               transportService.releaseSeats(capturedReturnTripId, capturedReturnSeatIds),
             ]).catch(err => console.error('Failed to release reservations:', err));
             // Reverse optimistic UI updates
+            const outboundSet = new Set(capturedOutboundSeatIds);
+            const returnSet = new Set(capturedReturnSeatIds);
             ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
               if (trip.id === capturedOutboundTripId) {
-                return { ...trip, seats: trip.seats.map((s: any) => capturedOutboundSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+                return { ...trip, seats: trip.seats.map((s: any) => outboundSet.has(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
               }
               if (trip.id === capturedReturnTripId) {
-                return { ...trip, seats: trip.seats.map((s: any) => capturedReturnSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+                return { ...trip, seats: trip.seats.map((s: any) => returnSet.has(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
               }
               return trip;
             }));
             ctx2.setSelectedTrip((prev: any) => {
               if (!prev || prev.id !== capturedReturnTripId) return prev;
-              return { ...prev, seats: prev.seats.map((s: any) => capturedReturnSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+              return { ...prev, seats: prev.seats.map((s: any) => returnSet.has(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
             });
             setCapturedOutboundLeg(null);
           };
@@ -783,13 +785,14 @@ export function usePayment(ctx: BookingContext) {
         await transportService.releaseSeats(capturedTripId, capturedSeatIds, capturedSegmentInfo)
           .catch(err => console.error('Failed to release reserved seats:', err));
         // Reverse the optimistic UI update
+        const seatIdSet = new Set(capturedSeatIds);
         ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
           if (trip.id !== capturedTripId) return trip;
-          return { ...trip, seats: trip.seats.map((s: any) => capturedSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+          return { ...trip, seats: trip.seats.map((s: any) => seatIdSet.has(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
         }));
         ctx2.setSelectedTrip((prev: any) => {
           if (!prev || prev.id !== capturedTripId) return prev;
-          return { ...prev, seats: prev.seats.map((s: any) => capturedSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+          return { ...prev, seats: prev.seats.map((s: any) => seatIdSet.has(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
         });
       };
 
