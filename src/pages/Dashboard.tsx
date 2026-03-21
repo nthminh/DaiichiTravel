@@ -495,7 +495,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       </td>
                       <td className="py-5">
                         <p className="text-sm font-medium text-gray-700 truncate">{booking.route}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{booking.date}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{booking.date}{booking.time ? ` · ${booking.time}` : ''}</p>
                       </td>
                       <td className="py-5">
                         {booking.agentId ? (
