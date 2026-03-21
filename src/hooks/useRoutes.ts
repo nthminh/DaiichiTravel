@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FirebaseStorage } from 'firebase/storage';
 import { transportService } from '../services/transportService';
+import { buildFareDocId } from '../services/fareService';
 import { Route, RouteStop, PricePeriod, RouteSurcharge } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
@@ -36,6 +37,9 @@ export const DEFAULT_ROUTE_FORM = {
 };
 
 type RouteFareEntry = {
+  /** Firestore document ID.  Populated when loaded from Firestore; a new ID is
+   *  generated via buildFareDocId() at save time for entries added in the form. */
+  fareId?: string;
   fromStopId: string;
   toStopId: string;
   fromName: string;
@@ -196,10 +200,21 @@ export function useRoutes(ctx: RouteContext) {
       if (routeId) {
         // Capture fare list at save time (avoid closure issues with async loops)
         const faresSnapshot = routeFormFares.slice();
+        const savedFareDocIds = new Set<string>();
         for (let fareIdx = 0; fareIdx < faresSnapshot.length; fareIdx++) {
           const fare = faresSnapshot[fareIdx];
+          // Use the existing Firestore doc ID for fares loaded from the DB, or
+          // derive a deterministic new ID for fares added in the current session.
+          const fareDocId =
+            fare.fareId ??
+            buildFareDocId(
+              fare.fromStopId,
+              fare.toStopId,
+              fare.startDate || undefined,
+              fare.endDate || undefined,
+            );
           try {
-            await transportService.upsertFare(
+            const savedId = await transportService.upsertFare(
               routeId,
               fare.fromStopId,
               fare.toStopId,
@@ -209,16 +224,16 @@ export function useRoutes(ctx: RouteContext) {
               fare.startDate || undefined,
               fare.endDate || undefined,
               fareIdx,
+              fareDocId,
             );
+            savedFareDocIds.add(savedId);
           } catch (err) {
             console.error('Failed to save fare:', fare, err);
           }
         }
-        const currentFareDocIds = new Set(
-          faresSnapshot.map(f => `${f.fromStopId}_${f.toStopId}`),
-        );
+        // Delete fares that existed before editing but are no longer in the list.
         for (const originalId of originalFareDocIdsRef.current) {
-          if (!currentFareDocIds.has(originalId)) {
+          if (!savedFareDocIds.has(originalId)) {
             try {
               await transportService.deleteFare(routeId, originalId);
             } catch (err) {
@@ -371,11 +386,11 @@ export function useRoutes(ctx: RouteContext) {
         .getRouteFares(route.id)
         .then(fares => {
           const activeFares = fares.filter(f => f.active !== false);
-          originalFareDocIdsRef.current = new Set(
-            activeFares.map(f => `${f.fromStopId}_${f.toStopId}`),
-          );
+          // Track the actual Firestore doc IDs so we can delete removed fares.
+          originalFareDocIdsRef.current = new Set(activeFares.map(f => f.id));
           setRouteFormFares(
             activeFares.map(f => ({
+              fareId: f.id,
               fromStopId: f.fromStopId,
               toStopId: f.toStopId,
               fromName: allStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,

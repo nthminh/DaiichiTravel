@@ -1,10 +1,13 @@
 /**
  * Fare service – Option 2: explicit fare table between any two stops.
  *
- * Firestore path: routeFares/{routeId}/fares/{fromStopId_toStopId}
+ * Firestore path: routeFares/{routeId}/fares/{fareDocId}
+ * fareDocId format:
+ *   - No date restriction: "{fromStopId}_{toStopId}"
+ *   - Date-specific:       "{fromStopId}_{toStopId}|{startDate}|{endDate}"
  * Document fields: { routeId, fromStopId, toStopId, price, currency, active, updatedAt }
  */
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { FareResult, RouteStop, Stop } from '../types';
 
@@ -45,10 +48,13 @@ export interface GetFareParams {
 
 /**
  * Look up the fare for a (fromStop → toStop) pair on a given route.
+ * When multiple fares exist for the same stop pair (with different date ranges),
+ * the fare that covers `travelDate` is preferred; falls back to the fare without
+ * date restrictions, then to any active fare.
  * Throws a FareError with a descriptive code when the lookup fails.
  */
 export async function getFareForStops(params: GetFareParams): Promise<FareResult> {
-  const { routeId, fromStopId, toStopId, routeStops, stops } = params;
+  const { routeId, fromStopId, toStopId, routeStops, stops, travelDate } = params;
 
   // 1. Same-stop guard
   if (fromStopId === toStopId) {
@@ -75,20 +81,29 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
     }
   }
 
-  // 3. Firestore lookup
+  // 3. Firestore lookup – query all fares for this stop pair to support
+  //    multiple date-specific fares on the same (fromStop → toStop) segment.
   if (!db) {
     throw new FareError('NO_DB', 'Không kết nối được cơ sở dữ liệu.');
   }
 
-  const fareDocId = `${fromStopId}_${toStopId}`;
-  const fareRef = doc(db, 'routeFares', routeId, 'fares', fareDocId);
-  const fareSnap = await getDoc(fareRef);
+  const faresSnap = await getDocs(
+    query(
+      collection(db, 'routeFares', routeId, 'fares'),
+      where('fromStopId', '==', fromStopId),
+      where('toStopId', '==', toStopId),
+    ),
+  );
 
   // Resolve stop names once for both error messages and success result
   const fromStop = stops?.find((s) => s.id === fromStopId);
   const toStop = stops?.find((s) => s.id === toStopId);
 
-  if (!fareSnap.exists()) {
+  const activeFares = faresSnap.docs
+    .map(d => ({ ...(d.data() as Record<string, unknown>), fareDocId: d.id }))
+    .filter(f => f['active'] !== false);
+
+  if (activeFares.length === 0) {
     const fromName = fromStop?.name ?? fromStopId;
     const toName = toStop?.name ?? toStopId;
     throw new FareError(
@@ -97,20 +112,27 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
     );
   }
 
-  const data = fareSnap.data();
+  // Select the best fare: prefer date-specific match over default (no-date) fare.
+  // When travelDate is not provided, the current date (UTC) is used as a fallback.
+  const dateToCheck = travelDate ?? new Date().toISOString().slice(0, 10);
+  let selected = activeFares.find(f => {
+    const start = f['startDate'] as string | undefined;
+    const end = f['endDate'] as string | undefined;
+    if (!start && !end) return false; // skip default fare in first pass
+    return (!start || start <= dateToCheck) && (!end || end >= dateToCheck);
+  });
 
-  if (data['active'] === false) {
-    throw new FareError(
-      'FARE_INACTIVE',
-      'Giá vé cho hành trình này hiện không khả dụng.',
-    );
+  if (!selected) {
+    // Fall back to the fare without date restrictions, then any active fare.
+    selected =
+      activeFares.find(f => !f['startDate'] && !f['endDate']) ?? activeFares[0];
   }
 
   return {
-    price: data['price'] as number,
-    agentPrice: data['agentPrice'] as number | undefined,
-    currency: (data['currency'] as string) || 'VND',
-    fareDocId,
+    price: selected['price'] as number,
+    agentPrice: selected['agentPrice'] as number | undefined,
+    currency: (selected['currency'] as string) || 'VND',
+    fareDocId: selected['fareDocId'] as string,
     fromStopName: fromStop?.name,
     toStopName: toStop?.name,
   };
@@ -119,8 +141,29 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
 // ─── upsertFare ───────────────────────────────────────────────────────────────
 
 /**
+ * Build a deterministic Firestore document ID for a fare.
+ * Fares without date restrictions use the legacy "{fromStopId}_{toStopId}" format
+ * for backward compatibility.  Date-specific fares append the date range so that
+ * multiple fares for the same stop pair can coexist in Firestore.
+ */
+export function buildFareDocId(
+  fromStopId: string,
+  toStopId: string,
+  startDate?: string,
+  endDate?: string,
+): string {
+  if (!startDate && !endDate) {
+    return `${fromStopId}_${toStopId}`;
+  }
+  return `${fromStopId}_${toStopId}|${startDate || ''}|${endDate || ''}`;
+}
+
+/**
  * Admin utility: create or overwrite a fare for a (fromStop → toStop) pair.
  * Sets active=true on every upsert so existing inactive fares are re-enabled.
+ *
+ * @param fareDocId  Optional explicit document ID.  When omitted, one is derived
+ *                   from the stop IDs and date range via {@link buildFareDocId}.
  */
 export async function upsertFare(
   routeId: string,
@@ -132,6 +175,7 @@ export async function upsertFare(
   startDate?: string,
   endDate?: string,
   sortOrder?: number,
+  fareDocId?: string,
 ): Promise<string> {
   if (!db) {
     throw new FareError('NO_DB', 'Không kết nối được cơ sở dữ liệu.');
@@ -141,8 +185,9 @@ export async function upsertFare(
     throw new FareError('SAME_STOP', 'Điểm đón và điểm trả phải khác nhau.');
   }
 
-  const fareDocId = `${fromStopId}_${toStopId}`;
-  const fareRef = doc(db, 'routeFares', routeId, 'fares', fareDocId);
+  const resolvedFareDocId =
+    fareDocId ?? buildFareDocId(fromStopId, toStopId, startDate, endDate);
+  const fareRef = doc(db, 'routeFares', routeId, 'fares', resolvedFareDocId);
 
   const fareData: Record<string, unknown> = {
     routeId,
@@ -168,5 +213,5 @@ export async function upsertFare(
 
   await setDoc(fareRef, fareData, { merge: true });
 
-  return fareDocId;
+  return resolvedFareDocId;
 }
