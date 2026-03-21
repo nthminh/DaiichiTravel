@@ -53,6 +53,9 @@ interface OperationsPageProps {
   batchTimeSlots: string[];
   setBatchTimeSlots: React.Dispatch<React.SetStateAction<string[]>>;
   batchTripLoading: boolean;
+  isSavingTrip: boolean;
+  tripSaveError: string | null;
+  setTripSaveError: (v: string | null) => void;
   showTripAddons: Trip | null;
   setShowTripAddons: React.Dispatch<React.SetStateAction<Trip | null>>;
   showAddTripAddon: boolean;
@@ -155,6 +158,9 @@ export function OperationsPage({
   batchTimeSlots,
   setBatchTimeSlots,
   batchTripLoading,
+  isSavingTrip,
+  tripSaveError,
+  setTripSaveError,
   showTripAddons,
   setShowTripAddons,
   showAddTripAddon,
@@ -423,9 +429,17 @@ export function OperationsPage({
                 </select>
               </div>
             </div>
+            {tripSaveError && (
+              <div className="mx-1 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+                {tripSaveError}
+              </div>
+            )}
             <div className="flex justify-end gap-4 pt-2">
-              <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-              <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingTrip ? t.save : isCopyingTrip ? t.create_copy : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}</button>
+              <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); setTripSaveError(null); }} disabled={isSavingTrip} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
+              <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route || isSavingTrip} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 flex items-center gap-2">
+                {isSavingTrip && <Loader2 size={16} className="animate-spin" />}
+                {editingTrip ? t.save : isCopyingTrip ? t.create_copy : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}
+              </button>
             </div>
           </div>
         </div>

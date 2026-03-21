@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { transportService } from '../services/transportService';
 import { Trip, TripStatus, Booking, Vehicle, SeatStatus, TripAddon } from '../types';
 import { generateVehicleLayout, serializeLayout, SerializedSeat } from '../lib/vehicleSeatUtils';
@@ -51,6 +53,10 @@ export function useTrips(ctx: TripContext) {
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
 
+  // Saving / error state for trip save operations
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
+  const [tripSaveError, setTripSaveError] = useState<string | null>(null);
+
   // Merge trips state
   const [selectedTripIdsForMerge, setSelectedTripIdsForMerge] = useState<string[]>([]);
   const [mergeLoading, setMergeLoading] = useState(false);
@@ -88,26 +94,43 @@ export function useTrips(ctx: TripContext) {
   };
 
   const handleSaveTrip = async () => {
+    setIsSavingTrip(true);
+    setTripSaveError(null);
     try {
       const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
       const tripVehicle = ctxRef.current.vehicles.find(v => v.licensePlate === tripForm.licensePlate);
       const seatType = tripVehicle?.seatType || 'assigned';
       if (editingTrip) {
-        const currentSeats: any[] = editingTrip.seats || [];
-        const bookedSeats = currentSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
         const newSeatCount = tripForm.seatCount;
-        const currentSeatCount = currentSeats.length;
 
-        // Rebuild seats when the seat count changes
+        // Rebuild seats when the seat count changes.
+        // Fetch the LATEST trip data from Firestore to avoid overwriting concurrent
+        // booking changes that happened while the edit modal was open.
         let updatedSeats: any[] | undefined;
+        const currentSeatCount = editingTrip.seats?.length ?? 0;
         if (newSeatCount !== currentSeatCount) {
-          if (newSeatCount > currentSeatCount) {
+          let liveSeats: any[] = editingTrip.seats || [];
+          if (db) {
+            try {
+              const snap = await getDoc(doc(db, 'trips', editingTrip.id));
+              if (snap.exists()) {
+                liveSeats = (snap.data().seats as any[]) || [];
+              }
+            } catch (err) {
+              // Fall back to the snapshot captured when the edit opened; log for debugging
+              console.warn('Could not fetch fresh trip seats from Firestore, using cached snapshot:', err);
+              liveSeats = editingTrip.seats || [];
+            }
+          }
+          const liveSeatCount = liveSeats.length;
+          const bookedSeats = liveSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
+          if (newSeatCount > liveSeatCount) {
             // Add empty seats to make up the difference
-            const extraSeats = buildSeatsForVehicle(tripForm.licensePlate, newSeatCount).slice(currentSeatCount);
-            updatedSeats = [...currentSeats, ...extraSeats];
+            const extraSeats = buildSeatsForVehicle(tripForm.licensePlate, newSeatCount).slice(liveSeatCount);
+            updatedSeats = [...liveSeats, ...extraSeats];
           } else if (newSeatCount >= bookedSeats.length) {
             // Reduce seat count: keep all booked seats + fill up to newSeatCount with existing empties
-            const empties = currentSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
+            const empties = liveSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
             const emptiesNeeded = newSeatCount - bookedSeats.length;
             updatedSeats = [...bookedSeats, ...empties.slice(0, emptiesNeeded)];
           }
@@ -144,14 +167,23 @@ export function useTrips(ctx: TripContext) {
       setEditingTrip(null);
       setIsCopyingTrip(false);
       setTripForm({ ...DEFAULT_TRIP_FORM });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save trip:', err);
+      const lang = ctxRef.current.language;
+      setTripSaveError(
+        lang === 'vi'
+          ? `Lưu thất bại: ${err?.message || 'Vui lòng thử lại.'}`
+          : `Save failed: ${err?.message || 'Please try again.'}`,
+      );
+    } finally {
+      setIsSavingTrip(false);
     }
   };
 
   const handleStartEditTrip = (trip: Trip) => {
     setEditingTrip(trip);
     setIsCopyingTrip(false);
+    setTripSaveError(null);
     setTripForm({
       time: trip.time,
       date: trip.date || '',
@@ -329,6 +361,9 @@ export function useTrips(ctx: TripContext) {
     batchTimeSlots,
     setBatchTimeSlots,
     batchTripLoading,
+    isSavingTrip,
+    tripSaveError,
+    setTripSaveError,
     buildSeatsForVehicle,
     handleSaveTrip,
     handleStartEditTrip,
