@@ -197,6 +197,36 @@ export function BookTicketPage({
     }
   };
 
+  // Derive unique departure options from routes
+  const departureOptions = Array.from(new Set(routes.map(r => r.departurePoint).filter(Boolean))).sort();
+
+  // Derive unique destination options: filtered to only arrivals reachable from the selected departure
+  const destinationOptions = Array.from(
+    new Set(
+      routes
+        .filter(r => !searchFrom || matchesSearch(r.departurePoint, searchFrom))
+        .map(r => r.arrivalPoint)
+        .filter(Boolean)
+    )
+  ).sort();
+
+  // Palette of pastel background colors for route cards (Tailwind safe-listed via explicit strings)
+  const CARD_BG_COLORS = [
+    'bg-blue-50',
+    'bg-green-50',
+    'bg-purple-50',
+    'bg-orange-50',
+    'bg-yellow-50',
+    'bg-pink-50',
+    'bg-teal-50',
+    'bg-indigo-50',
+  ];
+
+  const getRouteCardBg = (routeName: string) => {
+    const idx = routes.findIndex(r => r.name === routeName);
+    return CARD_BG_COLORS[(idx >= 0 ? idx : 0) % CARD_BG_COLORS.length];
+  };
+
   const renderTripCard = (trip: Trip, isSuggestion = false) => {
     const tripRoute = routes.find(r => r.name === trip.route);
     const routeImages = (tripRoute?.images && tripRoute.images.length > 0) ? tripRoute.images : (tripRoute?.imageUrl ? [tripRoute.imageUrl] : []);
@@ -206,8 +236,9 @@ export function BookTicketPage({
     const isTripRevealed = hasSearched || clearedTripCards.has(trip.id);
     const tripVehicle = vehicles.find(v => v.licensePlate === trip.licensePlate);
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
+    const cardBg = getRouteCardBg(trip.route || '');
     return (
-      <div key={trip.id} className={cn("bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
+      <div key={trip.id} className={cn(cardBg, "rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
         {/* Route name – full-width header row */}
         <div className="px-3 pt-2.5 pb-1">
           <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase block text-center w-full">{trip.route}</span>
@@ -438,7 +469,7 @@ export function BookTicketPage({
             <div className="relative mt-1">
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
               <SearchableSelect
-                options={['Hà Nội', 'Cát Bà', 'Ninh Bình', 'Hải Phòng']}
+                options={departureOptions}
                 value={searchFrom}
                 onChange={setSearchFrom}
                 placeholder={t.from}
@@ -452,7 +483,7 @@ export function BookTicketPage({
             <div className="relative mt-1">
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
               <SearchableSelect
-                options={['Cát Bà', 'Ninh Bình', 'Hải Phòng', 'Hà Nội']}
+                options={destinationOptions}
                 value={searchTo}
                 onChange={setSearchTo}
                 placeholder={t.to}
