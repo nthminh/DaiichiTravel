@@ -912,6 +912,7 @@ export default function App() {
     language,
     selectedTrip,
     routes,
+    agents,
     adults,
     children,
     childrenAges,
@@ -1355,7 +1356,7 @@ export default function App() {
         );
 
       case 'agents':
-        return <AgentsPage agents={agents} employees={employees} language={language} />;
+        return <AgentsPage agents={agents} employees={employees} language={language} routes={routes} />;
 
       case 'employees':
         return (

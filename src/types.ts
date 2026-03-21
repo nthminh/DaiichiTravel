@@ -116,6 +116,8 @@ export interface Agent {
   depositAmount?: number;          // tiền ký quỹ (escrow/deposit amount)
   allowedPaymentOptions?: AgentPaymentOption[]; // payment methods this agent may use
   holdTicketHours?: number;        // hours the agent may hold a ticket (using customer hold time)
+  // Per-route commission rates: routeId -> commission percentage (overrides global commissionRate for that route)
+  routeCommissionRates?: Record<string, number>;
 }
 
 export type AgentPaymentOption = 'DEPOSIT' | 'BANK_TRANSFER' | 'HOLD_WITH_CUSTOMER_TIME';

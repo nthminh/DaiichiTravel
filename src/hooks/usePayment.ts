@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { DEFAULT_PAYMENT_METHOD, PaymentMethod } from '../constants/paymentMethods';
 import { transportService } from '../services/transportService';
-import { SeatStatus, TripAddon, UserRole, User, Route } from '../types';
+import { SeatStatus, TripAddon, UserRole, User, Route, Agent } from '../types';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
 
@@ -38,6 +38,8 @@ export interface BookingContext {
   /** The trip being booked (may have extra Firestore-populated fields) */
   selectedTrip: any;
   routes: Route[];
+  /** All agents – used to look up per-route commission rates for agent bookings */
+  agents: Agent[];
   adults: number;
   children: number;
   childrenAges: (number | undefined)[];
@@ -159,18 +161,55 @@ export function usePayment(ctx: BookingContext) {
     const effectiveAgentName = isAgentBooking
       ? (c.currentUser!.name || c.currentUser!.address || c.currentUser!.agentCode || (c.language === 'vi' ? 'Đại lý' : 'Agent'))
       : 'Trực tiếp';
-    const effectiveFareAmount = c.fareAmount !== null
-      ? (isAgentBooking && c.fareAgentAmount !== null ? c.fareAgentAmount : c.fareAmount)
+
+    // Resolve the trip's route object (needed for route ID and surcharges)
+    const tripRoute = c.routes.find((r: any) => r.name === c.selectedTrip.route);
+
+    // Determine per-route commission rate for this agent booking
+    // Priority: route-specific rate > global commissionRate > 0
+    let effectiveCommissionRate = 0;
+    if (isAgentBooking && c.currentUser) {
+      const agentData = c.agents.find(a => a.id === c.currentUser!.id);
+      if (agentData) {
+        const routeId = tripRoute?.id;
+        if (routeId && agentData.routeCommissionRates && agentData.routeCommissionRates[routeId] !== undefined) {
+          effectiveCommissionRate = agentData.routeCommissionRates[routeId];
+        } else {
+          effectiveCommissionRate = agentData.commissionRate ?? 0;
+        }
+      }
+    }
+
+    // When a commission rate is set, compute agent price as: retailPrice * (1 - rate/100)
+    // This overrides the agentPrice field from route/trip for this agent.
+    const retailPriceAdult = c.selectedTrip.price || 0;
+    const retailPriceChild = c.selectedTrip.priceChild || retailPriceAdult;
+
+    const agentPriceFromCommissionAdult = isAgentBooking && effectiveCommissionRate > 0
+      ? Math.round(retailPriceAdult * (1 - effectiveCommissionRate / 100))
       : null;
+    const agentPriceFromCommissionChild = isAgentBooking && effectiveCommissionRate > 0
+      ? Math.round(retailPriceChild * (1 - effectiveCommissionRate / 100))
+      : null;
+
+    // Fare-table price: apply commission rate if available, else use fareAgentAmount
+    const effectiveFareAmount = c.fareAmount !== null
+      ? (isAgentBooking
+          ? (effectiveCommissionRate > 0
+              ? Math.round(c.fareAmount * (1 - effectiveCommissionRate / 100))
+              : (c.fareAgentAmount !== null ? c.fareAgentAmount : c.fareAmount))
+          : c.fareAmount)
+      : null;
+
     const basePriceAdult = effectiveFareAmount !== null
       ? effectiveFareAmount
       : (isAgentBooking
-          ? (c.selectedTrip.agentPrice || c.selectedTrip.price || 0)
-          : (c.selectedTrip.price || 0));
+          ? (agentPriceFromCommissionAdult ?? c.selectedTrip.agentPrice ?? retailPriceAdult)
+          : retailPriceAdult);
     const basePriceChild = effectiveFareAmount !== null
       ? effectiveFareAmount
       : (isAgentBooking
-          ? (c.selectedTrip.agentPriceChild || c.selectedTrip.agentPrice || c.selectedTrip.priceChild || basePriceAdult)
+          ? (agentPriceFromCommissionChild ?? c.selectedTrip.agentPriceChild ?? c.selectedTrip.agentPrice ?? c.selectedTrip.priceChild ?? basePriceAdult)
           : (c.selectedTrip.priceChild || basePriceAdult));
 
     // Children aged 5 and above are charged adult price and need their own seat
@@ -187,7 +226,6 @@ export function usePayment(ctx: BookingContext) {
     const effectiveChildren = childrenUnder5 + Math.max(0, c.children - c.childrenAges.length);
 
     // Calculate route-level surcharges (fuel, holiday, etc.)
-    const tripRoute = c.routes.find((r: any) => r.name === c.selectedTrip.route);
     const tripDate = c.selectedTrip.date || '';
     const appliedRouteSurcharges = c.getApplicableRouteSurcharges(tripRoute, tripDate);
     const routeSurchargeTotal = appliedRouteSurcharges.reduce((sum: number, sc: any) => sum + sc.amount * effectiveAdults, 0);
@@ -199,6 +237,13 @@ export function usePayment(ctx: BookingContext) {
     const selectedAddons = (c.selectedTrip.addons || []).filter((a: TripAddon) => (c.addonQuantities[a.id] || 0) > 0);
     const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (c.addonQuantities[a.id] || 1), 0);
     const totalAmount = Math.round(totalBase + totalSurcharge + addonsTotalPrice);
+
+    // Commission amount = difference between retail total and agent net total
+    const retailTotalBase = effectiveAdults * retailPriceAdult;
+    const retailTotalAmount = Math.round(retailTotalBase + totalSurcharge + addonsTotalPrice);
+    const commissionAmount = isAgentBooking && effectiveCommissionRate > 0
+      ? (retailTotalAmount - totalAmount)
+      : 0;
 
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 5
     const isFreeSeating = c.selectedTrip.seatType === 'free';
@@ -259,6 +304,12 @@ export function usePayment(ctx: BookingContext) {
       amount: totalAmount,
       agent: effectiveAgentName,
       ...(isAgentBooking ? { agentId: c.currentUser!.id } : {}),
+      // Commission tracking for agent bookings
+      ...(isAgentBooking && effectiveCommissionRate > 0 ? {
+        agentCommissionRate: effectiveCommissionRate,
+        agentCommissionAmount: commissionAmount,
+        agentRetailAmount: retailTotalAmount,
+      } : {}),
       status: 'BOOKED',
       adults: c.adults,
       children: c.children,
@@ -280,7 +331,8 @@ export function usePayment(ctx: BookingContext) {
         toStopId: c.toStopId,
         fareDocId: `${c.fromStopId}_${c.toStopId}`,
         farePricePerPerson: effectiveFareAmount,
-        ...(c.fareAmount !== null && isAgentBooking && c.fareAgentAmount !== null ? { fareRetailPricePerPerson: c.fareAmount } : {}),
+        // Store retail fare for reference when agent pays a discounted amount
+        ...(c.fareAmount !== null && isAgentBooking && (effectiveCommissionRate > 0 || c.fareAgentAmount !== null) ? { fareRetailPricePerPerson: c.fareAmount } : {}),
       } : {}),
     };
 
@@ -337,6 +389,23 @@ export function usePayment(ctx: BookingContext) {
       return { ...seat, status: SeatStatus.BOOKED };
     };
 
+    // Helper: update agent balance after a booking is confirmed
+    // POSTPAID agents accumulate debt (balance increases)
+    // PREPAID agents use their deposit (balance decreases)
+    const updateAgentBalance = async (bookingAmount: number) => {
+      if (!isAgentBooking || !c.currentUser) return;
+      const agentData = c.agents.find(a => a.id === c.currentUser!.id);
+      if (!agentData) return;
+      const currentBalance = agentData.balance || 0;
+      const isPostpaid = agentData.paymentType !== 'PREPAID';
+      const newBalance = isPostpaid ? currentBalance + bookingAmount : currentBalance - bookingAmount;
+      try {
+        await transportService.updateAgent(c.currentUser.id, { balance: newBalance });
+      } catch (err) {
+        console.error('Failed to update agent balance:', err);
+      }
+    };
+
     // Core save function for a single booking – also applies optimistic UI update
     // Pass skipBookSeats=true when seats have already been pre-reserved (QR payment flow).
     const saveSingleBooking = async (bd: any, sud2: typeof seatUpdateData, sids: string[], tripId: string, applyOpt: (seat: any) => any, skipBookSeats = false): Promise<any | null> => {
@@ -346,6 +415,8 @@ export function usePayment(ctx: BookingContext) {
         if (!skipBookSeats) {
           await transportService.bookSeats(tripId, sids, sud2);
         }
+        // Auto-update agent balance: amount is the net amount (after commission) the agent owes
+        await updateAgentBalance(bd.amount);
         const savedBooking = { ...bd, id: result.id, ticketCode: result.ticketCode };
         // Optimistic local state update (only needed when seats weren't pre-reserved)
         if (!skipBookSeats) {
@@ -679,6 +750,8 @@ export function usePayment(ctx: BookingContext) {
       try {
         const result = await transportService.createBooking(bookingData);
         await transportService.bookSeats(ctx2.selectedTrip.id, allSeatIds, seatUpdateData);
+        // Auto-update agent balance: amount is the net amount (after commission) the agent owes
+        await updateAgentBalance(bookingData.amount);
         const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
         ctx2.setLastBooking(savedBooking);
         // Persist ticket to localStorage for CUSTOMER and GUEST so they can view it later
