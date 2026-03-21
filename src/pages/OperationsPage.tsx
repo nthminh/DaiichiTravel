@@ -418,9 +418,31 @@ export function OperationsPage({
                   className="mt-1"
                 />
               </div>
-              {!editingTrip && (
-                <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={tripForm.seatCount} onChange={e => setTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-              )}
+              {(() => {
+                const editBookedCount = editingTrip
+                  ? (editingTrip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length
+                  : 0;
+                const seatMin = editingTrip ? editBookedCount || 1 : 1;
+                return (
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label>
+                    {editingTrip && (
+                      <p className="text-[10px] text-blue-500 mt-0.5 ml-1">
+                        {language === 'vi'
+                          ? `* Đang có ${editBookedCount} ghế đã đặt, không thể giảm xuống dưới số này`
+                          : `* ${editBookedCount} seat(s) already booked – cannot reduce below this`}
+                      </p>
+                    )}
+                    <input
+                      type="number"
+                      min={seatMin}
+                      value={tripForm.seatCount}
+                      onChange={e => setTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))}
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                    />
+                  </div>
+                );
+              })()}
               <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.status}</label>
                 <select value={tripForm.status} onChange={e => setTripForm(p => ({ ...p, status: e.target.value as TripStatus }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
                   <option value={TripStatus.WAITING}>{language === 'vi' ? 'Chờ khởi hành' : 'Waiting'}</option>
@@ -793,6 +815,15 @@ export function OperationsPage({
           </div>
         </div>
       )}
+
+      {/* Trip count notification */}
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-daiichi-red/10 text-daiichi-red rounded-xl text-sm font-bold">
+          <span>{language === 'vi' ? 'Hiện có' : 'Showing'}</span>
+          <span className="text-base font-extrabold">{filteredTrips.length}</span>
+          <span>{language === 'vi' ? 'chuyến' : filteredTrips.length === 1 ? 'trip' : 'trips'}</span>
+        </span>
+      </div>
 
       {/* Passenger List Modal */}
       {showTripPassengers && (() => {
