@@ -200,11 +200,14 @@ export function BookTicketPage({
   // Derive unique departure options from routes
   const departureOptions = Array.from(new Set(routes.map(r => r.departurePoint).filter(Boolean))).sort();
 
-  // Derive unique destination options: filtered to only arrivals reachable from the selected departure
+  // Derive unique destination options: only filter to arrivals reachable from the selected departure
+  // when the user has made an exact selection (i.e. searchFrom exactly matches a known departure option).
+  // While the user is still typing, show all destinations so that each field searches independently.
+  const isFromExactlySelected = departureOptions.includes(searchFrom);
   const destinationOptions = Array.from(
     new Set(
       routes
-        .filter(r => !searchFrom || matchesSearch(r.departurePoint, searchFrom))
+        .filter(r => !searchFrom || !isFromExactlySelected || r.departurePoint === searchFrom)
         .map(r => r.arrivalPoint)
         .filter(Boolean)
     )

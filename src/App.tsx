@@ -122,6 +122,8 @@ export default function App() {
   const [dropoffAddress, setDropoffAddress] = useState('');
   const [pickupAddressDetail, setPickupAddressDetail] = useState('');
   const [dropoffAddressDetail, setDropoffAddressDetail] = useState('');
+  const [pickupStopAddress, setPickupStopAddress] = useState('');
+  const [dropoffStopAddress, setDropoffStopAddress] = useState('');
   const [surchargeAmount, setSurchargeAmount] = useState(0);
   const [bookingDiscount, setBookingDiscount] = useState(0);
   const [pickupSurcharge, setPickupSurcharge] = useState(0);
@@ -926,6 +928,8 @@ export default function App() {
     dropoffAddress,
     pickupAddressDetail,
     dropoffAddressDetail,
+    pickupStopAddress,
+    dropoffStopAddress,
     extraSeatIds,
     customerNameInput,
     phoneInput,
@@ -962,6 +966,8 @@ export default function App() {
     setDropoffAddress,
     setPickupAddressDetail,
     setDropoffAddressDetail,
+    setPickupStopAddress,
+    setDropoffStopAddress,
     setPickupSurcharge,
     setDropoffSurcharge,
     setPickupAddressSurcharge,
@@ -1204,6 +1210,8 @@ export default function App() {
               dropoffAddress={dropoffAddress}
               pickupAddressDetail={pickupAddressDetail}
               dropoffAddressDetail={dropoffAddressDetail}
+              pickupStopAddress={pickupStopAddress}
+              dropoffStopAddress={dropoffStopAddress}
               fromStopId={fromStopId}
               toStopId={toStopId}
               pickupSurcharge={pickupSurcharge}
@@ -1233,6 +1241,8 @@ export default function App() {
               setDropoffAddress={setDropoffAddress}
               setPickupAddressDetail={setPickupAddressDetail}
               setDropoffAddressDetail={setDropoffAddressDetail}
+              setPickupStopAddress={setPickupStopAddress}
+              setDropoffStopAddress={setDropoffStopAddress}
               setFromStopId={setFromStopId}
               setToStopId={setToStopId}
               setPickupSurcharge={setPickupSurcharge}
