@@ -414,8 +414,9 @@ export default function App() {
     routeFareForm,
     setRouteFareForm,
     routeImageUploading,
-    routeModalEditingId,
-    setRouteModalEditingId,
+    isSavingRoute,
+    routeSaveError,
+    setRouteSaveError,
     handleSaveRoute,
     handleRouteImageUpload,
     handleDeleteRoute,
@@ -441,6 +442,9 @@ export default function App() {
     batchTimeSlots,
     setBatchTimeSlots,
     batchTripLoading,
+    isSavingTrip,
+    tripSaveError,
+    setTripSaveError,
     buildSeatsForVehicle,
     handleSaveTrip,
     handleStartEditTrip,
@@ -1436,7 +1440,9 @@ export default function App() {
               routeFareForm={routeFareForm}
               setRouteFareForm={setRouteFareForm}
               routeImageUploading={routeImageUploading}
-              setRouteModalEditingId={setRouteModalEditingId}
+              isSavingRoute={isSavingRoute}
+              routeSaveError={routeSaveError}
+              setRouteSaveError={setRouteSaveError}
               handleSaveRoute={handleSaveRoute}
               handleRouteImageUpload={handleRouteImageUpload}
               handleDeleteRoute={handleDeleteRoute}
@@ -1497,6 +1503,9 @@ export default function App() {
               batchTimeSlots={batchTimeSlots}
               setBatchTimeSlots={setBatchTimeSlots}
               batchTripLoading={batchTripLoading}
+              isSavingTrip={isSavingTrip}
+              tripSaveError={tripSaveError}
+              setTripSaveError={setTripSaveError}
               showTripAddons={showTripAddons}
               setShowTripAddons={setShowTripAddons}
               showAddTripAddon={showAddTripAddon}

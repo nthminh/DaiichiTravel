@@ -82,7 +82,7 @@ export function useRoutes(ctx: RouteContext) {
     routeFormStopsRef.current = routeFormStops;
   }, [routeFormStops]);
 
-  // Ref to track current routeForm values (used in fare subscription to resolve stop names)
+  // Ref to track current routeForm values (used in async handlers to resolve stop names)
   const routeFormRef = useRef(routeForm);
   useEffect(() => {
     routeFormRef.current = routeForm;
@@ -133,46 +133,17 @@ export function useRoutes(ctx: RouteContext) {
 
   const [routeImageUploading, setRouteImageUploading] = useState(false);
 
-  // Subscribe to route fares in real-time when the route edit modal is open
-  const [routeModalEditingId, setRouteModalEditingId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!routeModalEditingId) return;
-    originalFareDocIdsRef.current = new Set();
-    let initialLoadDone = false;
-    const unsubFares = transportService.subscribeToRouteFares(routeModalEditingId, fares => {
-      const currentStops = routeFormStopsRef.current;
-      if (!initialLoadDone) {
-        originalFareDocIdsRef.current = new Set(fares.map(f => `${f.fromStopId}_${f.toStopId}`));
-        initialLoadDone = true;
-      }
-      const resolveStopName = (stopId: string) => {
-        if (stopId === '__departure__') return routeFormRef.current.departurePoint || stopId;
-        if (stopId === '__arrival__') return routeFormRef.current.arrivalPoint || stopId;
-        return currentStops.find(s => s.stopId === stopId)?.stopName || stopId;
-      };
-      setRouteFormFares(
-        fares
-          .filter(f => f.active !== false)
-          .map(f => ({
-            fromStopId: f.fromStopId,
-            toStopId: f.toStopId,
-            fromName: resolveStopName(f.fromStopId),
-            toName: resolveStopName(f.toStopId),
-            price: f.price,
-            agentPrice: f.agentPrice || 0,
-            startDate: f.startDate || '',
-            endDate: f.endDate || '',
-          })),
-      );
-    });
-    return () => unsubFares();
-  }, [routeModalEditingId]);
+  // Saving / error state for route save operations
+  const [isSavingRoute, setIsSavingRoute] = useState(false);
+  const [routeSaveError, setRouteSaveError] = useState<string | null>(null);
 
   // Keep a stable ref for async handlers to read the latest context.
   const ctxRef = useRef<RouteContext>(ctx);
   ctxRef.current = ctx;
 
   const handleSaveRoute = async () => {
+    setIsSavingRoute(true);
+    setRouteSaveError(null);
     try {
       const intermediateStops = routeFormStopsRef.current.map((s, i) => ({ ...s, order: i + 1 }));
       const currentForm = routeFormRef.current;
@@ -205,8 +176,10 @@ export function useRoutes(ctx: RouteContext) {
         routeId = docRef?.id;
       }
       if (routeId) {
-        for (let fareIdx = 0; fareIdx < routeFormFares.length; fareIdx++) {
-          const fare = routeFormFares[fareIdx];
+        // Capture fare list at save time (avoid closure issues with async loops)
+        const faresSnapshot = routeFormFares.slice();
+        for (let fareIdx = 0; fareIdx < faresSnapshot.length; fareIdx++) {
+          const fare = faresSnapshot[fareIdx];
           try {
             await transportService.upsertFare(
               routeId,
@@ -224,7 +197,7 @@ export function useRoutes(ctx: RouteContext) {
           }
         }
         const currentFareDocIds = new Set(
-          routeFormFares.map(f => `${f.fromStopId}_${f.toStopId}`),
+          faresSnapshot.map(f => `${f.fromStopId}_${f.toStopId}`),
         );
         for (const originalId of originalFareDocIdsRef.current) {
           if (!currentFareDocIds.has(originalId)) {
@@ -241,8 +214,16 @@ export function useRoutes(ctx: RouteContext) {
       setEditingRoute(null);
       setIsCopyingRoute(false);
       setRouteForm({ ...DEFAULT_ROUTE_FORM });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save route:', err);
+      const lang = ctxRef.current.language;
+      setRouteSaveError(
+        lang === 'vi'
+          ? `Lưu thất bại: ${err?.message || 'Vui lòng thử lại.'}`
+          : `Save failed: ${err?.message || 'Please try again.'}`,
+      );
+    } finally {
+      setIsSavingRoute(false);
     }
   };
 
@@ -309,6 +290,12 @@ export function useRoutes(ctx: RouteContext) {
   const handleStartEditRoute = (route: Route) => {
     setEditingRoute(route);
     setIsCopyingRoute(false);
+    setRouteSaveError(null);
+    const loadedStops = (route.routeStops || [])
+      .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((s, i) => ({ ...s, order: i + 1 }));
     setRouteForm({
       stt: route.stt,
       name: route.name,
@@ -334,20 +321,62 @@ export function useRoutes(ctx: RouteContext) {
     setEditingPricePeriodId(null);
     setShowAddRouteSurcharge(false);
     setEditingRouteSurchargeId(null);
-    const loadedStops = (route.routeStops || [])
-      .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
-      .slice()
-      .sort((a, b) => a.order - b.order)
-      .map((s, i) => ({ ...s, order: i + 1 }));
     setRouteFormStops(loadedStops);
     setShowAddRouteStop(false);
+    // Reset fares and original IDs before loading – prevents stale data from a
+    // previous edit session being used if the user re-opens the same route.
     setRouteFormFares([]);
+    originalFareDocIdsRef.current = new Set();
     setShowAddRouteFare(false);
     setEditingRouteFareIdx(null);
-    setRouteModalEditingId(route.id || null);
     setRouteFormStopsHistory([]);
     setRouteFormFaresHistory([]);
     setShowAddRoute(true);
+    // One-time fetch of fares (replaces the real-time subscription that was
+    // previously used here).  A real-time listener would continuously overwrite
+    // any local edits the user makes in the fare table, causing apparent data
+    // loss.  A single fetch is sufficient: the admin is the only writer while
+    // the modal is open.
+    if (route.id) {
+      const allStops = [
+        ...(route.departurePoint
+          ? [{ stopId: STOP_ID_DEPARTURE, stopName: route.departurePoint }]
+          : []),
+        ...loadedStops,
+        ...(route.arrivalPoint
+          ? [{ stopId: STOP_ID_ARRIVAL, stopName: route.arrivalPoint }]
+          : []),
+      ];
+      transportService
+        .getRouteFares(route.id)
+        .then(fares => {
+          const activeFares = fares.filter(f => f.active !== false);
+          originalFareDocIdsRef.current = new Set(
+            activeFares.map(f => `${f.fromStopId}_${f.toStopId}`),
+          );
+          setRouteFormFares(
+            activeFares.map(f => ({
+              fromStopId: f.fromStopId,
+              toStopId: f.toStopId,
+              fromName: allStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
+              toName: allStops.find(s => s.stopId === f.toStopId)?.stopName || f.toStopId,
+              price: f.price,
+              agentPrice: f.agentPrice || 0,
+              startDate: f.startDate || '',
+              endDate: f.endDate || '',
+            })),
+          );
+        })
+        .catch(err => {
+          console.error('Failed to load route fares for edit:', err);
+          const lang = ctxRef.current.language;
+          setRouteSaveError(
+            lang === 'vi'
+              ? 'Không thể tải bảng giá vé. Vui lòng đóng và mở lại để thử lại.'
+              : 'Could not load fare table. Please close and reopen to try again.',
+          );
+        });
+    }
   };
 
   const handleCopyRoute = (route: Route) => {
@@ -393,9 +422,9 @@ export function useRoutes(ctx: RouteContext) {
     setEditingRouteSurchargeId(null);
     setShowAddRouteStop(false);
     setRouteFormFares([]);
+    originalFareDocIdsRef.current = new Set();
     setShowAddRouteFare(false);
     setEditingRouteFareIdx(null);
-    setRouteModalEditingId(null);
     setRouteFormStopsHistory([]);
     setRouteFormFaresHistory([]);
     if (route.id) {
@@ -492,8 +521,9 @@ export function useRoutes(ctx: RouteContext) {
     routeFareForm,
     setRouteFareForm,
     routeImageUploading,
-    routeModalEditingId,
-    setRouteModalEditingId,
+    isSavingRoute,
+    routeSaveError,
+    setRouteSaveError,
     handleSaveRoute,
     handleRouteImageUpload,
     handleDeleteRoute,

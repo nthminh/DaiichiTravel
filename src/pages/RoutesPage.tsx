@@ -58,7 +58,9 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
     editingRouteFareIdx, setEditingRouteFareIdx,
     routeFareForm, setRouteFareForm,
     routeImageUploading,
-    routeModalEditingId, setRouteModalEditingId,
+    isSavingRoute,
+    routeSaveError,
+    setRouteSaveError,
     handleSaveRoute,
     handleRouteImageUpload,
     handleDeleteRoute,
@@ -128,7 +130,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                     ? `📋 ${t.copy_route_title}`
                     : (language === 'vi' ? 'Thêm tuyến mới' : 'Add New Route')}
               </h3>
-              <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+              <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteSaveError(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -786,9 +788,17 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
               </div>
 
             </div>
+            {routeSaveError && (
+              <div className="mx-1 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+                {routeSaveError}
+              </div>
+            )}
             <div className="flex justify-end gap-4 pt-2">
-              <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteModalEditingId(null); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-              <button onClick={handleSaveRoute} disabled={!routeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingRoute ? t.save : isCopyingRoute ? t.create_copy : t.add_route}</button>
+              <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteSaveError(null); }} disabled={isSavingRoute} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
+              <button onClick={handleSaveRoute} disabled={!routeForm.name || isSavingRoute} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 flex items-center gap-2">
+                {isSavingRoute && <Loader2 size={16} className="animate-spin" />}
+                {editingRoute ? t.save : isCopyingRoute ? t.create_copy : t.add_route}
+              </button>
             </div>
           </div>
         </div>
