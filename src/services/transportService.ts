@@ -541,7 +541,7 @@ export const transportService = {
 
   /**
    * Admin utility: create or overwrite a fare entry.
-   * Returns the Firestore document ID ("fromStopId_toStopId").
+   * Returns the Firestore document ID used for the fare.
    */
   upsertFare: (
     routeId: string,
@@ -553,7 +553,8 @@ export const transportService = {
     startDate?: string,
     endDate?: string,
     sortOrder?: number,
-  ) => _upsertFare(routeId, fromStopId, toStopId, price, agentPrice, currency, startDate, endDate, sortOrder),
+    fareDocId?: string,
+  ) => _upsertFare(routeId, fromStopId, toStopId, price, agentPrice, currency, startDate, endDate, sortOrder, fareDocId),
 
   /** Fetch all fares for a route (one-time read). */
   getRouteFares: async (routeId: string): Promise<RouteFare[]> => {

@@ -17,6 +17,8 @@ const STOP_ID_ARRIVAL = '__arrival__';
 type TranslationRecord = typeof TRANSLATIONS['vi'];
 
 type RouteFareEntry = {
+  /** Firestore document ID – preserved from the DB or generated at save time. */
+  fareId?: string;
   fromStopId: string;
   toStopId: string;
   fromName: string;
@@ -782,22 +784,37 @@ export function RouteManagementPage({
                                   }
                                   const newFare = { fromStopId: routeFareForm.fromStopId, toStopId: routeFareForm.toStopId, fromName: fromStop.stopName, toName: toStop.stopName, price: routeFareForm.price, agentPrice: routeFareForm.agentPrice, startDate: routeFareForm.startDate, endDate: routeFareForm.endDate };
                                   if (editingRouteFareIdx !== null) {
-                                    // Check for duplicate pair (excluding the current editing index)
-                                    const duplicate = routeFormFares.findIndex((f, i) => i !== editingRouteFareIdx && f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
+                                    // Preserve the existing fareId (Firestore doc ID) when editing.
+                                    const existingFareId = routeFormFares[editingRouteFareIdx]?.fareId;
+                                    const updatedFare = { ...newFare, fareId: existingFareId };
+                                    // Reject exact duplicates (same stops + same dates) that would collide
+                                    // with another entry in the list.
+                                    const duplicate = routeFormFares.findIndex((f, i) => {
+                                      if (i === editingRouteFareIdx) return false;
+                                      return f.fromStopId === routeFareForm.fromStopId &&
+                                        f.toStopId === routeFareForm.toStopId &&
+                                        f.startDate === routeFareForm.startDate &&
+                                        f.endDate === routeFareForm.endDate;
+                                    });
                                     if (duplicate >= 0) {
-                                      alert(language === 'vi' ? 'Giá chặng cho cặp điểm này đã tồn tại' : 'A fare for this stop pair already exists');
+                                      alert(language === 'vi' ? 'Giá chặng với cùng cặp điểm và cùng thời gian áp dụng đã tồn tại' : 'A fare with the same stop pair and date range already exists');
                                       return;
                                     }
                                     // Update the fare at the editing index
-                                    setRouteFormFares(prev => prev.map((f, i) => i === editingRouteFareIdx ? newFare : f));
+                                    setRouteFormFares(prev => prev.map((f, i) => i === editingRouteFareIdx ? updatedFare : f));
                                   } else {
-                                    setRouteFormFares(prev => {
-                                      const existing = prev.findIndex(f => f.fromStopId === routeFareForm.fromStopId && f.toStopId === routeFareForm.toStopId);
-                                      if (existing >= 0) {
-                                        return prev.map((f, i) => i === existing ? newFare : f);
-                                      }
-                                      return [...prev, newFare];
-                                    });
+                                    // Reject exact duplicates (same stops + same dates).
+                                    const duplicate = routeFormFares.findIndex(f =>
+                                      f.fromStopId === routeFareForm.fromStopId &&
+                                      f.toStopId === routeFareForm.toStopId &&
+                                      f.startDate === routeFareForm.startDate &&
+                                      f.endDate === routeFareForm.endDate
+                                    );
+                                    if (duplicate >= 0) {
+                                      alert(language === 'vi' ? 'Giá chặng với cùng cặp điểm và cùng thời gian áp dụng đã tồn tại' : 'A fare with the same stop pair and date range already exists');
+                                      return;
+                                    }
+                                    setRouteFormFares(prev => [...prev, newFare]);
                                   }
                                   setShowAddRouteFare(false);
                                   setEditingRouteFareIdx(null);
