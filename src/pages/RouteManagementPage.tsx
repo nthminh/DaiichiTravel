@@ -92,7 +92,10 @@ interface RouteManagementPageProps {
   isSavingRoute: boolean;
   routeSaveError: string | null;
   setRouteSaveError: (v: string | null) => void;
+  routeConflictWarning: boolean;
+  setRouteConflictWarning: (v: boolean) => void;
   handleSaveRoute: () => Promise<void>;
+  handleForceSaveRoute: () => void;
   handleRouteImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleDeleteRoute: (id: string) => Promise<void>;
   handleStartEditRoute: (route: Route) => void;
@@ -165,7 +168,10 @@ export function RouteManagementPage({
   isSavingRoute,
   routeSaveError,
   setRouteSaveError,
+  routeConflictWarning,
+  setRouteConflictWarning,
   handleSaveRoute,
+  handleForceSaveRoute,
   handleRouteImageUpload,
   handleDeleteRoute,
   handleStartEditRoute,
@@ -204,7 +210,7 @@ export function RouteManagementPage({
             {/* Add/Edit Route Modal */}
             {showAddRoute && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+                <div className="bg-white rounded-[32px] p-8 max-w-4xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-bold">
                       {editingRoute
@@ -883,8 +889,38 @@ export function RouteManagementPage({
                       {routeSaveError}
                     </div>
                   )}
+                  {routeConflictWarning && (
+                    <div className="mx-1 px-4 py-3 bg-yellow-50 border border-yellow-300 rounded-xl text-sm text-yellow-800 space-y-3">
+                      <p className="font-semibold">
+                        {language === 'vi'
+                          ? '⚠️ Xung đột dữ liệu: tuyến này vừa được người khác chỉnh sửa trong khi bạn đang mở.'
+                          : '⚠️ Data conflict: this route was modified by someone else while you had it open.'}
+                      </p>
+                      <p className="text-xs text-yellow-700">
+                        {language === 'vi'
+                          ? 'Nhấn "Ghi đè" để lưu thay đổi của bạn lên trên (sẽ mất các thay đổi của người kia), hoặc nhấn "Hủy" để đóng và tải lại dữ liệu mới nhất.'
+                          : 'Click "Overwrite" to save your changes on top (the other person\'s changes will be lost), or click "Cancel" to close and reload the latest data.'}
+                      </p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => { setRouteConflictWarning(false); setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteSaveError(null); }}
+                          className="px-5 py-2 text-sm font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
+                        >
+                          {language === 'vi' ? 'Hủy & tải lại' : 'Cancel & reload'}
+                        </button>
+                        <button
+                          onClick={handleForceSaveRoute}
+                          disabled={isSavingRoute}
+                          className="px-5 py-2 text-sm font-bold text-white bg-yellow-500 rounded-xl hover:bg-yellow-600 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isSavingRoute && <Loader2 size={14} className="animate-spin" />}
+                          {language === 'vi' ? 'Ghi đè' : 'Overwrite'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-end gap-4 pt-2">
-                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteSaveError(null); }} disabled={isSavingRoute} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
+                    <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteSaveError(null); setRouteConflictWarning(false); }} disabled={isSavingRoute} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
                     <button onClick={handleSaveRoute} disabled={!routeForm.name || isSavingRoute} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 flex items-center gap-2">
                       {isSavingRoute && <Loader2 size={16} className="animate-spin" />}
                       {editingRoute ? t.save : isCopyingRoute ? t.create_copy : t.add_route}

@@ -47,6 +47,7 @@ export interface Route {
   imageUrl?: string;        // scenic / destination photo shown to passengers on the booking page
   images?: string[];        // additional destination photos (multi-upload); imageUrl = images[0]
   vehicleImageUrl?: string; // photo of the typical vehicle used on this route
+  updatedAt?: string;       // ISO timestamp of last modification – used for conflict detection
 }
 
 // A single fare entry in the routeFares subcollection

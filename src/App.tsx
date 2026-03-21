@@ -419,7 +419,10 @@ export default function App() {
     isSavingRoute,
     routeSaveError,
     setRouteSaveError,
+    routeConflictWarning,
+    setRouteConflictWarning,
     handleSaveRoute,
+    handleForceSaveRoute,
     handleRouteImageUpload,
     handleDeleteRoute,
     handleStartEditRoute,
@@ -1454,7 +1457,10 @@ export default function App() {
               isSavingRoute={isSavingRoute}
               routeSaveError={routeSaveError}
               setRouteSaveError={setRouteSaveError}
+              routeConflictWarning={routeConflictWarning}
+              setRouteConflictWarning={setRouteConflictWarning}
               handleSaveRoute={handleSaveRoute}
+              handleForceSaveRoute={handleForceSaveRoute}
               handleRouteImageUpload={handleRouteImageUpload}
               handleDeleteRoute={handleDeleteRoute}
               handleStartEditRoute={handleStartEditRoute}
