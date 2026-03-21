@@ -259,9 +259,9 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
           <td>${escapeHtml(primarySeat.customerName) || '—'}</td>
           <td>${escapeHtml(primarySeat.customerPhone) || '—'}</td>
           <td>${escapeHtml(primarySeat.pickupAddress) || '—'}</td>
-          <td>${escapeHtml((primarySeat as any).pickupAddressDetail) || ''}</td>
+          <td>${escapeHtml(primarySeat.pickupAddressDetail) || ''}</td>
           <td>${escapeHtml(primarySeat.dropoffAddress) || '—'}</td>
-          <td>${escapeHtml((primarySeat as any).dropoffAddressDetail) || ''}</td>
+          <td>${escapeHtml(primarySeat.dropoffAddressDetail) || ''}</td>
           <td>${allPaid ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${totalAmount.toLocaleString()}đ</td>
           <td>${escapeHtml(primarySeat.bookingNote) || ''}</td>
