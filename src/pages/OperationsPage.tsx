@@ -252,7 +252,12 @@ export function OperationsPage({
       (trip.licensePlate || '').toLowerCase().includes(q) ||
       (trip.driverName || '').toLowerCase().includes(q)
     );
-  }).sort((a, b) => compareTripDateTime(a, b)), [trips, tripFilterStatus, tripFilterRoute, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripSearch, compareTripDateTime]);
+  }).sort((a, b) => compareTripDateTime(a, b)),
+  // compareTripDateTime is a stable prop reference (a pure comparison function with no
+  // dependencies) defined without useCallback in App.tsx, so excluding it avoids
+  // unnecessary memoization invalidations on every App render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [trips, tripFilterStatus, tripFilterRoute, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripSearch]);
 
   // Reset to page 1 whenever active filters change
   React.useEffect(() => {
@@ -1058,7 +1063,9 @@ export function OperationsPage({
               const totalSeats = (trip.seats || []).length;
               const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
               const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
-              // A trip can be selected for merge if it is free-seating (any status, any time)
+              // A trip is eligible for merge if it is free-seating (no status restriction).
+              // Additional compatibility checks (same route/date/time) are enforced below when a
+              // first trip is already selected.
               const isMergeable = trip.seatType === 'free';
               const isSelectedForMerge = selectedTripIdsForMerge.includes(trip.id);
               // When one trip is already selected, only trips with the same route, date and time are compatible

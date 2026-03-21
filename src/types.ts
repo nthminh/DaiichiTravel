@@ -194,6 +194,8 @@ export interface SegmentBooking {
 export interface Seat {
   id: string;
   status: SeatStatus;
+  row?: number;  // seat grid row (used in layout rendering)
+  col?: number;  // seat grid column (used in layout rendering)
   customerName?: string;
   customerPhone?: string;
   pickupPoint?: string;      // departure stop name (điểm xuất phát) for fare segment

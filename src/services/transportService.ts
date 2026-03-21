@@ -925,8 +925,10 @@ export const transportService = {
         mergedFromTripIds,
       });
 
-      // Clear all seats on the secondary trip so the vehicle becomes empty
-      const clearedSecondarySeats = secondarySeats.map((seat: any) => ({
+      // Clear all seats on the secondary trip so the vehicle becomes empty for new bookings.
+      // A new object with only layout fields is constructed intentionally so that all
+      // passenger data (customerName, customerPhone, addresses, etc.) is dropped.
+      const clearedSecondarySeats = secondarySeats.map((seat) => ({
         id: seat.id,
         status: SeatStatus.EMPTY,
         row: seat.row,
