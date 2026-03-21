@@ -4,7 +4,6 @@ import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
 import { matchesSearch } from '../lib/searchUtils'
-import { SearchableSelect } from '../components/SearchableSelect'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
@@ -495,13 +494,13 @@ export function BookTicketPage({
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
             <div className="relative mt-1">
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-              <SearchableSelect
-                options={departureOptions}
+              <input
+                type="text"
                 value={searchFrom}
-                onChange={setSearchFrom}
+                onChange={e => setSearchFrom(e.target.value)}
                 placeholder={t.from}
-                className="w-full"
-                inputClassName="pl-12 py-4"
+                aria-label={t.from}
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
               />
             </div>
           </div>
@@ -509,13 +508,13 @@ export function BookTicketPage({
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
             <div className="relative mt-1">
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-              <SearchableSelect
-                options={destinationOptions}
+              <input
+                type="text"
                 value={searchTo}
-                onChange={setSearchTo}
+                onChange={e => setSearchTo(e.target.value)}
                 placeholder={t.to}
-                className="w-full"
-                inputClassName="pl-12 py-4"
+                aria-label={t.to}
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
               />
             </div>
           </div>
