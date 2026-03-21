@@ -94,7 +94,7 @@ export function useRoutes(ctx: RouteContext) {
       ...(routeForm.departurePoint
         ? [{ stopId: STOP_ID_DEPARTURE, stopName: routeForm.departurePoint, order: 0 }]
         : []),
-      ...routeFormStops.map((s, i) => ({ ...s, order: i + 1 })),
+      ...[...routeFormStops].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 })),
       ...(routeForm.arrivalPoint
         ? [
             {
@@ -145,7 +145,9 @@ export function useRoutes(ctx: RouteContext) {
     setIsSavingRoute(true);
     setRouteSaveError(null);
     try {
-      const intermediateStops = routeFormStopsRef.current.map((s, i) => ({ ...s, order: i + 1 }));
+      const intermediateStops = [...routeFormStopsRef.current]
+        .sort((a, b) => a.order - b.order)
+        .map((s, i) => ({ ...s, order: i + 1 }));
       const currentForm = routeFormRef.current;
       const fullRouteStops: RouteStop[] = [
         ...(currentForm.departurePoint
