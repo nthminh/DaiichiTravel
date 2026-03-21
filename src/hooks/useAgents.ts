@@ -25,6 +25,7 @@ export const DEFAULT_AGENT_FORM = {
   depositAmount: 0,
   holdTicketHours: 24,
   allowedPaymentOptions: [] as AgentPaymentOption[],
+  routeCommissionRates: {} as Record<string, number>,
 };
 
 /**
@@ -134,6 +135,7 @@ export function useAgents(ctx: AgentContext) {
       depositAmount: agent.depositAmount ?? 0,
       holdTicketHours: agent.holdTicketHours ?? 24,
       allowedPaymentOptions: agent.allowedPaymentOptions ?? [],
+      routeCommissionRates: agent.routeCommissionRates ?? {},
     });
     setAgentFormError('');
     setShowAddAgent(true);
