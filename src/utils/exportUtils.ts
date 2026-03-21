@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Route, SeatStatus } from '../types';
+import { Route, RouteFare, SeatStatus } from '../types';
 
 const COMPANY_LOGO_URL =
   'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
@@ -285,7 +285,7 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
   }
 };
 
-export const exportRouteToPDF = (route: Route) => {
+export const exportRouteToPDF = (route: Route, fares: RouteFare[] = []) => {
   const periodsRows = (route.pricePeriods || []).map((p, i) => `
       <tr>
         <td>${i + 1}</td>
@@ -309,14 +309,39 @@ export const exportRouteToPDF = (route: Route) => {
         <td>${escapeHtml(s.startDate || '')}${s.endDate ? ` → ${escapeHtml(s.endDate)}` : ''}</td>
       </tr>`).join('');
 
-  const stopsRows = (route.routeStops || [])
-    .slice().sort((a, b) => a.order - b.order)
+  const sortedStops = (route.routeStops || []).slice().sort((a, b) => a.order - b.order);
+  const stopsRows = sortedStops
     .map((s, i) => `
         <tr>
           <td>${i + 1}</td>
           <td>${s.order}</td>
           <td>${escapeHtml(s.stopName)}</td>
         </tr>`).join('');
+
+  // Build stop name lookup for fare table
+  const stopNameById: Record<string, string> = {};
+  for (const stop of sortedStops) {
+    stopNameById[stop.stopId] = stop.stopName;
+  }
+  const activeFares = fares.filter(f => f.active !== false);
+  const faresRows = activeFares
+    .slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((f, i) => {
+      const fromName = stopNameById[f.fromStopId] || escapeHtml(f.fromStopId);
+      const toName = stopNameById[f.toStopId] || escapeHtml(f.toStopId);
+      const validRange = f.startDate || f.endDate
+        ? `${escapeHtml(f.startDate || '')}${f.endDate ? ` → ${escapeHtml(f.endDate)}` : ''}`
+        : '—';
+      return `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${fromName}</td>
+          <td>${toName}</td>
+          <td>${f.price > 0 ? `${f.price.toLocaleString()}đ` : '—'}</td>
+          <td>${(f.agentPrice || 0) > 0 ? `${(f.agentPrice || 0).toLocaleString()}đ` : '—'}</td>
+          <td>${validRange}</td>
+        </tr>`;
+    }).join('');
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="vi">
@@ -383,6 +408,13 @@ export const exportRouteToPDF = (route: Route) => {
     <thead><tr><th>STT</th><th>Thứ tự</th><th>Tên điểm dừng</th></tr></thead>
     <tbody>${stopsRows}</tbody>
   </table>` : '<p class="no-data">Không có điểm dừng trung gian.</p>'}
+
+  <h2>Bảng giá theo chặng (${activeFares.length} chặng)</h2>
+  ${activeFares.length > 0 ? `
+  <table>
+    <thead><tr><th>STT</th><th>Điểm đón</th><th>Điểm trả</th><th>Giá lẻ</th><th>Giá đại lý</th><th>Hiệu lực</th></tr></thead>
+    <tbody>${faresRows}</tbody>
+  </table>` : '<p class="no-data">Không có bảng giá chặng.</p>'}
 
   ${route.note ? `
   <h2>Ghi chú</h2>

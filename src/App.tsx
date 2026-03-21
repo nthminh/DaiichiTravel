@@ -1774,7 +1774,10 @@ export default function App() {
               await pendingQrBooking.execute();
               setPendingQrBooking(null);
             }}
-            onCancel={() => setPendingQrBooking(null)}
+            onCancel={async () => {
+              await pendingQrBooking.cancel();
+              setPendingQrBooking(null);
+            }}
           />
         </Suspense>
       )}

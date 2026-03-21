@@ -374,14 +374,17 @@ export function BookTicketPage({
                 if (tripDateStr) {
                   const parts = tripDateStr.split(/[\/\-]/);
                   if (parts.length === 3) {
-                    let departureDate: Date;
+                    // Build ISO string with explicit Vietnam timezone (+07:00) so the
+                    // departure moment is computed correctly regardless of the browser's
+                    // local timezone.
+                    let isoDate: string;
                     if (tripDateStr.includes('/')) {
-                      departureDate = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+                      // DD/MM/YYYY → YYYY-MM-DD
+                      isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                     } else {
-                      departureDate = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+                      isoDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
                     }
-                    const [hh, mm] = tripTime.split(':');
-                    departureDate.setHours(+hh || 0, +mm || 0, 0, 0);
+                    const departureDate = new Date(`${isoDate}T${tripTime}:00+07:00`);
                     const msUntilDeparture = departureDate.getTime() - Date.now();
                     isCutoffBlocked = msUntilDeparture <= paymentConfig.bookingCutoffMinutes * 60 * 1000;
                   }

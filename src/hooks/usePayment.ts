@@ -110,6 +110,8 @@ export interface PendingQrBooking {
   ref: string;
   label: string;
   execute: () => Promise<void>;
+  /** Called when the user cancels or the 30-min timer expires – releases the reserved seats */
+  cancel: () => Promise<void>;
 }
 
 /**
@@ -328,23 +330,28 @@ export function usePayment(ctx: BookingContext) {
     };
 
     // Core save function for a single booking – also applies optimistic UI update
-    const saveSingleBooking = async (bd: any, sud2: typeof seatUpdateData, sids: string[], tripId: string, applyOpt: (seat: any) => any): Promise<any | null> => {
+    // Pass skipBookSeats=true when seats have already been pre-reserved (QR payment flow).
+    const saveSingleBooking = async (bd: any, sud2: typeof seatUpdateData, sids: string[], tripId: string, applyOpt: (seat: any) => any, skipBookSeats = false): Promise<any | null> => {
       const ctx2 = ctxRef.current;
       try {
         const result = await transportService.createBooking(bd);
-        await transportService.bookSeats(tripId, sids, sud2);
+        if (!skipBookSeats) {
+          await transportService.bookSeats(tripId, sids, sud2);
+        }
         const savedBooking = { ...bd, id: result.id, ticketCode: result.ticketCode };
-        // Optimistic local state update
-        ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
-          if (trip.id === tripId) {
-            return { ...trip, seats: trip.seats.map(applyOpt) };
-          }
-          return trip;
-        }));
-        ctx2.setSelectedTrip((prev: any) => {
-          if (!prev || prev.id !== tripId) return prev;
-          return { ...prev, seats: prev.seats.map(applyOpt) };
-        });
+        // Optimistic local state update (only needed when seats weren't pre-reserved)
+        if (!skipBookSeats) {
+          ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+            if (trip.id === tripId) {
+              return { ...trip, seats: trip.seats.map(applyOpt) };
+            }
+            return trip;
+          }));
+          ctx2.setSelectedTrip((prev: any) => {
+            if (!prev || prev.id !== tripId) return prev;
+            return { ...prev, seats: prev.seats.map(applyOpt) };
+          });
+        }
         return savedBooking;
       } catch (err) {
         console.error('Failed to save booking:', err);
@@ -501,11 +508,148 @@ export function usePayment(ctx: BookingContext) {
           outboundLeg.bookingData.paymentMethod = 'Chuyển khoản QR';
           bookingData.paymentRef = paymentReference;
           bookingData.paymentMethod = 'Chuyển khoản QR';
+
+          // Pre-reserve outbound seats immediately so they show as yellow to other users
+          try {
+            await transportService.bookSeats(outboundLeg.tripId, outboundLeg.allSeatIds, outboundLeg.seatUpdateData);
+          } catch (err) {
+            console.error('Failed to reserve outbound seats:', err);
+            alert(c.language === 'vi' ? 'Không thể giữ chỗ chuyến đi. Vui lòng thử lại.' : 'Unable to reserve outbound seats. Please try again.');
+            return;
+          }
+          // Apply outbound optimistic UI update
+          {
+            const ctx2 = ctxRef.current;
+            ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+              if (trip.id === outboundLeg.tripId) return { ...trip, seats: trip.seats.map(outboundLeg.applyOptimisticSeatUpdate) };
+              return trip;
+            }));
+          }
+
+          // Pre-reserve return seats immediately
+          try {
+            await transportService.bookSeats(c.selectedTrip.id, allSeatIds, seatUpdateData);
+          } catch (err) {
+            console.error('Failed to reserve return seats:', err);
+            // Release outbound reservation on failure
+            await transportService.releaseSeats(outboundLeg.tripId, outboundLeg.allSeatIds);
+            alert(c.language === 'vi' ? 'Không thể giữ chỗ chuyến về. Vui lòng thử lại.' : 'Unable to reserve return seats. Please try again.');
+            return;
+          }
+          // Apply return optimistic UI update
+          {
+            const ctx2 = ctxRef.current;
+            ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+              if (trip.id === c.selectedTrip.id) return { ...trip, seats: trip.seats.map(returnApplyOpt) };
+              return trip;
+            }));
+            ctx2.setSelectedTrip((prev: any) => {
+              if (!prev || prev.id !== c.selectedTrip.id) return prev;
+              return { ...prev, seats: prev.seats.map(returnApplyOpt) };
+            });
+          }
+
+          // Capture IDs for potential release on cancel
+          const capturedOutboundTripId = outboundLeg.tripId;
+          const capturedOutboundSeatIds = [...outboundLeg.allSeatIds];
+          const capturedReturnTripId = c.selectedTrip.id;
+          const capturedReturnSeatIds = [...allSeatIds];
+
+          const releaseAllReservations = async () => {
+            const ctx2 = ctxRef.current;
+            await Promise.all([
+              transportService.releaseSeats(capturedOutboundTripId, capturedOutboundSeatIds),
+              transportService.releaseSeats(capturedReturnTripId, capturedReturnSeatIds),
+            ]).catch(err => console.error('Failed to release reservations:', err));
+            // Reverse optimistic UI updates
+            ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+              if (trip.id === capturedOutboundTripId) {
+                return { ...trip, seats: trip.seats.map((s: any) => capturedOutboundSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+              }
+              if (trip.id === capturedReturnTripId) {
+                return { ...trip, seats: trip.seats.map((s: any) => capturedReturnSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+              }
+              return trip;
+            }));
+            ctx2.setSelectedTrip((prev: any) => {
+              if (!prev || prev.id !== capturedReturnTripId) return prev;
+              return { ...prev, seats: prev.seats.map((s: any) => capturedReturnSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+            });
+            setCapturedOutboundLeg(null);
+          };
+
+          // saveBothBookings with seats already pre-reserved (skip bookSeats calls)
+          const saveBothBookingsAfterReservation = async () => {
+            const ctx2 = ctxRef.current;
+            const capturedLeg = capturedOutboundRef.current!;
+
+            const savedOutbound = await saveSingleBooking(
+              capturedLeg.bookingData,
+              capturedLeg.seatUpdateData,
+              capturedLeg.allSeatIds,
+              capturedLeg.tripId,
+              capturedLeg.applyOptimisticSeatUpdate,
+              true, // skipBookSeats – already reserved
+            );
+            if (!savedOutbound) {
+              alert(ctx2.language === 'vi'
+                ? 'Đặt vé chuyến đi thất bại. Vui lòng thử lại.'
+                : 'Outbound booking failed. Please try again.');
+              return;
+            }
+
+            const returnBookingData = { ...bookingData };
+            const savedReturn = await saveSingleBooking(
+              returnBookingData,
+              seatUpdateData,
+              allSeatIds,
+              c.selectedTrip.id,
+              returnApplyOpt,
+              true, // skipBookSeats – already reserved
+            );
+            if (!savedReturn) {
+              alert(ctx2.language === 'vi'
+                ? 'Đặt vé chuyến về thất bại. Vé chuyến đi đã được lưu. Vui lòng liên hệ nhân viên.'
+                : 'Return booking failed. Outbound ticket was saved. Please contact staff.');
+              ctx2.setLastBooking(savedOutbound);
+              ctx2.setIsTicketOpen(true);
+              setCapturedOutboundLeg(null);
+              resetFormState();
+              return;
+            }
+
+            const combinedTicket = {
+              ...savedReturn,
+              isRoundTrip: true,
+              amount: combinedAmount,
+              outboundLeg: savedOutbound,
+            };
+            ctx2.setLastBooking(combinedTicket);
+            if (ctx2.currentUser?.role === UserRole.CUSTOMER || ctx2.currentUser?.role === 'GUEST') {
+              saveTicketToLocalStorage(combinedTicket);
+            }
+            ctx2.setIsTicketOpen(true);
+
+            if (ctx2.ws && ctx2.ws.readyState === WebSocket.OPEN) {
+              ctx2.ws.send(JSON.stringify({
+                type: 'NEW_BOOKING',
+                customerName: combinedTicket.customerName,
+                route: `${savedOutbound.route} ↔ ${savedReturn.route}`,
+                time: savedOutbound.time,
+                amount: combinedAmount,
+              }));
+            }
+
+            setCapturedOutboundLeg(null);
+            resetFormState();
+          };
+
           setPendingQrBooking({
             amount: combinedAmount,
             ref: paymentReference,
             label: bookingData.customerName,
-            execute: saveBothBookings,
+            execute: saveBothBookingsAfterReservation,
+            cancel: releaseAllReservations,
           });
           return;
         }
@@ -601,11 +745,122 @@ export function usePayment(ctx: BookingContext) {
       const paymentReference = transportService.generateTicketCode();
       bookingData.paymentRef = paymentReference;
       bookingData.paymentMethod = 'Chuyển khoản QR'; // ensure correct method is stored
+
+      // Pre-reserve seats immediately so they show as yellow (BOOKED) to other users
+      // while this customer is on the payment screen.
+      try {
+        await transportService.bookSeats(c.selectedTrip.id, allSeatIds, seatUpdateData);
+      } catch (err) {
+        console.error('Failed to reserve seats:', err);
+        alert(c.language === 'vi' ? 'Không thể giữ chỗ. Vui lòng thử lại.' : 'Unable to reserve seats. Please try again.');
+        return;
+      }
+
+      // Apply optimistic UI update (seats appear yellow immediately)
+      const applyOptimisticSeatUpdate = buildOptimisticUpdater(allSeatIds, fromStopOrder, toStopOrder, seatUpdateData);
+      {
+        const ctx2 = ctxRef.current;
+        ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+          if (trip.id === ctx2.selectedTrip.id) return { ...trip, seats: trip.seats.map(applyOptimisticSeatUpdate) };
+          return trip;
+        }));
+        ctx2.setSelectedTrip((prev: any) => {
+          if (!prev) return prev;
+          return { ...prev, seats: prev.seats.map(applyOptimisticSeatUpdate) };
+        });
+      }
+
+      // Capture for release on cancel
+      const capturedTripId = c.selectedTrip.id;
+      const capturedSeatIds = [...allSeatIds];
+      const capturedSegmentInfo = fromStopOrder !== undefined && toStopOrder !== undefined
+        ? { fromStopOrder, toStopOrder }
+        : undefined;
+
+      // Release reserved seats when the user cancels or the 30-min timer expires
+      const releaseReservation = async () => {
+        const ctx2 = ctxRef.current;
+        await transportService.releaseSeats(capturedTripId, capturedSeatIds, capturedSegmentInfo)
+          .catch(err => console.error('Failed to release reserved seats:', err));
+        // Reverse the optimistic UI update
+        ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+          if (trip.id !== capturedTripId) return trip;
+          return { ...trip, seats: trip.seats.map((s: any) => capturedSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+        }));
+        ctx2.setSelectedTrip((prev: any) => {
+          if (!prev || prev.id !== capturedTripId) return prev;
+          return { ...prev, seats: prev.seats.map((s: any) => capturedSeatIds.includes(s.id) ? { id: s.id, status: SeatStatus.EMPTY } : s) };
+        });
+      };
+
+      // saveBookingAfterReservation only creates the booking doc; seats already reserved
+      const saveBookingAfterReservation = async () => {
+        const ctx2 = ctxRef.current;
+        try {
+          const result = await transportService.createBooking(bookingData);
+          const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
+          ctx2.setLastBooking(savedBooking);
+          // Persist ticket to localStorage for CUSTOMER and GUEST so they can view it later
+          if (ctx2.currentUser?.role === UserRole.CUSTOMER || ctx2.currentUser?.role === 'GUEST') {
+            saveTicketToLocalStorage(savedBooking);
+          }
+        } catch (err) {
+          console.error('Failed to save booking:', err);
+          alert(ctx2.language === 'vi'
+            ? 'Đặt vé thất bại: Không thể kết nối đến máy chủ. Vui lòng thử lại.'
+            : 'Booking failed: Unable to connect to server. Please try again.');
+          return;
+        }
+
+        ctx2.setIsTicketOpen(true);
+        ctx2.setShowBookingForm(null);
+
+        // Reset form inputs
+        ctx2.setCustomerNameInput('');
+        ctx2.setPhoneInput('');
+        ctx2.setAdults(1);
+        ctx2.setChildren(0);
+        ctx2.setChildrenAges([]);
+        ctx2.setExtraSeatIds([]);
+        ctx2.setPickupPoint('');
+        ctx2.setDropoffPoint('');
+        ctx2.setPickupAddress('');
+        ctx2.setDropoffAddress('');
+        ctx2.setPickupAddressDetail('');
+        ctx2.setDropoffAddressDetail('');
+        ctx2.setPickupSurcharge(0);
+        ctx2.setDropoffSurcharge(0);
+        ctx2.setSurchargeAmount(0);
+        ctx2.setBookingDiscount(0);
+        setPaymentMethodInput(DEFAULT_PAYMENT_METHOD);
+        ctx2.setAddonQuantities({});
+        ctx2.setBookingNote('');
+        ctx2.setFareAmount(null);
+        ctx2.setFareAgentAmount(null);
+        ctx2.setFareError('');
+        ctx2.setFareLoading(false);
+        ctx2.setFromStopId('');
+        ctx2.setToStopId('');
+        ctx2.setSeatSelectionHistory([]);
+
+        // Send real-time notification
+        if (ctx2.ws && ctx2.ws.readyState === WebSocket.OPEN) {
+          ctx2.ws.send(JSON.stringify({
+            type: 'NEW_BOOKING',
+            customerName: bookingData.customerName,
+            route: bookingData.route,
+            time: bookingData.time,
+            amount: bookingData.amount,
+          }));
+        }
+      };
+
       setPendingQrBooking({
         amount: totalAmount,
         ref: paymentReference,
         label: bookingData.customerName,
-        execute: saveBooking,
+        execute: saveBookingAfterReservation,
+        cancel: releaseReservation,
       });
       return;
     }

@@ -9,6 +9,7 @@ import { exportRouteToPDF } from '../utils/exportUtils';
 import { useRoutes, DEFAULT_ROUTE_FORM } from '../hooks/useRoutes';
 import { FirebaseStorage } from 'firebase/storage';
 import { SearchableSelect } from '../components/SearchableSelect';
+import { transportService } from '../services/transportService';
 
 const STOP_ID_DEPARTURE = '__departure__';
 const STOP_ID_ARRIVAL = '__arrival__';
@@ -96,6 +97,15 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
       (route.arrivalPoint || '').toLowerCase().includes(q)
     );
   });
+
+  const handleExportRoutePDF = async (route: Route) => {
+    try {
+      const fares = await transportService.getRouteFares(route.id);
+      exportRouteToPDF(route, fares);
+    } catch {
+      exportRouteToPDF(route, []);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -891,7 +901,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                 <td className="px-6 py-6"><p className="text-xs text-gray-500 max-w-[200px]">{route.arrivalPoint}</p></td>
                 <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
                 <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
-                <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => exportRouteToPDF(route)} title={language === 'vi' ? 'Xuất PDF' : language === 'ja' ? 'PDFを出力' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={18} /></button><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
+                <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleExportRoutePDF(route)} title={language === 'vi' ? 'Xuất PDF' : language === 'ja' ? 'PDFを出力' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={18} /></button><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
               </tr>
             ))}
             {filteredRoutes.length === 0 && (
