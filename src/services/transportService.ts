@@ -556,11 +556,17 @@ export const transportService = {
     fareDocId?: string,
   ) => _upsertFare(routeId, fromStopId, toStopId, price, agentPrice, currency, startDate, endDate, sortOrder, fareDocId),
 
-  /** Fetch all fares for a route (one-time read). */
+  /** Fetch all fares for a route (one-time read), sorted by sortOrder to preserve user-defined order. */
   getRouteFares: async (routeId: string): Promise<RouteFare[]> => {
     if (!db) return [];
     const snap = await getDocs(collection(db, 'routeFares', routeId, 'fares'));
-    return snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteFare, 'id'>) }));
+    const fares = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteFare, 'id'>) }));
+    fares.sort((a, b) => {
+      const aSortOrder = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const bSortOrder = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      return aSortOrder - bSortOrder;
+    });
+    return fares;
   },
 
   /** Real-time listener for all fares on a route. */
