@@ -339,7 +339,7 @@ export function BookTicketPage({
             {/* Departure time */}
             <div>
               <p className="text-2xl font-bold text-green-600 leading-tight">{trip.time}</p>
-              <p className="text-[11px] font-semibold text-green-600 uppercase tracking-wide">{t.departure}</p>
+              <p className="text-[11px] font-semibold text-green-600 uppercase tracking-wide">{tripRoute?.duration || t.departure}</p>
             </div>
             {/* Date */}
             {trip.date && (
@@ -373,17 +373,36 @@ export function BookTicketPage({
             )}
             {/* Price */}
             <div className="mt-auto">
-              {currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0 ? (
-                <div>
-                  <p className="text-sm font-bold text-daiichi-red leading-tight">{(trip.agentPrice || 0).toLocaleString()}đ</p>
-                  <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
-                  <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
-                    💰 {(trip.price - (trip.agentPrice || 0)).toLocaleString()}đ
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
-              )}
+              {(() => {
+                const discountPct = trip.discountPercent || 0;
+                const isAgent = currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0;
+                const basePrice = isAgent ? (trip.agentPrice || 0) : trip.price;
+                const discountedPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100)) : basePrice;
+                if (isAgent) {
+                  return (
+                    <div>
+                      <p className="text-sm font-bold text-daiichi-red leading-tight">{discountedPrice.toLocaleString()}đ</p>
+                      {discountPct > 0
+                        ? <p className="text-[9px] text-gray-400 line-through">{basePrice.toLocaleString()}đ</p>
+                        : <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>}
+                      <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
+                        💰 {(trip.price - discountedPrice).toLocaleString()}đ
+                      </span>
+                    </div>
+                  );
+                }
+                return discountPct > 0 ? (
+                  <div>
+                    <p className="text-sm font-bold text-daiichi-red leading-tight">{discountedPrice.toLocaleString()}đ</p>
+                    <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                    <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
+                      🏷️ -{discountPct}%
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
+                );
+              })()}
             </div>
             {/* Select seat CTA */}
             {(() => {
