@@ -135,7 +135,35 @@ export const transportService = {
     });
   },
 
-  // Listen to consignments
+  // Release previously reserved seats (undo a bookSeats call when the user cancels payment)
+  releaseSeats: async (tripId: string, seatIds: string[], segmentInfo?: { fromStopOrder: number; toStopOrder: number }) => {
+    if (!db) return;
+    const tripRef = doc(db, 'trips', tripId);
+    await runTransaction(db, async (transaction) => {
+      const tripSnap = await transaction.get(tripRef);
+      if (!tripSnap.exists()) return;
+      const seats = (tripSnap.data().seats || []) as Seat[];
+      const updatedSeats = seats.map((seat: Seat) => {
+        if (!seatIds.includes(seat.id)) return seat;
+        if (segmentInfo) {
+          // Remove only the specific segment entry we added during reservation
+          const remaining = (seat.segmentBookings ?? []).filter(
+            s => !(s.fromStopOrder === segmentInfo.fromStopOrder && s.toStopOrder === segmentInfo.toStopOrder),
+          );
+          if (remaining.length > 0) {
+            // Other segment bookings still exist – keep the seat as BOOKED with remaining segments
+            return { ...seat, segmentBookings: remaining };
+          }
+          // No more segment bookings – reset the whole seat to EMPTY
+          return { id: seat.id, status: SeatStatus.EMPTY };
+        }
+        // Non-segment reservation: reset to EMPTY
+        return { id: seat.id, status: SeatStatus.EMPTY };
+      });
+      transaction.update(tripRef, { seats: updatedSeats });
+    });
+  },
+
   subscribeToConsignments: (callback: (consignments: Consignment[]) => void) => {
     if (!db) return () => {};
     const q = query(collection(db, 'consignments'), orderBy('createdAt', 'desc'));
