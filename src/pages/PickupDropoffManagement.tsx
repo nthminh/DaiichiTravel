@@ -31,6 +31,8 @@ interface BookingRow {
   children: number;
   pickupAddress: string;
   dropoffAddress: string;
+  pickupAddressDetail: string;
+  dropoffAddressDetail: string;
   pickupAssignment?: DriverAssignment;
   dropoffAssignment?: DriverAssignment;
 }
@@ -143,7 +145,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
 
   // Edit passenger pickup/dropoff
   const [editingRow, setEditingRow] = useState<BookingRow | null>(null);
-  const [editForm, setEditForm]     = useState({ pickupAddress: '', dropoffAddress: '' });
+  const [editForm, setEditForm]     = useState({ pickupAddress: '', dropoffAddress: '', pickupAddressDetail: '', dropoffAddressDetail: '' });
 
   // Assign driver modal
   const [assignRow, setAssignRow]           = useState<BookingRow | null>(null);
@@ -214,6 +216,8 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           children: bk.children ?? 0,
           pickupAddress,
           dropoffAddress,
+          pickupAddressDetail: primarySeat.pickupAddressDetail || bk.pickupAddressDetail || '',
+          dropoffAddressDetail: primarySeat.dropoffAddressDetail || bk.dropoffAddressDetail || '',
           pickupAssignment,
           dropoffAssignment,
         });
@@ -243,6 +247,8 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           children: 0,
           pickupAddress:  seat.pickupAddress  || '',
           dropoffAddress: seat.dropoffAddress || '',
+          pickupAddressDetail:  seat.pickupAddressDetail  || '',
+          dropoffAddressDetail: seat.dropoffAddressDetail || '',
           pickupAssignment,
           dropoffAssignment,
         });
@@ -300,7 +306,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleStartEdit = (row: BookingRow) => {
     setEditingRow(row);
-    setEditForm({ pickupAddress: row.pickupAddress, dropoffAddress: row.dropoffAddress });
+    setEditForm({ pickupAddress: row.pickupAddress, dropoffAddress: row.dropoffAddress, pickupAddressDetail: row.pickupAddressDetail || '', dropoffAddressDetail: row.dropoffAddressDetail || '' });
   };
 
   const handleSaveEdit = async () => {
@@ -310,7 +316,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       if (!trip) return;
       const updatedSeats = trip.seats.map((s: Seat) =>
         editingRow.seatIds.includes(s.id)
-          ? { ...s, pickupAddress: editForm.pickupAddress, dropoffAddress: editForm.dropoffAddress }
+          ? { ...s, pickupAddress: editForm.pickupAddress, dropoffAddress: editForm.dropoffAddress, pickupAddressDetail: editForm.pickupAddressDetail, dropoffAddressDetail: editForm.dropoffAddressDetail }
           : s
       );
       await transportService.updateTrip(editingRow.tripId, { seats: updatedSeats });
@@ -318,11 +324,13 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       if (editingRow.pickupAssignment) {
         await transportService.updateDriverAssignment(editingRow.pickupAssignment.id, {
           pickupAddress: editForm.pickupAddress,
+          pickupAddressDetail: editForm.pickupAddressDetail,
         });
       }
       if (editingRow.dropoffAssignment) {
         await transportService.updateDriverAssignment(editingRow.dropoffAssignment.id, {
           dropoffAddress: editForm.dropoffAddress,
+          dropoffAddressDetail: editForm.dropoffAddressDetail,
         });
       }
       setEditingRow(null);
@@ -349,7 +357,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       if (!trip) return;
       const updatedSeats = trip.seats.map((s: Seat) =>
         row.seatIds.includes(s.id)
-          ? { ...s, pickupAddress: '', dropoffAddress: '' }
+          ? { ...s, pickupAddress: '', dropoffAddress: '', pickupAddressDetail: '', dropoffAddressDetail: '' }
           : s
       );
       await transportService.updateTrip(row.tripId, { seats: updatedSeats });
@@ -413,6 +421,8 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           children: assignRow.children,
           pickupAddress:  assignTaskType === 'pickup'  ? assignRow.pickupAddress  : undefined,
           dropoffAddress: assignTaskType === 'dropoff' ? assignRow.dropoffAddress : undefined,
+          pickupAddressDetail:  assignTaskType === 'pickup'  ? assignRow.pickupAddressDetail  : undefined,
+          dropoffAddressDetail: assignTaskType === 'dropoff' ? assignRow.dropoffAddressDetail : undefined,
           driverEmployeeId: assignDriverId,
           driverName,
           assignedBy: currentUserName,
@@ -475,7 +485,9 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
         [language === 'vi' ? 'Khách hàng' : 'Customer']: r.customerName,
         [language === 'vi' ? 'SĐT' : 'Phone']: r.customerPhone,
         [t.pickup_address_col  || 'Điểm đón']: r.pickupAddress,
+        [language === 'vi' ? 'Chi tiết điểm đón' : 'Pickup Detail']: r.pickupAddressDetail || '',
         [t.dropoff_address_col || 'Điểm trả']: r.dropoffAddress,
+        [language === 'vi' ? 'Chi tiết điểm trả' : 'Dropoff Detail']: r.dropoffAddressDetail || '',
         [t.assigned_pickup_driver  || 'Tài xế đón']: r.pickupAssignment?.driverName  || '—',
         [t.assigned_dropoff_driver || 'Tài xế trả']: r.dropoffAssignment?.driverName || '—',
       }));
@@ -585,21 +597,39 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                     {/* Address */}
                     <td className="px-5 py-4">
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={isPickup ? editForm.pickupAddress : editForm.dropoffAddress}
-                          onChange={e => setEditForm(p =>
-                            isPickup
-                              ? { ...p, pickupAddress: e.target.value }
-                              : { ...p, dropoffAddress: e.target.value }
-                          )}
-                          className="w-full px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                          placeholder={addressCol}
-                        />
+                        <div className="space-y-1">
+                          <input
+                            type="text"
+                            value={isPickup ? editForm.pickupAddress : editForm.dropoffAddress}
+                            onChange={e => setEditForm(p =>
+                              isPickup
+                                ? { ...p, pickupAddress: e.target.value }
+                                : { ...p, dropoffAddress: e.target.value }
+                            )}
+                            className="w-full px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            placeholder={addressCol}
+                          />
+                          <input
+                            type="text"
+                            value={isPickup ? editForm.pickupAddressDetail : editForm.dropoffAddressDetail}
+                            onChange={e => setEditForm(p =>
+                              isPickup
+                                ? { ...p, pickupAddressDetail: e.target.value }
+                                : { ...p, dropoffAddressDetail: e.target.value }
+                            )}
+                            className="w-full px-3 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200"
+                            placeholder={language === 'vi' ? 'Chi tiết (số nhà...)' : 'Detail (house no.)'}
+                          />
+                        </div>
                       ) : (
-                        <span className={cn('text-sm', (isPickup ? row.pickupAddress : row.dropoffAddress) ? 'text-gray-700' : 'text-gray-300')}>
-                          {(isPickup ? row.pickupAddress : row.dropoffAddress) || '—'}
-                        </span>
+                        <div>
+                          <span className={cn('text-sm', (isPickup ? row.pickupAddress : row.dropoffAddress) ? 'text-gray-700' : 'text-gray-300')}>
+                            {(isPickup ? row.pickupAddress : row.dropoffAddress) || '—'}
+                          </span>
+                          {(isPickup ? row.pickupAddressDetail : row.dropoffAddressDetail) && (
+                            <p className="text-[11px] text-gray-400 mt-0.5">{isPickup ? row.pickupAddressDetail : row.dropoffAddressDetail}</p>
+                          )}
+                        </div>
                       )}
                     </td>
 

@@ -93,6 +93,27 @@ export function useTrips(ctx: TripContext) {
       const tripVehicle = ctxRef.current.vehicles.find(v => v.licensePlate === tripForm.licensePlate);
       const seatType = tripVehicle?.seatType || 'assigned';
       if (editingTrip) {
+        const currentSeats: any[] = editingTrip.seats || [];
+        const bookedSeats = currentSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
+        const newSeatCount = tripForm.seatCount;
+        const currentSeatCount = currentSeats.length;
+
+        // Rebuild seats when the seat count changes
+        let updatedSeats: any[] | undefined;
+        if (newSeatCount !== currentSeatCount) {
+          if (newSeatCount > currentSeatCount) {
+            // Add empty seats to make up the difference
+            const extraSeats = buildSeatsForVehicle(tripForm.licensePlate, newSeatCount).slice(currentSeatCount);
+            updatedSeats = [...currentSeats, ...extraSeats];
+          } else if (newSeatCount >= bookedSeats.length) {
+            // Reduce seat count: keep all booked seats + fill up to newSeatCount with existing empties
+            const empties = currentSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
+            const emptiesNeeded = newSeatCount - bookedSeats.length;
+            updatedSeats = [...bookedSeats, ...empties.slice(0, emptiesNeeded)];
+          }
+          // If newSeatCount < bookedSeats.length: cannot reduce, silently keep current count
+        }
+
         await transportService.updateTrip(editingTrip.id, {
           time: tripForm.time,
           date: tripForm.date,
@@ -102,6 +123,7 @@ export function useTrips(ctx: TripContext) {
           price: tripForm.price,
           agentPrice: tripForm.agentPrice,
           status: tripForm.status,
+          ...(updatedSeats ? { seats: updatedSeats } : {}),
         });
       } else {
         await transportService.addTrip({

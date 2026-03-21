@@ -32,6 +32,8 @@ interface SeatMappingPageProps {
   dropoffPoint: string;
   pickupAddress: string;
   dropoffAddress: string;
+  pickupAddressDetail: string;
+  dropoffAddressDetail: string;
   fromStopId: string;
   toStopId: string;
   pickupSurcharge: number;
@@ -60,6 +62,8 @@ interface SeatMappingPageProps {
   setDropoffPoint: (v: string) => void;
   setPickupAddress: (v: string) => void;
   setDropoffAddress: (v: string) => void;
+  setPickupAddressDetail: (v: string) => void;
+  setDropoffAddressDetail: (v: string) => void;
   setFromStopId: (v: string) => void;
   setToStopId: (v: string) => void;
   setPickupSurcharge: (v: number) => void;
@@ -101,6 +105,8 @@ export function SeatMappingPage({
   dropoffPoint,
   pickupAddress,
   dropoffAddress,
+  pickupAddressDetail,
+  dropoffAddressDetail,
   fromStopId,
   toStopId,
   pickupSurcharge,
@@ -128,6 +134,8 @@ export function SeatMappingPage({
   setDropoffPoint,
   setPickupAddress,
   setDropoffAddress,
+  setPickupAddressDetail,
+  setDropoffAddressDetail,
   setFromStopId,
   setToStopId,
   setPickupSurcharge,
@@ -210,12 +218,17 @@ export function SeatMappingPage({
   const departureTerminal = resolveTerminal(pickupPoint, tripRoute?.departurePoint);
   const arrivalTerminal = resolveTerminal(dropoffPoint, tripRoute?.arrivalPoint);
   // Only include child STOP entries; when no terminal is resolved, show all non-TERMINAL stops
-  const pickupStopNames = departureTerminal
-    ? stops.filter(s => s.terminalId === departureTerminal.id).map(s => s.name)
-    : stops.filter(s => s.type !== 'TERMINAL').map(s => s.name);
-  const dropoffStopNames = arrivalTerminal
-    ? stops.filter(s => s.terminalId === arrivalTerminal.id).map(s => s.name)
-    : stops.filter(s => s.type !== 'TERMINAL').map(s => s.name);
+  const pickupStops = departureTerminal
+    ? stops.filter(s => s.terminalId === departureTerminal.id)
+    : stops.filter(s => s.type !== 'TERMINAL');
+  const dropoffStops = arrivalTerminal
+    ? stops.filter(s => s.terminalId === arrivalTerminal.id)
+    : stops.filter(s => s.type !== 'TERMINAL');
+  const pickupStopNames = pickupStops.map(s => s.name);
+  const dropoffStopNames = dropoffStops.map(s => s.name);
+  // Secondary text (address) shown in the dropdown alongside the stop name
+  const pickupStopAddresses = pickupStops.map(s => s.address || '');
+  const dropoffStopAddresses = dropoffStops.map(s => s.address || '');
 
   // Build seat status lookup
   const seatStatusMap: Record<string, SeatStatus> = {};
@@ -790,6 +803,7 @@ export function SeatMappingPage({
                     <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.pickup_address || 'Điểm đón'}</label>
                     <SearchableSelect
                       options={pickupStopNames}
+                      optionDetails={pickupStopAddresses}
                       value={pickupAddress}
                       onChange={(val) => {
                         setPickupAddress(val);
@@ -800,6 +814,15 @@ export function SeatMappingPage({
                       placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
                       className="mt-0.5"
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
+                      disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
+                    />
+                    {/* Detail input for extra info like house number */}
+                    <input
+                      type="text"
+                      value={pickupAddressDetail}
+                      onChange={e => setPickupAddressDetail(e.target.value)}
+                      placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
+                      className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
                       disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
                     />
                     {isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate) && (
@@ -912,6 +935,7 @@ export function SeatMappingPage({
                     <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
                     <SearchableSelect
                       options={dropoffStopNames}
+                      optionDetails={dropoffStopAddresses}
                       value={dropoffAddress}
                       onChange={(val) => {
                         setDropoffAddress(val);
@@ -922,6 +946,15 @@ export function SeatMappingPage({
                       placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
                       className="mt-0.5"
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
+                      disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
+                    />
+                    {/* Detail input for extra info like house number */}
+                    <input
+                      type="text"
+                      value={dropoffAddressDetail}
+                      onChange={e => setDropoffAddressDetail(e.target.value)}
+                      placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
+                      className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
                       disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
                     />
                     {isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate) && (

@@ -52,6 +52,8 @@ export interface BookingContext {
   dropoffPoint: string;
   pickupAddress: string;
   dropoffAddress: string;
+  pickupAddressDetail: string;
+  dropoffAddressDetail: string;
   extraSeatIds: string[];
   customerNameInput: string;
   phoneInput: string;
@@ -82,6 +84,8 @@ export interface BookingContext {
   setDropoffPoint: (p: string) => void;
   setPickupAddress: (a: string) => void;
   setDropoffAddress: (a: string) => void;
+  setPickupAddressDetail: (a: string) => void;
+  setDropoffAddressDetail: (a: string) => void;
   setPickupSurcharge: (n: number) => void;
   setDropoffSurcharge: (n: number) => void;
   setPickupAddressSurcharge: (n: number) => void;
@@ -256,6 +260,8 @@ export function usePayment(ctx: BookingContext) {
       dropoffPoint: c.dropoffPoint,
       ...(c.pickupAddress ? { pickupAddress: c.pickupAddress } : {}),
       ...(c.dropoffAddress ? { dropoffAddress: c.dropoffAddress } : {}),
+      ...(c.pickupAddressDetail ? { pickupAddressDetail: c.pickupAddressDetail } : {}),
+      ...(c.dropoffAddressDetail ? { dropoffAddressDetail: c.dropoffAddressDetail } : {}),
       paymentMethod: payMethod,
       ...(c.bookingNote.trim() ? { bookingNote: c.bookingNote.trim() } : {}),
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: c.addonQuantities[a.id] || 1 })),
@@ -279,6 +285,8 @@ export function usePayment(ctx: BookingContext) {
       ...(c.dropoffPoint ? { dropoffPoint: c.dropoffPoint } : {}),
       ...(c.pickupAddress ? { pickupAddress: c.pickupAddress } : {}),
       ...(c.dropoffAddress ? { dropoffAddress: c.dropoffAddress } : {}),
+      ...(c.pickupAddressDetail ? { pickupAddressDetail: c.pickupAddressDetail } : {}),
+      ...(c.dropoffAddressDetail ? { dropoffAddressDetail: c.dropoffAddressDetail } : {}),
       ...(fromStopOrder !== undefined ? { fromStopOrder } : {}),
       ...(toStopOrder !== undefined ? { toStopOrder } : {}),
       ...(c.bookingNote.trim() ? { bookingNote: c.bookingNote.trim() } : {}),
@@ -358,6 +366,8 @@ export function usePayment(ctx: BookingContext) {
       ctx2.setDropoffPoint('');
       ctx2.setPickupAddress('');
       ctx2.setDropoffAddress('');
+      ctx2.setPickupAddressDetail('');
+      ctx2.setDropoffAddressDetail('');
       ctx2.setPickupSurcharge(0);
       ctx2.setDropoffSurcharge(0);
       ctx2.setSurchargeAmount(0);
@@ -541,6 +551,8 @@ export function usePayment(ctx: BookingContext) {
       ctx2.setDropoffPoint('');
       ctx2.setPickupAddress('');
       ctx2.setDropoffAddress('');
+      ctx2.setPickupAddressDetail('');
+      ctx2.setDropoffAddressDetail('');
       ctx2.setPickupSurcharge(0);
       ctx2.setDropoffSurcharge(0);
       ctx2.setSurchargeAmount(0);

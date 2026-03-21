@@ -936,6 +936,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         : null;
                       const effectivePickupAddress = viewingBooking.pickupAddress || seatLookup?.pickupAddress;
                       const effectiveDropoffAddress = viewingBooking.dropoffAddress || seatLookup?.dropoffAddress;
+                      const effectivePickupDetail = viewingBooking.pickupAddressDetail || seatLookup?.pickupAddressDetail;
+                      const effectiveDropoffDetail = viewingBooking.dropoffAddressDetail || seatLookup?.dropoffAddressDetail;
                       return <>
                         {viewingBooking.type !== 'TOUR' && viewingBooking.pickupPoint && (
                           <div className="p-4 bg-blue-50 rounded-2xl">
@@ -953,6 +955,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                               <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm đón' : 'Pickup Address'}</span>
                             </div>
                             <p className="font-bold text-blue-800 text-xs">{effectivePickupAddress}</p>
+                            {effectivePickupDetail && <p className="text-xs text-blue-600 mt-0.5">{effectivePickupDetail}</p>}
                           </div>
                         )}
                         {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffPoint && (
@@ -971,6 +974,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                               <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm trả' : 'Dropoff Address'}</span>
                             </div>
                             <p className="font-bold text-green-800 text-xs">{effectiveDropoffAddress}</p>
+                            {effectiveDropoffDetail && <p className="text-xs text-green-600 mt-0.5">{effectiveDropoffDetail}</p>}
                           </div>
                         )}
                       </>;
@@ -1359,16 +1363,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   {editingBooking.type !== 'TOUR' && (
                     <>
                       <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm đón (địa chỉ)' : 'Pickup Address'}</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm đón (tên điểm)' : 'Pickup Stop Name'}</label>
                         <input type="text" value={editingBooking.pickupAddress || ''}
                           onChange={e => setEditingBooking({...editingBooking, pickupAddress: e.target.value})}
                           className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                        <input type="text" value={editingBooking.pickupAddressDetail || ''}
+                          onChange={e => setEditingBooking({...editingBooking, pickupAddressDetail: e.target.value})}
+                          placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : 'Detail (house no., floor...)'}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm trả (địa chỉ)' : 'Dropoff Address'}</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm trả (tên điểm)' : 'Dropoff Stop Name'}</label>
                         <input type="text" value={editingBooking.dropoffAddress || ''}
                           onChange={e => setEditingBooking({...editingBooking, dropoffAddress: e.target.value})}
                           className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                        <input type="text" value={editingBooking.dropoffAddressDetail || ''}
+                          onChange={e => setEditingBooking({...editingBooking, dropoffAddressDetail: e.target.value})}
+                          placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : 'Detail (house no., floor...)'}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                       </div>
                     </>
                   )}

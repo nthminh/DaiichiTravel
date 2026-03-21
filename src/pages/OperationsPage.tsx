@@ -67,8 +67,8 @@ interface OperationsPageProps {
   setShowTripPassengers: (v: Trip | null) => void;
   editingPassengerSeatId: string | null;
   setEditingPassengerSeatId: (v: string | null) => void;
-  passengerEditForm: { customerName: string; customerPhone: string; pickupAddress: string; dropoffAddress: string; status: SeatStatus; bookingNote: string };
-  setPassengerEditForm: React.Dispatch<React.SetStateAction<{ customerName: string; customerPhone: string; pickupAddress: string; dropoffAddress: string; status: SeatStatus; bookingNote: string }>>;
+  passengerEditForm: { customerName: string; customerPhone: string; pickupAddress: string; dropoffAddress: string; pickupAddressDetail: string; dropoffAddressDetail: string; status: SeatStatus; bookingNote: string };
+  setPassengerEditForm: React.Dispatch<React.SetStateAction<{ customerName: string; customerPhone: string; pickupAddress: string; dropoffAddress: string; pickupAddressDetail: string; dropoffAddressDetail: string; status: SeatStatus; bookingNote: string }>>;
   passengerColVisibility: { ticketCode: boolean; seat: boolean; name: boolean; phone: boolean; pickup: boolean; dropoff: boolean; status: boolean; price: boolean; note: boolean };
   setPassengerColVisibility: React.Dispatch<React.SetStateAction<{ ticketCode: boolean; seat: boolean; name: boolean; phone: boolean; pickup: boolean; dropoff: boolean; status: boolean; price: boolean; note: boolean }>>;
   showPassengerColPanel: boolean;
@@ -869,8 +869,14 @@ export function OperationsPage({
                         {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
                         {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                         {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                        {passengerColVisibility.pickup && <td className="px-4 py-3"><input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                        {passengerColVisibility.dropoff && <td className="px-4 py-3"><input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
+                        {passengerColVisibility.pickup && <td className="px-4 py-3">
+                          <input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder={language === 'vi' ? 'Tên điểm đón' : 'Stop name'} />
+                          <input value={passengerEditForm.pickupAddressDetail} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddressDetail: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Chi tiết (số nhà...)' : 'Detail (house no.)'} />
+                        </td>}
+                        {passengerColVisibility.dropoff && <td className="px-4 py-3">
+                          <input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder={language === 'vi' ? 'Tên điểm trả' : 'Stop name'} />
+                          <input value={passengerEditForm.dropoffAddressDetail} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddressDetail: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Chi tiết (số nhà...)' : 'Detail (house no.)'} />
+                        </td>}
                         {passengerColVisibility.status && <td className="px-4 py-3">
                           <select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none">
                             <option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
@@ -896,8 +902,8 @@ export function OperationsPage({
                         </td>}
                         {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
                         {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
-                        {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{primarySeat.pickupAddress || '—'}</td>}
-                        {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{primarySeat.dropoffAddress || '—'}</td>}
+                        {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600"><div>{primarySeat.pickupAddress || '—'}</div>{primarySeat.pickupAddressDetail && <div className="text-xs text-gray-400">{primarySeat.pickupAddressDetail}</div>}</td>}
+                        {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600"><div>{primarySeat.dropoffAddress || '—'}</div>{primarySeat.dropoffAddressDetail && <div className="text-xs text-gray-400">{primarySeat.dropoffAddressDetail}</div>}</td>}
                         {passengerColVisibility.status && <td className="px-4 py-3">
                           <span className={cn('px-2 py-1 rounded-full text-xs font-bold', rowStatus === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
                             {rowStatus === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
@@ -915,6 +921,8 @@ export function OperationsPage({
                                   customerPhone: primarySeat.customerPhone || '',
                                   pickupAddress: primarySeat.pickupAddress || '',
                                   dropoffAddress: primarySeat.dropoffAddress || '',
+                                  pickupAddressDetail: primarySeat.pickupAddressDetail || '',
+                                  dropoffAddressDetail: primarySeat.dropoffAddressDetail || '',
                                   status: rowStatus,
                                   bookingNote: primarySeat.bookingNote || '',
                                 });

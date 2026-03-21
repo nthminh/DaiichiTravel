@@ -196,8 +196,10 @@ export interface Seat {
   customerPhone?: string;
   pickupPoint?: string;      // departure stop name (điểm xuất phát) for fare segment
   dropoffPoint?: string;     // destination stop name (điểm đến) for fare segment
-  pickupAddress?: string;    // physical pickup address (điểm đón)
-  dropoffAddress?: string;   // physical dropoff address (điểm trả)
+  pickupAddress?: string;       // physical pickup address / stop name (điểm đón)
+  dropoffAddress?: string;      // physical dropoff address / stop name (điểm trả)
+  pickupAddressDetail?: string; // extra detail entered by customer (e.g. house number)
+  dropoffAddressDetail?: string; // extra detail entered by customer (e.g. house number)
   fromStopOrder?: number;    // order of pickup stop (used for segment availability)
   toStopOrder?: number;      // order of dropoff stop (used for segment availability)
   deck?: number; // 0 for lower, 1 for upper
@@ -391,6 +393,8 @@ export interface DriverAssignment {
   children?: number;        // number of child passengers
   pickupAddress?: string;
   dropoffAddress?: string;
+  pickupAddressDetail?: string;  // extra detail (e.g. house number) for pickup
+  dropoffAddressDetail?: string; // extra detail (e.g. house number) for dropoff
   // Assignment
   taskType?: 'pickup' | 'dropoff';  // which task this assignment covers
   driverEmployeeId: string;

@@ -96,7 +96,7 @@ export const exportTripToExcel = (trip: any, bookings: any[], routes: Route[]) =
     [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
     [`Trạng thái: ${trip.status}`],
     [],
-    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
+    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Chi tiết điểm đón', 'Điểm trả', 'Chi tiết điểm trả', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
   ];
   const dataRows = passengerGroups.map((g, idx) => {
     const primarySeat = g.seats[0];
@@ -111,7 +111,9 @@ export const exportTripToExcel = (trip: any, bookings: any[], routes: Route[]) =
       primarySeat.customerName || '—',
       primarySeat.customerPhone || '—',
       primarySeat.pickupAddress || '—',
+      primarySeat.pickupAddressDetail || '',
       primarySeat.dropoffAddress || '—',
+      primarySeat.dropoffAddressDetail || '',
       allPaid ? 'Đã thanh toán' : 'Đã đặt',
       totalAmount.toLocaleString(),
       primarySeat.bookingNote || '',
@@ -126,7 +128,7 @@ export const exportTripToExcel = (trip: any, bookings: any[], routes: Route[]) =
   const allRows = [...headerRows, ...dataRows, ...summaryRows];
   const worksheet = XLSX.utils.aoa_to_sheet(allRows);
   worksheet['!cols'] = [
-    { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
+    { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
   ];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
@@ -238,7 +240,7 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
   <table>
     <thead>
       <tr>
-        <th>STT</th><th>Mã vé</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Điểm trả</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
+        <th>STT</th><th>Mã vé</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Chi tiết đón</th><th>Điểm trả</th><th>Chi tiết trả</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
       </tr>
     </thead>
     <tbody>
@@ -257,7 +259,9 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
           <td>${escapeHtml(primarySeat.customerName) || '—'}</td>
           <td>${escapeHtml(primarySeat.customerPhone) || '—'}</td>
           <td>${escapeHtml(primarySeat.pickupAddress) || '—'}</td>
+          <td>${escapeHtml(primarySeat.pickupAddressDetail) || ''}</td>
           <td>${escapeHtml(primarySeat.dropoffAddress) || '—'}</td>
+          <td>${escapeHtml(primarySeat.dropoffAddressDetail) || ''}</td>
           <td>${allPaid ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${totalAmount.toLocaleString()}đ</td>
           <td>${escapeHtml(primarySeat.bookingNote) || ''}</td>
