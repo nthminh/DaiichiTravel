@@ -518,15 +518,34 @@ export function SeatMappingPage({
                 );
               })}
             </div>
-            {currentStep === 1 && (
-              <p className="mt-2 text-[10px] text-gray-400 text-center">
-                {language === 'vi'
-                  ? '👆 Nhấn vào ghế trống (màu trắng) để bắt đầu đặt vé'
-                  : language === 'ja'
-                    ? '👆 空席（白色）をタップして予約を開始してください'
-                    : '👆 Tap an empty seat (white) to start booking'}
-              </p>
-            )}
+            {(() => {
+              const hints = language === 'vi'
+                ? [
+                    '👆 Nhấn vào ghế trống (màu trắng) để bắt đầu đặt vé',
+                    '✍️ Điền đầy đủ thông tin hành khách rồi nhấn xác nhận đặt vé',
+                    '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
+                    '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
+                  ]
+                : language === 'ja'
+                  ? [
+                      '👆 空席（白色）をタップして予約を開始してください',
+                      '✍️ 乗客情報を入力して予約確認ボタンを押してください',
+                      '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
+                      '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
+                    ]
+                  : [
+                      '👆 Tap an empty seat (white) to start booking',
+                      '✍️ Fill in passenger details then confirm your booking',
+                      '💳 Scan the QR code or choose a payment method to complete',
+                      '📥 Payment successful! Download your ticket to use when boarding',
+                    ];
+              const hint = hints[currentStep - 1];
+              return hint ? (
+                <p className="mt-2 text-[10px] text-gray-400 text-center">
+                  {hint}
+                </p>
+              ) : null;
+            })()}
           </div>
         );
       })()}
