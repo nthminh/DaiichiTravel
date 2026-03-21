@@ -34,6 +34,8 @@ interface SeatMappingPageProps {
   dropoffAddress: string;
   pickupAddressDetail: string;
   dropoffAddressDetail: string;
+  pickupStopAddress: string;
+  dropoffStopAddress: string;
   fromStopId: string;
   toStopId: string;
   pickupSurcharge: number;
@@ -64,6 +66,8 @@ interface SeatMappingPageProps {
   setDropoffAddress: (v: string) => void;
   setPickupAddressDetail: (v: string) => void;
   setDropoffAddressDetail: (v: string) => void;
+  setPickupStopAddress: (v: string) => void;
+  setDropoffStopAddress: (v: string) => void;
   setFromStopId: (v: string) => void;
   setToStopId: (v: string) => void;
   setPickupSurcharge: (v: number) => void;
@@ -107,6 +111,8 @@ export function SeatMappingPage({
   dropoffAddress,
   pickupAddressDetail,
   dropoffAddressDetail,
+  pickupStopAddress,
+  dropoffStopAddress,
   fromStopId,
   toStopId,
   pickupSurcharge,
@@ -136,6 +142,8 @@ export function SeatMappingPage({
   setDropoffAddress,
   setPickupAddressDetail,
   setDropoffAddressDetail,
+  setPickupStopAddress,
+  setDropoffStopAddress,
   setFromStopId,
   setToStopId,
   setPickupSurcharge,
@@ -778,6 +786,7 @@ export function SeatMappingPage({
                       onChange={(val) => {
                         setPickupPoint(val);
                         setPickupAddress(''); // clear sub-stop when departure changes
+                        setPickupStopAddress(''); // clear sub-stop address when departure changes
                         setPickupAddressSurcharge(0); // clear address-level surcharge
                         // Determine stop ID: prefer routeStops match, fall back to global stops
                         const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
@@ -807,9 +816,10 @@ export function SeatMappingPage({
                       value={pickupAddress}
                       onChange={(val) => {
                         setPickupAddress(val);
-                        // If value matches a predefined stop, apply its surcharge; otherwise clear it
+                        // If value matches a predefined stop, apply its surcharge and capture its address
                         const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
                         setPickupAddressSurcharge(matchedStop?.surcharge || 0);
+                        setPickupStopAddress(matchedStop?.address || '');
                       }}
                       placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
                       className="mt-0.5"
@@ -860,6 +870,7 @@ export function SeatMappingPage({
                       onChange={(val) => {
                         setDropoffPoint(val);
                         setDropoffAddress(''); // clear sub-stop when destination changes
+                        setDropoffStopAddress(''); // clear sub-stop address when destination changes
                         setDropoffAddressSurcharge(0); // clear address-level surcharge
                         // Determine stop ID: prefer routeStops match, fall back to global stops
                         const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
@@ -939,9 +950,10 @@ export function SeatMappingPage({
                       value={dropoffAddress}
                       onChange={(val) => {
                         setDropoffAddress(val);
-                        // If value matches a predefined stop, apply its surcharge; otherwise clear it
+                        // If value matches a predefined stop, apply its surcharge and capture its address
                         const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
                         setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
+                        setDropoffStopAddress(matchedStop?.address || '');
                       }}
                       placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
                       className="mt-0.5"

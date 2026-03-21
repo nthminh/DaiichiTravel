@@ -200,6 +200,8 @@ export interface Seat {
   dropoffAddress?: string;      // physical dropoff address / stop name (điểm trả)
   pickupAddressDetail?: string; // extra detail entered by customer (e.g. house number)
   dropoffAddressDetail?: string; // extra detail entered by customer (e.g. house number)
+  pickupStopAddress?: string;   // actual street address of the selected pickup stop
+  dropoffStopAddress?: string;  // actual street address of the selected dropoff stop
   fromStopOrder?: number;    // order of pickup stop (used for segment availability)
   toStopOrder?: number;      // order of dropoff stop (used for segment availability)
   deck?: number; // 0 for lower, 1 for upper
@@ -395,6 +397,8 @@ export interface DriverAssignment {
   dropoffAddress?: string;
   pickupAddressDetail?: string;  // extra detail (e.g. house number) for pickup
   dropoffAddressDetail?: string; // extra detail (e.g. house number) for dropoff
+  pickupStopAddress?: string;    // actual street address of the selected pickup stop
+  dropoffStopAddress?: string;   // actual street address of the selected dropoff stop
   // Assignment
   taskType?: 'pickup' | 'dropoff';  // which task this assignment covers
   driverEmployeeId: string;

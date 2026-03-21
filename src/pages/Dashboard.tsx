@@ -938,6 +938,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       const effectiveDropoffAddress = viewingBooking.dropoffAddress || seatLookup?.dropoffAddress;
                       const effectivePickupDetail = viewingBooking.pickupAddressDetail || seatLookup?.pickupAddressDetail;
                       const effectiveDropoffDetail = viewingBooking.dropoffAddressDetail || seatLookup?.dropoffAddressDetail;
+                      const effectivePickupStopAddress = viewingBooking.pickupStopAddress || seatLookup?.pickupStopAddress;
+                      const effectiveDropoffStopAddress = viewingBooking.dropoffStopAddress || seatLookup?.dropoffStopAddress;
+                      const fullPickup = [effectivePickupDetail, effectivePickupAddress, effectivePickupStopAddress].filter(Boolean).join(' & ');
+                      const fullDropoff = [effectiveDropoffDetail, effectiveDropoffAddress, effectiveDropoffStopAddress].filter(Boolean).join(' & ');
                       return <>
                         {viewingBooking.type !== 'TOUR' && viewingBooking.pickupPoint && (
                           <div className="p-4 bg-blue-50 rounded-2xl">
@@ -948,14 +952,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                             <p className="font-bold text-blue-800 text-xs">{viewingBooking.pickupPoint}</p>
                           </div>
                         )}
-                        {viewingBooking.type !== 'TOUR' && effectivePickupAddress && (
+                        {viewingBooking.type !== 'TOUR' && fullPickup && (
                           <div className="p-4 bg-blue-50 rounded-2xl">
                             <div className="flex items-center gap-2 text-blue-400 mb-1">
                               <MapPin size={14} className="text-blue-500" />
                               <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm đón' : 'Pickup Address'}</span>
                             </div>
-                            <p className="font-bold text-blue-800 text-xs">{effectivePickupAddress}</p>
-                            {effectivePickupDetail && <p className="text-xs text-blue-600 mt-0.5">{effectivePickupDetail}</p>}
+                            <p className="font-bold text-blue-800 text-xs">{fullPickup}</p>
                           </div>
                         )}
                         {viewingBooking.type !== 'TOUR' && viewingBooking.dropoffPoint && (
@@ -967,14 +970,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                             <p className="font-bold text-green-800 text-xs">{viewingBooking.dropoffPoint}</p>
                           </div>
                         )}
-                        {viewingBooking.type !== 'TOUR' && effectiveDropoffAddress && (
+                        {viewingBooking.type !== 'TOUR' && fullDropoff && (
                           <div className="p-4 bg-green-50 rounded-2xl">
                             <div className="flex items-center gap-2 text-green-400 mb-1">
                               <MapPin size={14} className="text-green-500" />
                               <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Điểm trả' : 'Dropoff Address'}</span>
                             </div>
-                            <p className="font-bold text-green-800 text-xs">{effectiveDropoffAddress}</p>
-                            {effectiveDropoffDetail && <p className="text-xs text-green-600 mt-0.5">{effectiveDropoffDetail}</p>}
+                            <p className="font-bold text-green-800 text-xs">{fullDropoff}</p>
                           </div>
                         )}
                       </>;
@@ -1371,6 +1373,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                           onChange={e => setEditingBooking({...editingBooking, pickupAddressDetail: e.target.value})}
                           placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : 'Detail (house no., floor...)'}
                           className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                        <input type="text" value={editingBooking.pickupStopAddress || ''}
+                          onChange={e => setEditingBooking({...editingBooking, pickupStopAddress: e.target.value})}
+                          placeholder={language === 'vi' ? 'Địa chỉ điểm đón' : 'Stop address'}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                       </div>
                       <div>
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm trả (tên điểm)' : 'Dropoff Stop Name'}</label>
@@ -1380,6 +1386,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <input type="text" value={editingBooking.dropoffAddressDetail || ''}
                           onChange={e => setEditingBooking({...editingBooking, dropoffAddressDetail: e.target.value})}
                           placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : 'Detail (house no., floor...)'}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                        <input type="text" value={editingBooking.dropoffStopAddress || ''}
+                          onChange={e => setEditingBooking({...editingBooking, dropoffStopAddress: e.target.value})}
+                          placeholder={language === 'vi' ? 'Địa chỉ điểm trả' : 'Stop address'}
                           className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                       </div>
                     </>
