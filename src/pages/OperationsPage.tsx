@@ -220,6 +220,8 @@ export function OperationsPage({
   formatRouteOption,
 }: OperationsPageProps) {
   const [showMergeConfirm, setShowMergeConfirm] = React.useState(false);
+  const [currentTripPage, setCurrentTripPage] = React.useState(1);
+  const TRIPS_PER_PAGE = 50;
 
   // Pre-compute active employee names (drivers first) for driver select
   const activeEmployeeNames = [
@@ -230,7 +232,7 @@ export function OperationsPage({
     () => Array.from(new Set(trips.filter(t => t.status !== TripStatus.COMPLETED).map(t => (t.seats || []).length))).filter(n => n > 0).sort((a, b) => a - b),
     [trips]
   );
-  const filteredTrips = trips.filter(trip => {
+  const filteredTrips = React.useMemo(() => trips.filter(trip => {
     if (trip.status === TripStatus.COMPLETED) return false;
     // Quick dropdown filters
     if (tripFilterStatus !== 'ALL' && trip.status !== tripFilterStatus) return false;
@@ -250,7 +252,21 @@ export function OperationsPage({
       (trip.licensePlate || '').toLowerCase().includes(q) ||
       (trip.driverName || '').toLowerCase().includes(q)
     );
-  }).sort((a, b) => compareTripDateTime(a, b));
+  }).sort((a, b) => compareTripDateTime(a, b)),
+  // compareTripDateTime is a stable prop reference (a pure comparison function with no
+  // dependencies) defined without useCallback in App.tsx, so excluding it avoids
+  // unnecessary memoization invalidations on every App render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [trips, tripFilterStatus, tripFilterRoute, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripSearch]);
+
+  // Reset to page 1 whenever active filters change
+  React.useEffect(() => {
+    setCurrentTripPage(1);
+  }, [tripSearch, tripFilterStatus, tripFilterRoute, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount]);
+
+  const totalTripPages = Math.max(1, Math.ceil(filteredTrips.length / TRIPS_PER_PAGE));
+  const safeTripPage = Math.min(currentTripPage, totalTripPages);
+  const paginatedTrips = filteredTrips.slice((safeTripPage - 1) * TRIPS_PER_PAGE, safeTripPage * TRIPS_PER_PAGE);
 
   return (
     <div className="space-y-6">
@@ -303,7 +319,7 @@ export function OperationsPage({
                     <span className="ml-2 text-xs text-gray-500">({(primaryTrip.seats || []).filter(s => s.status !== SeatStatus.EMPTY).length} {language === 'vi' ? 'hành khách' : 'passengers'})</span>
                   </div>
                 )}
-                <p className="font-semibold text-orange-800">{language === 'vi' ? 'Chuyến phụ (sẽ bị xóa):' : 'Secondary trip (deleted):'}</p>
+                <p className="font-semibold text-orange-800">{language === 'vi' ? 'Chuyến phụ (sẽ trở thành rỗng):' : 'Secondary trip (will be emptied):'}</p>
                 {secondaryTrip && (
                   <div className="text-gray-700">
                     <span className="font-bold">{secondaryTrip.time}</span> · {secondaryTrip.route} · {secondaryTrip.licensePlate}
@@ -314,8 +330,8 @@ export function OperationsPage({
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex gap-2 text-xs text-yellow-800">
                 <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
                 <span>{language === 'vi'
-                  ? 'Sau khi ghép, khách hàng không thể đặt vé online cho chuyến này. Họ chỉ có thể liên hệ nhà xe để đặt chỗ.'
-                  : 'After merging, customers cannot book online for this trip. They must contact the bus company directly.'}</span>
+                  ? 'Sau khi ghép, tất cả hành khách từ chuyến phụ sẽ được chuyển sang chuyến chính. Chuyến phụ sẽ trở thành rỗng (tất cả ghế trống).'
+                  : 'After merging, all passengers from the secondary trip will be moved to the primary trip. The secondary trip will become empty (all seats vacant).'}</span>
               </div>
               {mergeError && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 flex gap-2">
@@ -1041,14 +1057,16 @@ export function OperationsPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredTrips.map((trip) => {
+            {paginatedTrips.map((trip) => {
               const emptySeats = (trip.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
               const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length;
               const totalSeats = (trip.seats || []).length;
               const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
               const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
-              // A trip can be selected for merge only if it's free-seating and WAITING
-              const isMergeable = trip.seatType === 'free' && trip.status === TripStatus.WAITING && !trip.isMerged;
+              // A trip is eligible for merge if it is free-seating (no status restriction).
+              // Additional compatibility checks (same route/date/time) are enforced below when a
+              // first trip is already selected.
+              const isMergeable = trip.seatType === 'free';
               const isSelectedForMerge = selectedTripIdsForMerge.includes(trip.id);
               // When one trip is already selected, only trips with the same route, date and time are compatible
               const firstSelectedTrip = selectedTripIdsForMerge.length === 1
@@ -1131,6 +1149,64 @@ export function OperationsPage({
         </table>
         </div>
       </div>
+      {/* Pagination controls */}
+      {totalTripPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-100 rounded-2xl shadow-sm">
+          <span className="text-sm text-gray-500">
+            {language === 'vi'
+              ? `Hiển thị ${(safeTripPage - 1) * TRIPS_PER_PAGE + 1}–${Math.min(safeTripPage * TRIPS_PER_PAGE, filteredTrips.length)} / ${filteredTrips.length} chuyến`
+              : `Showing ${(safeTripPage - 1) * TRIPS_PER_PAGE + 1}–${Math.min(safeTripPage * TRIPS_PER_PAGE, filteredTrips.length)} of ${filteredTrips.length} trips`}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentTripPage(1)}
+              disabled={safeTripPage === 1}
+              className="px-2 py-1 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+              title={language === 'vi' ? 'Trang đầu' : 'First page'}
+            >«</button>
+            <button
+              onClick={() => setCurrentTripPage(p => Math.max(1, p - 1))}
+              disabled={safeTripPage === 1}
+              className="px-3 py-1 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            >‹</button>
+            {Array.from({ length: Math.min(totalTripPages, 7) }, (_, i) => {
+              let page: number;
+              if (totalTripPages <= 7) {
+                page = i + 1;
+              } else if (safeTripPage <= 4) {
+                page = i + 1;
+              } else if (safeTripPage >= totalTripPages - 3) {
+                page = totalTripPages - 6 + i;
+              } else {
+                page = safeTripPage - 3 + i;
+              }
+              return (
+                <button
+                  key={page}
+                  onClick={() => setCurrentTripPage(page)}
+                  className={cn(
+                    'w-8 h-8 rounded-lg text-sm font-bold transition-colors',
+                    page === safeTripPage
+                      ? 'bg-daiichi-red text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                >{page}</button>
+              );
+            })}
+            <button
+              onClick={() => setCurrentTripPage(p => Math.min(totalTripPages, p + 1))}
+              disabled={safeTripPage === totalTripPages}
+              className="px-3 py-1 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            >›</button>
+            <button
+              onClick={() => setCurrentTripPage(totalTripPages)}
+              disabled={safeTripPage === totalTripPages}
+              className="px-2 py-1 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+              title={language === 'vi' ? 'Trang cuối' : 'Last page'}
+            >»</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
