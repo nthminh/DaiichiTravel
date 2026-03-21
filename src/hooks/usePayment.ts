@@ -180,10 +180,13 @@ export function usePayment(ctx: BookingContext) {
       }
     }
 
+    // Apply trip-level discount if set
+    const tripDiscountMultiplier = 1 - ((c.selectedTrip.discountPercent || 0) / 100);
+
     // When a commission rate is set, compute agent price as: retailPrice * (1 - rate/100)
     // This overrides the agentPrice field from route/trip for this agent.
-    const retailPriceAdult = c.selectedTrip.price || 0;
-    const retailPriceChild = c.selectedTrip.priceChild || retailPriceAdult;
+    const retailPriceAdult = Math.round((c.selectedTrip.price || 0) * tripDiscountMultiplier);
+    const retailPriceChild = Math.round((c.selectedTrip.priceChild || c.selectedTrip.price || 0) * tripDiscountMultiplier);
 
     const agentPriceFromCommissionAdult = isAgentBooking && effectiveCommissionRate > 0
       ? Math.round(retailPriceAdult * (1 - effectiveCommissionRate / 100))
@@ -201,16 +204,24 @@ export function usePayment(ctx: BookingContext) {
           : c.fareAmount)
       : null;
 
+    // Pre-compute discounted stored agent prices (applying trip discount to stored fields)
+    const discountedAgentPriceAdult = c.selectedTrip.agentPrice
+      ? Math.round(c.selectedTrip.agentPrice * tripDiscountMultiplier)
+      : undefined;
+    const discountedAgentPriceChild = c.selectedTrip.agentPriceChild
+      ? Math.round(c.selectedTrip.agentPriceChild * tripDiscountMultiplier)
+      : undefined;
+
     const basePriceAdult = effectiveFareAmount !== null
       ? effectiveFareAmount
       : (isAgentBooking
-          ? (agentPriceFromCommissionAdult ?? c.selectedTrip.agentPrice ?? retailPriceAdult)
+          ? (agentPriceFromCommissionAdult ?? discountedAgentPriceAdult ?? retailPriceAdult)
           : retailPriceAdult);
     const basePriceChild = effectiveFareAmount !== null
       ? effectiveFareAmount
       : (isAgentBooking
-          ? (agentPriceFromCommissionChild ?? c.selectedTrip.agentPriceChild ?? c.selectedTrip.agentPrice ?? c.selectedTrip.priceChild ?? basePriceAdult)
-          : (c.selectedTrip.priceChild || basePriceAdult));
+          ? (agentPriceFromCommissionChild ?? discountedAgentPriceChild ?? discountedAgentPriceAdult ?? retailPriceChild ?? basePriceAdult)
+          : retailPriceChild);
 
     // Children aged 5 and above are charged adult price and need their own seat
     // Children aged 4 and below are free

@@ -44,8 +44,8 @@ interface OperationsPageProps {
   setEditingTrip: (v: Trip | null) => void;
   isCopyingTrip: boolean;
   setIsCopyingTrip: (v: boolean) => void;
-  tripForm: { time: string; date: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number; status: TripStatus };
-  setTripForm: React.Dispatch<React.SetStateAction<{ time: string; date: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number; status: TripStatus }>>;
+  tripForm: { time: string; date: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; discountPercent: number; seatCount: number; status: TripStatus };
+  setTripForm: React.Dispatch<React.SetStateAction<{ time: string; date: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; discountPercent: number; seatCount: number; status: TripStatus }>>;
   showBatchAddTrip: boolean;
   setShowBatchAddTrip: (v: boolean) => void;
   batchTripForm: { dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number };
@@ -292,7 +292,7 @@ export function OperationsPage({
             </button>
           )}
           <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
-          <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
+          <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, discountPercent: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
         </div>
       </div>
 
@@ -391,6 +391,38 @@ export function OperationsPage({
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={tripForm.price} onChange={e => setTripForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                 <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={tripForm.agentPrice} onChange={e => setTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-green-600 uppercase tracking-widest ml-1">
+                  🏷️ {language === 'vi' ? 'Giảm giá (%)' : language === 'ja' ? '割引 (%)' : 'Discount (%)'}
+                </label>
+                <p className="text-[10px] text-gray-400 mt-0.5 ml-1">
+                  {language === 'vi'
+                    ? 'Nhập % giảm giá để kích thích khách mua chuyến ít người đi (0 = không giảm)'
+                    : language === 'ja'
+                      ? '空席が多い便の購入を促すために割引率を入力 (0 = 割引なし)'
+                      : 'Set a % discount to incentivize bookings on under-filled trips (0 = no discount)'}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={tripForm.discountPercent}
+                    onChange={e => setTripForm(p => ({ ...p, discountPercent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                    className="w-full px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                  />
+                  <span className="text-lg font-bold text-green-600 flex-shrink-0">%</span>
+                </div>
+                {tripForm.discountPercent > 0 && (
+                  <p className="text-[11px] font-semibold text-green-700 mt-1 ml-1">
+                    {language === 'vi'
+                      ? `Giá sau giảm: ${Math.round(tripForm.price * (1 - tripForm.discountPercent / 100)).toLocaleString()}đ`
+                      : language === 'ja'
+                        ? `割引後の価格: ${Math.round(tripForm.price * (1 - tripForm.discountPercent / 100)).toLocaleString()}đ`
+                        : `Discounted price: ${Math.round(tripForm.price * (1 - tripForm.discountPercent / 100)).toLocaleString()}đ`}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label>
@@ -1099,6 +1131,11 @@ export function OperationsPage({
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold w-fit">
                           <GitMerge size={10} />
                           {language === 'vi' ? 'Đã ghép' : 'Merged'}
+                        </span>
+                      )}
+                      {(trip.discountPercent || 0) > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold w-fit">
+                          🏷️ -{trip.discountPercent}%
                         </span>
                       )}
                     </div>

@@ -1163,20 +1163,24 @@ export function SeatMappingPage({
               {(() => {
                 // For agents use agentPrice when available; otherwise fall back to trip price
                 const isAgentBookingForm = currentUser?.role === UserRole.AGENT;
+                // Apply trip-level discount
+                const tripDiscountMul = 1 - ((selectedTrip.discountPercent || 0) / 100);
                 // Use agent fare if available, else retail fare
                 const effectiveFareAmount = fareAmount !== null
                   ? (isAgentBookingForm && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
                   : null;
+                // For agents: fall back through agentPriceChild → agentPrice → priceChild → price (all discounted)
+                // For retail: fall back through priceChild → price (discounted)
                 const basePriceAdult = effectiveFareAmount !== null
                   ? effectiveFareAmount
                   : (isAgentBookingForm
-                      ? (selectedTrip.agentPrice || selectedTrip.price || 0)
-                      : (selectedTrip.price || 0));
+                      ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
+                      : Math.round((selectedTrip.price || 0) * tripDiscountMul));
                 const basePriceChild = effectiveFareAmount !== null
                   ? effectiveFareAmount
                   : (isAgentBookingForm
-                      ? (selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || basePriceAdult)
-                      : (selectedTrip.priceChild || basePriceAdult));
+                      ? Math.round((selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || selectedTrip.price || 0) * tripDiscountMul)
+                      : Math.round((selectedTrip.priceChild || selectedTrip.price || 0) * tripDiscountMul));
                 const { childrenOver5, childrenUnder5 } = childrenAges.reduce(
                   (acc, age) => age >= 5 ? { ...acc, childrenOver5: acc.childrenOver5 + 1 } : { ...acc, childrenUnder5: acc.childrenUnder5 + 1 },
                   { childrenOver5: 0, childrenUnder5: 0 }

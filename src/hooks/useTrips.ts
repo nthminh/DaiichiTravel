@@ -19,6 +19,7 @@ export const DEFAULT_TRIP_FORM = {
   driverName: '',
   price: 0,
   agentPrice: 0,
+  discountPercent: 0,
   seatCount: 11,
   status: TripStatus.WAITING,
 };
@@ -145,6 +146,7 @@ export function useTrips(ctx: TripContext) {
           driverName: tripForm.driverName,
           price: tripForm.price,
           agentPrice: tripForm.agentPrice,
+          discountPercent: tripForm.discountPercent,
           status: tripForm.status,
           ...(updatedSeats ? { seats: updatedSeats } : {}),
         });
@@ -157,6 +159,7 @@ export function useTrips(ctx: TripContext) {
           driverName: tripForm.driverName,
           price: tripForm.price,
           agentPrice: tripForm.agentPrice,
+          discountPercent: tripForm.discountPercent,
           status: tripForm.status,
           seats,
           addons: [],
@@ -192,6 +195,7 @@ export function useTrips(ctx: TripContext) {
       driverName: trip.driverName,
       price: trip.price,
       agentPrice: trip.agentPrice || 0,
+      discountPercent: trip.discountPercent || 0,
       seatCount: trip.seats?.length || 11,
       status: trip.status,
     });
@@ -209,6 +213,7 @@ export function useTrips(ctx: TripContext) {
       driverName: trip.driverName,
       price: trip.price,
       agentPrice: trip.agentPrice || 0,
+      discountPercent: trip.discountPercent || 0,
       seatCount: trip.seats?.length || 11,
       status: TripStatus.WAITING,
     });

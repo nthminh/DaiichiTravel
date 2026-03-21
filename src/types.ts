@@ -239,6 +239,7 @@ export interface Trip {
   route: string;
   price: number;
   agentPrice?: number; // agent price for this trip
+  discountPercent?: number; // % discount to incentivize purchase on under-booked trips (0-100)
   addons?: TripAddon[];
   note?: string;
   seatType?: 'assigned' | 'free'; // 'assigned' = ghế chỉ định (default), 'free' = ghế tự do
