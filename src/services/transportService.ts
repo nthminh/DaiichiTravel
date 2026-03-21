@@ -852,12 +852,13 @@ export const transportService = {
    * - The primary trip (primaryTripId) absorbs all passengers/seats from the secondary.
    * - Every booking that references secondaryTripId is repointed to primaryTripId with
    *   updated seat IDs (secondary seats are renumbered starting after the primary's last seat).
-   * - The secondary trip document is deleted.
+   * - The secondary trip is NOT deleted; instead all its seats are reset to EMPTY so the
+   *   vehicle becomes available for new bookings.
    * - The primary trip is flagged with isMerged=true and mergedFromTripIds=[...].
    *
    * Validation (throws on failure):
-   *   - Both trips must exist, be free-seating, on the same route, and have WAITING status.
-   *   - Departure times must be within MERGE_MAX_TIME_DIFF_MINUTES of each other.
+   *   - Both trips must exist and be free-seating, on the same route, date and time.
+   *   - There is no status restriction – the operator may merge at any time.
    */
   mergeTrips: async (primaryTripId: string, secondaryTripId: string, allBookings: Booking[]) => {
     if (!db) throw new Error('Firebase not configured');
@@ -884,10 +885,6 @@ export const transportService = {
       // Validate same route
       if (primary.route !== secondary.route) {
         throw new Error('Hai chuyến phải cùng tuyến để ghép.');
-      }
-      // Validate status
-      if (primary.status !== TripStatus.WAITING || secondary.status !== TripStatus.WAITING) {
-        throw new Error('Chỉ có thể ghép các chuyến đang chờ khởi hành (WAITING).');
       }
 
       // Validate same date
@@ -921,15 +918,22 @@ export const transportService = {
       const existingMergedIds: string[] = primary.mergedFromTripIds || [];
       const mergedFromTripIds = [...new Set([...existingMergedIds, secondaryTripId])];
 
-      // Update primary trip
+      // Update primary trip: absorb secondary's seats and mark as merged
       transaction.update(primaryRef, {
         seats: mergedSeats,
         isMerged: true,
         mergedFromTripIds,
       });
 
-      // Delete secondary trip
-      transaction.delete(secondaryRef);
+      // Clear all seats on the secondary trip so the vehicle becomes empty
+      const clearedSecondarySeats = secondarySeats.map((seat: any) => ({
+        id: seat.id,
+        status: SeatStatus.EMPTY,
+        row: seat.row,
+        col: seat.col,
+        deck: seat.deck,
+      }));
+      transaction.update(secondaryRef, { seats: clearedSecondarySeats });
 
       // Update bookings that reference the secondary trip
       const secondaryBookings = allBookings.filter(b => b.tripId === secondaryTripId);
