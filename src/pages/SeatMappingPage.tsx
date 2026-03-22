@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, CheckCircle2, Gift } from 'lucide-react'
+import { X, CheckCircle2, Gift, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole, SeatStatus } from '../constants/translations'
 import { PAYMENT_METHODS, type PaymentMethod, PAYMENT_METHOD_TRANSLATION_KEYS } from '../constants/paymentMethods'
@@ -168,6 +168,7 @@ export function SeatMappingPage({
 
   // Internal state – only used by this page
   const [segmentConflictSeat, setSegmentConflictSeat] = useState<string | null>(null);
+  const [showRouteDetails, setShowRouteDetails] = useState(false);
   const segmentConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Returns true if the address input should be disabled for the given trip date. */
@@ -723,26 +724,36 @@ export function SeatMappingPage({
       </div>
       ))}
 
-      {/* Route details panel */}
+      {/* Route details panel – collapsible */}
       {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details || tripRoute.note) && (
-        <div className="mt-6 bg-blue-50 border border-blue-100 rounded-[24px] p-5 space-y-3">
-          <h4 className="text-sm font-bold text-blue-800">{t.route_details_title}</h4>
-          {(tripRoute.departurePoint || tripRoute.arrivalPoint) && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-semibold text-gray-700">{tripRoute.departurePoint}</span>
-              <span className="text-blue-400 font-bold">→</span>
-              <span className="font-semibold text-gray-700">{tripRoute.arrivalPoint}</span>
-            </div>
-          )}
-          {tripRoute.details && (
-            <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.details}</p>
-          )}
-          {tripRoute.note && (
-            <div className="pt-2 border-t border-blue-100">
-              <p className="text-xs font-bold text-blue-700 mb-1">
-                {language === 'vi' ? 'Ghi chú' : language === 'ja' ? 'メモ' : 'Note'}
-              </p>
-              <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.note}</p>
+        <div className="mt-6 bg-blue-50 border border-blue-100 rounded-[24px] overflow-hidden">
+          <button
+            onClick={() => setShowRouteDetails(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 text-sm font-bold text-blue-800 hover:bg-blue-100 transition-colors"
+          >
+            <span>{t.route_details_title}</span>
+            {showRouteDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+          {showRouteDetails && (
+            <div className="px-5 pb-5 space-y-3 border-t border-blue-100">
+              {(tripRoute.departurePoint || tripRoute.arrivalPoint) && (
+                <div className="flex items-center gap-2 text-sm pt-3">
+                  <span className="font-semibold text-gray-700">{tripRoute.departurePoint}</span>
+                  <span className="text-blue-400 font-bold">→</span>
+                  <span className="font-semibold text-gray-700">{tripRoute.arrivalPoint}</span>
+                </div>
+              )}
+              {tripRoute.details && (
+                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.details}</p>
+              )}
+              {tripRoute.note && (
+                <div className="pt-2 border-t border-blue-100">
+                  <p className="text-xs font-bold text-blue-700 mb-1">
+                    {language === 'vi' ? 'Ghi chú' : language === 'ja' ? 'メモ' : 'Note'}
+                  </p>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{tripRoute.note}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
