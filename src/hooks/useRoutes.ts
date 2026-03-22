@@ -114,7 +114,7 @@ export function useRoutes(ctx: RouteContext) {
 
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
   const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
-  const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1 });
+  const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1, offsetMinutes: 0 });
 
   // Undo history for route stop list and fare list
   const [routeFormStopsHistory, setRouteFormStopsHistory] = useState<RouteStop[][]>([]);

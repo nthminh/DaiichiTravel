@@ -22,6 +22,8 @@ export interface RouteStop {
   stopId: string;
   stopName: string;
   order: number; // 1-based, determines boarding/alighting direction
+  /** Minutes offset from the main departure time to the scheduled arrival at this stop. */
+  offsetMinutes?: number;
 }
 
 export interface Route {

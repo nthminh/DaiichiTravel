@@ -280,8 +280,36 @@ export function usePayment(ctx: BookingContext) {
     }
 
     // Resolve stop orders for segment availability tracking
-    const fromStopOrder = tripRoute?.routeStops?.find((s: any) => s.stopId === c.fromStopId)?.order;
+    const fromRouteStop = tripRoute?.routeStops?.find((s: any) => s.stopId === c.fromStopId);
+    const fromStopOrder = fromRouteStop?.order;
     const toStopOrder = tripRoute?.routeStops?.find((s: any) => s.stopId === c.toStopId)?.order;
+
+    // Compute adjusted departure time for the booking when the pickup stop has an offset
+    const fromStopOffsetMinutes: number = fromRouteStop?.offsetMinutes ?? 0;
+    const adjustedTripTime = fromStopOffsetMinutes > 0
+      ? (() => {
+          const [h, m] = c.selectedTrip.time.split(':').map(Number);
+          if (isNaN(h) || isNaN(m)) return c.selectedTrip.time;
+          const totalMinutes = h * 60 + m + fromStopOffsetMinutes;
+          const newH = Math.floor(totalMinutes / 60) % 24;
+          const newM = totalMinutes % 60;
+          return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+        })()
+      : c.selectedTrip.time;
+    // If the offset pushes the time past midnight, advance the date by the number of overflow days
+    const adjustedTripDate = (() => {
+      const baseDate = c.selectedTrip.date || new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      if (fromStopOffsetMinutes <= 0) return baseDate;
+      const [h, m] = c.selectedTrip.time.split(':').map(Number);
+      if (isNaN(h) || isNaN(m)) return baseDate;
+      const overflowDays = Math.floor((h * 60 + m + fromStopOffsetMinutes) / (24 * 60));
+      if (overflowDays <= 0) return baseDate;
+      // Only adjust if baseDate is in YYYY-MM-DD format (Firestore date)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(baseDate)) return baseDate;
+      const d = new Date(baseDate + 'T00:00:00');
+      d.setDate(d.getDate() + overflowDays);
+      return d.toISOString().slice(0, 10);
+    })();
 
     // Guard: block booking when the selected seat already has an overlapping segment booking.
     if (fromStopOrder !== undefined && toStopOrder !== undefined && !isFreeSeating) {
@@ -320,8 +348,8 @@ export function usePayment(ctx: BookingContext) {
       phone: c.phoneInput.trim(),
       type: 'TRIP',
       route: c.selectedTrip.route,
-      date: c.selectedTrip.date || new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-      time: c.selectedTrip.time,
+      date: adjustedTripDate,
+      time: adjustedTripTime,
       tripId: c.selectedTrip.id,
       seatId: effectiveSeatId,
       seatIds: allSeatIds,
