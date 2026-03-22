@@ -713,6 +713,7 @@ export default function App() {
     setExtraSeatIds([]);
     setAddonQuantities({});
     setFareAmount(null);
+    setFareAgentAmount(null);
     setFareError('');
 
     // Auto-populate passenger counts from the search form values
@@ -724,33 +725,52 @@ export default function App() {
     const isReturnPhaseNow = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
     const fromSearch = isReturnPhaseNow ? searchTo : searchFrom;
     const toSearch = isReturnPhaseNow ? searchFrom : searchTo;
-    // Prefer specific station selection over plain text if available
+    // Prefer specific station selection over plain text if available.
+    // For return phase, from/to are swapped: the outbound destination becomes departure.
     const effectiveFrom = (isReturnPhaseNow ? searchStationTo : searchStationFrom) || fromSearch;
     const effectiveTo = (isReturnPhaseNow ? searchStationFrom : searchStationTo) || toSearch;
+
+    // Always set (or clear) the pickup/dropoff points so they reflect the current search.
+    // This ensures the fare shown in the passenger-info form matches the price on the trip card.
+    setPickupPoint(effectiveFrom);
+    setDropoffPoint(effectiveTo);
+
+    // Always reset stop IDs, surcharges and address sub-fields for the new trip so that
+    // stale values from a previous selection do not leak into fare/surcharge calculations.
+    setFromStopId('');
+    setToStopId('');
+    setPickupSurcharge(0);
+    setDropoffSurcharge(0);
+    setPickupAddress('');
+    setDropoffAddress('');
+    setPickupAddressDetail('');
+    setDropoffAddressDetail('');
+    setPickupStopAddress('');
+    setDropoffStopAddress('');
+    setPickupAddressSurcharge(0);
+    setDropoffAddressSurcharge(0);
 
     let newFromId = '';
     let newToId = '';
 
     if (effectiveFrom) {
-      setPickupPoint(effectiveFrom);
       const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveFrom)
         ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveFrom));
       const globalStop = stops.find((s) => s.name === effectiveFrom)
         ?? stops.find((s) => matchesSearch(s.name, effectiveFrom));
       newFromId = routeStop?.stopId || globalStop?.id || '';
-      if (newFromId) setFromStopId(newFromId);
-      if (globalStop?.surcharge) setPickupSurcharge(globalStop.surcharge);
+      setFromStopId(newFromId);
+      setPickupSurcharge(globalStop?.surcharge || 0);
     }
 
     if (effectiveTo) {
-      setDropoffPoint(effectiveTo);
       const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveTo)
         ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveTo));
       const globalStop = stops.find((s) => s.name === effectiveTo)
         ?? stops.find((s) => matchesSearch(s.name, effectiveTo));
       newToId = routeStop?.stopId || globalStop?.id || '';
-      if (newToId) setToStopId(newToId);
-      if (globalStop?.surcharge) setDropoffSurcharge(globalStop.surcharge);
+      setToStopId(newToId);
+      setDropoffSurcharge(globalStop?.surcharge || 0);
     }
 
     // Trigger fare lookup immediately if both stops are identified
