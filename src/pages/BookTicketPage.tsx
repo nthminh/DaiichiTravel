@@ -321,66 +321,7 @@ export function BookTicketPage({
     }
   };
 
-  // Derive unique departure options: main departure point + all intermediate stops (passengers can board here)
-  // Use accent/case/whitespace-normalised keys so that visually identical names are deduplicated even
-  // when stored with minor variations in the database (e.g. "Hà Nội" vs "Ha Noi" vs "hà nội ").
-  // The regex collapses internal multiple spaces; .trim() removes leading/trailing whitespace.
   const normalizeStopKey = (s: string) => removeAccents(s.toLowerCase()).replace(/\s+/g, ' ').trim();
-  const allDepartureMap = new Map<string, string>(); // normalizedKey → display name
-  const allDestinationMap = new Map<string, string>();
-  routes.forEach(r => {
-    const addDep = (name: string) => {
-      const trimmed = name.trim();
-      const key = normalizeStopKey(trimmed);
-      if (!allDepartureMap.has(key)) allDepartureMap.set(key, trimmed);
-    };
-    const addDest = (name: string) => {
-      const trimmed = name.trim();
-      const key = normalizeStopKey(trimmed);
-      if (!allDestinationMap.has(key)) allDestinationMap.set(key, trimmed);
-    };
-    if (r.departurePoint) addDep(r.departurePoint);
-    (r.routeStops || []).forEach(s => {
-      if (s.stopName) {
-        addDep(s.stopName);
-        addDest(s.stopName);
-      }
-    });
-    if (r.arrivalPoint) addDest(r.arrivalPoint);
-  });
-  const departureOptions = Array.from(allDepartureMap.values()).sort();
-
-  // Derive unique destination options: filter to stops reachable after the selected departure
-  // when the user has made an exact selection from the departure list.
-  // While the user is still typing, show all destinations so each field searches independently.
-  // Uses the same normalised-key deduplication as departure options.
-  const isFromExactlySelected = departureOptions.includes(searchFrom);
-  const destinationOptions = (() => {
-    const destMap = new Map<string, string>();
-    const addDest = (name: string) => {
-      const trimmed = name.trim();
-      const key = normalizeStopKey(trimmed);
-      if (!destMap.has(key)) destMap.set(key, trimmed);
-    };
-    if (!searchFrom || !isFromExactlySelected) {
-      allDestinationMap.forEach(name => addDest(name));
-    } else {
-      routes.forEach(r => {
-        const stops = [
-          r.departurePoint,
-          ...(r.routeStops || [])
-            .slice()
-            .sort((a, b) => a.order - b.order)
-            .map(s => s.stopName),
-          r.arrivalPoint,
-        ].filter((name): name is string => Boolean(name));
-        const fromIdx = stops.indexOf(searchFrom);
-        if (fromIdx === -1) return;
-        stops.slice(fromIdx + 1).forEach(addDest);
-      });
-    }
-    return Array.from(destMap.values()).sort();
-  })();
 
   // Boarding station options: only stops whose names directly match the user's typed searchFrom.
   // This ensures that typing "ha noi" (with or without accents) shows only Hà Nội-related stops,
@@ -987,62 +928,6 @@ export function BookTicketPage({
         </div>
       </div>
 
-      {/* Secondary exact terminal selection – only shown after the user has performed a search */}
-      {hasSearched && (
-        <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-blue-100">
-          <div className="mb-3">
-            <p className="text-sm font-bold text-gray-700">{t.refine_stop_title || '📍 Chọn bến cụ thể'}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{t.refine_stop_hint || 'Chọn bến đi và bến đến để thu hẹp kết quả:'}</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
-            <div className="flex-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                {t.select_boarding_stop || 'Chọn bến đi'}
-              </label>
-              <div className="relative mt-1">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-daiichi-red pointer-events-none" size={14} />
-                <select
-                  value={departureOptions.includes(searchFrom) ? searchFrom : ''}
-                  onChange={e => setSearchFrom(e.target.value)}
-                  className="w-full pl-8 pr-8 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 appearance-none"
-                >
-                  <option value="">{t.select_boarding_stop || 'Chọn bến đi'}</option>
-                  {departureOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                {t.select_alighting_stop || 'Chọn bến đến'}
-              </label>
-              <div className="relative mt-1">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
-                <select
-                  value={destinationOptions.includes(searchTo) ? searchTo : ''}
-                  onChange={e => setSearchTo(e.target.value)}
-                  className="w-full pl-8 pr-8 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 appearance-none"
-                >
-                  <option value="">{t.select_alighting_stop || 'Chọn bến đến'}</option>
-                  {destinationOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {(departureOptions.includes(searchFrom) || destinationOptions.includes(searchTo)) && (
-              <button
-                onClick={() => { setSearchFrom(''); setSearchTo(''); }}
-                className="shrink-0 px-4 py-3 text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-2xl transition-colors"
-                title={language === 'vi' ? 'Xóa bộ lọc bến' : 'Clear terminal filter'}
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       <div className="space-y-4">
         {/* Round-trip phase indicator */}
