@@ -290,6 +290,9 @@ export function BookTicketPage({
   // Segment-based fare lookup: map from routeId → { price, agentPrice }
   // Updated whenever the customer's searchFrom / searchTo changes.
   const [segmentFares, setSegmentFares] = useState<Map<string, { price: number; agentPrice?: number }>>(new Map());
+  // True once the async fare check for the current from/to pair has completed.
+  // Used to filter out trips whose route has no fare configuration for the searched segment.
+  const [segmentFaresLoaded, setSegmentFaresLoaded] = useState(false);
   const segmentFareFetchRef = useRef(0);
 
   useEffect(() => {
@@ -304,9 +307,11 @@ export function BookTicketPage({
 
     if (!effectiveFrom || !effectiveTo) {
       setSegmentFares(new Map());
+      setSegmentFaresLoaded(false);
       return;
     }
 
+    setSegmentFaresLoaded(false);
     const fetchId = ++segmentFareFetchRef.current;
 
     const fetchFares = async () => {
@@ -343,7 +348,7 @@ export function BookTicketPage({
             });
             return { routeId: route.id, price: fare.price, agentPrice: fare.agentPrice };
           } catch {
-            // Fare not configured for this segment – fall back to trip.price
+            // Fare not configured for this segment
             return null;
           }
         })
@@ -355,6 +360,7 @@ export function BookTicketPage({
           if (result) newFares.set(result.routeId, { price: result.price, agentPrice: result.agentPrice });
         }
         setSegmentFares(newFares);
+        setSegmentFaresLoaded(true);
       }
     };
 
@@ -451,6 +457,12 @@ export function BookTicketPage({
     const totalPassengers = searchAdults + searchChildren;
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
     if (emptySeats < totalPassengers) return false;
+    // Only show trips whose route has fare configuration for the searched segment.
+    // Skip this check when fares haven't loaded yet (avoid false negatives during async fetch).
+    // Also skip when tripRoute is unknown (route data not yet loaded) to avoid hiding trips incorrectly.
+    if (effectiveFrom && effectiveTo && segmentFaresLoaded) {
+      if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
+    }
     return true;
   };
 
