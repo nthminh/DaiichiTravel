@@ -477,12 +477,79 @@ export function SeatMappingPage({
 
       {/* Step-by-step purchase guide */}
       {(() => {
-        const currentStep = showBookingForm ? 2 : 1;
-        const steps = language === 'vi'
-          ? ['Chọn ghế', 'Nhập thông tin', 'Thanh toán', 'Tải về']
-          : language === 'ja'
-            ? ['座席を選ぶ', '情報を入力', 'お支払い', 'ダウンロード']
-            : ['Select Seat', 'Enter Info', 'Payment', 'Download'];
+        const isRoundTrip = tripType === 'ROUND_TRIP';
+
+        let steps: string[];
+        let hints: string[];
+        let currentStep: number;
+
+        if (isRoundTrip) {
+          // Round-trip: 6-step flow covering both outbound and return legs
+          if (language === 'vi') {
+            steps = ['Ghế đi', 'TT đi', 'Ghế về', 'TT về', 'Thanh toán', 'Tải về'];
+            hints = [
+              '👆 Nhấn vào ghế trống (màu trắng) để chọn chỗ chiều đi',
+              '✍️ Điền đầy đủ thông tin hành khách chiều đi rồi nhấn xác nhận',
+              '👆 Tiếp theo, chọn ghế trống cho chiều về của bạn',
+              '✍️ Điền thông tin chiều về rồi nhấn xác nhận để tiến hành thanh toán',
+              '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất cả hai chiều',
+              '📥 Thanh toán thành công! Tải vé khứ hồi về máy để sử dụng khi lên xe',
+            ];
+          } else if (language === 'ja') {
+            steps = ['出発席', '出発情報', '帰路席', '帰路情報', 'お支払い', 'ダウンロード'];
+            hints = [
+              '👆 出発便の空席（白色）をタップして座席を選んでください',
+              '✍️ 出発便の乗客情報を入力して確認ボタンを押してください',
+              '👆 次に、帰路便の空席をタップして座席を選んでください',
+              '✍️ 帰路便の情報を入力して決済ステップへ進んでください',
+              '💳 QRコードをスキャンするか、支払い方法を選択して往復予約を確定してください',
+              '📥 支払い完了！乗車時に使用する往復チケットをダウンロードしてください',
+            ];
+          } else {
+            steps = ['Out. Seat', 'Out. Info', 'Ret. Seat', 'Ret. Info', 'Payment', 'Download'];
+            hints = [
+              '👆 Tap an empty seat (white) to select your outbound seat',
+              '✍️ Fill in passenger details for the outbound trip then confirm',
+              '👆 Now tap an empty seat to select your return seat',
+              '✍️ Fill in return trip details then confirm to proceed to payment',
+              '💳 Scan the QR code or choose a payment method to complete both trips',
+              '📥 Payment successful! Download your round-trip ticket to use when boarding',
+            ];
+          }
+          // Steps 1–2 are the outbound leg; steps 3–4 are the return leg
+          currentStep = roundTripPhase === 'outbound'
+            ? (showBookingForm ? 2 : 1)
+            : (showBookingForm ? 4 : 3);
+        } else {
+          // ONE_WAY: 4-step flow (unchanged)
+          currentStep = showBookingForm ? 2 : 1;
+          if (language === 'vi') {
+            steps = ['Chọn ghế', 'Nhập thông tin', 'Thanh toán', 'Tải về'];
+            hints = [
+              '👆 Nhấn vào ghế trống (màu trắng) để bắt đầu đặt vé',
+              '✍️ Điền đầy đủ thông tin hành khách rồi nhấn xác nhận đặt vé',
+              '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
+              '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
+            ];
+          } else if (language === 'ja') {
+            steps = ['座席を選ぶ', '情報を入力', 'お支払い', 'ダウンロード'];
+            hints = [
+              '👆 空席（白色）をタップして予約を開始してください',
+              '✍️ 乗客情報を入力して予約確認ボタンを押してください',
+              '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
+              '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
+            ];
+          } else {
+            steps = ['Select Seat', 'Enter Info', 'Payment', 'Download'];
+            hints = [
+              '👆 Tap an empty seat (white) to start booking',
+              '✍️ Fill in passenger details then confirm your booking',
+              '💳 Scan the QR code or choose a payment method to complete',
+              '📥 Payment successful! Download your ticket to use when boarding',
+            ];
+          }
+        }
+
         return (
           <div className="mb-5 px-1">
             <div className="flex items-center justify-between">
@@ -519,26 +586,6 @@ export function SeatMappingPage({
               })}
             </div>
             {(() => {
-              const hints = language === 'vi'
-                ? [
-                    '👆 Nhấn vào ghế trống (màu trắng) để bắt đầu đặt vé',
-                    '✍️ Điền đầy đủ thông tin hành khách rồi nhấn xác nhận đặt vé',
-                    '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
-                    '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
-                  ]
-                : language === 'ja'
-                  ? [
-                      '👆 空席（白色）をタップして予約を開始してください',
-                      '✍️ 乗客情報を入力して予約確認ボタンを押してください',
-                      '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
-                      '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
-                    ]
-                  : [
-                      '👆 Tap an empty seat (white) to start booking',
-                      '✍️ Fill in passenger details then confirm your booking',
-                      '💳 Scan the QR code or choose a payment method to complete',
-                      '📥 Payment successful! Download your ticket to use when boarding',
-                    ];
               const hint = hints[currentStep - 1];
               return hint ? (
                 <p className="mt-2 text-[10px] text-gray-400 text-center">
