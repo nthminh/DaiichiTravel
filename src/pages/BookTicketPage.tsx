@@ -133,7 +133,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           ))}
           {nearestHint && (
             <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-start gap-1.5">
-              <span className="text-blue-400 flex-shrink-0 mt-0.5">💡</span>
+              <span className="text-blue-400 flex-shrink-0 mt-0.5" aria-hidden="true">💡</span>
               <p className="text-[10px] text-blue-500 leading-snug">{nearestHint}</p>
             </div>
           )}
