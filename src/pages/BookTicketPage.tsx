@@ -42,17 +42,45 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!value.trim()) return [];
-    const results: { sug: Suggestion; score: number }[] = [];
+    // Use a Map keyed by terminal id so each parent terminal appears at most once,
+    // keeping the highest match score found (via direct name match or via a child stop).
+    const resultMap = new Map<string, { sug: Suggestion; score: number }>();
+
+    // Build a lookup of id → terminal for resolving child stops to their parent.
+    const terminalMap = new Map<string, Stop>();
+    stops.forEach(stop => {
+      if (stop.type === 'TERMINAL') terminalMap.set(stop.id, stop);
+    });
+
+    const addTerminal = (terminal: Stop, score: number) => {
+      const existing = resultMap.get(terminal.id);
+      if (!existing || score > existing.score) {
+        resultMap.set(terminal.id, { sug: { stop: terminal, terminal }, score });
+      }
+    };
+
     stops.forEach(stop => {
       if (stop.type === 'TERMINAL') {
+        // Direct match on terminal name
         const score = matchScore(stop.name, value);
-        if (score > 0) {
-          results.push({ sug: { stop, terminal: stop }, score });
+        if (score > 0) addTerminal(stop, score);
+      } else {
+        // Child stop (type === 'STOP' or legacy): search by name AND address,
+        // then surface the parent TERMINAL so only terminals appear in the list.
+        const nameScore = matchScore(stop.name, value);
+        // Only score the address if the name didn't already produce an exact match.
+        const addressScore = nameScore < 100 && stop.address ? matchScore(stop.address, value) : 0;
+        const score = Math.max(nameScore, addressScore);
+        if (score > 0 && stop.terminalId) {
+          const terminal = terminalMap.get(stop.terminalId);
+          if (terminal) addTerminal(terminal, score);
         }
       }
     });
+
+    const arr = Array.from(resultMap.values());
     // Sort: priority stops first (ascending priority number), then by match score descending
-    results.sort((a, b) => {
+    arr.sort((a, b) => {
       const aPriority = a.sug.stop.priority && a.sug.stop.priority > 0 ? a.sug.stop.priority : undefined;
       const bPriority = b.sug.stop.priority && b.sug.stop.priority > 0 ? b.sug.stop.priority : undefined;
       const aHas = aPriority !== undefined;
@@ -61,7 +89,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       if (aHas && bHas) return aPriority! - bPriority!;
       return b.score - a.score;
     });
-    return results.slice(0, 8).map(r => r.sug);
+    return arr.slice(0, 8).map(r => r.sug);
   }, [value, stops]);
 
   // Close dropdown when clicking outside
