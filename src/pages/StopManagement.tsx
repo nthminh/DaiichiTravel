@@ -77,9 +77,46 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
 
   const terminalStops = stops.filter(s => s.type === 'TERMINAL');
 
+  const checkDuplicate = (name: string, type: Stop['type'], terminalId: string | undefined, excludeId?: string): boolean => {
+    const normalized = name.trim().toLowerCase();
+    if (type === 'TERMINAL') {
+      return stops.some(s =>
+        s.type === 'TERMINAL' &&
+        s.id !== excludeId &&
+        s.name.trim().toLowerCase() === normalized
+      );
+    }
+    return stops.some(s =>
+      s.type !== 'TERMINAL' &&
+      s.id !== excludeId &&
+      (s.terminalId ?? undefined) === (terminalId ?? undefined) &&
+      s.name.trim().toLowerCase() === normalized
+    );
+  };
+
+  const duplicateAlert = (type: Stop['type']) => {
+    if (type === 'TERMINAL') {
+      alert(language === 'vi'
+        ? 'Ga/Bến này đã tồn tại. Vui lòng chọn tên khác.'
+        : language === 'ja'
+        ? 'このターミナルは既に存在します。別の名前を選んでください。'
+        : 'This terminal already exists. Please choose a different name.');
+    } else {
+      alert(language === 'vi'
+        ? 'Điểm dừng này đã tồn tại trong ga/bến đó. Vui lòng chọn tên khác.'
+        : language === 'ja'
+        ? 'この停留所は既にそのターミナル内に存在します。別の名前を選んでください。'
+        : 'This stop already exists under that terminal. Please choose a different name.');
+    }
+  };
+
   const handleAddStop = async () => {
     if (!formData.name || !formData.address) return;
     const dataToSave = formData.type === 'TERMINAL' ? { ...formData, terminalId: undefined } : formData;
+    if (checkDuplicate(dataToSave.name, dataToSave.type, dataToSave.terminalId)) {
+      duplicateAlert(dataToSave.type);
+      return;
+    }
     try {
       await transportService.addStop(dataToSave);
     } catch {
@@ -92,6 +129,10 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const handleUpdateStop = async () => {
     if (!editingId || !formData.name || !formData.address) return;
     const dataToSave = formData.type === 'TERMINAL' ? { ...formData, terminalId: undefined } : formData;
+    if (checkDuplicate(dataToSave.name, dataToSave.type, dataToSave.terminalId, editingId)) {
+      duplicateAlert(dataToSave.type);
+      return;
+    }
     try {
       await transportService.updateStop(editingId, dataToSave);
     } catch {
