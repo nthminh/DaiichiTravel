@@ -668,10 +668,6 @@ export default function App() {
     setInquiryError('');
   }, [searchFrom, searchTo, searchDate, searchReturnDate, tripType]);
 
-  // Clear specific station selections when the free-text from/to fields change
-  useEffect(() => { setSearchStationFrom(''); }, [searchFrom]);
-  useEffect(() => { setSearchStationTo(''); }, [searchTo]);
-
   // Reset round-trip phase when switching back to ONE_WAY
   useEffect(() => {
     if (tripType === 'ONE_WAY') {
