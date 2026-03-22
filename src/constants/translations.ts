@@ -149,6 +149,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     time_to: 'Đến giờ',
     no_trips_found: 'Không tìm thấy chuyến xe phù hợp',
     search_results_found: 'Tìm thấy {count} chuyến xe phù hợp với tìm kiếm của bạn',
+    no_segment_warning: 'Không tìm thấy chặng nào kết nối hai điểm này. Vui lòng thay đổi điểm đi hoặc điểm đến.',
+    stop_arrival_time_hint: 'Xuất bến lúc',
     
     // Seat Mapping
     seat_map_title: 'Sơ đồ ghế ngồi',
@@ -901,6 +903,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     time_to: 'To',
     no_trips_found: 'No matching trips found',
     search_results_found: 'Found {count} matching trip(s)',
+    no_segment_warning: 'No route found connecting these two stops. Please change the departure or destination.',
+    stop_arrival_time_hint: 'Terminal departure at',
     
     // Seat Mapping
     seat_map_title: 'Seat Map',
@@ -1653,6 +1657,8 @@ export const TRANSLATIONS: Record<Language, any> = {
     time_to: '終了時刻',
     no_trips_found: '条件に合う運行が見つかりません',
     search_results_found: '{count}件の運行が見つかりました',
+    no_segment_warning: 'この2つの地点を結ぶ区間が見つかりません。出発地または目的地を変更してください。',
+    stop_arrival_time_hint: 'ターミナル出発',
     
     // Seat Mapping
     seat_map_title: '座席表',
