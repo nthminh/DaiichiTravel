@@ -896,6 +896,63 @@ export function BookTicketPage({
         </div>
       </div>
 
+      {/* Secondary exact terminal selection – only shown after the user has performed a search */}
+      {hasSearched && (
+        <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-blue-100">
+          <div className="mb-3">
+            <p className="text-sm font-bold text-gray-700">{t.refine_stop_title || '📍 Chọn bến cụ thể'}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{t.refine_stop_hint || 'Chọn bến đi và bến đến để thu hẹp kết quả:'}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                {t.select_boarding_stop || 'Chọn bến đi'}
+              </label>
+              <div className="relative mt-1">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-daiichi-red pointer-events-none" size={14} />
+                <select
+                  value={departureOptions.includes(searchFrom) ? searchFrom : ''}
+                  onChange={e => setSearchFrom(e.target.value)}
+                  className="w-full pl-8 pr-8 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 appearance-none"
+                >
+                  <option value="">{t.select_boarding_stop || 'Chọn bến đi'}</option>
+                  {departureOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                {t.select_alighting_stop || 'Chọn bến đến'}
+              </label>
+              <div className="relative mt-1">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
+                <select
+                  value={destinationOptions.includes(searchTo) ? searchTo : ''}
+                  onChange={e => setSearchTo(e.target.value)}
+                  className="w-full pl-8 pr-8 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 appearance-none"
+                >
+                  <option value="">{t.select_alighting_stop || 'Chọn bến đến'}</option>
+                  {destinationOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(departureOptions.includes(searchFrom) || destinationOptions.includes(searchTo)) && (
+              <button
+                onClick={() => { setSearchFrom(''); setSearchTo(''); }}
+                className="shrink-0 px-4 py-3 text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-2xl transition-colors"
+                title={language === 'vi' ? 'Xóa bộ lọc bến' : 'Clear terminal filter'}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         {/* Round-trip phase indicator */}
         {tripType === 'ROUND_TRIP' && (

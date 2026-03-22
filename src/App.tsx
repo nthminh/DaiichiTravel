@@ -1140,6 +1140,7 @@ export default function App() {
             language={language}
             currentUser={currentUser}
             bookings={bookings}
+            routes={routes}
           />
         );
 
@@ -1902,6 +1903,7 @@ export default function App() {
           }}
           booking={lastBooking}
           language={language}
+          routes={routes}
           onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
         />
       </Suspense>

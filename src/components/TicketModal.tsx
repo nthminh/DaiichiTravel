@@ -7,22 +7,29 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../App';
+import { Route } from '../types';
+import { getJourneyStops } from '../lib/routeUtils';
 
 interface TicketModalProps {
   isOpen: boolean;
   onClose: () => void;
   booking: any;
   language: Language;
+  routes?: Route[];
   onRegisterMember?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
 }
 
-export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language }) => {
+export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, routes = [] }) => {
   const t = TRANSLATIONS[language];
   const [copied, setCopied] = useState(false);
   if (!booking) return null;
 
   const isTour = booking.type === 'TOUR';
   const isRoundTrip = !!booking.isRoundTrip;
+
+  /** Returns the ordered list of stop names along the route between fromStop and toStop (inclusive). */
+  const getStops = (routeName: string, fromStop?: string, toStop?: string) =>
+    getJourneyStops(routes, routeName, fromStop, toStop);
 
   const handleDownload = () => {
     window.print();
@@ -325,6 +332,53 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                           <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
                         </div>
                       </div>
+
+                      {/* Journey stops – outbound */}
+                      {(() => {
+                        const obStops = ob ? getStops(ob.route, ob.pickupPoint || undefined, ob.dropoffPoint || undefined) : [];
+                        const retStops = getStops(booking.route, booking.pickupPoint || undefined, booking.dropoffPoint || undefined);
+                        const renderStopsRow = (stops: string[]) => stops.length < 2 ? null : (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {stops.map((stop, idx) => (
+                              <React.Fragment key={idx}>
+                                <span className={cn(
+                                  "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                  idx === 0
+                                    ? "bg-daiichi-red text-white"
+                                    : idx === stops.length - 1
+                                      ? "bg-blue-500 text-white"
+                                      : "bg-white text-gray-600 border border-gray-200"
+                                )}>
+                                  {stop}
+                                </span>
+                                {idx < stops.length - 1 && (
+                                  <span className="text-gray-300 text-[10px] font-bold">→</span>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        );
+                        if (obStops.length < 2 && retStops.length < 2) return null;
+                        return (
+                          <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                              {t.all_stops_label || 'Hành trình'}
+                            </p>
+                            {obStops.length >= 2 && (
+                              <div>
+                                <p className="text-[9px] text-gray-400 font-bold mb-1">{t.round_trip_ticket_outbound || 'Chiều đi'}</p>
+                                {renderStopsRow(obStops)}
+                              </div>
+                            )}
+                            {retStops.length >= 2 && (
+                              <div>
+                                <p className="text-[9px] text-gray-400 font-bold mb-1">{t.round_trip_ticket_return || 'Chiều về'}</p>
+                                {renderStopsRow(retStops)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()
@@ -428,6 +482,38 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                       </div>
                     </div>
                   )}
+
+                  {/* Journey stops row */}
+                  {(() => {
+                    const stops = getStops(booking.route, booking.pickupPoint || undefined, booking.dropoffPoint || undefined);
+                    if (stops.length < 2) return null;
+                    return (
+                      <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                          {t.all_stops_label || 'Hành trình'}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {stops.map((stop, idx) => (
+                            <React.Fragment key={idx}>
+                              <span className={cn(
+                                "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                idx === 0
+                                  ? "bg-daiichi-red text-white"
+                                  : idx === stops.length - 1
+                                    ? "bg-blue-500 text-white"
+                                    : "bg-white text-gray-600 border border-gray-200"
+                              )}>
+                                {stop}
+                              </span>
+                              {idx < stops.length - 1 && (
+                                <span className="text-gray-300 text-[10px] font-bold">→</span>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 

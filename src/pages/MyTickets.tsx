@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Ticket, MapPin, Calendar, Clock, User, Phone, QrCode, AlertCircle, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Language, TRANSLATIONS, UserRole } from '../App';
+import { Route } from '../types';
+import { cn } from '../lib/utils';
+import { getJourneyStops } from '../lib/routeUtils';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
 
@@ -9,9 +12,10 @@ interface MyTicketsProps {
   language: Language;
   currentUser: any | null;
   bookings: any[]; // all bookings from Firestore
+  routes?: Route[];
 }
 
-export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, bookings }) => {
+export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, bookings, routes = [] }) => {
   const t = TRANSLATIONS[language];
   const [localTickets, setLocalTickets] = useState<any[]>([]);
 
@@ -87,7 +91,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
       {/* Ticket cards */}
       <div className="space-y-4">
         {allTickets.map((booking, idx) => (
-          <TicketCard key={booking.id || booking.ticketCode || idx} booking={booking} language={language} />
+          <TicketCard key={booking.id || booking.ticketCode || idx} booking={booking} language={language} routes={routes} />
         ))}
       </div>
 
@@ -139,7 +143,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
 
 // ── Individual ticket card ──────────────────────────────────────────────────
 
-const TicketCard: React.FC<{ booking: any; language: Language }> = ({ booking, language }) => {
+const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] }> = ({ booking, language, routes = [] }) => {
   const t = TRANSLATIONS[language];
   const isVi = language === 'vi';
   const isJa = language === 'ja';
@@ -153,6 +157,10 @@ const TicketCard: React.FC<{ booking: any; language: Language }> = ({ booking, l
   const statusLabel = booking.status === 'CANCELLED'
     ? (isVi ? 'Đã hủy' : isJa ? 'キャンセル済み' : 'Cancelled')
     : (isVi ? 'Đã đặt' : isJa ? '予約済み' : 'Booked');
+
+  const journeyStops = booking.route
+    ? getJourneyStops(routes, booking.route, booking.pickupPoint || undefined, booking.dropoffPoint || undefined)
+    : [];
 
   return (
     <motion.div
@@ -271,6 +279,34 @@ const TicketCard: React.FC<{ booking: any; language: Language }> = ({ booking, l
                 <span className="font-medium text-emerald-600">+{((a.price || 0) * (a.quantity || 1)).toLocaleString()}đ</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Journey stops row */}
+        {journeyStops.length >= 2 && (
+          <div className="pt-3 border-t border-gray-50">
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              {t.all_stops_label || 'Hành trình'}
+            </p>
+            <div className="flex flex-wrap items-center gap-1">
+              {journeyStops.map((stop, idx) => (
+                <React.Fragment key={idx}>
+                  <span className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                    idx === 0
+                      ? "bg-daiichi-red text-white"
+                      : idx === journeyStops.length - 1
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-600"
+                  )}>
+                    {stop}
+                  </span>
+                  {idx < journeyStops.length - 1 && (
+                    <span className="text-gray-300 text-[10px] font-bold">→</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         )}
       </div>
