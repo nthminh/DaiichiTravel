@@ -27,6 +27,7 @@ interface StopSearchInputProps {
 function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, onChange }: StopSearchInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   interface Suggestion { stop: Stop; terminal: Stop | undefined }
 
@@ -84,29 +85,56 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     setShowDropdown(false);
   };
 
+  // When a station is confirmed, show a wrapping div so long names are fully visible.
+  const isConfirmed = Boolean(terminalValue && !showDropdown);
+
+  const handleEditMode = () => {
+    onChange(value, '');
+    setShowDropdown(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   return (
     <div ref={wrapperRef} className="relative">
-      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-      <input
-        type="text"
-        value={value}
-        onChange={e => handleChange(e.target.value)}
-        onFocus={() => { if (value.trim()) setShowDropdown(true); }}
-        placeholder={placeholder}
-        className="w-full pl-12 pr-8 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+      <MapPin
+        className={cn("absolute left-4 z-10 text-gray-400", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
+        size={18}
       />
+      {isConfirmed ? (
+        // Display mode: text wraps for long station names, click/keyboard to re-edit
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`${value} – nhấn để chỉnh sửa`}
+          className="w-full pl-12 pr-14 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm break-words leading-snug min-h-[56px] cursor-pointer"
+          onClick={handleEditMode}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
+        >
+          {value}
+        </div>
+      ) : (
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={e => handleChange(e.target.value)}
+          onFocus={() => { if (value.trim()) setShowDropdown(true); }}
+          placeholder={placeholder}
+          className="w-full pl-12 pr-8 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+        />
+      )}
       {value && (
         <button
           type="button"
           onClick={() => { onChange('', ''); setShowDropdown(false); }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+          className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
           aria-label="Clear"
         >
           <X size={14} />
         </button>
       )}
       {terminalValue && !showDropdown && (
-        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-daiichi-red" title={terminalValue}>
+        <span className="absolute right-8 top-4 text-daiichi-red" title={terminalValue}>
           <CheckCircle2 size={14} />
         </span>
       )}
