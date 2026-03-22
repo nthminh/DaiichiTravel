@@ -198,6 +198,8 @@ export function SeatMappingPage({
   const childrenOver5Count = childrenAges.filter(age => age >= 5).length;
   const extraSeatsNeeded = (adults - 1) + childrenOver5Count;
   const totalSeatsNeeded = adults + childrenOver5Count;
+  // All children must have their age entered before proceeding to step 2
+  const childAgesComplete = children === 0 || Array.from({ length: children }).every((_, i) => childrenAges[i] !== undefined);
   // Look up route once for this render block (used for surcharges, fare table, and blocker check)
   const tripRoute = routes.find(r => r.name === selectedTrip.route);
   // Also disable confirmation when a fare lookup error exists for a route with configured stops
@@ -1007,14 +1009,19 @@ export function SeatMappingPage({
               <p className="text-xs text-red-500 font-medium">{fareError}</p>
             )}
 
+            {/* Child ages required warning */}
+            {children > 0 && !childAgesComplete && (
+              <p className="text-xs text-red-500 font-medium">{t.child_ages_required || 'Please enter the age for all children before proceeding.'}</p>
+            )}
+
             {/* Next: Select Seat button */}
             <button
               type="button"
               onClick={() => setShowPreBookingInfo(false)}
-              disabled={hasFareBlocker}
+              disabled={hasFareBlocker || !childAgesComplete}
               className={cn(
                 "w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all",
-                hasFareBlocker
+                (hasFareBlocker || !childAgesComplete)
                   ? "bg-gray-300 shadow-gray-200 cursor-not-allowed"
                   : "bg-daiichi-red shadow-daiichi-red/20"
               )}
@@ -1049,24 +1056,6 @@ export function SeatMappingPage({
             >
               ✏️ {language === 'vi' ? 'Sửa' : language === 'ja' ? '編集' : 'Edit'}
             </button>
-          </div>
-
-          {/* Trip info (seat counts) */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">{t.trip_info}</h3>
-              {isFreeSeatingTrip && (
-                <span className="px-2 py-1 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-600 uppercase tracking-wide">
-                  🪑 {language === 'vi' ? 'Ghế tự do' : language === 'ja' ? '自由席' : 'Free Seating'}
-                </span>
-              )}
-            </div>
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">{t.total_seats}</span><span className="font-bold">{selectedTrip.seats.length}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">{t.paid_seats}</span><span className="font-bold text-green-600">{selectedTrip.seats.filter(s => s.status === SeatStatus.PAID).length}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">{t.booked_seats}</span><span className="font-bold text-daiichi-yellow">{selectedTrip.seats.filter(s => s.status === SeatStatus.BOOKED).length}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">{t.empty_seats}</span><span className="font-bold text-gray-400">{selectedTrip.seats.filter(s => s.status === SeatStatus.EMPTY).length}</span></div>
-            </div>
           </div>
 
           {!showBookingForm && (selectedTrip.addons || []).length > 0 && (
@@ -1362,6 +1351,7 @@ export function SeatMappingPage({
                             {effectiveFareAmount !== null
                               ? (t.fare_based_price || 'Fare table price')
                               : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
+                            {perSeatSuffix}
                             {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && effectiveFareAmount === null && (
                               <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
                             )}
