@@ -382,9 +382,9 @@ export function BookTicketPage({
     return Array.from(destMap.values()).sort();
   })();
 
-  // Boarding station options: stops from routes that are related to the user's typed searchFrom.
-  // When searchFrom has content, collect all stops from routes where any stop name matches searchFrom.
-  // This ensures that typing "Hà Nội" shows terminals like "Bến xe Mỹ Đình" from Hà Nội routes.
+  // Boarding station options: only stops whose names directly match the user's typed searchFrom.
+  // This ensures that typing "ha noi" (with or without accents) shows only Hà Nội-related stops,
+  // not destination stops like Cát Bà from routes that happen to pass through Hà Nội.
   const boardingStationOptions = (() => {
     if (!searchFrom.trim()) return [];
     const stationMap = new Map<string, string>();
@@ -399,15 +399,13 @@ export function BookTicketPage({
         ...(r.routeStops || []).map(s => s.stopName),
         r.arrivalPoint,
       ].filter(Boolean) as string[];
-      // Include this route's stops if any stop matches the typed text
-      if (!allNames.some(n => matchesSearch(n, searchFrom))) return;
-      if (r.departurePoint) addStop(r.departurePoint);
-      (r.routeStops || []).forEach(s => { if (s.stopName) addStop(s.stopName); });
+      // Only add stops that themselves match searchFrom (ignoring unrelated stops on the same route)
+      allNames.forEach(n => { if (matchesSearch(n, searchFrom)) addStop(n); });
     });
     return Array.from(stationMap.values()).sort();
   })();
 
-  // Alighting station options: stops from routes that are related to the user's typed searchTo.
+  // Alighting station options: only stops whose names directly match the user's typed searchTo.
   const alightingStationOptions = (() => {
     if (!searchTo.trim()) return [];
     const stationMap = new Map<string, string>();
@@ -422,9 +420,8 @@ export function BookTicketPage({
         ...(r.routeStops || []).map(s => s.stopName),
         r.arrivalPoint,
       ].filter(Boolean) as string[];
-      if (!allNames.some(n => matchesSearch(n, searchTo))) return;
-      (r.routeStops || []).forEach(s => { if (s.stopName) addStop(s.stopName); });
-      if (r.arrivalPoint) addStop(r.arrivalPoint);
+      // Only add stops that themselves match searchTo (ignoring unrelated stops on the same route)
+      allNames.forEach(n => { if (matchesSearch(n, searchTo)) addStop(n); });
     });
     return Array.from(stationMap.values()).sort();
   })();
