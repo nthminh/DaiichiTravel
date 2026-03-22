@@ -75,7 +75,6 @@ const CompletedTripsPage = lazy(() => import('./pages/CompletedTripsPage').then(
 const RouteManagementPage = lazy(() => import('./pages/RouteManagementPage').then(m => ({ default: m.RouteManagementPage })));
 const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
 const BookTicketPage = lazy(() => import('./pages/BookTicketPage').then(m => ({ default: m.BookTicketPage })));
-const AiChatBot = lazy(() => import('./components/AiChatBot').then(m => ({ default: m.AiChatBot })));
 const SeatMappingPage = lazy(() => import('./pages/SeatMappingPage').then(m => ({ default: m.SeatMappingPage })));
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 import { DriverAssignment, StaffMessage } from './types';
@@ -1748,19 +1747,6 @@ export default function App() {
             currentUserId={currentUser?.id || ''}
             employees={employees}
             messages={staffMessages}
-          />
-        </Suspense>
-      )}
-
-      {/* AI Chatbot (visible to GUEST, CUSTOMER, and unauthenticated users) */}
-      {(!currentUser || currentUser.role === UserRole.GUEST || currentUser.role === UserRole.CUSTOMER) && (
-        <Suspense fallback={null}>
-          <AiChatBot
-            language={language}
-            routes={routes}
-            trips={trips}
-            stops={stops}
-            onNavigateToBookTicket={() => setActiveTab('book-ticket')}
           />
         </Suspense>
       )}
