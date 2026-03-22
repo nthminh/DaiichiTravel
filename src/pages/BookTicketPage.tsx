@@ -386,7 +386,7 @@ export function BookTicketPage({
   // When searchFrom has content, collect all stops from routes where any stop name matches searchFrom.
   // This ensures that typing "Hà Nội" shows terminals like "Bến xe Mỹ Đình" from Hà Nội routes.
   const boardingStationOptions = (() => {
-    if (!searchFrom.trim()) return departureOptions;
+    if (!searchFrom.trim()) return [];
     const stationMap = new Map<string, string>();
     const addStop = (name: string) => {
       const trimmed = name.trim();
@@ -409,7 +409,7 @@ export function BookTicketPage({
 
   // Alighting station options: stops from routes that are related to the user's typed searchTo.
   const alightingStationOptions = (() => {
-    if (!searchTo.trim()) return destinationOptions;
+    if (!searchTo.trim()) return [];
     const stationMap = new Map<string, string>();
     const addStop = (name: string) => {
       const trimmed = name.trim();
@@ -809,14 +809,14 @@ export function BookTicketPage({
             {searchFrom.trim() && (
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                  {t.select_boarding_stop || 'Chọn bến đi'}
+                  {t.select_boarding_stop}
                 </label>
                 <div className="relative mt-1">
                   <SearchableSelect
                     options={boardingStationOptions}
                     value={searchStationFrom}
                     onChange={setSearchStationFrom}
-                    placeholder={t.select_boarding_stop || 'Chọn bến đi'}
+                    placeholder={t.select_boarding_stop}
                     leftIcon={<MapPin size={16} />}
                     inputClassName="pl-10 py-3 rounded-2xl"
                   />
@@ -826,14 +826,14 @@ export function BookTicketPage({
             {searchTo.trim() && (
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                  {t.select_alighting_stop || 'Chọn bến đến'}
+                  {t.select_alighting_stop}
                 </label>
                 <div className="relative mt-1">
                   <SearchableSelect
                     options={alightingStationOptions}
                     value={searchStationTo}
                     onChange={setSearchStationTo}
-                    placeholder={t.select_alighting_stop || 'Chọn bến đến'}
+                    placeholder={t.select_alighting_stop}
                     leftIcon={<MapPin size={16} />}
                     inputClassName="pl-10 py-3 rounded-2xl"
                   />
