@@ -737,8 +737,10 @@ export default function App() {
 
     if (effectiveFrom) {
       setPickupPoint(effectiveFrom);
-      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveFrom);
-      const globalStop = stops.find((s) => s.name === effectiveFrom);
+      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveFrom)
+        ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveFrom));
+      const globalStop = stops.find((s) => s.name === effectiveFrom)
+        ?? stops.find((s) => matchesSearch(s.name, effectiveFrom));
       newFromId = routeStop?.stopId || globalStop?.id || '';
       if (newFromId) setFromStopId(newFromId);
       if (globalStop?.surcharge) setPickupSurcharge(globalStop.surcharge);
@@ -746,8 +748,10 @@ export default function App() {
 
     if (effectiveTo) {
       setDropoffPoint(effectiveTo);
-      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveTo);
-      const globalStop = stops.find((s) => s.name === effectiveTo);
+      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveTo)
+        ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveTo));
+      const globalStop = stops.find((s) => s.name === effectiveTo)
+        ?? stops.find((s) => matchesSearch(s.name, effectiveTo));
       newToId = routeStop?.stopId || globalStop?.id || '';
       if (newToId) setToStopId(newToId);
       if (globalStop?.surcharge) setDropoffSurcharge(globalStop.surcharge);
