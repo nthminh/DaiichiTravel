@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, X } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { matchesSearch } from '../lib/searchUtils';
+import { matchScore } from '../lib/searchUtils';
 
 interface SearchableSelectProps {
   options: string[];
@@ -13,6 +13,12 @@ interface SearchableSelectProps {
   disabled?: boolean;
   /** Optional secondary text for each option (e.g. address). Must match options array by index. */
   optionDetails?: string[];
+  /**
+   * Optional icon rendered on the left side of the input.
+   * Adds a default `pl-10` left padding to the input; override via `inputClassName`
+   * (e.g. `inputClassName="pl-12"`) if a larger icon or more spacing is needed.
+   */
+  leftIcon?: React.ReactNode;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -24,6 +30,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   inputClassName,
   disabled = false,
   optionDetails,
+  leftIcon,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value);
@@ -44,10 +51,16 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   }, []);
 
   const filteredOptions = options
-    .map((option, idx) => ({ option, detail: optionDetails?.[idx] ?? '' }))
-    .filter(({ option, detail }) =>
-      matchesSearch(option, searchTerm) || matchesSearch(detail, searchTerm)
-    );
+    .map((option, idx) => ({
+      option,
+      detail: optionDetails?.[idx] ?? '',
+      score: Math.max(
+        matchScore(option, searchTerm),
+        matchScore(optionDetails?.[idx] ?? '', searchTerm)
+      ),
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
@@ -67,6 +80,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   return (
     <div className={cn("relative", className)} ref={containerRef}>
       <div className="relative">
+        {leftIcon && (
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">
+            {leftIcon}
+          </div>
+        )}
         <input
           type="text"
           value={searchTerm}
@@ -76,6 +94,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           disabled={disabled}
           className={cn(
             "w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm pr-10",
+            leftIcon && "pl-10",
             disabled && "opacity-50 cursor-not-allowed bg-gray-100",
             inputClassName
           )}
