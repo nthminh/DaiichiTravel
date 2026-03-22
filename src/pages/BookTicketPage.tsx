@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
@@ -212,6 +212,26 @@ export function BookTicketPage({
   }, [searchFrom, searchTo, tripType, roundTripPhase, routes, stops, trips]);
 
   const routeByName = new Map(routes.map(r => [r.name, r]));
+
+  // Check whether the current from/to combination matches any configured route segment.
+  // If both fields have content but no route connects them, we show an inline warning.
+  const noSegmentWarning = useMemo(() => {
+    const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+    const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
+    const effectiveTo = isReturnPhase ? searchFrom : searchTo;
+    if (!effectiveFrom || !effectiveTo) return false;
+    return !routes.some(r => {
+      const orderedStops = [
+        r.departurePoint,
+        ...(r.routeStops || []).slice().sort((a, b) => a.order - b.order).map(s => s.stopName),
+        r.arrivalPoint,
+      ].filter(Boolean);
+      const fromIdx = orderedStops.findIndex(name => matchesSearch(name as string, effectiveFrom));
+      if (fromIdx === -1) return false;
+      const toIdx = orderedStops.findIndex(name => matchesSearch(name as string, effectiveTo));
+      return toIdx !== -1 && fromIdx < toIdx;
+    });
+  }, [searchFrom, searchTo, tripType, roundTripPhase, routes]);
 
   const filterTrip = (trip: Trip, includeDate: boolean) => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
@@ -441,16 +461,34 @@ export function BookTicketPage({
           </div>
           {/* Column 2: Departure time + vehicle type + date/schedule */}
           <div className="col-span-1 flex flex-col justify-center gap-1.5 py-1 min-w-0">
-            {/* Departure time – large blue, with "~" when boarding at an intermediate stop */}
+            {/* Departure time – calculated as base time + offsetMinutes when boarding at an intermediate stop */}
             {trip.time && (() => {
               const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
               const effectiveFrom = (isReturnPhase ? searchTo : searchFrom) || '';
               const isExactDeparture = !effectiveFrom || effectiveFrom === tripRoute?.departurePoint;
+              // Find the intermediate stop matching the selected departure to compute offset
+              const matchedRouteStop = effectiveFrom
+                ? tripRoute?.routeStops?.find(s => s.stopName === effectiveFrom || matchesSearch(s.stopName, effectiveFrom))
+                : undefined;
+              const offsetMins = matchedRouteStop?.offsetMinutes ?? 0;
+              const displayTime = offsetMins > 0 ? (() => {
+                const [h, m] = trip.time.split(':').map(Number);
+                if (isNaN(h) || isNaN(m)) return trip.time;
+                const totalMins = h * 60 + m + offsetMins;
+                return `${String(Math.floor(totalMins / 60) % 24).padStart(2, '0')}:${String(totalMins % 60).padStart(2, '0')}`;
+              })() : trip.time;
               return (
-                <div className="flex items-baseline gap-0.5">
-                  <span className="text-lg font-bold text-blue-600 leading-none">{trip.time}</span>
-                  {!isExactDeparture && (
-                    <span className="text-xs font-bold text-blue-400 leading-none">~</span>
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="text-lg font-bold text-blue-600 leading-none">{displayTime}</span>
+                    {!isExactDeparture && offsetMins === 0 && (
+                      <span className="text-xs font-bold text-blue-400 leading-none">~</span>
+                    )}
+                  </div>
+                  {offsetMins > 0 && (
+                    <span className="text-[9px] text-gray-400 leading-none">
+                      {t.stop_arrival_time_hint || 'Xuất bến lúc'} {trip.time}
+                    </span>
                   )}
                 </div>
               );
@@ -688,6 +726,13 @@ export function BookTicketPage({
             </div>
           )}
         </div>
+        {/* Inline warning: selected from/to has no matching route segment */}
+        {noSegmentWarning && (
+          <div className="mt-3 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-amber-500" />
+            <span>{t.no_segment_warning || 'Không tìm thấy chặng nào kết nối hai điểm này. Vui lòng thay đổi điểm đi hoặc điểm đến.'}</span>
+          </div>
+        )}
         {/* Passenger count row + search button */}
         <div className="flex items-end gap-3 mt-4 sm:mt-4">
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4 sm:w-64">

@@ -1,7 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, X } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { matchScore } from '../lib/searchUtils';
+import { matchScore, removeAccents } from '../lib/searchUtils';
+
+/** Normalize a string for deduplication: remove accents, lowercase, strip punctuation, collapse spaces */
+const normalizeForDedup = (s: string): string =>
+  removeAccents(s.toLowerCase())
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 interface SearchableSelectProps {
   options: string[];
@@ -50,17 +57,29 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options
-    .map((option, idx) => ({
-      option,
-      detail: optionDetails?.[idx] ?? '',
-      score: Math.max(
-        matchScore(option, searchTerm),
-        matchScore(optionDetails?.[idx] ?? '', searchTerm)
-      ),
-    }))
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score);
+  const filteredOptions = (() => {
+    const scored = options
+      .map((option, idx) => ({
+        option,
+        detail: optionDetails?.[idx] ?? '',
+        score: Math.max(
+          matchScore(option, searchTerm),
+          matchScore(optionDetails?.[idx] ?? '', searchTerm)
+        ),
+      }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    // Deduplicate: if two options normalize to the same text (accent-free, punctuation-stripped),
+    // keep only the highest-scoring one (which is already first after the sort above).
+    const seenNormalized = new Set<string>();
+    return scored.filter(({ option }) => {
+      const norm = normalizeForDedup(option);
+      if (seenNormalized.has(norm)) return false;
+      seenNormalized.add(norm);
+      return true;
+    });
+  })();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
@@ -118,9 +137,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       {isOpen && (searchTerm || filteredOptions.length > 0) && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
           {filteredOptions.length > 0 ? (
-            filteredOptions.map(({ option, detail }, index) => (
+            filteredOptions.map(({ option, detail }) => (
               <button
-                key={index}
+                key={option}
                 onClick={() => handleSelectOption(option)}
                 className={cn(
                   "w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors flex items-center justify-between group",
