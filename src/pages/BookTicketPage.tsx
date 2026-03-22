@@ -161,8 +161,13 @@ export function BookTicketPage({
 
   useEffect(() => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-    const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
-    const effectiveTo = isReturnPhase ? searchFrom : searchTo;
+    // Prefer specific stop selection (searchStationFrom/To) over plain city text (searchFrom/To)
+    const effectiveFrom = isReturnPhase
+      ? (searchStationTo || searchTo)
+      : (searchStationFrom || searchFrom);
+    const effectiveTo = isReturnPhase
+      ? (searchStationFrom || searchFrom)
+      : (searchStationTo || searchTo);
 
     if (!effectiveFrom || !effectiveTo) {
       setSegmentFares(new Map());
@@ -217,7 +222,7 @@ export function BookTicketPage({
 
     fetchFares();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchFrom, searchTo, tripType, roundTripPhase, routes, stops, trips]);
+  }, [searchFrom, searchTo, searchStationFrom, searchStationTo, tripType, roundTripPhase, routes, stops, trips]);
 
   const routeByName = new Map(routes.map(r => [r.name, r]));
 
@@ -479,7 +484,10 @@ export function BookTicketPage({
             {/* Departure time – calculated as base time + offsetMinutes when boarding at an intermediate stop */}
             {trip.time && (() => {
               const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-              const effectiveFrom = (isReturnPhase ? searchTo : searchFrom) || '';
+              // Prefer specific stop selection over plain city text
+              const effectiveFrom = isReturnPhase
+                ? (searchStationTo || searchTo)
+                : (searchStationFrom || searchFrom);
               const isExactDeparture = !effectiveFrom || effectiveFrom === tripRoute?.departurePoint;
               // Find the intermediate stop matching the selected departure to compute offset
               const matchedRouteStop = effectiveFrom
