@@ -3,7 +3,7 @@ import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTria
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
-import { matchesSearch } from '../lib/searchUtils'
+import { matchesSearch, removeAccents } from '../lib/searchUtils'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
@@ -314,43 +314,65 @@ export function BookTicketPage({
   };
 
   // Derive unique departure options: main departure point + all intermediate stops (passengers can board here)
-  const allDeparturePoints = new Set<string>();
-  const allDestinationPoints = new Set<string>();
+  // Use accent/case/whitespace-normalised keys so that visually identical names are deduplicated even
+  // when stored with minor variations in the database (e.g. "Hà Nội" vs "Ha Noi" vs "hà nội ").
+  // The regex collapses internal multiple spaces; .trim() removes leading/trailing whitespace.
+  const normalizeStopKey = (s: string) => removeAccents(s.toLowerCase()).replace(/\s+/g, ' ').trim();
+  const allDepartureMap = new Map<string, string>(); // normalizedKey → display name
+  const allDestinationMap = new Map<string, string>();
   routes.forEach(r => {
-    if (r.departurePoint) allDeparturePoints.add(r.departurePoint);
+    const addDep = (name: string) => {
+      const trimmed = name.trim();
+      const key = normalizeStopKey(trimmed);
+      if (!allDepartureMap.has(key)) allDepartureMap.set(key, trimmed);
+    };
+    const addDest = (name: string) => {
+      const trimmed = name.trim();
+      const key = normalizeStopKey(trimmed);
+      if (!allDestinationMap.has(key)) allDestinationMap.set(key, trimmed);
+    };
+    if (r.departurePoint) addDep(r.departurePoint);
     (r.routeStops || []).forEach(s => {
       if (s.stopName) {
-        allDeparturePoints.add(s.stopName);
-        allDestinationPoints.add(s.stopName);
+        addDep(s.stopName);
+        addDest(s.stopName);
       }
     });
-    if (r.arrivalPoint) allDestinationPoints.add(r.arrivalPoint);
+    if (r.arrivalPoint) addDest(r.arrivalPoint);
   });
-  const departureOptions = Array.from(allDeparturePoints).sort();
+  const departureOptions = Array.from(allDepartureMap.values()).sort();
 
   // Derive unique destination options: filter to stops reachable after the selected departure
   // when the user has made an exact selection from the departure list.
   // While the user is still typing, show all destinations so each field searches independently.
+  // Uses the same normalised-key deduplication as departure options.
   const isFromExactlySelected = departureOptions.includes(searchFrom);
-  const destinationOptions = Array.from(
-    new Set(
-      !searchFrom || !isFromExactlySelected
-        ? Array.from(allDestinationPoints)
-        : routes.flatMap(r => {
-            const stops = [
-              r.departurePoint,
-              ...(r.routeStops || [])
-                .slice()
-                .sort((a, b) => a.order - b.order)
-                .map(s => s.stopName),
-              r.arrivalPoint,
-            ].filter((name): name is string => Boolean(name));
-            const fromIdx = stops.indexOf(searchFrom);
-            if (fromIdx === -1) return [];
-            return stops.slice(fromIdx + 1);
-          })
-    )
-  ).sort();
+  const destinationOptions = (() => {
+    const destMap = new Map<string, string>();
+    const addDest = (name: string) => {
+      const trimmed = name.trim();
+      const key = normalizeStopKey(trimmed);
+      if (!destMap.has(key)) destMap.set(key, trimmed);
+    };
+    if (!searchFrom || !isFromExactlySelected) {
+      allDestinationMap.forEach(name => addDest(name));
+    } else {
+      routes.forEach(r => {
+        const stops = [
+          r.departurePoint,
+          ...(r.routeStops || [])
+            .slice()
+            .sort((a, b) => a.order - b.order)
+            .map(s => s.stopName),
+          r.arrivalPoint,
+        ].filter((name): name is string => Boolean(name));
+        const fromIdx = stops.indexOf(searchFrom);
+        if (fromIdx === -1) return;
+        stops.slice(fromIdx + 1).forEach(addDest);
+      });
+    }
+    return Array.from(destMap.values()).sort();
+  })();
 
   // Palette of pastel background colors for route cards (Tailwind safe-listed via explicit strings)
   const CARD_BG_COLORS = [
@@ -900,6 +922,8 @@ export function BookTicketPage({
           </div>
         )}
         {tripType === 'ONE_WAY' && <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>}
+        {/* Carrier selection hint */}
+        <p className="px-2 text-xs text-gray-500 italic">{t.select_carrier_hint}</p>
 
         {(() => {
           const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
