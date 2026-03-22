@@ -8,6 +8,7 @@ import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
 import { transportService } from '../services/transportService'
+import { SearchableSelect } from '../components/SearchableSelect'
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -647,37 +648,27 @@ export function BookTicketPage({
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
             <div className="relative mt-1">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-              <input
-                type="text"
-                list="departure-options"
+              <SearchableSelect
+                options={departureOptions}
                 value={searchFrom}
-                onChange={e => setSearchFrom(e.target.value)}
+                onChange={setSearchFrom}
                 placeholder={t.from}
-                aria-label={t.from}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
+                leftIcon={<MapPin size={18} />}
+                inputClassName="pl-12 py-4 rounded-2xl"
               />
-              <datalist id="departure-options">
-                {departureOptions.map(opt => <option key={opt} value={opt} />)}
-              </datalist>
             </div>
           </div>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
             <div className="relative mt-1">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-              <input
-                type="text"
-                list="destination-options"
+              <SearchableSelect
+                options={destinationOptions}
                 value={searchTo}
-                onChange={e => setSearchTo(e.target.value)}
+                onChange={setSearchTo}
                 placeholder={t.to}
-                aria-label={t.to}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
+                leftIcon={<MapPin size={18} />}
+                inputClassName="pl-12 py-4 rounded-2xl"
               />
-              <datalist id="destination-options">
-                {destinationOptions.map(opt => <option key={opt} value={opt} />)}
-              </datalist>
             </div>
           </div>
           <div>
