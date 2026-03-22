@@ -49,14 +49,6 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
         if (score > 0) {
           results.push({ sug: { stop, terminal: stop }, score });
         }
-      } else {
-        const terminal = stops.find(s => s.id === stop.terminalId && s.type === 'TERMINAL');
-        const nameScore = matchScore(stop.name, value);
-        const addrScore = stop.address ? matchScore(stop.address, value) : 0;
-        const score = Math.max(nameScore, addrScore);
-        if (score > 0) {
-          results.push({ sug: { stop, terminal }, score });
-        }
       }
     });
     // Sort: priority stops first (ascending priority number), then by match score descending
