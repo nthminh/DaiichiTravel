@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
@@ -7,11 +7,13 @@ import { matchesSearch } from '../lib/searchUtils'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
+import { transportService } from '../services/transportService'
 
 interface BookTicketPageProps {
   trips: Trip[];
   routes: Route[];
   vehicles: Vehicle[];
+  stops: Stop[];
   language: Language;
   searchFrom: string;
   searchTo: string;
@@ -79,6 +81,7 @@ export function BookTicketPage({
   trips,
   routes,
   vehicles,
+  stops,
   language,
   searchFrom,
   searchTo,
@@ -141,6 +144,71 @@ export function BookTicketPage({
 }: BookTicketPageProps) {
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
+
+  // Segment-based fare lookup: map from routeId → { price, agentPrice }
+  // Updated whenever the customer's searchFrom / searchTo changes.
+  const [segmentFares, setSegmentFares] = useState<Map<string, { price: number; agentPrice?: number }>>(new Map());
+  const segmentFareFetchRef = useRef(0);
+
+  useEffect(() => {
+    const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+    const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
+    const effectiveTo = isReturnPhase ? searchFrom : searchTo;
+
+    if (!effectiveFrom || !effectiveTo) {
+      setSegmentFares(new Map());
+      return;
+    }
+
+    const fetchId = ++segmentFareFetchRef.current;
+
+    const fetchFares = async () => {
+      const uniqueRouteNames = [...new Set(trips.map(t => t.route))];
+
+      const results = await Promise.all(
+        uniqueRouteNames.map(async (routeName) => {
+          const route = routes.find(r => r.name === routeName);
+          if (!route?.routeStops?.length) return null;
+
+          // Resolve stop IDs (prefer route-embedded stops, fall back to global stops)
+          const fromRouteStop = route.routeStops.find(rs => rs.stopName === effectiveFrom);
+          const toRouteStop = route.routeStops.find(rs => rs.stopName === effectiveTo);
+          const fromGlobalStop = stops.find(s => s.name === effectiveFrom);
+          const toGlobalStop = stops.find(s => s.name === effectiveTo);
+
+          const fromStopId = fromRouteStop?.stopId || fromGlobalStop?.id || '';
+          const toStopId = toRouteStop?.stopId || toGlobalStop?.id || '';
+
+          if (!fromStopId || !toStopId) return null;
+
+          try {
+            const fare = await transportService.getFare({
+              routeId: route.id,
+              fromStopId,
+              toStopId,
+              routeStops: route.routeStops,
+              stops,
+            });
+            return { routeId: route.id, price: fare.price, agentPrice: fare.agentPrice };
+          } catch {
+            // Fare not configured for this segment – fall back to trip.price
+            return null;
+          }
+        })
+      );
+
+      if (fetchId === segmentFareFetchRef.current) {
+        const newFares = new Map<string, { price: number; agentPrice?: number }>();
+        for (const result of results) {
+          if (result) newFares.set(result.routeId, { price: result.price, agentPrice: result.agentPrice });
+        }
+        setSegmentFares(newFares);
+      }
+    };
+
+    fetchFares();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchFrom, searchTo, tripType, roundTripPhase, routes, stops, trips]);
 
   const routeByName = new Map(routes.map(r => [r.name, r]));
 
@@ -370,8 +438,22 @@ export function BookTicketPage({
               </div>
             )}
           </div>
-          {/* Column 2: Vehicle type + duration + date/schedule */}
+          {/* Column 2: Departure time + vehicle type + date/schedule */}
           <div className="col-span-1 flex flex-col justify-center gap-1.5 py-1 min-w-0">
+            {/* Departure time – large blue, with "~" when boarding at an intermediate stop */}
+            {trip.time && (() => {
+              const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+              const effectiveFrom = (isReturnPhase ? searchTo : searchFrom) || '';
+              const isExactDeparture = !effectiveFrom || effectiveFrom === tripRoute?.departurePoint;
+              return (
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-lg font-bold text-blue-600 leading-none">{trip.time}</span>
+                  {!isExactDeparture && (
+                    <span className="text-xs font-bold text-blue-400 leading-none">~</span>
+                  )}
+                </div>
+              );
+            })()}
             {/* Vehicle type */}
             {tripVehicle?.type && (
               <div className="flex items-center gap-1">
@@ -381,13 +463,6 @@ export function BookTicketPage({
             )}
             {/* License plate */}
             <span className="text-[9px] text-gray-400 truncate">{trip.licensePlate}</span>
-            {/* Duration (travel time) – departure time removed to avoid confusion */}
-            {tripRoute?.duration && (
-              <div className="flex items-center gap-1">
-                <Clock size={10} className="flex-shrink-0 text-gray-400" />
-                <span className="text-[10px] text-gray-500">{tripRoute.duration}</span>
-              </div>
-            )}
             {/* Date */}
             {trip.date && (
               <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-xs font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-red-50 text-daiichi-red")}>
@@ -418,22 +493,38 @@ export function BookTicketPage({
                 {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
               </button>
             )}
-            {/* Price */}
+            {/* Price – use segment fare when available, fall back to trip.price */}
             <div className="mt-auto">
               {(() => {
+                const segFare = tripRoute ? segmentFares.get(tripRoute.id) : undefined;
                 const discountPct = trip.discountPercent || 0;
-                const isAgent = currentUser?.role === UserRole.AGENT && (trip.agentPrice || 0) > 0;
-                const basePrice = isAgent ? (trip.agentPrice || 0) : trip.price;
-                const discountedPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100)) : basePrice;
+                const isAgent = currentUser?.role === UserRole.AGENT;
+
+                // Retail base: prefer segment fare, fall back to trip default
+                const retailBase = segFare ? segFare.price : trip.price;
+
+                // Agent base: prefer segment fare's agentPrice, then trip's agentPrice, then null
+                let agentBase: number | null = null;
                 if (isAgent) {
+                  if (segFare?.agentPrice) {
+                    agentBase = segFare.agentPrice;
+                  } else if ((trip.agentPrice || 0) > 0) {
+                    agentBase = trip.agentPrice!;
+                  }
+                }
+
+                const basePrice = agentBase !== null ? agentBase : retailBase;
+                const discountedPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100)) : basePrice;
+
+                if (isAgent && agentBase !== null) {
                   return (
                     <div>
                       <p className="text-sm font-bold text-daiichi-red leading-tight">{discountedPrice.toLocaleString()}đ</p>
                       {discountPct > 0
                         ? <p className="text-[9px] text-gray-400 line-through">{basePrice.toLocaleString()}đ</p>
-                        : <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>}
+                        : <p className="text-[9px] text-gray-400 line-through">{retailBase.toLocaleString()}đ</p>}
                       <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
-                        💰 {(trip.price - discountedPrice).toLocaleString()}đ
+                        💰 {(retailBase - discountedPrice).toLocaleString()}đ
                       </span>
                     </div>
                   );
@@ -441,13 +532,13 @@ export function BookTicketPage({
                 return discountPct > 0 ? (
                   <div>
                     <p className="text-sm font-bold text-daiichi-red leading-tight">{discountedPrice.toLocaleString()}đ</p>
-                    <p className="text-[9px] text-gray-400 line-through">{trip.price.toLocaleString()}đ</p>
+                    <p className="text-[9px] text-gray-400 line-through">{retailBase.toLocaleString()}đ</p>
                     <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
                       🏷️ -{discountPct}%
                     </span>
                   </div>
                 ) : (
-                  <p className="text-sm font-bold text-daiichi-red leading-tight">{trip.price.toLocaleString()}đ</p>
+                  <p className="text-sm font-bold text-daiichi-red leading-tight">{retailBase.toLocaleString()}đ</p>
                 );
               })()}
             </div>
