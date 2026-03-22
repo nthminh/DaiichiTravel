@@ -167,10 +167,33 @@ export function BookTicketPage({
       if (!matchesSearch(searchable, bookTicketSearch)) return false;
     }
     const tripRoute = routeByName.get(trip.route);
-    const departureText = tripRoute ? tripRoute.departurePoint : trip.route || '';
-    const arrivalText = tripRoute ? tripRoute.arrivalPoint : trip.route || '';
-    if (effectiveFrom && !matchesSearch(departureText, effectiveFrom)) return false;
-    if (effectiveTo && !matchesSearch(arrivalText, effectiveTo)) return false;
+    if (effectiveFrom || effectiveTo) {
+      if (tripRoute) {
+        const orderedStops = [
+          tripRoute.departurePoint,
+          ...(tripRoute.routeStops || [])
+            .slice()
+            .sort((a, b) => a.order - b.order)
+            .map(s => s.stopName),
+          tripRoute.arrivalPoint,
+        ].filter(Boolean);
+        if (effectiveFrom) {
+          const fromIdx = orderedStops.findIndex(name => matchesSearch(name, effectiveFrom));
+          if (fromIdx === -1) return false;
+          if (effectiveTo) {
+            const toIdx = orderedStops.findIndex(name => matchesSearch(name, effectiveTo));
+            if (toIdx === -1 || fromIdx >= toIdx) return false;
+          }
+        } else {
+          const toIdx = orderedStops.findIndex(name => matchesSearch(name, effectiveTo));
+          if (toIdx === -1) return false;
+        }
+      } else {
+        const fallbackText = trip.route || '';
+        if (effectiveFrom && !matchesSearch(fallbackText, effectiveFrom)) return false;
+        if (effectiveTo && !matchesSearch(fallbackText, effectiveTo)) return false;
+      }
+    }
     if (includeDate && effectiveDate && trip.date && trip.date !== effectiveDate) return false;
     if (vehicleTypeFilter && (!tripVehicle || tripVehicle.type !== vehicleTypeFilter)) return false;
     if (priceMin) {
@@ -201,19 +224,42 @@ export function BookTicketPage({
     }
   };
 
-  // Derive unique departure options from routes
-  const departureOptions = Array.from(new Set(routes.map(r => r.departurePoint).filter(Boolean))).sort();
+  // Derive unique departure options: main departure point + all intermediate stops (passengers can board here)
+  const allDeparturePoints = new Set<string>();
+  const allDestinationPoints = new Set<string>();
+  routes.forEach(r => {
+    if (r.departurePoint) allDeparturePoints.add(r.departurePoint);
+    (r.routeStops || []).forEach(s => {
+      if (s.stopName) {
+        allDeparturePoints.add(s.stopName);
+        allDestinationPoints.add(s.stopName);
+      }
+    });
+    if (r.arrivalPoint) allDestinationPoints.add(r.arrivalPoint);
+  });
+  const departureOptions = Array.from(allDeparturePoints).sort();
 
-  // Derive unique destination options: only filter to arrivals reachable from the selected departure
-  // when the user has made an exact selection (i.e. searchFrom exactly matches a known departure option).
-  // While the user is still typing, show all destinations so that each field searches independently.
+  // Derive unique destination options: filter to stops reachable after the selected departure
+  // when the user has made an exact selection from the departure list.
+  // While the user is still typing, show all destinations so each field searches independently.
   const isFromExactlySelected = departureOptions.includes(searchFrom);
   const destinationOptions = Array.from(
     new Set(
-      routes
-        .filter(r => !searchFrom || !isFromExactlySelected || r.departurePoint === searchFrom)
-        .map(r => r.arrivalPoint)
-        .filter(Boolean)
+      !searchFrom || !isFromExactlySelected
+        ? Array.from(allDestinationPoints)
+        : routes.flatMap(r => {
+            const stops = [
+              r.departurePoint,
+              ...(r.routeStops || [])
+                .slice()
+                .sort((a, b) => a.order - b.order)
+                .map(s => s.stopName),
+              r.arrivalPoint,
+            ].filter((name): name is string => Boolean(name));
+            const fromIdx = stops.indexOf(searchFrom);
+            if (fromIdx === -1) return [];
+            return stops.slice(fromIdx + 1);
+          })
     )
   ).sort();
 
@@ -496,12 +542,16 @@ export function BookTicketPage({
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
               <input
                 type="text"
+                list="departure-options"
                 value={searchFrom}
                 onChange={e => setSearchFrom(e.target.value)}
                 placeholder={t.from}
                 aria-label={t.from}
                 className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
               />
+              <datalist id="departure-options">
+                {departureOptions.map(opt => <option key={opt} value={opt} />)}
+              </datalist>
             </div>
           </div>
           <div>
@@ -510,12 +560,16 @@ export function BookTicketPage({
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
               <input
                 type="text"
+                list="destination-options"
                 value={searchTo}
                 onChange={e => setSearchTo(e.target.value)}
                 placeholder={t.to}
                 aria-label={t.to}
                 className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm"
               />
+              <datalist id="destination-options">
+                {destinationOptions.map(opt => <option key={opt} value={opt} />)}
+              </datalist>
             </div>
           </div>
           <div>
