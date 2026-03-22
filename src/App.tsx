@@ -713,6 +713,11 @@ export default function App() {
     setFareAmount(null);
     setFareError('');
 
+    // Auto-populate passenger counts from the search form values
+    setAdults(searchAdults);
+    setChildren(searchChildren);
+    setChildrenAges(new Array(searchChildren).fill(undefined));
+
     const tripRoute = routes.find((r) => r.name === selectedTrip.route);
     const isReturnPhaseNow = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
     const fromSearch = isReturnPhaseNow ? searchTo : searchFrom;
