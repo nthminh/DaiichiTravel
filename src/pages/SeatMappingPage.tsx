@@ -26,6 +26,7 @@ interface SeatMappingPageProps {
   childrenAges: (number | undefined)[];
   extraSeatIds: string[];
   showBookingForm: string | null;
+  showPreBookingInfo: boolean;
   customerNameInput: string;
   phoneInput: string;
   pickupPoint: string;
@@ -58,6 +59,7 @@ interface SeatMappingPageProps {
   setExtraSeatIds: React.Dispatch<React.SetStateAction<string[]>>;
   setSeatSelectionHistory: React.Dispatch<React.SetStateAction<{ primarySeat: string | null; extraSeats: string[] }[]>>;
   setShowBookingForm: (v: string | null) => void;
+  setShowPreBookingInfo: (v: boolean) => void;
   setCustomerNameInput: (v: string) => void;
   setPhoneInput: (v: string) => void;
   setPickupPoint: (v: string) => void;
@@ -103,6 +105,7 @@ export function SeatMappingPage({
   childrenAges,
   extraSeatIds,
   showBookingForm,
+  showPreBookingInfo,
   customerNameInput,
   phoneInput,
   pickupPoint,
@@ -134,6 +137,7 @@ export function SeatMappingPage({
   setExtraSeatIds,
   setSeatSelectionHistory,
   setShowBookingForm,
+  setShowPreBookingInfo,
   setCustomerNameInput,
   setPhoneInput,
   setPickupPoint,
@@ -467,7 +471,7 @@ export function SeatMappingPage({
         )}
       </div>
 
-      {isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded && (
+      {!showPreBookingInfo && isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded && (
         <div className="mb-4 p-3 bg-orange-50 rounded-2xl border border-orange-200 flex items-center gap-2">
           <span className="text-orange-500 font-bold text-sm">
             {t.select_extra_seats_prompt} ({extraSeatIds.length}/{extraSeatsNeeded})
@@ -484,70 +488,72 @@ export function SeatMappingPage({
         let currentStep: number;
 
         if (isRoundTrip) {
-          // Round-trip: 6-step flow covering both outbound and return legs
+          // Round-trip: 6-step flow — info declaration before seat selection for each leg
           if (language === 'vi') {
-            steps = ['Ghế đi', 'TT đi', 'Ghế về', 'TT về', 'Thanh toán', 'Tải về'];
+            steps = ['TT đi', 'Ghế đi', 'TT về', 'Ghế về', 'Thanh toán', 'Tải về'];
             hints = [
-              '👆 Nhấn vào ghế trống (màu trắng) để chọn chỗ chiều đi',
-              '✍️ Điền đầy đủ thông tin hành khách chiều đi rồi nhấn xác nhận',
-              '👆 Tiếp theo, chọn ghế trống cho chiều về của bạn',
-              '✍️ Điền thông tin chiều về rồi nhấn xác nhận để tiến hành thanh toán',
+              '✍️ Khai báo thông tin hành khách và chặng chiều đi',
+              '👆 Chọn ghế phù hợp theo số hành khách chiều đi',
+              '✍️ Khai báo thông tin hành khách và chặng chiều về',
+              '👆 Chọn ghế phù hợp theo số hành khách chiều về',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất cả hai chiều',
               '📥 Thanh toán thành công! Tải vé khứ hồi về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['出発席', '出発情報', '帰路席', '帰路情報', 'お支払い', 'ダウンロード'];
+            steps = ['出発情報', '出発席', '帰路情報', '帰路席', 'お支払い', 'ダウンロード'];
             hints = [
-              '👆 出発便の空席（白色）をタップして座席を選んでください',
-              '✍️ 出発便の乗客情報を入力して確認ボタンを押してください',
-              '👆 次に、帰路便の空席をタップして座席を選んでください',
-              '✍️ 帰路便の情報を入力して決済ステップへ進んでください',
+              '✍️ 出発便の乗客情報と区間を入力してください',
+              '👆 出発便の空席（白色）をタップして乗客数に合わせて座席を選んでください',
+              '✍️ 帰路便の乗客情報と区間を入力してください',
+              '👆 帰路便の空席をタップして乗客数に合わせて座席を選んでください',
               '💳 QRコードをスキャンするか、支払い方法を選択して往復予約を確定してください',
               '📥 支払い完了！乗車時に使用する往復チケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Out. Seat', 'Out. Info', 'Ret. Seat', 'Ret. Info', 'Payment', 'Download'];
+            steps = ['Out. Info', 'Out. Seat', 'Ret. Info', 'Ret. Seat', 'Payment', 'Download'];
             hints = [
-              '👆 Tap an empty seat (white) to select your outbound seat',
-              '✍️ Fill in passenger details for the outbound trip then confirm',
-              '👆 Now tap an empty seat to select your return seat',
-              '✍️ Fill in return trip details then confirm to proceed to payment',
+              '✍️ Declare passenger information and segment for the outbound trip',
+              '👆 Tap an empty seat (white) to select seats for all outbound passengers',
+              '✍️ Declare passenger information and segment for the return trip',
+              '👆 Tap an empty seat to select seats for all return passengers',
               '💳 Scan the QR code or choose a payment method to complete both trips',
               '📥 Payment successful! Download your round-trip ticket to use when boarding',
             ];
           }
-          // Steps 1–2 are the outbound leg; steps 3–4 are the return leg
-          currentStep = roundTripPhase === 'outbound'
-            ? (showBookingForm ? 2 : 1)
-            : (showBookingForm ? 4 : 3);
+          // Steps 1–2: outbound (info then seat); Steps 3–4: return (info then seat)
+          if (roundTripPhase === 'outbound') {
+            currentStep = showPreBookingInfo ? 1 : 2;
+          } else {
+            currentStep = showPreBookingInfo ? 3 : 4;
+          }
         } else {
-          // ONE_WAY: 4-step flow (unchanged)
-          currentStep = showBookingForm ? 2 : 1;
+          // ONE_WAY: info first, then seat selection
           if (language === 'vi') {
-            steps = ['Chọn ghế', 'Nhập thông tin', 'Thanh toán', 'Tải về'];
+            steps = ['Nhập thông tin', 'Chọn ghế', 'Thanh toán', 'Tải về'];
             hints = [
-              '👆 Nhấn vào ghế trống (màu trắng) để bắt đầu đặt vé',
-              '✍️ Điền đầy đủ thông tin hành khách rồi nhấn xác nhận đặt vé',
+              '✍️ Khai báo thông tin hành khách và chọn điểm xuất phát / điểm đến',
+              '👆 Chọn ghế trống (màu trắng) theo số người đã khai báo',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
               '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['座席を選ぶ', '情報を入力', 'お支払い', 'ダウンロード'];
+            steps = ['情報を入力', '座席を選ぶ', 'お支払い', 'ダウンロード'];
             hints = [
-              '👆 空席（白色）をタップして予約を開始してください',
-              '✍️ 乗客情報を入力して予約確認ボタンを押してください',
+              '✍️ 乗客情報と乗降区間を入力してください',
+              '👆 空席（白色）をタップして、乗客数分の座席を選んでください',
               '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
               '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Select Seat', 'Enter Info', 'Payment', 'Download'];
+            steps = ['Enter Info', 'Select Seat', 'Payment', 'Download'];
             hints = [
-              '👆 Tap an empty seat (white) to start booking',
-              '✍️ Fill in passenger details then confirm your booking',
+              '✍️ Declare passenger details and choose your departure / destination point',
+              '👆 Tap an empty seat (white) to select seats for all passengers',
               '💳 Scan the QR code or choose a payment method to complete',
               '📥 Payment successful! Download your ticket to use when boarding',
             ];
           }
+          currentStep = showPreBookingInfo ? 1 : 2;
         }
 
         return (
@@ -597,7 +603,7 @@ export function SeatMappingPage({
         );
       })()}
 
-      {isFreeSeatingTrip ? (
+      {!showPreBookingInfo && (isFreeSeatingTrip ? (
         /* ── FREE SEATING: no seat diagram, show available count + book button ── */
         <div className="max-w-lg mx-auto bg-gray-50 p-6 sm:p-10 rounded-[32px] border border-gray-100 text-center space-y-6">
           <div className="flex flex-col items-center gap-2">
@@ -625,10 +631,6 @@ export function SeatMappingPage({
                 // Push a no-op history entry so Escape/undo can cancel the booking form
                 setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
                 setShowBookingForm('FREE');
-                if (currentUser?.role === UserRole.CUSTOMER) {
-                  if (currentUser.name) setCustomerNameInput(currentUser.name);
-                  if (currentUser.phone) setPhoneInput(currentUser.phone);
-                }
               }}
               disabled={selectedTrip.seats.filter((s: any) => s.status === SeatStatus.EMPTY).length === 0}
               className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:cursor-not-allowed text-base"
@@ -703,7 +705,7 @@ export function SeatMappingPage({
           </div>
         )}
       </div>
-      )}
+      ))}
 
       {/* Route details panel */}
       {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details || tripRoute.note) && (
@@ -732,60 +734,21 @@ export function SeatMappingPage({
     </div>
 
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">{t.trip_info}</h3>
-          {isFreeSeatingTrip && (
-            <span className="px-2 py-1 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-600 uppercase tracking-wide">
-              🪑 {language === 'vi' ? 'Ghế tự do' : language === 'ja' ? '自由席' : 'Free Seating'}
-            </span>
-          )}
-        </div>
-        <div className="space-y-4 text-sm">
-          <div className="flex justify-between"><span className="text-gray-500">{t.total_seats}</span><span className="font-bold">{selectedTrip.seats.length}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">{t.paid_seats}</span><span className="font-bold text-green-600">{selectedTrip.seats.filter(s => s.status === SeatStatus.PAID).length}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">{t.booked_seats}</span><span className="font-bold text-daiichi-yellow">{selectedTrip.seats.filter(s => s.status === SeatStatus.BOOKED).length}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">{t.empty_seats}</span><span className="font-bold text-gray-400">{selectedTrip.seats.filter(s => s.status === SeatStatus.EMPTY).length}</span></div>
-        </div>
-      </div>
-
-      {!showBookingForm && (selectedTrip.addons || []).length > 0 && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-emerald-200">
-          <div className="flex items-center gap-2 mb-3">
-            <Gift size={20} className="text-emerald-600" />
-            <h3 className="text-lg font-bold text-emerald-700">{language === 'vi' ? 'Dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}</h3>
-          </div>
-          <p className="text-xs text-gray-500 mb-3">{isFreeSeatingTrip ? (language === 'vi' ? 'Thêm các dịch vụ bổ sung vào vé của bạn:' : 'Add optional services to your booking:') : (language === 'vi' ? 'Chọn ghế để thêm các dịch vụ bổ sung vào vé của bạn:' : language === 'ja' ? '座席を選択してオプションサービスを追加できます:' : 'Select a seat to add these optional services to your booking:')}</p>
-          <div className="space-y-2">
-            {(selectedTrip.addons || []).map((addon: TripAddon) => (
-              <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-gray-800">{addon.name}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
-                      {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
-                    </span>
-                  </div>
-                  {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
-                </div>
-                <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showBookingForm && (
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold">
-              {isFreeSeatingTrip
-                ? (language === 'vi' ? '🪑 Đặt vé ghế tự do' : language === 'ja' ? '🪑 自由席予約' : '🪑 Free Seating Booking')
-                : `${t.booking_title}: ${showBookingForm}`}
-            </h3>
-            <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-          </div>
+      {showPreBookingInfo ? (
+        /* ── STEP 1: PRE-BOOKING INFO FORM ── */
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
+          <h3 className="text-lg font-bold mb-1">
+            {language === 'vi' ? '📋 Khai báo thông tin' : language === 'ja' ? '📋 乗客情報の入力' : '📋 Passenger Information'}
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">
+            {language === 'vi'
+              ? 'Nhập thông tin hành khách và điểm xuất phát / điểm đến trước khi chọn ghế.'
+              : language === 'ja'
+                ? '座席を選ぶ前に乗客情報と乗降区間を入力してください。'
+                : 'Enter passenger details and departure / destination before selecting seats.'}
+          </p>
           <form className="space-y-4">
+            {/* Adults / Children */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
@@ -826,7 +789,7 @@ export function SeatMappingPage({
               </div>
             </div>
 
-            {/* Children age inputs */}
+            {/* Children ages */}
             {children > 0 && (
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
                 <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
@@ -845,7 +808,6 @@ export function SeatMappingPage({
                           const parsed = parseInt(e.target.value);
                           ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
                           setChildrenAges(ages);
-                          // Trim extra seats if children over 5 count decreased
                           const newOver5Count = ages.filter(age => (age ?? 0) >= 5).length;
                           setExtraSeatIds(prev => prev.slice(0, newOver5Count));
                         }}
@@ -862,41 +824,17 @@ export function SeatMappingPage({
               </div>
             )}
 
-            {/* Extra seats required notice for all passengers */}
-            {extraSeatsNeeded > 0 && (
-              <div className={cn("p-3 rounded-xl border space-y-2", canConfirmBooking ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200")}>
-                <p className={cn("text-xs font-bold uppercase", canConfirmBooking ? "text-green-600" : "text-orange-600")}>
-                  {t.seats_needed_notice || 'All passengers need their own seat'}
-                </p>
-                {!canConfirmBooking && (
-                  <p className="text-[10px] text-orange-500">
-                    {t.select_extra_seats_prompt_all || 'Please select extra seat(s) on the map for all passengers'} ({extraSeatIds.length}/{extraSeatsNeeded})
-                  </p>
-                )}
-                {extraSeatIds.length > 0 && (
-                  <div className="flex gap-2 flex-wrap">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">{t.extra_seats_selected_label || 'Extra seats'}:</span>
-                    {extraSeatIds.map(id => (
-                      <span key={id} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                        {id} ✓
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
+            {/* Name */}
             <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
+            {/* Phone */}
             <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
-            
-            {/* Departure Stop (Điểm xuất phát) + Pickup Address (Điểm đón) */}
+
+            {/* Departure Stop (Điểm xuất phát) + Pickup Address */}
             {(() => {
               const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
-              // When route has ordered stops, show them in order; otherwise show all stops
               const pickupOptions = hasRouteFares && tripRoute?.routeStops
                 ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
                 : stops.map(s => s.name);
-              // Default departure label from route if no stop selected
               const defaultDeparture = tripRoute?.departurePoint || '';
               return (
                 <>
@@ -907,16 +845,14 @@ export function SeatMappingPage({
                       value={pickupPoint}
                       onChange={(val) => {
                         setPickupPoint(val);
-                        setPickupAddress(''); // clear sub-stop when departure changes
-                        setPickupStopAddress(''); // clear sub-stop address when departure changes
-                        setPickupAddressSurcharge(0); // clear address-level surcharge
-                        // Determine stop ID: prefer routeStops match, fall back to global stops
+                        setPickupAddress('');
+                        setPickupStopAddress('');
+                        setPickupAddressSurcharge(0);
                         const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
                         const globalStop = stops.find(s => s.name === val);
                         const newFromId = routeStop?.stopId || globalStop?.id || '';
                         setPickupSurcharge(globalStop?.surcharge || 0);
                         setFromStopId(newFromId);
-                        // Reset fare and re-lookup if dropoff is already chosen
                         setFareAmount(null);
                         setFareError('');
                         if (newFromId && toStopId && hasRouteFares) {
@@ -938,7 +874,6 @@ export function SeatMappingPage({
                       value={pickupAddress}
                       onChange={(val) => {
                         setPickupAddress(val);
-                        // If value matches a predefined stop, apply its surcharge and capture its address
                         const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
                         setPickupAddressSurcharge(matchedStop?.surcharge || 0);
                         setPickupStopAddress(matchedStop?.address || '');
@@ -948,7 +883,6 @@ export function SeatMappingPage({
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
                       disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
                     />
-                    {/* Detail input for extra info like house number */}
                     <input
                       type="text"
                       value={pickupAddressDetail}
@@ -958,29 +892,19 @@ export function SeatMappingPage({
                       disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
                     />
                     {isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate) && (
-                      <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : language === 'ja' ? 'この路線では乗車地点の入力が無効です' : 'Pickup address input is disabled for this route'}</p>
-                    )}
-                    {pickupAddress && pickupStopNames.length > 0 && !pickupStopNames.includes(pickupAddress) && (
-                      <p className="mt-1 text-[10px] text-amber-600">
-                        {language === 'vi'
-                          ? '⚠️ Giá vé có thể điều chỉnh nếu điểm đón của bạn quá xa.'
-                          : language === 'ja'
-                            ? '⚠️ 乗車地点が遠い場合、料金が調整される場合があります。'
-                            : '⚠️ Price may be adjusted if your pickup point is too far.'}
-                      </p>
+                      <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : 'Pickup address input is disabled for this route'}</p>
                     )}
                   </div>
                 </>
               );
             })()}
 
-            {/* Destination Stop (Điểm đến) + Dropoff Address (Điểm trả) */}
+            {/* Destination Stop (Điểm đến) + Dropoff Address */}
             {(() => {
               const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
               const dropoffOptions = hasRouteFares && tripRoute?.routeStops
                 ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
                 : stops.map(s => s.name);
-              // Default arrival label from route if no stop selected
               const defaultArrival = tripRoute?.arrivalPoint || '';
               return (
                 <>
@@ -991,16 +915,14 @@ export function SeatMappingPage({
                       value={dropoffPoint}
                       onChange={(val) => {
                         setDropoffPoint(val);
-                        setDropoffAddress(''); // clear sub-stop when destination changes
-                        setDropoffStopAddress(''); // clear sub-stop address when destination changes
-                        setDropoffAddressSurcharge(0); // clear address-level surcharge
-                        // Determine stop ID: prefer routeStops match, fall back to global stops
+                        setDropoffAddress('');
+                        setDropoffStopAddress('');
+                        setDropoffAddressSurcharge(0);
                         const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
                         const globalStop = stops.find(s => s.name === val);
                         const newToId = routeStop?.stopId || globalStop?.id || '';
                         setDropoffSurcharge(globalStop?.surcharge || 0);
                         setToStopId(newToId);
-                        // Reset fare and re-lookup if pickup is already chosen
                         setFareAmount(null);
                         setFareError('');
                         if (fromStopId && newToId && hasRouteFares) {
@@ -1015,9 +937,7 @@ export function SeatMappingPage({
                     )}
                     {/* Fare lookup feedback */}
                     {fareLoading && (
-                      <p className="mt-1 text-xs text-blue-500 animate-pulse">
-                        {t.fare_loading || 'Looking up fare...'}
-                      </p>
+                      <p className="mt-1 text-xs text-blue-500 animate-pulse">{t.fare_loading || 'Looking up fare...'}</p>
                     )}
                     {!fareLoading && fareError && (
                       <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
@@ -1034,35 +954,6 @@ export function SeatMappingPage({
                         )}
                       </div>
                     )}
-                    {/* Segment-conflict warning inside the booking form */}
-                    {(() => {
-                      if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;
-                      const bookedSeat = selectedTrip.seats.find((s: any) => s.id === showBookingForm);
-                      if (!bookedSeat) return null;
-                      const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
-                        (bookedSeat.segmentBookings ?? []).length > 0
-                          ? bookedSeat.segmentBookings
-                          : (bookedSeat.fromStopOrder !== undefined && bookedSeat.toStopOrder !== undefined
-                              ? [{ fromStopOrder: bookedSeat.fromStopOrder, toStopOrder: bookedSeat.toStopOrder }]
-                              : []);
-                      if (segs.length === 0) return null;
-                      const conflict = segs.some(
-                        seg => seg.fromStopOrder < currentToOrder && currentFromOrder < seg.toStopOrder
-                      );
-                      if (!conflict) return null;
-                      return (
-                        <div className="mt-2 p-2 bg-orange-50 border border-orange-300 rounded-xl flex items-start gap-2 text-xs font-bold text-orange-700">
-                          <span className="mt-0.5">⚠️</span>
-                          <span>
-                            {language === 'vi'
-                              ? 'Chặng này, ghế này đã có người ngồi rồi — vui lòng chọn chặng khác.'
-                              : language === 'ja'
-                                ? 'この区間はすでに予約されています — 別の区間を選んでください。'
-                                : 'This segment is already taken — please choose a different segment.'}
-                          </span>
-                        </div>
-                      );
-                    })()}
                   </div>
                   <div className="pl-3 border-l-2 border-gray-100">
                     <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
@@ -1072,7 +963,6 @@ export function SeatMappingPage({
                       value={dropoffAddress}
                       onChange={(val) => {
                         setDropoffAddress(val);
-                        // If value matches a predefined stop, apply its surcharge and capture its address
                         const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
                         setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
                         setDropoffStopAddress(matchedStop?.address || '');
@@ -1082,7 +972,6 @@ export function SeatMappingPage({
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
                       disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
                     />
-                    {/* Detail input for extra info like house number */}
                     <input
                       type="text"
                       value={dropoffAddressDetail}
@@ -1092,306 +981,439 @@ export function SeatMappingPage({
                       disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
                     />
                     {isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate) && (
-                      <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : language === 'ja' ? 'この路線では降車地点の入力が無効です' : 'Dropoff address input is disabled for this route'}</p>
-                    )}
-                    {dropoffAddress && dropoffStopNames.length > 0 && !dropoffStopNames.includes(dropoffAddress) && (
-                      <p className="mt-1 text-[10px] text-amber-600">
-                        {language === 'vi'
-                          ? '⚠️ Giá vé có thể điều chỉnh nếu điểm trả của bạn quá xa.'
-                          : language === 'ja'
-                            ? '⚠️ 降車地点が遠い場合、料金が調整される場合があります。'
-                            : '⚠️ Price may be adjusted if your dropoff point is too far.'}
-                      </p>
+                      <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : 'Dropoff address input is disabled for this route'}</p>
                     )}
                   </div>
                 </>
               );
             })()}
 
-            {/* Surcharge (custom amount) */}
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">{t.surcharge_label}</label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={surchargeAmount || ''}
-                onChange={(e) => setSurchargeAmount(parseInt(e.target.value) || 0)}
-                placeholder={t.surcharge_placeholder}
-                className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-              />
-            </div>
-
-            {/* Add-on Services selection */}
-            {(selectedTrip.addons || []).length > 0 && (
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">{t.select_addons}</label>
-                <p className="text-[10px] text-gray-400 mt-0.5 mb-2">{t.select_addons_hint}</p>
-                <div className="space-y-2">
-                  {(selectedTrip.addons as TripAddon[]).map((addon) => {
-                    const qty = addonQuantities[addon.id] || 0;
-                    const checked = qty > 0;
-                    const totalPassengers = adults + children;
-                    return (
-                      <div
-                        key={addon.id}
-                        className={cn(
-                          "p-3 rounded-xl border transition-colors",
-                          checked
-                            ? "bg-emerald-50 border-emerald-300"
-                            : "bg-gray-50 border-gray-100"
-                        )}
-                      >
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="accent-daiichi-red w-4 h-4 flex-shrink-0"
-                            checked={checked}
-                            onChange={(e) => {
-                              setAddonQuantities(prev => ({
-                                ...prev,
-                                [addon.id]: e.target.checked ? Math.max(1, totalPassengers) : 0,
-                              }));
-                            }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-gray-800">{addon.name}</p>
-                            {addon.description && <p className="text-[10px] text-gray-500">{addon.description}</p>}
-                          </div>
-                          <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">
-                            +{addon.price.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '人' : 'pax'}
-                          </span>
-                        </label>
-                        {checked && (
-                          <div className="flex items-center gap-2 mt-2 ml-7">
-                            <label className="text-[10px] text-gray-500 font-medium">
-                              {language === 'vi' ? 'Số lượng:' : language === 'ja' ? '数量:' : 'Qty:'}
-                            </label>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setAddonQuantities(prev => ({ ...prev, [addon.id]: Math.max(1, qty - 1) }))}
-                                className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center"
-                              >−</button>
-                              <input
-                                type="number"
-                                min="1"
-                                value={qty}
-                                onChange={(e) => {
-                                  const v = parseInt(e.target.value) || 1;
-                                  setAddonQuantities(prev => ({ ...prev, [addon.id]: Math.max(1, v) }));
-                                }}
-                                className="w-12 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setAddonQuantities(prev => ({ ...prev, [addon.id]: qty + 1 }))}
-                                className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center"
-                              >+</button>
-                            </div>
-                            <span className="text-[10px] text-emerald-700 font-bold ml-auto">
-                              = {(addon.price * qty).toLocaleString()}đ
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* Fare error blocker reminder */}
+            {hasFareBlocker && (
+              <p className="text-xs text-red-500 font-medium">{fareError}</p>
             )}
 
-            {/* Payment Method – shown conditionally based on user role */}
-            {(() => {
-              const isManager = currentUser?.role === UserRole.MANAGER;
-              const isAgent = currentUser?.role === UserRole.AGENT;
-              const agentDataForBooking = isAgent ? agents.find(a => a.id === currentUser?.id) : null;
-              const isPostpaidAgent = isAgent && (agentDataForBooking?.paymentType === 'POSTPAID' || !agentDataForBooking?.paymentType);
-
-              if (isManager) {
-                // Manager: show all payment methods
-                return (
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
-                    <select
-                      value={paymentMethodInput}
-                      onChange={(e) => setPaymentMethodInput(e.target.value as PaymentMethod)}
-                      className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                    >
-                      {PAYMENT_METHODS.map(method => (
-                        <option key={method} value={method}>
-                          {t[PAYMENT_METHOD_TRANSLATION_KEYS[method]]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              }
-
-              if (isPostpaidAgent) {
-                // POSTPAID agent: only "Giữ vé" or "Thanh toán sau"
-                return (
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
-                    <select
-                      value={paymentMethodInput === 'Giữ vé' || paymentMethodInput === 'Thanh toán sau' ? paymentMethodInput : 'Giữ vé'}
-                      onChange={(e) => setPaymentMethodInput(e.target.value as PaymentMethod)}
-                      className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                    >
-                      <option value="Giữ vé">{t.payment_hold || 'Giữ vé (có thể chỉnh sửa)'}</option>
-                      <option value="Thanh toán sau">{t.payment_later || 'Thanh toán sau (công nợ)'}</option>
-                    </select>
-                    <p className="text-[10px] text-purple-500 mt-1 ml-1">
-                      {language === 'vi'
-                        ? '"Giữ vé" có thể chỉnh sửa/xóa trước 24h xe chạy. "Thanh toán sau" xuất vé ngay, tính vào công nợ.'
-                        : '"Hold Ticket" can be edited/deleted up to 24h before departure. "Pay Later" issues immediately, billed to your account.'}
-                    </p>
-                  </div>
-                );
-              }
-
-              // Customer / Guest / PREPAID agent: locked to QR payment
-              return (
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
-                  <div className="w-full mt-1 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold text-blue-700 flex items-center gap-2">
-                    <span>📱</span>
-                    <span>{t.payment_qr || 'Chuyển khoản QR'}</span>
-                  </div>
-                  <p className="text-[10px] text-blue-400 mt-1 ml-1">
-                    {language === 'vi'
-                      ? 'Thanh toán QR bắt buộc. Thời gian chờ thanh toán: 30 phút.'
-                      : language === 'ja'
-                      ? 'QR支払い必須。支払い待機時間：30分。'
-                      : 'QR payment required. Payment window: 30 minutes.'}
-                  </p>
-                </div>
-              );
-            })()}
-
-            {/* Booking Note */}
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_note || 'Ghi chú đặt vé'}</label>
-              <textarea
-                value={bookingNote}
-                onChange={(e) => setBookingNote(e.target.value)}
-                rows={2}
-                placeholder={t.booking_note_placeholder || 'Ghi chú của đại lý / nhà xe (cọc, thanh toán tài xế...)'}
-                className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm resize-none"
-              />
-            </div>
-
-            <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
-              {(() => {
-                // For agents use agentPrice when available; otherwise fall back to trip price
-                const isAgentBookingForm = currentUser?.role === UserRole.AGENT;
-                // Apply trip-level discount
-                const tripDiscountMul = 1 - ((selectedTrip.discountPercent || 0) / 100);
-                // Use agent fare if available, else retail fare
-                const effectiveFareAmount = fareAmount !== null
-                  ? (isAgentBookingForm && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
-                  : null;
-                // For agents: fall back through agentPriceChild → agentPrice → priceChild → price (all discounted)
-                // For retail: fall back through priceChild → price (discounted)
-                const basePriceAdult = effectiveFareAmount !== null
-                  ? effectiveFareAmount
-                  : (isAgentBookingForm
-                      ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
-                      : Math.round((selectedTrip.price || 0) * tripDiscountMul));
-                const basePriceChild = effectiveFareAmount !== null
-                  ? effectiveFareAmount
-                  : (isAgentBookingForm
-                      ? Math.round((selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || selectedTrip.price || 0) * tripDiscountMul)
-                      : Math.round((selectedTrip.priceChild || selectedTrip.price || 0) * tripDiscountMul));
-                const { childrenOver5, childrenUnder5 } = childrenAges.reduce(
-                  (acc, age) => age >= 5 ? { ...acc, childrenOver5: acc.childrenOver5 + 1 } : { ...acc, childrenUnder5: acc.childrenUnder5 + 1 },
-                  { childrenOver5: 0, childrenUnder5: 0 }
-                );
-                const effectiveAdults = adults + childrenOver5;
-                const effectiveChildren = childrenUnder5 + Math.max(0, children - childrenAges.length);
-                // Children under 5 are free; only charge adults (which includes children aged 5+)
-                const baseTotal = (effectiveAdults * basePriceAdult);
-                const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
-                // Pickup/dropoff surcharges are per-seat (multiplied by number of passengers)
-                const pickupDropoffSurchargeDisplay = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdults;
-                const allSurcharges = pickupDropoffSurchargeDisplay + surchargeAmount + routeSurchargeTotal;
-                const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
-                const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
-                const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
-                const perSeatSuffix = effectiveAdults > 1
-                  ? ` ×${effectiveAdults}`
-                  : '';
-                return (
-                  <>
-                    <div className="flex justify-between items-center text-xs text-gray-500">
-                      <span>
-                        {effectiveFareAmount !== null
-                          ? (t.fare_based_price || 'Fare table price')
-                          : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
-                        {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && effectiveFareAmount === null && (
-                          <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
-                        )}
-                        {isAgentBookingForm && effectiveFareAmount !== null && fareAgentAmount !== null && (
-                          <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
-                        )}
-                      </span>
-                      <span>{baseTotal.toLocaleString()}đ</span>
-                    </div>
-                    {applicableRouteSurcharges.map(sc => (
-                      <div key={sc.id} className="flex justify-between items-center text-xs text-amber-600">
-                        <span>+ {sc.name}</span>
-                        <span>+{(sc.amount * effectiveAdults).toLocaleString()}đ</span>
-                      </div>
-                    ))}
-                    {pickupSurcharge > 0 && (
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu đón khách' : language === 'ja' ? '乗客ピックアップ料' : 'Pickup surcharge'}{perSeatSuffix}</span>
-                        <span>+{(pickupSurcharge * effectiveAdults).toLocaleString()}đ</span>
-                      </div>
-                    )}
-                    {dropoffSurcharge > 0 && (
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu trả khách' : language === 'ja' ? '乗客降車料' : 'Dropoff surcharge'}{perSeatSuffix}</span>
-                        <span>+{(dropoffSurcharge * effectiveAdults).toLocaleString()}đ</span>
-                      </div>
-                    )}
-                    {pickupAddressSurcharge > 0 && (
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu điểm đón' : language === 'ja' ? '乗車地点追加料金' : 'Pickup address surcharge'}{perSeatSuffix}</span>
-                        <span>+{(pickupAddressSurcharge * effectiveAdults).toLocaleString()}đ</span>
-                      </div>
-                    )}
-                    {dropoffAddressSurcharge > 0 && (
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu điểm trả' : language === 'ja' ? '降車地点追加料金' : 'Dropoff address surcharge'}{perSeatSuffix}</span>
-                        <span>+{(dropoffAddressSurcharge * effectiveAdults).toLocaleString()}đ</span>
-                      </div>
-                    )}
-                    {surchargeAmount > 0 && (
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>+ {language === 'vi' ? 'Phụ thu khác' : language === 'ja' ? 'その他追加料金' : 'Other surcharge'}</span>
-                        <span>+{surchargeAmount.toLocaleString()}đ</span>
-                      </div>
-                    )}
-                    {selectedAddonsInForm.map(a => (
-                      <div key={a.id} className="flex justify-between items-center text-xs text-emerald-600">
-                        <span>+ {a.name} × {addonQuantities[a.id] || 1}</span>
-                        <span>+{(a.price * (addonQuantities[a.id] || 1)).toLocaleString()}đ</span>
-                      </div>
-                    ))}
-                    {(allSurcharges > 0 || addonsTotalInForm > 0) && <div className="border-t border-daiichi-accent/40 pt-1" />}
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
-                      <span className="text-xl font-bold text-daiichi-red">{finalTotal.toLocaleString()}đ</span>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>{t.confirm_booking}</button>
+            {/* Next: Select Seat button */}
+            <button
+              type="button"
+              onClick={() => setShowPreBookingInfo(false)}
+              disabled={hasFareBlocker}
+              className={cn(
+                "w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all",
+                hasFareBlocker
+                  ? "bg-gray-300 shadow-gray-200 cursor-not-allowed"
+                  : "bg-daiichi-red shadow-daiichi-red/20"
+              )}
+            >
+              {isFreeSeatingTrip
+                ? (language === 'vi' ? '✅ Tiếp theo: Đặt vé →' : language === 'ja' ? '✅ 次へ：予約する →' : '✅ Next: Book Ticket →')
+                : (language === 'vi' ? '✅ Tiếp theo: Chọn ghế →' : language === 'ja' ? '✅ 次へ：座席を選ぶ →' : '✅ Next: Select Seat →')}
+            </button>
           </form>
         </motion.div>
+      ) : (
+        /* ── STEP 2+: SEAT SELECTION AND CONFIRM ── */
+        <>
+          {/* Compact info summary with edit link */}
+          <div className="bg-white px-4 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-gray-700 truncate">
+                {customerNameInput || (language === 'vi' ? 'Chưa nhập tên' : 'No name')}
+                {phoneInput ? ` · ${phoneInput}` : ''}
+              </p>
+              <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                {adults} {t.adults}{children > 0 ? ` + ${children} ${t.children}` : ''}
+                {(pickupPoint || tripRoute?.departurePoint) && (
+                  <> · {pickupPoint || tripRoute?.departurePoint || '?'} → {dropoffPoint || tripRoute?.arrivalPoint || '?'}</>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPreBookingInfo(true)}
+              className="flex-shrink-0 text-[10px] text-daiichi-red font-bold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              ✏️ {language === 'vi' ? 'Sửa' : language === 'ja' ? '編集' : 'Edit'}
+            </button>
+          </div>
+
+          {/* Trip info (seat counts) */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">{t.trip_info}</h3>
+              {isFreeSeatingTrip && (
+                <span className="px-2 py-1 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-600 uppercase tracking-wide">
+                  🪑 {language === 'vi' ? 'Ghế tự do' : language === 'ja' ? '自由席' : 'Free Seating'}
+                </span>
+              )}
+            </div>
+            <div className="space-y-4 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">{t.total_seats}</span><span className="font-bold">{selectedTrip.seats.length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t.paid_seats}</span><span className="font-bold text-green-600">{selectedTrip.seats.filter(s => s.status === SeatStatus.PAID).length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t.booked_seats}</span><span className="font-bold text-daiichi-yellow">{selectedTrip.seats.filter(s => s.status === SeatStatus.BOOKED).length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t.empty_seats}</span><span className="font-bold text-gray-400">{selectedTrip.seats.filter(s => s.status === SeatStatus.EMPTY).length}</span></div>
+            </div>
+          </div>
+
+          {!showBookingForm && (selectedTrip.addons || []).length > 0 && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-emerald-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Gift size={20} className="text-emerald-600" />
+                <h3 className="text-lg font-bold text-emerald-700">{language === 'vi' ? 'Dịch vụ bổ sung' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}</h3>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">{isFreeSeatingTrip ? (language === 'vi' ? 'Thêm các dịch vụ bổ sung vào vé của bạn:' : 'Add optional services to your booking:') : (language === 'vi' ? 'Chọn ghế để thêm dịch vụ bổ sung:' : language === 'ja' ? '座席を選択してオプションサービスを追加できます:' : 'Select a seat to add these optional services:')}</p>
+              <div className="space-y-2">
+                {(selectedTrip.addons || []).map((addon: TripAddon) => (
+                  <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-gray-800">{addon.name}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
+                          {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
+                        </span>
+                      </div>
+                      {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                    </div>
+                    <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── COMPACT CONFIRM PANEL (seat selected, show price summary + confirm) ── */}
+          {showBookingForm && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">
+                  {isFreeSeatingTrip
+                    ? (language === 'vi' ? '🪑 Xác nhận đặt vé' : language === 'ja' ? '🪑 予約確認' : '🪑 Confirm Booking')
+                    : `${t.booking_title}: ${showBookingForm}`}
+                </h3>
+                <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              </div>
+              <form className="space-y-4">
+                {/* Segment conflict warning */}
+                {(() => {
+                  if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;
+                  const bookedSeat = selectedTrip.seats.find((s: any) => s.id === showBookingForm);
+                  if (!bookedSeat) return null;
+                  const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
+                    (bookedSeat.segmentBookings ?? []).length > 0
+                      ? bookedSeat.segmentBookings
+                      : (bookedSeat.fromStopOrder !== undefined && bookedSeat.toStopOrder !== undefined
+                          ? [{ fromStopOrder: bookedSeat.fromStopOrder, toStopOrder: bookedSeat.toStopOrder }]
+                          : []);
+                  if (segs.length === 0) return null;
+                  const conflict = segs.some(
+                    seg => seg.fromStopOrder < currentToOrder && currentFromOrder < seg.toStopOrder
+                  );
+                  if (!conflict) return null;
+                  return (
+                    <div className="p-2 bg-orange-50 border border-orange-300 rounded-xl flex items-start gap-2 text-xs font-bold text-orange-700">
+                      <span className="mt-0.5">⚠️</span>
+                      <span>
+                        {language === 'vi'
+                          ? 'Chặng này, ghế này đã có người ngồi rồi — vui lòng chọn chặng khác.'
+                          : language === 'ja'
+                            ? 'この区間はすでに予約されています — 別の区間を選んでください。'
+                            : 'This segment is already taken — please choose a different segment.'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Extra seats required notice */}
+                {extraSeatsNeeded > 0 && (
+                  <div className={cn("p-3 rounded-xl border space-y-2", canConfirmBooking ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200")}>
+                    <p className={cn("text-xs font-bold uppercase", canConfirmBooking ? "text-green-600" : "text-orange-600")}>
+                      {t.seats_needed_notice || 'All passengers need their own seat'}
+                    </p>
+                    {!canConfirmBooking && (
+                      <p className="text-[10px] text-orange-500">
+                        {t.select_extra_seats_prompt_all || 'Please select extra seat(s) on the map for all passengers'} ({extraSeatIds.length}/{extraSeatsNeeded})
+                      </p>
+                    )}
+                    {extraSeatIds.length > 0 && (
+                      <div className="flex gap-2 flex-wrap">
+                        <span className="text-[10px] text-gray-500 font-bold uppercase">{t.extra_seats_selected_label || 'Extra seats'}:</span>
+                        {extraSeatIds.map(id => (
+                          <span key={id} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            {id} ✓
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Surcharge (custom amount) */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.surcharge_label}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={surchargeAmount || ''}
+                    onChange={(e) => setSurchargeAmount(parseInt(e.target.value) || 0)}
+                    placeholder={t.surcharge_placeholder}
+                    className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                  />
+                </div>
+
+                {/* Add-on Services selection */}
+                {(selectedTrip.addons || []).length > 0 && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t.select_addons}</label>
+                    <p className="text-[10px] text-gray-400 mt-0.5 mb-2">{t.select_addons_hint}</p>
+                    <div className="space-y-2">
+                      {(selectedTrip.addons as TripAddon[]).map((addon) => {
+                        const qty = addonQuantities[addon.id] || 0;
+                        const checked = qty > 0;
+                        const totalPassengers = adults + children;
+                        return (
+                          <div
+                            key={addon.id}
+                            className={cn(
+                              "p-3 rounded-xl border transition-colors",
+                              checked ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-100"
+                            )}
+                          >
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="accent-daiichi-red w-4 h-4 flex-shrink-0"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setAddonQuantities(prev => ({
+                                    ...prev,
+                                    [addon.id]: e.target.checked ? Math.max(1, totalPassengers) : 0,
+                                  }));
+                                }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-sm text-gray-800">{addon.name}</p>
+                                {addon.description && <p className="text-[10px] text-gray-500">{addon.description}</p>}
+                              </div>
+                              <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">
+                                +{addon.price.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '人' : 'pax'}
+                              </span>
+                            </label>
+                            {checked && (
+                              <div className="flex items-center gap-2 mt-2 ml-7">
+                                <label className="text-[10px] text-gray-500 font-medium">
+                                  {language === 'vi' ? 'Số lượng:' : language === 'ja' ? '数量:' : 'Qty:'}
+                                </label>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddonQuantities(prev => ({ ...prev, [addon.id]: Math.max(1, qty - 1) }))}
+                                    className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center"
+                                  >−</button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={qty}
+                                    onChange={(e) => {
+                                      const v = parseInt(e.target.value) || 1;
+                                      setAddonQuantities(prev => ({ ...prev, [addon.id]: Math.max(1, v) }));
+                                    }}
+                                    className="w-12 text-center px-1 py-0.5 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddonQuantities(prev => ({ ...prev, [addon.id]: qty + 1 }))}
+                                    className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center"
+                                  >+</button>
+                                </div>
+                                <span className="text-[10px] text-emerald-700 font-bold ml-auto">
+                                  = {(addon.price * qty).toLocaleString()}đ
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Method */}
+                {(() => {
+                  const isManager = currentUser?.role === UserRole.MANAGER;
+                  const isAgent = currentUser?.role === UserRole.AGENT;
+                  const agentDataForBooking = isAgent ? agents.find(a => a.id === currentUser?.id) : null;
+                  const isPostpaidAgent = isAgent && (agentDataForBooking?.paymentType === 'POSTPAID' || !agentDataForBooking?.paymentType);
+
+                  if (isManager) {
+                    return (
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                        <select
+                          value={paymentMethodInput}
+                          onChange={(e) => setPaymentMethodInput(e.target.value as any)}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                        >
+                          {PAYMENT_METHODS.map(method => (
+                            <option key={method} value={method}>
+                              {t[PAYMENT_METHOD_TRANSLATION_KEYS[method]]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+
+                  if (isPostpaidAgent) {
+                    return (
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                        <select
+                          value={paymentMethodInput === 'Giữ vé' || paymentMethodInput === 'Thanh toán sau' ? paymentMethodInput : 'Giữ vé'}
+                          onChange={(e) => setPaymentMethodInput(e.target.value as any)}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                        >
+                          <option value="Giữ vé">{t.payment_hold || 'Giữ vé (có thể chỉnh sửa)'}</option>
+                          <option value="Thanh toán sau">{t.payment_later || 'Thanh toán sau (công nợ)'}</option>
+                        </select>
+                        <p className="text-[10px] text-purple-500 mt-1 ml-1">
+                          {language === 'vi'
+                            ? '"Giữ vé" có thể chỉnh sửa/xóa trước 24h xe chạy. "Thanh toán sau" xuất vé ngay, tính vào công nợ.'
+                            : '"Hold Ticket" can be edited/deleted up to 24h before departure. "Pay Later" issues immediately, billed to your account.'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                      <div className="w-full mt-1 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold text-blue-700 flex items-center gap-2">
+                        <span>📱</span>
+                        <span>{t.payment_qr || 'Chuyển khoản QR'}</span>
+                      </div>
+                      <p className="text-[10px] text-blue-400 mt-1 ml-1">
+                        {language === 'vi'
+                          ? 'Thanh toán QR bắt buộc. Thời gian chờ thanh toán: 30 phút.'
+                          : language === 'ja'
+                          ? 'QR支払い必須。支払い待機時間：30分。'
+                          : 'QR payment required. Payment window: 30 minutes.'}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Booking Note */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">{t.booking_note || 'Ghi chú đặt vé'}</label>
+                  <textarea
+                    value={bookingNote}
+                    onChange={(e) => setBookingNote(e.target.value)}
+                    rows={2}
+                    placeholder={t.booking_note_placeholder || 'Ghi chú của đại lý / nhà xe (cọc, thanh toán tài xế...)'}
+                    className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm resize-none"
+                  />
+                </div>
+
+                {/* Price Summary */}
+                <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
+                  {(() => {
+                    const isAgentBookingForm = currentUser?.role === UserRole.AGENT;
+                    const tripDiscountMul = 1 - ((selectedTrip.discountPercent || 0) / 100);
+                    const effectiveFareAmount = fareAmount !== null
+                      ? (isAgentBookingForm && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
+                      : null;
+                    const basePriceAdult = effectiveFareAmount !== null
+                      ? effectiveFareAmount
+                      : (isAgentBookingForm
+                          ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
+                          : Math.round((selectedTrip.price || 0) * tripDiscountMul));
+                    const { childrenOver5 } = childrenAges.reduce(
+                      (acc, age) => age >= 5 ? { ...acc, childrenOver5: acc.childrenOver5 + 1 } : { ...acc, childrenUnder5: acc.childrenUnder5 + 1 },
+                      { childrenOver5: 0, childrenUnder5: 0 }
+                    );
+                    const effectiveAdults = adults + childrenOver5;
+                    const baseTotal = (effectiveAdults * basePriceAdult);
+                    const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
+                    const pickupDropoffSurchargeDisplay = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdults;
+                    const allSurcharges = pickupDropoffSurchargeDisplay + surchargeAmount + routeSurchargeTotal;
+                    const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
+                    const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
+                    const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
+                    const perSeatSuffix = effectiveAdults > 1 ? ` ×${effectiveAdults}` : '';
+                    return (
+                      <>
+                        <div className="flex justify-between items-center text-xs text-gray-500">
+                          <span>
+                            {effectiveFareAmount !== null
+                              ? (t.fare_based_price || 'Fare table price')
+                              : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
+                            {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && effectiveFareAmount === null && (
+                              <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
+                            )}
+                            {isAgentBookingForm && effectiveFareAmount !== null && fareAgentAmount !== null && (
+                              <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
+                            )}
+                          </span>
+                          <span>{baseTotal.toLocaleString()}đ</span>
+                        </div>
+                        {applicableRouteSurcharges.map(sc => (
+                          <div key={sc.id} className="flex justify-between items-center text-xs text-amber-600">
+                            <span>+ {sc.name}</span>
+                            <span>+{(sc.amount * effectiveAdults).toLocaleString()}đ</span>
+                          </div>
+                        ))}
+                        {pickupSurcharge > 0 && (
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>+ {language === 'vi' ? 'Phụ thu đón khách' : 'Pickup surcharge'}{perSeatSuffix}</span>
+                            <span>+{(pickupSurcharge * effectiveAdults).toLocaleString()}đ</span>
+                          </div>
+                        )}
+                        {dropoffSurcharge > 0 && (
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>+ {language === 'vi' ? 'Phụ thu trả khách' : 'Dropoff surcharge'}{perSeatSuffix}</span>
+                            <span>+{(dropoffSurcharge * effectiveAdults).toLocaleString()}đ</span>
+                          </div>
+                        )}
+                        {pickupAddressSurcharge > 0 && (
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>+ {language === 'vi' ? 'Phụ thu điểm đón' : 'Pickup address surcharge'}{perSeatSuffix}</span>
+                            <span>+{(pickupAddressSurcharge * effectiveAdults).toLocaleString()}đ</span>
+                          </div>
+                        )}
+                        {dropoffAddressSurcharge > 0 && (
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>+ {language === 'vi' ? 'Phụ thu điểm trả' : 'Dropoff address surcharge'}{perSeatSuffix}</span>
+                            <span>+{(dropoffAddressSurcharge * effectiveAdults).toLocaleString()}đ</span>
+                          </div>
+                        )}
+                        {surchargeAmount > 0 && (
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>+ {language === 'vi' ? 'Phụ thu khác' : 'Other surcharge'}</span>
+                            <span>+{surchargeAmount.toLocaleString()}đ</span>
+                          </div>
+                        )}
+                        {selectedAddonsInForm.map(a => (
+                          <div key={a.id} className="flex justify-between items-center text-xs text-emerald-600">
+                            <span>+ {a.name} × {addonQuantities[a.id] || 1}</span>
+                            <span>+{(a.price * (addonQuantities[a.id] || 1)).toLocaleString()}đ</span>
+                          </div>
+                        ))}
+                        {(allSurcharges > 0 || addonsTotalInForm > 0) && <div className="border-t border-daiichi-accent/40 pt-1" />}
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-gray-500 uppercase">{t.total_amount}</span>
+                          <span className="text-xl font-bold text-daiichi-red">{finalTotal.toLocaleString()}đ</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>{t.confirm_booking}</button>
+              </form>
+            </motion.div>
+          )}
+        </>
       )}
     </div>
   </div>

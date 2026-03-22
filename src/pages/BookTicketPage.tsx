@@ -370,7 +370,7 @@ export function BookTicketPage({
               </div>
             )}
           </div>
-          {/* Column 2: Vehicle type + departure time + date/schedule */}
+          {/* Column 2: Vehicle type + duration + date/schedule */}
           <div className="col-span-1 flex flex-col justify-center gap-1.5 py-1 min-w-0">
             {/* Vehicle type */}
             {tripVehicle?.type && (
@@ -381,11 +381,13 @@ export function BookTicketPage({
             )}
             {/* License plate */}
             <span className="text-[9px] text-gray-400 truncate">{trip.licensePlate}</span>
-            {/* Departure time */}
-            <div>
-              <p className="text-2xl font-bold text-green-600 leading-tight">{trip.time}</p>
-              <p className="text-[11px] font-semibold text-green-600 uppercase tracking-wide">{tripRoute?.duration || t.departure}</p>
-            </div>
+            {/* Duration (travel time) – departure time removed to avoid confusion */}
+            {tripRoute?.duration && (
+              <div className="flex items-center gap-1">
+                <Clock size={10} className="flex-shrink-0 text-gray-400" />
+                <span className="text-[10px] text-gray-500">{tripRoute.duration}</span>
+              </div>
+            )}
             {/* Date */}
             {trip.date && (
               <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-xs font-bold self-start", isSuggestion ? "bg-amber-100 text-amber-700" : "bg-red-50 text-daiichi-red")}>
@@ -511,6 +513,21 @@ export function BookTicketPage({
             })()}
           </div>
         </div>
+        {/* Footer: departure → destination */}
+        {(() => {
+          const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+          const effectiveFrom = (isReturnPhase ? searchTo : searchFrom) || tripRoute?.departurePoint || '';
+          const effectiveTo = (isReturnPhase ? searchFrom : searchTo) || tripRoute?.arrivalPoint || '';
+          if (!effectiveFrom && !effectiveTo) return null;
+          return (
+            <div className="px-3 pb-2.5 flex items-center gap-1 text-[10px] text-gray-500 border-t border-gray-100 pt-1.5 mt-0.5">
+              <MapPin size={9} className="flex-shrink-0 text-daiichi-red" />
+              <span className="truncate font-medium">
+                {effectiveFrom || '—'} → {effectiveTo || '—'}
+              </span>
+            </div>
+          );
+        })()}
       </div>
     );
   };
