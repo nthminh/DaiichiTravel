@@ -20,10 +20,11 @@ interface StopSearchInputProps {
   terminalValue: string;
   stops: Stop[];
   placeholder: string;
+  nearestHint?: string;
   onChange: (text: string, terminal: string) => void;
 }
 
-function StopSearchInput({ value, terminalValue, stops, placeholder, onChange }: StopSearchInputProps) {
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, onChange }: StopSearchInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -120,16 +121,22 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, onChange }:
             >
               <MapPin size={13} className="flex-shrink-0 mt-0.5 text-daiichi-red" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-800 truncate">{item.stop.name}</p>
+                <p className="text-sm font-medium text-gray-800 break-words">{item.stop.name}</p>
                 {item.stop.type !== 'TERMINAL' && item.terminal && (
-                  <p className="text-[11px] text-daiichi-red font-semibold truncate">🏢 {item.terminal.name}</p>
+                  <p className="text-[11px] text-daiichi-red font-semibold break-words">🏢 {item.terminal.name}</p>
                 )}
                 {item.stop.address && (
-                  <p className="text-[10px] text-gray-400 truncate">{item.stop.address}</p>
+                  <p className="text-[10px] text-gray-400 break-words">{item.stop.address}</p>
                 )}
               </div>
             </button>
           ))}
+          {nearestHint && (
+            <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-start gap-1.5">
+              <span className="text-blue-400 flex-shrink-0 mt-0.5">💡</span>
+              <p className="text-[10px] text-blue-500 leading-snug">{nearestHint}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -800,6 +807,7 @@ export function BookTicketPage({
                 terminalValue={searchStationFrom}
                 stops={stops}
                 placeholder={t.stop_search_from_placeholder || t.from}
+                nearestHint={t.stop_search_nearest_hint}
                 onChange={(text, terminal) => { setSearchFrom(text); setSearchStationFrom(terminal); }}
               />
             </div>
@@ -812,6 +820,7 @@ export function BookTicketPage({
                 terminalValue={searchStationTo}
                 stops={stops}
                 placeholder={t.stop_search_to_placeholder || t.to}
+                nearestHint={t.stop_search_nearest_hint}
                 onChange={(text, terminal) => { setSearchTo(text); setSearchStationTo(terminal); }}
               />
             </div>
