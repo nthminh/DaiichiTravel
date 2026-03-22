@@ -76,8 +76,8 @@ interface RouteManagementPageProps {
   setShowAddRouteStop: (v: boolean) => void;
   editingRouteStop: RouteStop | null;
   setEditingRouteStop: (v: RouteStop | null) => void;
-  routeStopForm: { stopId: string; stopName: string; order: number };
-  setRouteStopForm: React.Dispatch<React.SetStateAction<{ stopId: string; stopName: string; order: number }>>;
+  routeStopForm: { stopId: string; stopName: string; order: number; offsetMinutes: number };
+  setRouteStopForm: React.Dispatch<React.SetStateAction<{ stopId: string; stopName: string; order: number; offsetMinutes: number }>>;
   routeFormStopsHistory: RouteStop[][];
   setRouteFormStopsHistory: React.Dispatch<React.SetStateAction<RouteStop[][]>>;
   routeFormFaresHistory: RouteFareEntry[][];
@@ -544,7 +544,12 @@ export function RouteManagementPage({
                           <span className="w-6 h-6 flex-shrink-0 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm text-gray-800 truncate">{stop.stopName}</p>
-                            <p className="text-[10px] text-gray-400">{stop.stopId}</p>
+                            <p className="text-[10px] text-gray-400">
+                              {stop.stopId}
+                              {(stop.offsetMinutes ?? 0) > 0 && (
+                                <span className="ml-2 text-purple-500">+{stop.offsetMinutes} {language === 'vi' ? 'phút' : 'min'}</span>
+                              )}
+                            </p>
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
                             <button
@@ -580,7 +585,7 @@ export function RouteManagementPage({
                             <button
                               onClick={() => {
                                 setEditingRouteStop(stop);
-                                setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order });
+                                setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order, offsetMinutes: stop.offsetMinutes ?? 0 });
                                 setShowAddRouteStop(true);
                               }}
                               className="p-1 text-gray-400 hover:text-blue-600 rounded"
@@ -621,13 +626,31 @@ export function RouteManagementPage({
                                 ))}
                               </select>
                             </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                {language === 'vi' ? 'Thời gian lệch từ điểm xuất phát (phút)' : 'Time offset from departure (minutes)'}
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={routeStopForm.offsetMinutes}
+                                onChange={e => setRouteStopForm(p => ({ ...p, offsetMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                placeholder={language === 'vi' ? 'Nhập số phút (VD: 30)' : 'Enter minutes (e.g. 30)'}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                {language === 'vi'
+                                  ? 'Giờ xuất phát của khách tại điểm này = giờ xuất phát chuyến + thời gian lệch'
+                                  : 'Passenger departure time at this stop = trip time + offset'}
+                              </p>
+                            </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                             <button
                               disabled={!routeStopForm.stopId}
                               onClick={() => {
-                                const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order };
+                                const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order, ...(routeStopForm.offsetMinutes > 0 ? { offsetMinutes: routeStopForm.offsetMinutes } : {}) };
                                 setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
                                 setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
                                 if (editingRouteStop) {
@@ -649,7 +672,7 @@ export function RouteManagementPage({
                                 }
                                 setShowAddRouteStop(false);
                                 setEditingRouteStop(null);
-                                setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2 });
+                                setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2, offsetMinutes: 0 });
                               }}
                               className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
                             >
