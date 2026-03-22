@@ -81,6 +81,17 @@ const buildAddonUsersMap = (trip: any, passengerGroups: { booking: any; seats: a
   return map;
 };
 
+// Returns the display text for pickup/dropoff columns.
+// If explicit address fields are present, they are used.
+// For partial-segment bookings (fromStopOrder/toStopOrder defined), the stop name is used as fallback.
+const getPickupDisplay = (seat: any): string =>
+  [seat.pickupAddressDetail, seat.pickupAddress, seat.pickupStopAddress].filter(Boolean).join(' & ')
+  || (seat.fromStopOrder != null ? seat.pickupPoint || '' : '');
+
+const getDropoffDisplay = (seat: any): string =>
+  [seat.dropoffAddressDetail, seat.dropoffAddress, seat.dropoffStopAddress].filter(Boolean).join(' & ')
+  || (seat.toStopOrder != null ? seat.dropoffPoint || '' : '');
+
 // --- Public export functions ---
 
 export const exportTripToExcel = (trip: any, bookings: any[], routes: Route[]) => {
@@ -110,8 +121,8 @@ export const exportTripToExcel = (trip: any, bookings: any[], routes: Route[]) =
       seatIds,
       primarySeat.customerName || '—',
       primarySeat.customerPhone || '—',
-      [primarySeat.pickupAddressDetail, primarySeat.pickupAddress, primarySeat.pickupStopAddress].filter(Boolean).join(' & ') || '—',
-      [primarySeat.dropoffAddressDetail, primarySeat.dropoffAddress, primarySeat.dropoffStopAddress].filter(Boolean).join(' & ') || '—',
+      getPickupDisplay(primarySeat) || '—',
+      getDropoffDisplay(primarySeat) || '—',
       allPaid ? 'Đã thanh toán' : 'Đã đặt',
       totalAmount.toLocaleString(),
       primarySeat.bookingNote || '',
@@ -256,8 +267,8 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
           <td>${escapeHtml(seatIds)}${isGroup ? ' 👥' : ''}</td>
           <td>${escapeHtml(primarySeat.customerName) || '—'}</td>
           <td>${escapeHtml(primarySeat.customerPhone) || '—'}</td>
-          <td>${escapeHtml([primarySeat.pickupAddressDetail, primarySeat.pickupAddress, primarySeat.pickupStopAddress].filter(Boolean).join(' & ')) || '—'}</td>
-          <td>${escapeHtml([primarySeat.dropoffAddressDetail, primarySeat.dropoffAddress, primarySeat.dropoffStopAddress].filter(Boolean).join(' & ')) || '—'}</td>
+          <td>${escapeHtml(getPickupDisplay(primarySeat)) || '—'}</td>
+          <td>${escapeHtml(getDropoffDisplay(primarySeat)) || '—'}</td>
           <td>${allPaid ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${totalAmount.toLocaleString()}đ</td>
           <td>${escapeHtml(primarySeat.bookingNote) || ''}</td>
