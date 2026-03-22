@@ -112,6 +112,8 @@ export default function App() {
   const [userGuides, setUserGuides] = useState<UserGuideType[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [showBookingForm, setShowBookingForm] = useState<string | null>(null);
+  // New: controls whether the pre-booking info form (step 1) is shown before seat selection
+  const [showPreBookingInfo, setShowPreBookingInfo] = useState(false);
   const [activeDeck, setActiveDeck] = useState(0);
   const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ONE_WAY');
   const [adults, setAdults] = useState(1);
@@ -672,15 +674,15 @@ export default function App() {
     }
   }, [tripType]);
 
-  // Auto-fill name & phone for logged-in customers whenever the booking form opens or user logs in
+  // Auto-fill name & phone for logged-in customers whenever the pre-booking info form or booking form opens
   useEffect(() => {
-    if (showBookingForm && currentUser?.role === UserRole.CUSTOMER) {
+    if ((showPreBookingInfo || showBookingForm) && currentUser?.role === UserRole.CUSTOMER) {
       const name = currentUser.name;
       const phone = currentUser.phone;
       if (name) setCustomerNameInput(prev => prev || name);
       if (phone) setPhoneInput(prev => prev || phone);
     }
-  }, [showBookingForm, currentUser?.role, currentUser?.name, currentUser?.phone]);
+  }, [showPreBookingInfo, showBookingForm, currentUser?.role, currentUser?.name, currentUser?.phone]);
 
   // Set default payment method when booking form opens based on user role
   useEffect(() => {
@@ -699,6 +701,50 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showBookingForm]);
+
+  // When a new trip is selected for booking, show the info form first (step 1)
+  // and auto-fill pickup/dropoff from search parameters if available.
+  useEffect(() => {
+    if (!selectedTrip) return;
+    setShowPreBookingInfo(true);
+    setShowBookingForm(null);
+    setExtraSeatIds([]);
+    setAddonQuantities({});
+    setFareAmount(null);
+    setFareError('');
+
+    const tripRoute = routes.find((r) => r.name === selectedTrip.route);
+    const isReturnPhaseNow = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+    const fromSearch = isReturnPhaseNow ? searchTo : searchFrom;
+    const toSearch = isReturnPhaseNow ? searchFrom : searchTo;
+
+    let newFromId = '';
+    let newToId = '';
+
+    if (fromSearch) {
+      setPickupPoint(fromSearch);
+      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === fromSearch);
+      const globalStop = stops.find((s) => s.name === fromSearch);
+      newFromId = routeStop?.stopId || globalStop?.id || '';
+      if (newFromId) setFromStopId(newFromId);
+      if (globalStop?.surcharge) setPickupSurcharge(globalStop.surcharge);
+    }
+
+    if (toSearch) {
+      setDropoffPoint(toSearch);
+      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === toSearch);
+      const globalStop = stops.find((s) => s.name === toSearch);
+      newToId = routeStop?.stopId || globalStop?.id || '';
+      if (newToId) setToStopId(newToId);
+      if (globalStop?.surcharge) setDropoffSurcharge(globalStop.surcharge);
+    }
+
+    // Trigger fare lookup immediately if both stops are identified
+    if (newFromId && newToId && (tripRoute?.routeStops?.length ?? 0) > 0) {
+      lookupFare(tripRoute, newFromId, newToId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTrip?.id]);
 
   // Global Ctrl+Z / Cmd+Z undo handler
   useEffect(() => {
@@ -949,6 +995,7 @@ export default function App() {
     onRoundTripOutboundCaptured: (summary) => {
       setOutboundBookingData(summary);
       setRoundTripPhase('return');
+      setShowPreBookingInfo(true); // Show info form again for the return leg
       setActiveTab('book-ticket');
       // Carry over customer name & phone from outbound to return phase
       const { customerName, phone } = summary;
@@ -1206,6 +1253,7 @@ export default function App() {
               childrenAges={childrenAges}
               extraSeatIds={extraSeatIds}
               showBookingForm={showBookingForm}
+              showPreBookingInfo={showPreBookingInfo}
               customerNameInput={customerNameInput}
               phoneInput={phoneInput}
               pickupPoint={pickupPoint}
@@ -1237,6 +1285,7 @@ export default function App() {
               setExtraSeatIds={setExtraSeatIds}
               setSeatSelectionHistory={setSeatSelectionHistory}
               setShowBookingForm={setShowBookingForm}
+              setShowPreBookingInfo={setShowPreBookingInfo}
               setCustomerNameInput={setCustomerNameInput}
               setPhoneInput={setPhoneInput}
               setPickupPoint={setPickupPoint}
