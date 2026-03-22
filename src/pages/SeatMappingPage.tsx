@@ -197,6 +197,7 @@ export function SeatMappingPage({
 
   const childrenOver5Count = childrenAges.filter(age => age >= 5).length;
   const extraSeatsNeeded = (adults - 1) + childrenOver5Count;
+  const totalSeatsNeeded = adults + childrenOver5Count;
   // Look up route once for this render block (used for surcharges, fare table, and blocker check)
   const tripRoute = routes.find(r => r.name === selectedTrip.route);
   // Also disable confirmation when a fare lookup error exists for a route with configured stops
@@ -206,6 +207,7 @@ export function SeatMappingPage({
     ? !hasFareBlocker
     : (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
   const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver5Count > 0);
+  const shouldShowSeatCountBanner = !showPreBookingInfo && !isFreeSeatingTrip && !showBookingForm && totalSeatsNeeded > 1;
 
   // Route-level surcharges
   const tripDate = selectedTrip.date || '';
@@ -470,6 +472,18 @@ export function SeatMappingPage({
           </div>
         )}
       </div>
+
+      {shouldShowSeatCountBanner && (
+        <div className="mb-4 p-3 bg-blue-50 rounded-2xl border border-blue-200 flex items-center gap-2">
+          <span className="text-sm font-bold text-blue-700">
+            👆 {language === 'vi'
+              ? `Cần chọn ${totalSeatsNeeded} ghế cho ${totalSeatsNeeded} hành khách — chọn lần lượt từng ghế trên sơ đồ`
+              : language === 'ja'
+                ? `${totalSeatsNeeded}人の乗客のために${totalSeatsNeeded}席を選択してください — 座席表で1席ずつ選んでください`
+                : `Please select ${totalSeatsNeeded} seats for ${totalSeatsNeeded} passengers — click each seat one by one`}
+          </span>
+        </div>
+      )}
 
       {!showPreBookingInfo && isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded && (
         <div className="mb-4 p-3 bg-orange-50 rounded-2xl border border-orange-200 flex items-center gap-2">
