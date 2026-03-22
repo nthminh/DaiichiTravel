@@ -3,12 +3,126 @@ import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTria
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
-import { matchesSearch, removeAccents } from '../lib/searchUtils'
+import { matchesSearch } from '../lib/searchUtils'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
 import { transportService } from '../services/transportService'
-import { SearchableSelect } from '../components/SearchableSelect'
+
+// ---------------------------------------------------------------------------
+// StopSearchInput – unified autocomplete for departure / destination.
+// Searches the global stops collection (sub-stops by name + address, terminals
+// by name) and resolves the selection to the parent TERMINAL name so that route
+// filtering and fare/time calculations work correctly.
+// ---------------------------------------------------------------------------
+interface StopSearchInputProps {
+  value: string;
+  terminalValue: string;
+  stops: Stop[];
+  placeholder: string;
+  onChange: (text: string, terminal: string) => void;
+}
+
+function StopSearchInput({ value, terminalValue, stops, placeholder, onChange }: StopSearchInputProps) {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  interface Suggestion { stop: Stop; terminal: Stop | undefined }
+
+  const suggestions = useMemo<Suggestion[]>(() => {
+    if (!value.trim()) return [];
+    const results: Suggestion[] = [];
+    stops.forEach(stop => {
+      if (stop.type === 'TERMINAL') {
+        if (matchesSearch(stop.name, value)) {
+          results.push({ stop, terminal: stop });
+        }
+      } else {
+        const terminal = stops.find(s => s.id === stop.terminalId && s.type === 'TERMINAL');
+        const matchesName = matchesSearch(stop.name, value);
+        const matchesAddr = stop.address ? matchesSearch(stop.address, value) : false;
+        if (matchesName || matchesAddr) {
+          results.push({ stop, terminal });
+        }
+      }
+    });
+    return results.slice(0, 8);
+  }, [value, stops]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleChange = (text: string) => {
+    onChange(text, ''); // clear resolved terminal when user types freely
+    setShowDropdown(true);
+  };
+
+  const handleSelect = (stop: Stop, terminal: Stop | undefined) => {
+    const terminalName = terminal?.name || stop.name;
+    onChange(terminalName, terminalName);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+      <input
+        type="text"
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        onFocus={() => { if (value.trim()) setShowDropdown(true); }}
+        placeholder={placeholder}
+        className="w-full pl-12 pr-8 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => { onChange('', ''); setShowDropdown(false); }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+          aria-label="Clear"
+        >
+          <X size={14} />
+        </button>
+      )}
+      {terminalValue && !showDropdown && (
+        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-daiichi-red" title={terminalValue}>
+          <CheckCircle2 size={14} />
+        </span>
+      )}
+      {showDropdown && suggestions.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto">
+          {suggestions.map((item, idx) => (
+            <button
+              key={`${item.stop.id}-${idx}`}
+              type="button"
+              className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 flex items-start gap-2"
+              onMouseDown={e => { e.preventDefault(); handleSelect(item.stop, item.terminal); }}
+            >
+              <MapPin size={13} className="flex-shrink-0 mt-0.5 text-daiichi-red" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-800 truncate">{item.stop.name}</p>
+                {item.stop.type !== 'TERMINAL' && item.terminal && (
+                  <p className="text-[11px] text-daiichi-red font-semibold truncate">🏢 {item.terminal.name}</p>
+                )}
+                {item.stop.address && (
+                  <p className="text-[10px] text-gray-400 truncate">{item.stop.address}</p>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -330,52 +444,6 @@ export function BookTicketPage({
       showToast(t.no_trips_found, 'info');
     }
   };
-
-  const normalizeStopKey = (s: string) => removeAccents(s.toLowerCase()).replace(/\s+/g, ' ').trim();
-
-  // Boarding station options: only stops whose names directly match the user's typed searchFrom.
-  // This ensures that typing "ha noi" (with or without accents) shows only Hà Nội-related stops,
-  // not destination stops like Cát Bà from routes that happen to pass through Hà Nội.
-  const boardingStationOptions = (() => {
-    if (!searchFrom.trim()) return [];
-    const stationMap = new Map<string, string>();
-    const addStop = (name: string) => {
-      const trimmed = name.trim();
-      const key = normalizeStopKey(trimmed);
-      if (!stationMap.has(key)) stationMap.set(key, trimmed);
-    };
-    routes.forEach(r => {
-      const allNames = [
-        r.departurePoint,
-        ...(r.routeStops || []).map(s => s.stopName),
-        r.arrivalPoint,
-      ].filter(Boolean) as string[];
-      // Only add stops that themselves match searchFrom (ignoring unrelated stops on the same route)
-      allNames.forEach(n => { if (matchesSearch(n, searchFrom)) addStop(n); });
-    });
-    return Array.from(stationMap.values()).sort();
-  })();
-
-  // Alighting station options: only stops whose names directly match the user's typed searchTo.
-  const alightingStationOptions = (() => {
-    if (!searchTo.trim()) return [];
-    const stationMap = new Map<string, string>();
-    const addStop = (name: string) => {
-      const trimmed = name.trim();
-      const key = normalizeStopKey(trimmed);
-      if (!stationMap.has(key)) stationMap.set(key, trimmed);
-    };
-    routes.forEach(r => {
-      const allNames = [
-        r.departurePoint,
-        ...(r.routeStops || []).map(s => s.stopName),
-        r.arrivalPoint,
-      ].filter(Boolean) as string[];
-      // Only add stops that themselves match searchTo (ignoring unrelated stops on the same route)
-      allNames.forEach(n => { if (matchesSearch(n, searchTo)) addStop(n); });
-    });
-    return Array.from(stationMap.values()).sort();
-  })();
 
   // Palette of pastel background colors for route cards (Tailwind safe-listed via explicit strings)
   const CARD_BG_COLORS = [
@@ -714,27 +782,25 @@ export function BookTicketPage({
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
-            <div className="relative mt-1">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-              <input
-                type="text"
+            <div className="mt-1">
+              <StopSearchInput
                 value={searchFrom}
-                onChange={e => setSearchFrom(e.target.value)}
-                placeholder={t.from}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                terminalValue={searchStationFrom}
+                stops={stops}
+                placeholder={t.stop_search_from_placeholder || t.from}
+                onChange={(text, terminal) => { setSearchFrom(text); setSearchStationFrom(terminal); }}
               />
             </div>
           </div>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
-            <div className="relative mt-1">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
-              <input
-                type="text"
+            <div className="mt-1">
+              <StopSearchInput
                 value={searchTo}
-                onChange={e => setSearchTo(e.target.value)}
-                placeholder={t.to}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                terminalValue={searchStationTo}
+                stops={stops}
+                placeholder={t.stop_search_to_placeholder || t.to}
+                onChange={(text, terminal) => { setSearchTo(text); setSearchStationTo(terminal); }}
               />
             </div>
           </div>
@@ -755,45 +821,6 @@ export function BookTicketPage({
             </div>
           )}
         </div>
-        {/* Station selectors: shown when from/to text has been entered */}
-        {(searchFrom.trim() || searchTo.trim()) && (
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {searchFrom.trim() && (
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                  {t.select_boarding_stop}
-                </label>
-                <div className="relative mt-1">
-                  <SearchableSelect
-                    options={boardingStationOptions}
-                    value={searchStationFrom}
-                    onChange={setSearchStationFrom}
-                    placeholder={t.select_boarding_stop}
-                    leftIcon={<MapPin size={16} />}
-                    inputClassName="pl-10 py-3 rounded-2xl"
-                  />
-                </div>
-              </div>
-            )}
-            {searchTo.trim() && (
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                  {t.select_alighting_stop}
-                </label>
-                <div className="relative mt-1">
-                  <SearchableSelect
-                    options={alightingStationOptions}
-                    value={searchStationTo}
-                    onChange={setSearchStationTo}
-                    placeholder={t.select_alighting_stop}
-                    leftIcon={<MapPin size={16} />}
-                    inputClassName="pl-10 py-3 rounded-2xl"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
         {/* Inline warning: selected from/to has no matching route segment */}
         {noSegmentWarning && (
           <div className="mt-3 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
