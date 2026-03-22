@@ -1170,6 +1170,7 @@ export default function App() {
               trips={trips}
               routes={routes}
               vehicles={vehicles}
+              stops={stops}
               language={language}
               searchFrom={searchFrom}
               searchTo={searchTo}
