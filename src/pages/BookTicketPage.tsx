@@ -21,13 +21,22 @@ interface StopSearchInputProps {
   stops: Stop[];
   placeholder: string;
   nearestHint?: string;
+  mustSelectError?: string;
   onChange: (text: string, terminal: string) => void;
 }
 
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, onChange }: StopSearchInputProps) {
+// Delay (ms) between input blur and checking the selection state, ensuring that
+// onMouseDown on a suggestion button fires and updates state before we evaluate.
+const BLUR_DEBOUNCE_MS = 150;
+
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange }: StopSearchInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showMustSelect, setShowMustSelect] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Ref to always access the latest terminalValue inside async callbacks
+  const terminalValueRef = useRef(terminalValue);
+  terminalValueRef.current = terminalValue;
 
   interface Suggestion { stop: Stop; terminal: Stop | undefined }
 
@@ -77,12 +86,25 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
   const handleChange = (text: string) => {
     onChange(text, ''); // clear resolved terminal when user types freely
     setShowDropdown(true);
+    setShowMustSelect(false);
   };
 
   const handleSelect = (stop: Stop, terminal: Stop | undefined) => {
     const terminalName = terminal?.name || stop.name;
     onChange(terminalName, terminalName);
     setShowDropdown(false);
+    setShowMustSelect(false);
+  };
+
+  // When the input loses focus without a confirmed selection, show an error hint.
+  const handleBlur = () => {
+    // Delay so that onMouseDown on a suggestion fires first (see BLUR_DEBOUNCE_MS)
+    setTimeout(() => {
+      if (value.trim() && !terminalValueRef.current) {
+        setShowMustSelect(true);
+      }
+      setShowDropdown(false);
+    }, BLUR_DEBOUNCE_MS);
   };
 
   // When a station is confirmed, show a wrapping div so long names are fully visible.
@@ -91,6 +113,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
   const handleEditMode = () => {
     onChange(value, '');
     setShowDropdown(true);
+    setShowMustSelect(false);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -118,15 +141,21 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           type="text"
           value={value}
           onChange={e => handleChange(e.target.value)}
-          onFocus={() => { if (value.trim()) setShowDropdown(true); }}
+          onFocus={() => { if (value.trim()) setShowDropdown(true); setShowMustSelect(false); }}
+          onBlur={handleBlur}
           placeholder={placeholder}
-          className="w-full pl-12 pr-8 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+          className={cn(
+            "w-full pl-12 pr-8 py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm",
+            showMustSelect
+              ? "border-daiichi-red focus:ring-daiichi-red/10"
+              : "border-gray-100 focus:ring-daiichi-red/10"
+          )}
         />
       )}
       {value && (
         <button
           type="button"
-          onClick={() => { onChange('', ''); setShowDropdown(false); }}
+          onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); }}
           className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
           aria-label="Clear"
         >
@@ -137,6 +166,9 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
         <span className="absolute right-8 top-4 text-daiichi-red" title={terminalValue}>
           <CheckCircle2 size={14} />
         </span>
+      )}
+      {showMustSelect && !showDropdown && mustSelectError && (
+        <p className="mt-1 text-[11px] text-daiichi-red font-medium px-1">{mustSelectError}</p>
       )}
       {showDropdown && suggestions.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto">
@@ -495,6 +527,13 @@ export function BookTicketPage({
   };
 
   const handleSearch = () => {
+    // Block search if the user typed text in a stop field but did not confirm a selection
+    const fromUnconfirmed = searchFrom.trim() && !searchStationFrom;
+    const toUnconfirmed = searchTo.trim() && !searchStationTo;
+    if (fromUnconfirmed || toUnconfirmed) {
+      showToast(t.stop_search_must_select, 'error');
+      return;
+    }
     setHasSearched(true);
     const count = trips.filter(trip => filterTrip(trip, true)).length;
     if (count > 0) {
@@ -806,9 +845,9 @@ export function BookTicketPage({
           const effectiveTo = (isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo)) || tripRoute?.arrivalPoint || '';
           if (!effectiveFrom && !effectiveTo) return null;
           return (
-            <div className="px-3 pb-2.5 flex items-center gap-1 text-[10px] text-gray-500 border-t border-gray-100 pt-1.5 mt-0.5">
-              <MapPin size={9} className="flex-shrink-0 text-daiichi-red" />
-              <span className="truncate font-medium">
+            <div className="px-3 pb-2.5 flex items-start gap-1 text-[10px] text-gray-500 border-t border-gray-100 pt-1.5 mt-0.5">
+              <MapPin size={9} className="flex-shrink-0 mt-0.5 text-daiichi-red" />
+              <span className="font-medium break-words min-w-0">
                 {effectiveFrom || '—'} → {effectiveTo || '—'}
               </span>
             </div>
@@ -848,6 +887,7 @@ export function BookTicketPage({
                 stops={stops}
                 placeholder={t.stop_search_from_placeholder || t.from}
                 nearestHint={t.stop_search_nearest_hint}
+                mustSelectError={t.stop_search_must_select}
                 onChange={(text, terminal) => { setSearchFrom(text); setSearchStationFrom(terminal); }}
               />
             </div>
@@ -861,6 +901,7 @@ export function BookTicketPage({
                 stops={stops}
                 placeholder={t.stop_search_to_placeholder || t.to}
                 nearestHint={t.stop_search_nearest_hint}
+                mustSelectError={t.stop_search_must_select}
                 onChange={(text, terminal) => { setSearchTo(text); setSearchStationTo(terminal); }}
               />
             </div>
