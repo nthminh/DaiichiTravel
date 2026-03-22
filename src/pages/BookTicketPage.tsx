@@ -3,7 +3,7 @@ import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTria
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
-import { matchesSearch } from '../lib/searchUtils'
+import { matchesSearch, matchScore } from '../lib/searchUtils'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
@@ -31,22 +31,34 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, onChange }:
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!value.trim()) return [];
-    const results: Suggestion[] = [];
+    const results: { sug: Suggestion; score: number }[] = [];
     stops.forEach(stop => {
       if (stop.type === 'TERMINAL') {
-        if (matchesSearch(stop.name, value)) {
-          results.push({ stop, terminal: stop });
+        const score = matchScore(stop.name, value);
+        if (score > 0) {
+          results.push({ sug: { stop, terminal: stop }, score });
         }
       } else {
         const terminal = stops.find(s => s.id === stop.terminalId && s.type === 'TERMINAL');
-        const matchesName = matchesSearch(stop.name, value);
-        const matchesAddr = stop.address ? matchesSearch(stop.address, value) : false;
-        if (matchesName || matchesAddr) {
-          results.push({ stop, terminal });
+        const nameScore = matchScore(stop.name, value);
+        const addrScore = stop.address ? matchScore(stop.address, value) : 0;
+        const score = Math.max(nameScore, addrScore);
+        if (score > 0) {
+          results.push({ sug: { stop, terminal }, score });
         }
       }
     });
-    return results.slice(0, 8);
+    // Sort: priority stops first (ascending priority number), then by match score descending
+    results.sort((a, b) => {
+      const aPriority = a.sug.stop.priority && a.sug.stop.priority > 0 ? a.sug.stop.priority : undefined;
+      const bPriority = b.sug.stop.priority && b.sug.stop.priority > 0 ? b.sug.stop.priority : undefined;
+      const aHas = aPriority !== undefined;
+      const bHas = bPriority !== undefined;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      if (aHas && bHas) return aPriority! - bPriority!;
+      return b.score - a.score;
+    });
+    return results.slice(0, 8).map(r => r.sug);
   }, [value, stops]);
 
   // Close dropdown when clicking outside

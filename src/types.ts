@@ -360,6 +360,11 @@ export interface Stop {
   type?: 'TERMINAL' | 'STOP';
   /** For type='STOP': the `id` of the parent TERMINAL stop. */
   terminalId?: string;
+  /**
+   * Search suggestion priority. Lower number = higher priority in autocomplete results.
+   * 1 = highest priority, undefined/0 = no priority (appears after all prioritised stops).
+   */
+  priority?: number;
 }
 
 export interface PickupPoint {
