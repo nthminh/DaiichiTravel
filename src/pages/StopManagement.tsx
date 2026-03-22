@@ -32,6 +32,7 @@ const EMPTY_FORM: Omit<Stop, 'id'> = {
   distanceKm: undefined,
   type: 'STOP',
   terminalId: undefined,
+  priority: undefined,
 };
 
 interface CopyModal {
@@ -267,6 +268,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
       distanceKm: stop.distanceKm,
       type: stop.type ?? 'STOP',
       terminalId: stop.terminalId,
+      priority: stop.priority,
     });
     setIsAdding(true);
   };
@@ -509,6 +511,20 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                 onChange={e => setFormData(prev => ({ ...prev, distanceKm: e.target.value ? parseFloat(e.target.value) : undefined }))}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
                 placeholder={language === 'vi' ? 'Tuỳ chọn' : 'Optional'}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                {language === 'vi' ? 'Ưu tiên tìm kiếm' : language === 'ja' ? '検索優先度' : 'Search Priority'}
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={formData.priority ?? ''}
+                onChange={e => setFormData(prev => ({ ...prev, priority: e.target.value ? parseInt(e.target.value) : undefined }))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                placeholder={language === 'vi' ? 'Tuỳ chọn (1 = cao nhất)' : language === 'ja' ? '任意 (1 = 最高)' : 'Optional (1 = highest)'}
               />
             </div>
           </div>
@@ -900,6 +916,20 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                                   onChange={e => setFormData(prev => ({ ...prev, distanceKm: e.target.value ? parseFloat(e.target.value) : undefined }))}
                                   className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
                                   placeholder={language === 'vi' ? 'Tuỳ chọn' : 'Optional'}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                  {language === 'vi' ? 'Ưu tiên tìm kiếm' : language === 'ja' ? '検索優先度' : 'Search Priority'}
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={formData.priority ?? ''}
+                                  onChange={e => setFormData(prev => ({ ...prev, priority: e.target.value ? parseInt(e.target.value) : undefined }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                                  placeholder={language === 'vi' ? 'Tuỳ chọn (1 = cao nhất)' : language === 'ja' ? '任意 (1 = 最高)' : 'Optional (1 = highest)'}
                                 />
                               </div>
                             </div>
