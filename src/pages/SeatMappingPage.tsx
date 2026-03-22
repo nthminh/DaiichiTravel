@@ -1328,17 +1328,11 @@ export function SeatMappingPage({
                       : (isAgentBookingForm
                           ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
                           : Math.round((selectedTrip.price || 0) * tripDiscountMul));
-                    const basePriceChild = effectiveFareAmount !== null
-                      ? effectiveFareAmount
-                      : (isAgentBookingForm
-                          ? Math.round((selectedTrip.agentPriceChild || selectedTrip.agentPrice || selectedTrip.priceChild || selectedTrip.price || 0) * tripDiscountMul)
-                          : Math.round((selectedTrip.priceChild || selectedTrip.price || 0) * tripDiscountMul));
-                    const { childrenOver5, childrenUnder5 } = childrenAges.reduce(
+                    const { childrenOver5 } = childrenAges.reduce(
                       (acc, age) => age >= 5 ? { ...acc, childrenOver5: acc.childrenOver5 + 1 } : { ...acc, childrenUnder5: acc.childrenUnder5 + 1 },
                       { childrenOver5: 0, childrenUnder5: 0 }
                     );
                     const effectiveAdults = adults + childrenOver5;
-                    const effectiveChildren = childrenUnder5 + Math.max(0, children - childrenAges.length);
                     const baseTotal = (effectiveAdults * basePriceAdult);
                     const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
                     const pickupDropoffSurchargeDisplay = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdults;
@@ -1347,8 +1341,6 @@ export function SeatMappingPage({
                     const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
                     const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
                     const perSeatSuffix = effectiveAdults > 1 ? ` ×${effectiveAdults}` : '';
-                    // Suppress unused variable warning
-                    void basePriceChild; void effectiveChildren;
                     return (
                       <>
                         <div className="flex justify-between items-center text-xs text-gray-500">
