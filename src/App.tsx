@@ -166,6 +166,8 @@ export default function App() {
   const [tourBookingStatus, setTourBookingStatus] = useState<'PENDING' | 'CONFIRMED'>('PENDING');
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
+  const [searchStationFrom, setSearchStationFrom] = useState('');
+  const [searchStationTo, setSearchStationTo] = useState('');
   const [searchDate, setSearchDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
   const [searchReturnDate, setSearchReturnDate] = useState('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
@@ -666,6 +668,10 @@ export default function App() {
     setInquiryError('');
   }, [searchFrom, searchTo, searchDate, searchReturnDate, tripType]);
 
+  // Clear specific station selections when the free-text from/to fields change
+  useEffect(() => { setSearchStationFrom(''); }, [searchFrom]);
+  useEffect(() => { setSearchStationTo(''); }, [searchTo]);
+
   // Reset round-trip phase when switching back to ONE_WAY
   useEffect(() => {
     if (tripType === 'ONE_WAY') {
@@ -722,23 +728,26 @@ export default function App() {
     const isReturnPhaseNow = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
     const fromSearch = isReturnPhaseNow ? searchTo : searchFrom;
     const toSearch = isReturnPhaseNow ? searchFrom : searchTo;
+    // Prefer specific station selection over plain text if available
+    const effectiveFrom = (isReturnPhaseNow ? searchStationTo : searchStationFrom) || fromSearch;
+    const effectiveTo = (isReturnPhaseNow ? searchStationFrom : searchStationTo) || toSearch;
 
     let newFromId = '';
     let newToId = '';
 
-    if (fromSearch) {
-      setPickupPoint(fromSearch);
-      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === fromSearch);
-      const globalStop = stops.find((s) => s.name === fromSearch);
+    if (effectiveFrom) {
+      setPickupPoint(effectiveFrom);
+      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveFrom);
+      const globalStop = stops.find((s) => s.name === effectiveFrom);
       newFromId = routeStop?.stopId || globalStop?.id || '';
       if (newFromId) setFromStopId(newFromId);
       if (globalStop?.surcharge) setPickupSurcharge(globalStop.surcharge);
     }
 
-    if (toSearch) {
-      setDropoffPoint(toSearch);
-      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === toSearch);
-      const globalStop = stops.find((s) => s.name === toSearch);
+    if (effectiveTo) {
+      setDropoffPoint(effectiveTo);
+      const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveTo);
+      const globalStop = stops.find((s) => s.name === effectiveTo);
       newToId = routeStop?.stopId || globalStop?.id || '';
       if (newToId) setToStopId(newToId);
       if (globalStop?.surcharge) setDropoffSurcharge(globalStop.surcharge);
@@ -1180,6 +1189,8 @@ export default function App() {
               language={language}
               searchFrom={searchFrom}
               searchTo={searchTo}
+              searchStationFrom={searchStationFrom}
+              searchStationTo={searchStationTo}
               searchDate={searchDate}
               searchReturnDate={searchReturnDate}
               vehicleTypeFilter={vehicleTypeFilter}
@@ -1209,6 +1220,8 @@ export default function App() {
               showAddonDetailTrip={showAddonDetailTrip}
               setSearchFrom={setSearchFrom}
               setSearchTo={setSearchTo}
+              setSearchStationFrom={setSearchStationFrom}
+              setSearchStationTo={setSearchStationTo}
               setSearchDate={setSearchDate}
               setSearchReturnDate={setSearchReturnDate}
               setBookTicketSearch={setBookTicketSearch}

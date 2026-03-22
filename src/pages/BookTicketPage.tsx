@@ -18,6 +18,8 @@ interface BookTicketPageProps {
   language: Language;
   searchFrom: string;
   searchTo: string;
+  searchStationFrom: string;
+  searchStationTo: string;
   searchDate: string;
   searchReturnDate: string;
   vehicleTypeFilter: string;
@@ -48,6 +50,8 @@ interface BookTicketPageProps {
   // Handlers
   setSearchFrom: (v: string) => void;
   setSearchTo: (v: string) => void;
+  setSearchStationFrom: (v: string) => void;
+  setSearchStationTo: (v: string) => void;
   setSearchDate: (v: string) => void;
   setSearchReturnDate: (v: string) => void;
   setBookTicketSearch: (v: string) => void;
@@ -86,6 +90,8 @@ export function BookTicketPage({
   language,
   searchFrom,
   searchTo,
+  searchStationFrom,
+  searchStationTo,
   searchDate,
   searchReturnDate,
   vehicleTypeFilter,
@@ -115,6 +121,8 @@ export function BookTicketPage({
   showAddonDetailTrip,
   setSearchFrom,
   setSearchTo,
+  setSearchStationFrom,
+  setSearchStationTo,
   setSearchDate,
   setSearchReturnDate,
   setBookTicketSearch,
@@ -372,6 +380,53 @@ export function BookTicketPage({
       });
     }
     return Array.from(destMap.values()).sort();
+  })();
+
+  // Boarding station options: stops from routes that are related to the user's typed searchFrom.
+  // When searchFrom has content, collect all stops from routes where any stop name matches searchFrom.
+  // This ensures that typing "Hà Nội" shows terminals like "Bến xe Mỹ Đình" from Hà Nội routes.
+  const boardingStationOptions = (() => {
+    if (!searchFrom.trim()) return [];
+    const stationMap = new Map<string, string>();
+    const addStop = (name: string) => {
+      const trimmed = name.trim();
+      const key = normalizeStopKey(trimmed);
+      if (!stationMap.has(key)) stationMap.set(key, trimmed);
+    };
+    routes.forEach(r => {
+      const allNames = [
+        r.departurePoint,
+        ...(r.routeStops || []).map(s => s.stopName),
+        r.arrivalPoint,
+      ].filter(Boolean) as string[];
+      // Include this route's stops if any stop matches the typed text
+      if (!allNames.some(n => matchesSearch(n, searchFrom))) return;
+      if (r.departurePoint) addStop(r.departurePoint);
+      (r.routeStops || []).forEach(s => { if (s.stopName) addStop(s.stopName); });
+    });
+    return Array.from(stationMap.values()).sort();
+  })();
+
+  // Alighting station options: stops from routes that are related to the user's typed searchTo.
+  const alightingStationOptions = (() => {
+    if (!searchTo.trim()) return [];
+    const stationMap = new Map<string, string>();
+    const addStop = (name: string) => {
+      const trimmed = name.trim();
+      const key = normalizeStopKey(trimmed);
+      if (!stationMap.has(key)) stationMap.set(key, trimmed);
+    };
+    routes.forEach(r => {
+      const allNames = [
+        r.departurePoint,
+        ...(r.routeStops || []).map(s => s.stopName),
+        r.arrivalPoint,
+      ].filter(Boolean) as string[];
+      if (!allNames.some(n => matchesSearch(n, searchTo))) return;
+      (r.routeStops || []).forEach(s => { if (s.stopName) addStop(s.stopName); });
+      if (r.arrivalPoint) addStop(r.arrivalPoint);
+    });
+    return Array.from(stationMap.values()).sort();
   })();
 
   // Palette of pastel background colors for route cards (Tailwind safe-listed via explicit strings)
@@ -708,26 +763,26 @@ export function BookTicketPage({
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
             <div className="relative mt-1">
-              <SearchableSelect
-                options={departureOptions}
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+              <input
+                type="text"
                 value={searchFrom}
-                onChange={setSearchFrom}
+                onChange={e => setSearchFrom(e.target.value)}
                 placeholder={t.from}
-                leftIcon={<MapPin size={18} />}
-                inputClassName="pl-12 py-4 rounded-2xl"
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
               />
             </div>
           </div>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
             <div className="relative mt-1">
-              <SearchableSelect
-                options={destinationOptions}
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+              <input
+                type="text"
                 value={searchTo}
-                onChange={setSearchTo}
+                onChange={e => setSearchTo(e.target.value)}
                 placeholder={t.to}
-                leftIcon={<MapPin size={18} />}
-                inputClassName="pl-12 py-4 rounded-2xl"
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
               />
             </div>
           </div>
@@ -748,6 +803,45 @@ export function BookTicketPage({
             </div>
           )}
         </div>
+        {/* Station selectors: shown when from/to text has been entered */}
+        {(searchFrom.trim() || searchTo.trim()) && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {searchFrom.trim() && (
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {t.select_boarding_stop}
+                </label>
+                <div className="relative mt-1">
+                  <SearchableSelect
+                    options={boardingStationOptions}
+                    value={searchStationFrom}
+                    onChange={setSearchStationFrom}
+                    placeholder={t.select_boarding_stop}
+                    leftIcon={<MapPin size={16} />}
+                    inputClassName="pl-10 py-3 rounded-2xl"
+                  />
+                </div>
+              </div>
+            )}
+            {searchTo.trim() && (
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {t.select_alighting_stop}
+                </label>
+                <div className="relative mt-1">
+                  <SearchableSelect
+                    options={alightingStationOptions}
+                    value={searchStationTo}
+                    onChange={setSearchStationTo}
+                    placeholder={t.select_alighting_stop}
+                    leftIcon={<MapPin size={16} />}
+                    inputClassName="pl-10 py-3 rounded-2xl"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {/* Inline warning: selected from/to has no matching route segment */}
         {noSegmentWarning && (
           <div className="mt-3 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
