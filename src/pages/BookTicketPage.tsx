@@ -185,10 +185,15 @@ export function BookTicketPage({
           if (!route?.routeStops?.length) return null;
 
           // Resolve stop IDs (prefer route-embedded stops, fall back to global stops)
-          const fromRouteStop = route.routeStops.find(rs => rs.stopName === effectiveFrom);
-          const toRouteStop = route.routeStops.find(rs => rs.stopName === effectiveTo);
-          const fromGlobalStop = stops.find(s => s.name === effectiveFrom);
-          const toGlobalStop = stops.find(s => s.name === effectiveTo);
+          // Use exact match first; fall back to fuzzy match for stop names that may have slight variations
+          const fromRouteStop = route.routeStops.find(rs => rs.stopName === effectiveFrom)
+            ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveFrom));
+          const toRouteStop = route.routeStops.find(rs => rs.stopName === effectiveTo)
+            ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveTo));
+          const fromGlobalStop = stops.find(s => s.name === effectiveFrom)
+            ?? stops.find(s => matchesSearch(s.name, effectiveFrom));
+          const toGlobalStop = stops.find(s => s.name === effectiveTo)
+            ?? stops.find(s => matchesSearch(s.name, effectiveTo));
 
           const fromStopId = fromRouteStop?.stopId || fromGlobalStop?.id || '';
           const toStopId = toRouteStop?.stopId || toGlobalStop?.id || '';
@@ -669,8 +674,9 @@ export function BookTicketPage({
         {/* Footer: departure → destination */}
         {(() => {
           const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-          const effectiveFrom = (isReturnPhase ? searchTo : searchFrom) || tripRoute?.departurePoint || '';
-          const effectiveTo = (isReturnPhase ? searchFrom : searchTo) || tripRoute?.arrivalPoint || '';
+          // Prefer specific stop selection over plain city text when available
+          const effectiveFrom = (isReturnPhase ? (searchStationTo || searchTo) : (searchStationFrom || searchFrom)) || tripRoute?.departurePoint || '';
+          const effectiveTo = (isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo)) || tripRoute?.arrivalPoint || '';
           if (!effectiveFrom && !effectiveTo) return null;
           return (
             <div className="px-3 pb-2.5 flex items-center gap-1 text-[10px] text-gray-500 border-t border-gray-100 pt-1.5 mt-0.5">
