@@ -15,6 +15,7 @@ interface ConsignmentsPageProps {
 
 export function ConsignmentsPage({ consignments, currentUser, language }: ConsignmentsPageProps) {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   // Filter / search state
   const [consignmentSearch, setConsignmentSearch] = useState('');
@@ -264,7 +265,7 @@ export function ConsignmentsPage({ consignments, currentUser, language }: Consig
                   <td className="px-6 py-5">
                     <div className="flex gap-3">
                       <button onClick={() => handleStartEditConsignment(c)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>
-                      <button onClick={() => handleDeleteConsignment(c.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>
+                      {isAdmin && <button onClick={() => handleDeleteConsignment(c.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}
                     </div>
                   </td>
                 </tr>

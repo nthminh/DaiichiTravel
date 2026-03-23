@@ -8,12 +8,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language } from '../App';
-import { CustomerProfile } from '../types';
+import { CustomerProfile, User as AppUser, UserRole } from '../types';
 import { transportService } from '../services/transportService';
 
 interface CustomerManagementProps {
   language: Language;
   customers: CustomerProfile[];
+  currentUser?: AppUser | null;
 }
 
 const EMPTY_FORM: Omit<CustomerProfile, 'id'> = {
@@ -27,8 +28,9 @@ const EMPTY_FORM: Omit<CustomerProfile, 'id'> = {
   registeredAt: new Date().toISOString(),
 };
 
-export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language, customers }) => {
+export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language, customers, currentUser }) => {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -612,6 +614,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   >
                     <Pencil size={16} />
                   </button>
+                  {isAdmin && (
                   <button
                     onClick={() => handleDelete(c)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
@@ -619,6 +622,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   >
                     <Trash2 size={16} />
                   </button>
+                  )}
                   <button
                     onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
                     className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-all"

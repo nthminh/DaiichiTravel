@@ -3,7 +3,7 @@ import { X, Loader2, Edit3, Trash2, Search, Filter, Calendar, FileText, Copy } f
 import { cn } from '../lib/utils';
 import type { Language } from '../constants/translations';
 import { TRANSLATIONS } from '../constants/translations';
-import { Route, Stop, PricePeriod, RouteSurcharge, RouteStop } from '../types';
+import { Route, Stop, PricePeriod, RouteSurcharge, RouteStop, User, UserRole } from '../types';
 import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
@@ -36,6 +36,7 @@ interface RouteManagementPageProps {
   terminalStops: Stop[];
   language: Language;
   t: TranslationRecord;
+  currentUser?: User | null;
   routeSearch: string;
   setRouteSearch: (v: string) => void;
   showRouteFilters: boolean;
@@ -180,7 +181,9 @@ export function RouteManagementPage({
   handleStartEditRoute,
   handleCopyRoute,
   handleSaveRouteNote,
+  currentUser,
 }: RouteManagementPageProps) {
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
         const filteredRoutes = routes.filter(route => {
           if (routeFilterDeparture && !matchesSearch(route.departurePoint || '', routeFilterDeparture)) return false;
           if (routeFilterArrival && !matchesSearch(route.arrivalPoint || '', routeFilterArrival)) return false;
@@ -1081,7 +1084,7 @@ export function RouteManagementPage({
                       <td className="px-6 py-6"><p className="font-bold text-daiichi-red">{route.price > 0 ? `${route.price.toLocaleString()}đ` : t.contact}</p></td>
                       <td className="px-6 py-6"><p className="font-bold text-orange-600">{(route.agentPrice || 0) > 0 ? `${(route.agentPrice || 0).toLocaleString()}đ` : '—'}</p></td>
                       <td className="px-6 py-6"><p className="text-sm text-gray-600">{route.duration || '—'}</p></td>
-                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleExportRoutePDF(route)} title={language === 'vi' ? 'Xuất PDF' : language === 'ja' ? 'PDFを出力' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={18} /></button><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
+                      <td className="px-6 py-6"><div className="flex gap-3 items-center"><button onClick={() => handleExportRoutePDF(route)} title={language === 'vi' ? 'Xuất PDF' : language === 'ja' ? 'PDFを出力' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={18} /></button><button onClick={() => handleCopyRoute(route)} title={t.copy_route} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={18} /></button><button onClick={() => handleStartEditRoute(route)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>{isAdmin && <button onClick={() => handleDeleteRoute(route.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}<NotePopover note={route.note} onSave={(note) => handleSaveRouteNote(route.id, note)} language={language} /></div></td>
                     </tr>
                   ))}
                   {filteredRoutes.length === 0 && (

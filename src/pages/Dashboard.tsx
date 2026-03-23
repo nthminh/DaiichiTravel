@@ -70,6 +70,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   const [viewingBooking, setViewingBooking] = useState<any>(null);
 
   const isAgent = currentUser?.role === UserRole.AGENT;
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
   // Effective agent identifier used in booking.agent field
   const agentIdentifier = isAgent
     ? (currentUser.name || currentUser.address || currentUser.agentCode || '')
@@ -535,12 +536,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                               >
                                 <Edit3 size={16} />
                               </button>
+                              {isAdmin && (
                               <button 
                                 onClick={() => handleDelete(booking.id)}
                                 className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                               >
                                 <Trash2 size={16} />
                               </button>
+                              )}
                             </>
                           )}
                         </div>
