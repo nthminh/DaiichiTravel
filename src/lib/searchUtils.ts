@@ -71,15 +71,32 @@ export const matchScore = (text: string, searchTerm: string): number => {
   const searchTokens = normSearch.split(/\s+/).filter(Boolean);
   if (searchTokens.length === 0) return 1;
 
-  // Each search token must fuzzy-match (prefix or small edit distance) at least one text token.
+  // Each search token must fuzzy-match (prefix or small edit distance) a DISTINCT text token.
+  // Using an index-based "used" set prevents two search tokens from both matching the same
+  // text token — e.g. "ninh" and "binh" (from "Ninh Bình") both have Levenshtein distance 1
+  // from "kinh" (from "bán kính") which would otherwise produce a false positive match
+  // against stop names like "Hải Phòng ( đón trả miễn phí bán kính 15 km)".
   // Short tokens (≤ 3 chars) only use prefix matching to avoid false positives such as
   // "cat" matching "cau" (cầu) or "ba" matching "ha" in unrelated Vietnamese addresses.
+  const usedTextTokenIndices = new Set<number>();
   const allTokensMatch = searchTokens.every(st => {
     if (st.length <= 3) {
-      return textTokens.some(tt => tt.startsWith(st));
+      const idx = textTokens.findIndex((tt, i) => !usedTextTokenIndices.has(i) && tt.startsWith(st));
+      if (idx !== -1) {
+        usedTextTokenIndices.add(idx);
+        return true;
+      }
+      return false;
     }
     const threshold = Math.max(1, Math.floor(st.length / TOKEN_FUZZY_DIVISOR));
-    return textTokens.some(tt => tt.startsWith(st) || levenshteinDistance(st, tt) <= threshold);
+    const idx = textTokens.findIndex(
+      (tt, i) => !usedTextTokenIndices.has(i) && (tt.startsWith(st) || levenshteinDistance(st, tt) <= threshold),
+    );
+    if (idx !== -1) {
+      usedTextTokenIndices.add(idx);
+      return true;
+    }
+    return false;
   });
 
   if (allTokensMatch) return 60;

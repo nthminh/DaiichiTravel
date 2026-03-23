@@ -115,19 +115,25 @@ Nếu xe không thực sự dừng ở Ninh Bình để trả khách nhưng "Nin
 
 ---
 
-### ⚠️ Trường hợp 3: Kết quả xuất hiện dù không có routeStop "Ninh Bình"
+### ✅ Trường hợp 3: Kết quả xuất hiện dù không có routeStop "Ninh Bình" — ĐÃ XỬ LÝ
 
 Nếu kiểm tra tuyến và **không thấy Ninh Bình trong routeStops** nhưng kết quả vẫn hiện:
 
-**Nguyên nhân có thể:**
+**Nguyên nhân đã xác định và khắc phục:**
+
+> **Lỗi fuzzy matching token trùng lặp** *(đã fix trong `src/lib/searchUtils.ts`)*
+>
+> Tên điểm dừng "Hải Phòng ( đón trả miễn phí **bán kính** 15 km)" chứa từ "**kính**". Hai token tìm kiếm "**ninh**" và "**binh**" (từ "Ninh Bình") đều có khoảng cách Levenshtein = 1 so với "**kinh**" (dạng bỏ dấu của "kính"). Trước khi sửa, cả hai token cùng khớp một token văn bản, khiến `matchesSearch()` trả về `true` — nghĩa là tuyến Hà Nội – Cát Bà xuất hiện trong kết quả tìm "Hà Nội → Ninh Bình" dù không có điểm dừng Ninh Bình.
+>
+> **Giải pháp:** Áp dụng *deduplication* theo chỉ số — mỗi token văn bản chỉ được đối sánh với một token tìm kiếm. Khi "ninh" đã dùng "kinh", "binh" không còn token nào để khớp → hàm trả về `false` đúng.
+
+**Các nguyên nhân khác có thể xảy ra (nếu vẫn còn):**
 
 1. **Fallback text matching:** Tên tuyến (`trip.route`) có thể chứa chuỗi gần giống "Ninh Bình". Hàm `matchesSearch()` sử dụng fuzzy matching nên "Ninh" có thể khớp với token trong tên tuyến.
    - Kiểm tra: Tên tuyến có chứa "Ninh" không? (ví dụ "Hà Nội - Quảng **Ninh**")
 
 2. **routeByName lookup thất bại:** Nếu `trip.route` (tên chuyến) không khớp chính xác với `route.name` trong Firestore (do đổi tên tuyến sau khi tạo chuyến), hệ thống sẽ dùng fallback matching theo tên tuyến dạng chuỗi.
    - Kiểm tra: So sánh `trip.route` với `route.name` trong Firestore
-
-3. **Fuzzy matching quá rộng:** `matchesSearch()` cho phép sai lệch 1 ký tự/4 ký tự (Levenshtein). Tên một điểm dừng gần giống "Ninh Bình" có thể bị khớp sai.
 
 ---
 
