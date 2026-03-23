@@ -365,6 +365,12 @@ export interface Stop {
    * 1 = highest priority, undefined/0 = no priority (appears after all prioritised stops).
    */
   priority?: number;
+  /**
+   * For type='TERMINAL': comma-separated list of vehicle types that stop at this terminal.
+   * Used to filter stop suggestions when the customer selects a vehicle type.
+   * e.g. "Limousine 11 ghế, Bus 45 chỗ"
+   */
+  vehicleTypes?: string;
 }
 
 export interface PickupPoint {

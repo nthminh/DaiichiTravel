@@ -33,6 +33,7 @@ const EMPTY_FORM: Omit<Stop, 'id'> = {
   type: 'STOP',
   terminalId: undefined,
   priority: undefined,
+  vehicleTypes: undefined,
 };
 
 interface CopyModal {
@@ -67,6 +68,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     type: 120,
     terminal: 180,
     category: 140,
+    vehicleTypes: 180,
     address: 240,
     surcharge: 130,
     actions: 148,
@@ -113,7 +115,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
 
   const handleAddStop = async () => {
     if (!formData.name || !formData.address) return;
-    const dataToSave = formData.type === 'TERMINAL' ? { ...formData, terminalId: undefined } : formData;
+    const dataToSave = formData.type === 'TERMINAL'
+      ? { ...formData, terminalId: undefined }
+      : { ...formData, vehicleTypes: undefined };
     if (checkDuplicate(dataToSave.name, dataToSave.type, dataToSave.terminalId)) {
       duplicateAlert(dataToSave.type);
       return;
@@ -129,7 +133,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
 
   const handleUpdateStop = async () => {
     if (!editingId || !formData.name || !formData.address) return;
-    const dataToSave = formData.type === 'TERMINAL' ? { ...formData, terminalId: undefined } : formData;
+    const dataToSave = formData.type === 'TERMINAL'
+      ? { ...formData, terminalId: undefined }
+      : { ...formData, vehicleTypes: undefined };
     if (checkDuplicate(dataToSave.name, dataToSave.type, dataToSave.terminalId, editingId)) {
       duplicateAlert(dataToSave.type);
       return;
@@ -269,6 +275,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
       type: stop.type ?? 'STOP',
       terminalId: stop.terminalId,
       priority: stop.priority,
+      vehicleTypes: stop.vehicleTypes,
     });
     setIsAdding(true);
   };
@@ -489,6 +496,20 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                 ))}
               </select>
             </div>
+            {formData.type === 'TERMINAL' && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {language === 'vi' ? 'Loại xe' : 'Vehicle Types'}
+                </label>
+                <input
+                  type="text"
+                  value={formData.vehicleTypes ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, vehicleTypes: e.target.value || undefined }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                  placeholder={language === 'vi' ? 'VD: Limousine 11 ghế, Bus 45 chỗ' : 'e.g. Limousine 11 ghế, Bus 45 chỗ'}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.surcharge} (đ)</label>
               <input
@@ -655,6 +676,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                 <ResizableTh width={colWidths.category} onResize={(w) => setColWidths(p => ({ ...p, category: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   {language === 'vi' ? 'Loại điểm' : 'Category'}
                 </ResizableTh>
+                <ResizableTh width={colWidths.vehicleTypes} onResize={(w) => setColWidths(p => ({ ...p, vehicleTypes: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  {language === 'vi' ? 'Loại xe' : 'Vehicle Types'}
+                </ResizableTh>
                 <ResizableTh width={colWidths.address} onResize={(w) => setColWidths(p => ({ ...p, address: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_address}</ResizableTh>
                 <ResizableTh width={colWidths.surcharge} onResize={(w) => setColWidths(p => ({ ...p, surcharge: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.surcharge}</ResizableTh>
                 <ResizableTh width={colWidths.actions} onResize={(w) => setColWidths(p => ({ ...p, actions: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">{t.actions}</ResizableTh>
@@ -742,6 +766,17 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                         </span>
                       </td>
 
+                      {/* Vehicle Types */}
+                      <td className="px-4 py-5">
+                        {isTerminal && stop.vehicleTypes ? (
+                          <span className="text-xs font-medium text-purple-700 bg-purple-50 px-2 py-1 rounded-lg">
+                            {stop.vehicleTypes}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300 italic">—</span>
+                        )}
+                      </td>
+
                       {/* Address */}
                       <td className="px-4 py-5 text-sm text-gray-500">{stop.address}</td>
 
@@ -790,7 +825,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                     {/* Inline Edit Form — appears right below the row being edited */}
                     {isEditing && (
                       <tr ref={editRowRef}>
-                        <td colSpan={7} className="px-4 py-4 bg-gray-50/80 border-b border-gray-100">
+                        <td colSpan={8} className="px-4 py-4 bg-gray-50/80 border-b border-gray-100">
                           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div className="flex justify-between items-center">
                               <h3 className="text-lg font-bold">
@@ -894,6 +929,20 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                                   ))}
                                 </select>
                               </div>
+                              {formData.type === 'TERMINAL' && (
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                    {language === 'vi' ? 'Loại xe' : 'Vehicle Types'}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={formData.vehicleTypes ?? ''}
+                                    onChange={e => setFormData(prev => ({ ...prev, vehicleTypes: e.target.value || undefined }))}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
+                                    placeholder={language === 'vi' ? 'VD: Limousine 11 ghế, Bus 45 chỗ' : 'e.g. Limousine 11 ghế, Bus 45 chỗ'}
+                                  />
+                                </div>
+                              )}
                               <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.surcharge} (đ)</label>
                                 <input
