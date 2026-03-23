@@ -1202,7 +1202,9 @@ export function SeatMappingPage({
                 {(() => {
                   if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;
                   const bookedSeat = selectedTrip.seats.find((s: any) => s.id === showBookingForm);
-                  if (!bookedSeat) return null;
+                  // If the seat is actually EMPTY (no active booking), never show a conflict warning
+                  // even if stale segment fields are present from a previously deleted booking.
+                  if (!bookedSeat || bookedSeat.status === SeatStatus.EMPTY) return null;
                   const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
                     (bookedSeat.segmentBookings ?? []).length > 0
                       ? bookedSeat.segmentBookings

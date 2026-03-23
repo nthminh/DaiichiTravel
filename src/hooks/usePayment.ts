@@ -315,7 +315,9 @@ export function usePayment(ctx: BookingContext) {
     if (fromStopOrder !== undefined && toStopOrder !== undefined && !isFreeSeating) {
       const conflictSeatIds = allSeatIds.filter(sid => {
         const seatData = c.selectedTrip.seats.find((s: any) => s.id === sid);
-        if (!seatData) return false;
+        // If the seat is EMPTY (no active booking), it is never a conflict even if stale
+        // segment fields are present from a previously cancelled booking.
+        if (!seatData || seatData.status === SeatStatus.EMPTY) return false;
         const segs: Array<{ fromStopOrder: number; toStopOrder: number }> =
           (seatData.segmentBookings ?? []).length > 0
             ? seatData.segmentBookings
