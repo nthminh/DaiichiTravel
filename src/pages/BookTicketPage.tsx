@@ -685,6 +685,18 @@ export function BookTicketPage({
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
 
+  // Track mobile viewport (< 640px = Tailwind's sm: breakpoint) for responsive placeholder text.
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => setIsMobile(window.innerWidth < 640), 150);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); clearTimeout(resizeTimer); };
+  }, []);
+
   // Segment-based fare lookup: map from routeId → { price, agentPrice }
   // Updated whenever the customer's searchFrom / searchTo changes.
   const [segmentFares, setSegmentFares] = useState<Map<string, { price: number; agentPrice?: number }>>(new Map());
@@ -1413,7 +1425,7 @@ export function BookTicketPage({
                   value={searchFrom}
                   terminalValue={searchStationFrom}
                   stops={filteredStops}
-                  placeholder={t.stop_search_from_placeholder || t.from}
+                  placeholder={isMobile ? t.stop_search_from_placeholder_mobile : (t.stop_search_from_placeholder || t.from)}
                   nearestHint={t.stop_search_nearest_hint}
                   mustSelectError={t.stop_search_must_select}
                   onChange={handleFromChange}
@@ -1434,9 +1446,9 @@ export function BookTicketPage({
               type="button"
               onClick={handleSwap}
               title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="flex-shrink-0 self-center sm:self-start sm:mt-0 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
+              className="flex-shrink-0 self-center sm:self-start sm:mt-0 w-9 h-9 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
             >
-              <ArrowUpDown size={15} />
+              <ArrowUpDown size={18} strokeWidth={2.5} />
             </button>
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
@@ -1446,7 +1458,7 @@ export function BookTicketPage({
                   value={searchTo}
                   terminalValue={searchStationTo}
                   stops={filteredStops}
-                  placeholder={t.stop_search_to_placeholder || t.to}
+                  placeholder={isMobile ? t.stop_search_to_placeholder_mobile : (t.stop_search_to_placeholder || t.to)}
                   nearestHint={t.stop_search_nearest_hint}
                   mustSelectError={t.stop_search_must_select}
                   onChange={handleToChange}
