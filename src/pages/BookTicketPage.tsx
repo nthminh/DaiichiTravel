@@ -365,7 +365,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           role="button"
           tabIndex={0}
           aria-label={`${value} – nhấn để chỉnh sửa`}
-          className="w-full pl-12 pr-14 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm break-words leading-snug min-h-[56px] cursor-pointer"
+          className="w-full pl-12 pr-14 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-800 break-words leading-snug min-h-[56px] max-h-[72px] overflow-hidden cursor-pointer"
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
@@ -381,7 +381,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           onBlur={handleBlur}
           placeholder={placeholder}
           className={cn(
-            "w-full pl-12 pr-8 py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm",
+            "w-full pl-12 pr-8 py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm font-medium text-gray-800",
             showMustSelect
               ? "border-daiichi-red focus:ring-daiichi-red/10"
               : "border-gray-100 focus:ring-daiichi-red/10"
