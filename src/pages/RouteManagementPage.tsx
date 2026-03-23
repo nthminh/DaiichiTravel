@@ -623,7 +623,7 @@ export function RouteManagementPage({
                                 className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
                               >
                                 <option value="">{language === 'vi' ? '-- Chọn điểm dừng --' : '-- Select stop --'}</option>
-                                {stops.filter(s => !routeFormStops.find(rs => rs.stopId === s.id) || s.id === editingRouteStop?.stopId).map(s => (
+                                {stops.filter(s => s.type === 'TERMINAL' && (!routeFormStops.find(rs => rs.stopId === s.id) || s.id === editingRouteStop?.stopId)).map(s => (
                                   <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                               </select>
