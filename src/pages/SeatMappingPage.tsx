@@ -802,12 +802,17 @@ export function SeatMappingPage({
           <h3 className="text-base sm:text-lg font-bold mb-0.5 sm:mb-1">
             {language === 'vi' ? '📋 Khai báo thông tin' : language === 'ja' ? '📋 乗客情報の入力' : '📋 Passenger Information'}
           </h3>
-          <p className="text-xs text-gray-400 mb-2 sm:mb-4 hidden sm:block">
-            {language === 'vi'
-              ? 'Nhập thông tin hành khách và điểm xuất phát / điểm đến trước khi chọn ghế.'
-              : language === 'ja'
-                ? '座席を選ぶ前に乗客情報と乗降区間を入力してください。'
-                : 'Enter passenger details and departure / destination before selecting seats.'}
+          <p className="text-xs text-gray-400 mb-2 sm:mb-4">
+            <span className="sm:hidden">
+              {language === 'vi' ? 'Nhập thông tin, chọn ghế trước khi đặt.' : language === 'ja' ? '情報入力後、座席を選んでください。' : 'Enter info, then select a seat.'}
+            </span>
+            <span className="hidden sm:inline">
+              {language === 'vi'
+                ? 'Nhập thông tin hành khách và điểm xuất phát / điểm đến trước khi chọn ghế.'
+                : language === 'ja'
+                  ? '座席を選ぶ前に乗客情報と乗降区間を入力してください。'
+                  : 'Enter passenger details and departure / destination before selecting seats.'}
+            </span>
           </p>
           <form className="space-y-2.5 sm:space-y-4">
             {/* Adults / Children */}
@@ -855,7 +860,12 @@ export function SeatMappingPage({
             {children > 0 && (
               <div className="p-2 sm:p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1.5 sm:space-y-2">
                 <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                <p className="text-[10px] text-blue-400 hidden sm:block">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</p>
+                <p className="text-[10px] text-blue-400">
+                  <span className="sm:hidden">
+                    {language === 'vi' ? '≥5 tuổi: mua vé; <5 tuổi: miễn phí' : language === 'ja' ? '5歳以上：有料、4歳以下：無料' : '≥5 yrs: charged; <5 yrs: free'}
+                  </span>
+                  <span className="hidden sm:inline">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</span>
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {Array.from({ length: children }).map((_, i) => (
                     <div key={i} className="relative">
