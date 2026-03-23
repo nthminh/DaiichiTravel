@@ -455,6 +455,11 @@ export function SeatMappingPage({
   };
 
   return (
+  <>
+  {/* Mobile backdrop dim when a bottom-sheet form is visible */}
+  {(showPreBookingInfo || !!showBookingForm) && (
+    <div className="fixed inset-0 bg-black/20 z-[140] lg:hidden" />
+  )}
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
@@ -783,7 +788,13 @@ export function SeatMappingPage({
     <div className="space-y-6">
       {showPreBookingInfo ? (
         /* ── STEP 1: PRE-BOOKING INFO FORM ── */
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
+        >
+          {/* Drag handle visible on mobile */}
+          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 lg:hidden" />
           <h3 className="text-lg font-bold mb-1">
             {language === 'vi' ? '📋 Khai báo thông tin' : language === 'ja' ? '📋 乗客情報の入力' : '📋 Passenger Information'}
           </h3>
@@ -1117,7 +1128,13 @@ export function SeatMappingPage({
 
           {/* ── COMPACT CONFIRM PANEL (seat selected, show price summary + confirm) ── */}
           {showBookingForm && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-daiichi-red">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
+            >
+              {/* Drag handle visible on mobile */}
+              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 lg:hidden" />
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold">
                   {isFreeSeatingTrip
@@ -1452,5 +1469,6 @@ export function SeatMappingPage({
       )}
     </div>
   </div>
+  </>
   );
 }
