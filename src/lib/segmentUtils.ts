@@ -33,6 +33,17 @@ export function getSegmentInfo(
   language: Language,
 ): SegmentInfo {
   if (seat.segmentBookings?.length > 0) {
+    // A single segmentBooking that spans the entire route is still a full-route booking.
+    const orderKeys = Object.keys(stopNameByOrder).map(Number);
+    const minOrder = orderKeys.length > 0 ? Math.min(...orderKeys) : 1;
+    const maxOrder = orderKeys.length > 0 ? Math.max(...orderKeys) : totalStops;
+    if (
+      seat.segmentBookings.length === 1 &&
+      seat.segmentBookings[0].fromStopOrder === minOrder &&
+      seat.segmentBookings[0].toStopOrder === maxOrder
+    ) {
+      return { type: 'full', label: language === 'vi' ? 'Cả chặng' : 'Full route' };
+    }
     return {
       type: 'multi',
       label: `${seat.segmentBookings.length} ${language === 'vi' ? 'chặng' : 'seg.'}`,
