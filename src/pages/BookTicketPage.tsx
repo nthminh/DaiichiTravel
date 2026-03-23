@@ -409,9 +409,6 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
                 {item.stop.type !== 'TERMINAL' && item.terminal && (
                   <p className="text-[11px] text-daiichi-red font-semibold break-words">🏢 {item.terminal.name}</p>
                 )}
-                {item.stop.address && (
-                  <p className="text-[10px] text-gray-400 break-words">{item.stop.address}</p>
-                )}
               </div>
             </button>
           ))}
