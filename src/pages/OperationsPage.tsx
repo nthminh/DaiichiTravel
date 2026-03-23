@@ -74,8 +74,8 @@ interface OperationsPageProps {
   setEditingPassengerSeatId: (v: string | null) => void;
   passengerEditForm: { customerName: string; customerPhone: string; pickupAddress: string; dropoffAddress: string; pickupAddressDetail: string; dropoffAddressDetail: string; pickupStopAddress: string; dropoffStopAddress: string; status: SeatStatus; bookingNote: string };
   setPassengerEditForm: React.Dispatch<React.SetStateAction<{ customerName: string; customerPhone: string; pickupAddress: string; dropoffAddress: string; pickupAddressDetail: string; dropoffAddressDetail: string; pickupStopAddress: string; dropoffStopAddress: string; status: SeatStatus; bookingNote: string }>>;
-  passengerColVisibility: { ticketCode: boolean; seat: boolean; name: boolean; phone: boolean; pickup: boolean; dropoff: boolean; status: boolean; price: boolean; note: boolean };
-  setPassengerColVisibility: React.Dispatch<React.SetStateAction<{ ticketCode: boolean; seat: boolean; name: boolean; phone: boolean; pickup: boolean; dropoff: boolean; status: boolean; price: boolean; note: boolean }>>;
+  passengerColVisibility: { ticketCode: boolean; seat: boolean; name: boolean; phone: boolean; segment: boolean; pickup: boolean; dropoff: boolean; status: boolean; price: boolean; note: boolean };
+  setPassengerColVisibility: React.Dispatch<React.SetStateAction<{ ticketCode: boolean; seat: boolean; name: boolean; phone: boolean; segment: boolean; pickup: boolean; dropoff: boolean; status: boolean; price: boolean; note: boolean }>>;
   showPassengerColPanel: boolean;
   setShowPassengerColPanel: React.Dispatch<React.SetStateAction<boolean>>;
   showAddonDetailTrip: Trip | null;
@@ -879,6 +879,26 @@ export function OperationsPage({
         const seatTicketCodeMap = buildSeatTicketCodeMap(showTripPassengers.id);
         const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
         const passengerGroups = buildPassengerGroups(showTripPassengers.id, bookedSeats);
+        // Segment detection: find matched route to get total stop count
+        const matchedRoute = routes.find(r => r.name === showTripPassengers.route);
+        const totalStops = matchedRoute?.routeStops?.length ?? 0;
+        const stopNameByOrder: Record<number, string> = {};
+        if (matchedRoute?.routeStops) {
+          matchedRoute.routeStops.forEach(rs => { stopNameByOrder[rs.order] = rs.stopName; });
+        }
+        const getSegmentInfo = (seat: any): { type: 'full' | 'partial' | 'multi'; label: string } => {
+          if (seat.segmentBookings?.length > 0) {
+            return { type: 'multi', label: `${seat.segmentBookings.length} ${language === 'vi' ? 'chặng' : 'seg.'}` };
+          }
+          const from = seat.fromStopOrder as number | undefined;
+          const to = seat.toStopOrder as number | undefined;
+          const isFull = (from == null && to == null) || (from === 1 && (totalStops === 0 || to === totalStops));
+          if (isFull) return { type: 'full', label: language === 'vi' ? 'Cả chặng' : 'Full route' };
+          const fromName = seat.pickupPoint || (from != null ? stopNameByOrder[from] || `Trạm ${from}` : '');
+          const toName = seat.dropoffPoint || (to != null ? stopNameByOrder[to] || `Trạm ${to}` : '');
+          const segLabel = (fromName || toName) ? `${fromName}→${toName}` : (language === 'vi' ? 'Nửa chặng' : 'Partial');
+          return { type: 'partial', label: segLabel };
+        };
         return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
@@ -909,6 +929,7 @@ export function OperationsPage({
                     { key: 'seat', label: language === 'vi' ? 'Ghế' : 'Seat' },
                     { key: 'name', label: language === 'vi' ? 'Tên khách' : 'Name' },
                     { key: 'phone', label: language === 'vi' ? 'Số điện thoại' : 'Phone' },
+                    { key: 'segment', label: language === 'vi' ? 'Loại chặng' : 'Segment' },
                     { key: 'pickup', label: language === 'vi' ? 'Điểm đón' : 'Pickup' },
                     { key: 'dropoff', label: language === 'vi' ? 'Điểm trả' : 'Dropoff' },
                     { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
@@ -932,12 +953,14 @@ export function OperationsPage({
               const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
               const paid = allSeats.filter((s: any) => s.status === SeatStatus.PAID);
               const empty = allSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
+              const partialCount = booked.filter((s: any) => getSegmentInfo(s).type !== 'full').length;
               return (
                 <div className="px-6 py-3 bg-gray-50 flex flex-wrap gap-3 items-center flex-shrink-0 border-b border-gray-100">
                   <span className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Tổng' : 'Total'}: {allSeats.length}</span>
                   <span className="text-sm font-bold text-green-600">✓ {language === 'vi' ? 'Đã thanh toán' : 'Paid'}: {paid.length}</span>
                   <span className="text-sm font-bold text-blue-600">◉ {language === 'vi' ? 'Đã đặt' : 'Booked'}: {booked.length - paid.length}</span>
                   <span className="text-sm font-bold text-gray-400">○ {language === 'vi' ? 'Còn trống' : 'Empty'}: {empty.length}</span>
+                  {partialCount > 0 && <span className="text-sm font-bold text-orange-500">◈ {language === 'vi' ? 'Nửa chặng' : 'Partial'}: {partialCount}</span>}
                   <div className="ml-auto flex gap-2">
                     <button onClick={() => exportTripToExcelHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"><Download size={12} /> Excel</button>
                     <button onClick={() => exportTripToPDFHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"><FileText size={12} /> PDF</button>
@@ -955,6 +978,7 @@ export function OperationsPage({
                     {passengerColVisibility.seat && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế' : 'Seat'}</th>}
                     {passengerColVisibility.name && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Tên khách' : 'Name'}</th>}
                     {passengerColVisibility.phone && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>}
+                    {passengerColVisibility.segment && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Loại chặng' : 'Segment'}</th>}
                     {passengerColVisibility.pickup && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm đón' : 'Pickup'}</th>}
                     {passengerColVisibility.dropoff && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Điểm trả' : 'Dropoff'}</th>}
                     {passengerColVisibility.status && <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">{t.status}</th>}
@@ -974,6 +998,7 @@ export function OperationsPage({
                     const totalAmount = group.booking?.amount ?? (showTripPassengers.price || 0) * group.seats.length;
                     const isEditing = editingPassengerSeatId === primarySeat.id;
                     const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
+                    const segInfo = getSegmentInfo(primarySeat);
                     return isEditing ? (
                       <tr key={rowKey} className="bg-blue-50">
                         <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
@@ -981,6 +1006,7 @@ export function OperationsPage({
                         {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
                         {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
                         {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
+                        {passengerColVisibility.segment && <td className="px-4 py-3"><span className={cn('px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap', segInfo.type === 'full' ? 'bg-green-100 text-green-700' : segInfo.type === 'multi' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700')}>{segInfo.label}</span></td>}
                         {passengerColVisibility.pickup && <td className="px-4 py-3">
                           <input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder={language === 'vi' ? 'Tên điểm đón' : 'Stop name'} />
                           <input value={passengerEditForm.pickupAddressDetail} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddressDetail: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Chi tiết (số nhà...)' : 'Detail (house no.)'} />
@@ -1007,7 +1033,7 @@ export function OperationsPage({
                         </td>
                       </tr>
                     ) : (
-                      <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40')}>
+                      <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40', segInfo.type === 'partial' && 'border-l-2 border-orange-300', segInfo.type === 'multi' && 'border-l-2 border-purple-300')}>
                         <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
                         {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{ticketCode}</td>}
                         {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">
@@ -1016,6 +1042,7 @@ export function OperationsPage({
                         </td>}
                         {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
                         {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
+                        {passengerColVisibility.segment && <td className="px-4 py-3"><span className={cn('px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap', segInfo.type === 'full' ? 'bg-green-100 text-green-700' : segInfo.type === 'multi' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700')} title={segInfo.label}>{segInfo.label}</span></td>}
                         {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{[primarySeat.pickupAddressDetail, primarySeat.pickupAddress, primarySeat.pickupStopAddress].filter(Boolean).join(' & ') || '—'}</td>}
                         {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{[primarySeat.dropoffAddressDetail, primarySeat.dropoffAddress, primarySeat.dropoffStopAddress].filter(Boolean).join(' & ') || '—'}</td>}
                         {passengerColVisibility.status && <td className="px-4 py-3">
