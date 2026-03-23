@@ -1464,7 +1464,7 @@ export function BookTicketPage({
             </div>
           </div>
           {/* FROM + swap button + TO in a combined cell spanning 2 columns on large screens */}
-          <div className="lg:col-span-2 flex items-start gap-2">
+          <div className="lg:col-span-2 flex flex-col sm:flex-row sm:items-start gap-2">
             <div className="flex-1 min-w-0">
               <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="mt-1">
@@ -1493,7 +1493,7 @@ export function BookTicketPage({
               type="button"
               onClick={handleSwap}
               title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="flex-shrink-0 mt-7 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
+              className="flex-shrink-0 self-center sm:self-start sm:mt-7 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
             >
               <ArrowLeftRight size={15} />
             </button>
@@ -1546,7 +1546,7 @@ export function BookTicketPage({
           </div>
         )}
         {/* Passenger count row + search button */}
-        <div className="flex items-end gap-3 mt-4 sm:mt-4">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 mt-4 sm:mt-4">
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
               <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate block">{t.num_adults}</label>
@@ -1594,20 +1594,20 @@ export function BookTicketPage({
               </div>
             </div>
           </div>
-          {/* Search button – icon-only on mobile, full text on sm+ */}
-          <div className="shrink-0 ml-auto sm:flex sm:mt-4">
+          {/* Search button – full width on mobile, auto on sm+ */}
+          <div className="sm:shrink-0 sm:ml-auto sm:flex sm:mt-4">
             <button
               onClick={handleSearch}
               disabled={!isSearchReady}
               className={cn(
-                "px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap",
+                "w-full sm:w-auto px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap",
                 isSearchReady
                   ? "bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]"
                   : "bg-gray-300 shadow-gray-300/20 cursor-not-allowed"
               )}
             >
               <Search size={18} />
-              <span className="sm:inline hidden">{t.search_btn}</span>
+              <span>{t.search_btn}</span>
             </button>
           </div>
         </div>
