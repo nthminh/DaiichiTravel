@@ -7,6 +7,7 @@ import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
 import { exportRouteToPDF } from '../utils/exportUtils';
 import { useRoutes, DEFAULT_ROUTE_FORM } from '../hooks/useRoutes';
+import { matchesSearch } from '../lib/searchUtils';
 import { FirebaseStorage } from 'firebase/storage';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { transportService } from '../services/transportService';
@@ -89,14 +90,15 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
   }, [showAddRoute, routeFormStopsHistory, routeFormFaresHistory, setRouteFormStops, setRouteFormFares, setRouteFormStopsHistory, setRouteFormFaresHistory]);
 
   const filteredRoutes = routes.filter(route => {
-    if (routeFilterDeparture && !(route.departurePoint || '').toLowerCase().includes(routeFilterDeparture.toLowerCase())) return false;
-    if (routeFilterArrival && !(route.arrivalPoint || '').toLowerCase().includes(routeFilterArrival.toLowerCase())) return false;
+    if (routeFilterDeparture && !matchesSearch(route.departurePoint || '', routeFilterDeparture)) return false;
+    if (routeFilterArrival && !matchesSearch(route.arrivalPoint || '', routeFilterArrival)) return false;
     if (!routeSearch) return true;
-    const q = routeSearch.toLowerCase();
+    const stopNames = (route.routeStops || []).map(s => s.stopName || '');
     return (
-      (route.name || '').toLowerCase().includes(q) ||
-      (route.departurePoint || '').toLowerCase().includes(q) ||
-      (route.arrivalPoint || '').toLowerCase().includes(q)
+      matchesSearch(route.name || '', routeSearch) ||
+      matchesSearch(route.departurePoint || '', routeSearch) ||
+      matchesSearch(route.arrivalPoint || '', routeSearch) ||
+      stopNames.some(name => matchesSearch(name, routeSearch))
     );
   });
 
