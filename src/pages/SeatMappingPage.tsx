@@ -346,11 +346,19 @@ export function SeatMappingPage({
     const hasSegmentInfo =
       (seatDataForBtn?.segmentBookings ?? []).length > 0 ||
       (seatDataForBtn?.fromStopOrder !== undefined && seatDataForBtn?.toStopOrder !== undefined);
+    // A single booking that spans the full route (stop 1 → last stop) is NOT partial.
+    const totalStops = tripRoute?.routeStops?.length ?? 0;
+    const isFullRouteBooking =
+      totalStops > 0 &&
+      (seatDataForBtn?.segmentBookings ?? []).length === 0 &&
+      seatDataForBtn?.fromStopOrder === 1 &&
+      seatDataForBtn?.toStopOrder === totalStops;
     const isPartiallyBooked =
       rawStatus !== SeatStatus.EMPTY &&
       !isSegmentFree &&
       !!(tripRoute?.routeStops?.length) &&
       hasSegmentInfo &&
+      !isFullRouteBooking &&
       !isPrimarySeat &&
       !isExtraSeat;
 
