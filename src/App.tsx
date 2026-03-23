@@ -1249,6 +1249,7 @@ export default function App() {
               setPriceMax={setPriceMax}
               setSearchTimeFrom={setSearchTimeFrom}
               setSearchTimeTo={setSearchTimeTo}
+              setVehicleTypeFilter={setVehicleTypeFilter}
               setHasSearched={setHasSearched}
               setClearedTripCards={setClearedTripCards}
               setSearchAdults={setSearchAdults}
