@@ -782,7 +782,12 @@ export function BookTicketPage({
       const results = await Promise.all(
         uniqueRouteNames.map(async (routeName) => {
           const route = routes.find(r => r.name === routeName);
-          if (!route?.routeStops?.length) return null;
+          if (!route) return null;
+          if (!route.routeStops?.length) {
+            // Direct route (no intermediate stops): the full route is the only segment.
+            // Return the base route price so this route passes the segment-fare filter in filterTrip.
+            return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
+          }
 
           // Resolve stop IDs (prefer route-embedded stops, fall back to global stops).
           // Use exact match first; then bidirectional fuzzy match to handle cases where
