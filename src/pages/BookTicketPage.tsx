@@ -23,13 +23,14 @@ interface StopSearchInputProps {
   nearestHint?: string;
   mustSelectError?: string;
   onChange: (text: string, terminal: string) => void;
+  vehicleTypeSuffix?: string;
 }
 
 // Delay (ms) between input blur and checking the selection state, ensuring that
 // onMouseDown on a suggestion button fires and updates state before we evaluate.
 const BLUR_DEBOUNCE_MS = 150;
 
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange }: StopSearchInputProps) {
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, vehicleTypeSuffix }: StopSearchInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMustSelect, setShowMustSelect] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -42,6 +43,9 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!value.trim()) return [];
+    // Append vehicle type suffix to the search term when a vehicle type is selected
+    // e.g. "ha noi" + "Bus" → "ha noi Bus" so stops like "Hà Nội Bus 45C" rank higher
+    const effectiveSearch = vehicleTypeSuffix ? `${value} ${vehicleTypeSuffix}` : value;
     // Use a Map keyed by terminal id so each parent terminal appears at most once,
     // keeping the highest match score found (via direct name match or via a child stop).
     const resultMap = new Map<string, { sug: Suggestion; score: number }>();
@@ -62,14 +66,14 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     stops.forEach(stop => {
       if (stop.type === 'TERMINAL') {
         // Direct match on terminal name
-        const score = matchScore(stop.name, value);
+        const score = matchScore(stop.name, effectiveSearch);
         if (score > 0) addTerminal(stop, score);
       } else {
         // Child stop (type === 'STOP' or legacy): search by name AND address,
         // then surface the parent TERMINAL so only terminals appear in the list.
-        const nameScore = matchScore(stop.name, value);
+        const nameScore = matchScore(stop.name, effectiveSearch);
         // Only score the address if the name didn't already produce an exact match.
-        const addressScore = nameScore < 100 && stop.address ? matchScore(stop.address, value) : 0;
+        const addressScore = nameScore < 100 && stop.address ? matchScore(stop.address, effectiveSearch) : 0;
         const score = Math.max(nameScore, addressScore);
         if (score > 0 && stop.terminalId) {
           const terminal = terminalMap.get(stop.terminalId);
@@ -90,7 +94,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       return b.score - a.score;
     });
     return arr.slice(0, 8).map(r => r.sug);
-  }, [value, stops]);
+  }, [value, stops, vehicleTypeSuffix]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -974,6 +978,7 @@ export function BookTicketPage({
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
                 onChange={(text, terminal) => { setSearchFrom(text); setSearchStationFrom(terminal); }}
+                vehicleTypeSuffix={vehicleTypeFilter}
               />
             </div>
           </div>
@@ -988,6 +993,7 @@ export function BookTicketPage({
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
                 onChange={(text, terminal) => { setSearchTo(text); setSearchStationTo(terminal); }}
+                vehicleTypeSuffix={vehicleTypeFilter}
               />
             </div>
           </div>
