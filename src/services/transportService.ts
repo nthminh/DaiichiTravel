@@ -65,9 +65,21 @@ export const transportService = {
       const tripSnap = await transaction.get(tripRef);
       if (!tripSnap.exists()) return;
       const seats = (tripSnap.data().seats || []) as Seat[];
-      const updatedSeats = seats.map((seat: Seat) =>
-        seat.id === seatId ? { ...seat, ...bookingData } : seat
-      );
+      const updatedSeats = seats.map((seat: Seat) => {
+        if (seat.id !== seatId) return seat;
+        // When resetting to EMPTY, clear all passenger/segment data so stale segment fields
+        // don't cause false "seat already occupied" warnings on future bookings.
+        if (bookingData.status === SeatStatus.EMPTY) {
+          return {
+            id: seat.id,
+            status: SeatStatus.EMPTY,
+            ...(seat.row !== undefined && { row: seat.row }),
+            ...(seat.col !== undefined && { col: seat.col }),
+            ...(seat.deck !== undefined && { deck: seat.deck }),
+          };
+        }
+        return { ...seat, ...bookingData };
+      });
       transaction.update(tripRef, { seats: updatedSeats });
     });
   },
