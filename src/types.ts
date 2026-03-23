@@ -371,6 +371,11 @@ export interface Stop {
    * e.g. "Limousine 11 ghế, Bus 45 chỗ"
    */
   vehicleTypes?: string;
+  /**
+   * Serial / display order number (số thứ tự). Used to sort stops in the management table.
+   * Lower number appears first.
+   */
+  stt?: number;
 }
 
 export interface PickupPoint {
