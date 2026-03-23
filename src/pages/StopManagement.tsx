@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
-import { Stop } from '../types';
+import { Stop, User, UserRole } from '../types';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
@@ -12,6 +12,7 @@ interface StopManagementProps {
   language: Language;
   stops: Stop[];
   onUpdateStops: (stops: Stop[]) => void;
+  currentUser?: User | null;
 }
 
 const CATEGORY_LABELS: Record<NonNullable<Stop['category']>, Record<Language, string>> = {
@@ -42,8 +43,9 @@ interface CopyModal {
   targetTerminalId: string;
 }
 
-export const StopManagement: React.FC<StopManagementProps> = ({ language, stops, onUpdateStops }) => {
+export const StopManagement: React.FC<StopManagementProps> = ({ language, stops, onUpdateStops, currentUser }) => {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -812,12 +814,14 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                             <Edit3 size={18} />
                           </button>
                           <NotePopover note={stop.note} onSave={(note) => handleSaveStopNote(stop.id, note)} language={language} />
+                          {isAdmin && (
                           <button
                             onClick={() => handleDeleteStop(stop.id)}
                             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                           >
                             <Trash2 size={18} />
                           </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS } from '../constants/translations';
 import type { Language } from '../constants/translations';
-import { Trip, Employee, Seat, DriverAssignment, SeatStatus } from '../types';
+import { Trip, Employee, Seat, DriverAssignment, SeatStatus, User, UserRole } from '../types';
 import { transportService } from '../services/transportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ToastContainer';
@@ -44,6 +44,7 @@ interface PickupDropoffManagementProps {
   driverAssignments: DriverAssignment[];
   bookings: any[];
   currentUserName: string;
+  currentUser?: User | null;
 }
 
 // ── Simple combo-box (type-ahead + dropdown) ───────────────────────────────────
@@ -121,8 +122,10 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   driverAssignments,
   bookings,
   currentUserName,
+  currentUser,
 }) => {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   // ── Toast notifications ────────────────────────────────────────────────────
   const { toasts, showToast, dismissToast } = useToast();
@@ -688,9 +691,11 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                                 <XCircle size={15} />
                               </button>
                             )}
+                            {isAdmin && (
                             <button onClick={() => handleDeleteRow(row)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title={language === 'vi' ? 'Xóa' : 'Delete'}>
                               <Trash2 size={15} />
                             </button>
+                            )}
                           </>
                         )}
                       </div>

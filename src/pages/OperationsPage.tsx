@@ -3,7 +3,7 @@ import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Colu
 import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
-import { Trip, Route, Vehicle, Employee, PricePeriod } from '../types';
+import { Trip, Route, Vehicle, Employee, PricePeriod, User, UserRole } from '../types';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { ResizableTh } from '../components/ResizableTh';
@@ -114,6 +114,7 @@ interface OperationsPageProps {
   getRouteActivePeriod: (route: Route, date: string) => PricePeriod | null;
   isRouteValidForDate: (route: Route, date: string) => boolean;
   formatRouteOption: (route: Route, period: PricePeriod | null, lang: Language) => string;
+  currentUser?: User | null;
 }
 
 export function OperationsPage({
@@ -219,7 +220,9 @@ export function OperationsPage({
   getRouteActivePeriod,
   isRouteValidForDate,
   formatRouteOption,
+  currentUser,
 }: OperationsPageProps) {
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
   const [showMergeConfirm, setShowMergeConfirm] = React.useState(false);
   const [currentTripPage, setCurrentTripPage] = React.useState(1);
   const TRIPS_PER_PAGE = 50;
@@ -688,7 +691,7 @@ export function OperationsPage({
                     {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
                     <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
                   </div>
-                  <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
+                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>}
                 </div>
               ))}
               {showAddTripAddon ? (
@@ -1061,6 +1064,7 @@ export function OperationsPage({
                             >
                               <Edit3 size={14} />
                             </button>
+                            {isAdmin && (
                             <button
                               onClick={() => handleDeletePassenger(primarySeat.id)}
                               className="text-gray-400 hover:text-red-600 p-1 rounded"
@@ -1068,6 +1072,7 @@ export function OperationsPage({
                             >
                               <Trash2 size={14} />
                             </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1188,7 +1193,7 @@ export function OperationsPage({
                       <span>{t.manage_addons}</span>
                     </button>
                   </td>}
-                  <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={goToSeatMap} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                  <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>{isAdmin && <button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}<NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={goToSeatMap} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                 </tr>
               );
             })}

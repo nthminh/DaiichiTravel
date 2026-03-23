@@ -1193,7 +1193,7 @@ export default function App() {
         );
 
       case 'customers':
-        return <CustomerManagement language={language} customers={customers} />;
+        return <CustomerManagement language={language} customers={customers} currentUser={currentUser} />;
 
       case 'my-tickets':
         return (
@@ -1489,7 +1489,7 @@ export default function App() {
         );
 
       case 'agents':
-        return <AgentsPage agents={agents} employees={employees} language={language} routes={routes} />;
+        return <AgentsPage agents={agents} employees={employees} language={language} routes={routes} currentUser={currentUser} />;
 
       case 'employees':
         return (
@@ -1505,6 +1505,7 @@ export default function App() {
               employeeFormError={employeeFormError}
               language={language}
               permissions={permissions}
+              currentUser={currentUser}
               handleSaveEmployee={handleSaveEmployee}
               handleDeleteEmployee={handleDeleteEmployee}
               handleStartEditEmployee={handleStartEditEmployee}
@@ -1596,12 +1597,13 @@ export default function App() {
               handleStartEditRoute={handleStartEditRoute}
               handleCopyRoute={handleCopyRoute}
               handleSaveRouteNote={handleSaveRouteNote}
+              currentUser={currentUser}
             />
           </Suspense>
         );
 
       case 'vehicles':
-        return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} />;
+        return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} currentUser={currentUser} />;
 
 
       case 'operations':
@@ -1710,12 +1712,13 @@ export default function App() {
               getRouteActivePeriod={getRouteActivePeriod}
               isRouteValidForDate={isRouteValidForDate}
               formatRouteOption={formatRouteOption}
+              currentUser={currentUser}
             />
           </Suspense>
         );
 
       case 'tour-management':
-        return <TourManagement language={language} />;
+        return <TourManagement language={language} currentUser={currentUser} />;
 
       case 'completed-trips':
         return (
@@ -1774,12 +1777,13 @@ export default function App() {
               setSelectedTrip={setSelectedTrip}
               setPreviousTab={setPreviousTab}
               setActiveTab={setActiveTab}
+              currentUser={currentUser}
             />
           </Suspense>
         );
 
       case 'stop-management':
-        return <StopManagement language={language} stops={stops} onUpdateStops={setStops} />;
+        return <StopManagement language={language} stops={stops} onUpdateStops={setStops} currentUser={currentUser} />;
 
       case 'financial-report':
         return <FinancialReport language={language} agents={agents} bookings={bookings} invoices={invoices} />;
@@ -1813,6 +1817,7 @@ export default function App() {
             driverAssignments={driverAssignments}
             bookings={bookings}
             currentUserName={currentUser?.name || ''}
+            currentUser={currentUser}
           />
         );
 

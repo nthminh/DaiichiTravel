@@ -3,6 +3,7 @@ import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Sear
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
+import { User, UserRole } from '../types';
 import { transportService } from '../services/transportService';
 import { compressImage } from '../lib/imageUtils';
 
@@ -41,6 +42,7 @@ interface Tour {
 
 interface TourManagementProps {
   language: Language;
+  currentUser?: User | null;
 }
 
 const emptyForm = {
@@ -86,7 +88,8 @@ const computeTourPrice = (
   breakfastCount * pricePerBreakfast +
   surcharge;
 
-export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
+export const TourManagement: React.FC<TourManagementProps> = ({ language, currentUser }) => {
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
   const [tours, setTours] = useState<Tour[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingTour, setEditingTour] = useState<Tour | null>(null);
@@ -887,6 +890,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                           >
                             <Copy size={15} />
                           </button>
+                          {isAdmin && (
                           <button
                             onClick={e => { e.stopPropagation(); handleDeleteTour(tour.id); }}
                             className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
@@ -894,6 +898,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language }) => {
                           >
                             <Trash2 size={15} />
                           </button>
+                          )}
                         </div>
                       </td>
                     </tr>

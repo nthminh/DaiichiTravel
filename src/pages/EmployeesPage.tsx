@@ -2,7 +2,7 @@ import React from 'react';
 import { Users, Truck, Search, Filter, X, Edit3, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
-import { Employee } from '../types';
+import { Employee, User, UserRole } from '../types';
 
 type EmployeeForm = {
   name: string; phone: string; email: string; address: string;
@@ -21,6 +21,7 @@ interface EmployeesPageProps {
   employeeFormError: string;
   language: Language;
   permissions: Record<string, Record<string, boolean>> | null;
+  currentUser?: User | null;
   handleSaveEmployee: () => void;
   handleDeleteEmployee: (id: string) => void;
   handleStartEditEmployee: (emp: Employee) => void;
@@ -44,6 +45,7 @@ export function EmployeesPage({
   employeeFormError,
   language,
   permissions,
+  currentUser,
   handleSaveEmployee,
   handleDeleteEmployee,
   handleStartEditEmployee,
@@ -56,6 +58,7 @@ export function EmployeesPage({
   setShowEmployeeFilters,
 }: EmployeesPageProps) {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   const filteredEmployees = employees.filter(emp => {
     const q = employeeSearch.toLowerCase();
@@ -267,7 +270,7 @@ export function EmployeesPage({
                   <td className="px-8 py-5">
                     <div className="flex gap-3 items-center">
                       <button onClick={() => handleStartEditEmployee(emp)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>
-                      <button onClick={() => handleDeleteEmployee(emp.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>
+                      {isAdmin && <button onClick={() => handleDeleteEmployee(emp.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}
                     </div>
                   </td>
                 </tr>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bus, Search, X, Filter, Edit3, Trash2, Copy } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
-import { Vehicle as VehicleBase } from '../types';
+import { Vehicle as VehicleBase, User, UserRole } from '../types';
 
 type Vehicle = VehicleBase & { id: string };
 import { transportService } from '../services/transportService';
@@ -14,10 +14,12 @@ interface VehiclesPageProps {
   vehicles: Vehicle[];
   language: Language;
   uniqueVehicleTypes: string[];
+  currentUser?: User | null;
 }
 
-export function VehiclesPage({ vehicles, language, uniqueVehicleTypes }: VehiclesPageProps) {
+export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUser }: VehiclesPageProps) {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   // Search / filter state
   const [vehicleSearch, setVehicleSearch] = useState('');
@@ -324,7 +326,7 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes }: Vehicle
                       </button>
                       <button onClick={() => handleStartEditVehicle(v)} className="text-gray-600 hover:text-daiichi-red p-1.5"><Edit3 size={16} /></button>
                       <button onClick={() => handleCopyVehicle(v)} title={t.copy_vehicle} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1.5 rounded"><Copy size={16} /></button>
-                      <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-600 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
+                      {isAdmin && <button onClick={() => handleDeleteVehicle(v.id)} className="text-gray-600 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>}
                       <NotePopover note={v.note} onSave={(note) => handleSaveVehicleNote(v.id, note)} language={language} />
                     </div>
                   </td>

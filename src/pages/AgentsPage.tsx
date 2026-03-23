@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Search, X, Filter, Users, Wallet, Star, Edit3, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
-import { Agent, Employee, Route } from '../types';
+import { Agent, Employee, Route, User, UserRole } from '../types';
 import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
 import { useAgents, DEFAULT_AGENT_FORM } from '../hooks/useAgents';
@@ -12,10 +12,12 @@ interface AgentsPageProps {
   employees: Employee[];
   language: Language;
   routes: Route[];
+  currentUser?: User | null;
 }
 
-export function AgentsPage({ agents, employees, language, routes }: AgentsPageProps) {
+export function AgentsPage({ agents, employees, language, routes, currentUser }: AgentsPageProps) {
   const t = TRANSLATIONS[language];
+  const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   const [agentSearch, setAgentSearch] = useState('');
   const [agentStatusFilter, setAgentStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -347,7 +349,7 @@ export function AgentsPage({ agents, employees, language, routes }: AgentsPagePr
                 </td>
                 <td className="px-8 py-6 font-bold text-gray-700">{(agent.balance || 0).toLocaleString()}đ</td>
                 <td className="px-8 py-6"><span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase", agent.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600')}>{agent.status === 'ACTIVE' ? t.status_active : t.status_locked}</span></td>
-                <td className="px-8 py-6"><div className="flex gap-3 items-center"><button onClick={() => { handleStartEditAgent(agent); setShowRouteCommissions(false); }} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button><button onClick={() => handleDeleteAgent(agent.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button><NotePopover note={agent.note} onSave={(note) => handleSaveAgentNote(agent.id, note)} language={language} /></div></td>
+                <td className="px-8 py-6"><div className="flex gap-3 items-center"><button onClick={() => { handleStartEditAgent(agent); setShowRouteCommissions(false); }} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>{isAdmin && <button onClick={() => handleDeleteAgent(agent.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}<NotePopover note={agent.note} onSave={(note) => handleSaveAgentNote(agent.id, note)} language={language} /></div></td>
               </tr>
             ))}
           </tbody>
