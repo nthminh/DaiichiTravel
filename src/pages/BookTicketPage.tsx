@@ -390,7 +390,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           role="button"
           tabIndex={0}
           aria-label={`${value} – nhấn để chỉnh sửa`}
-          className="w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer"
+          className="w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-daiichi-red rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer transition-colors"
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
@@ -408,8 +408,8 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           className={cn(
             "w-full pl-12 pr-8 py-2.5 sm:py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm font-medium text-gray-800",
             showMustSelect
-              ? "border-daiichi-red focus:ring-daiichi-red/10"
-              : "border-gray-200 hover:border-gray-400 focus:ring-daiichi-red/10"
+              ? "border-daiichi-red focus:ring-daiichi-red/20"
+              : "border-gray-200 hover:border-daiichi-red focus:border-daiichi-red focus:ring-daiichi-red/20"
           )}
         />
       )}
@@ -422,11 +422,6 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
         >
           <X size={14} />
         </button>
-      )}
-      {terminalValue && !showDropdown && (
-        <span className="absolute right-8 top-2.5 sm:top-4 text-daiichi-red" title={terminalValue}>
-          <CheckCircle2 size={14} />
-        </span>
       )}
       {showMustSelect && !showDropdown && mustSelectError && (
         <p className="mt-1 text-[11px] text-daiichi-red font-medium px-1">{mustSelectError}</p>
