@@ -492,65 +492,6 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 }
 );
 
-// ---------------------------------------------------------------------------
-// HowToUseGuide – collapsible step-by-step guide for non-tech-savvy users.
-// ---------------------------------------------------------------------------
-function HowToUseGuide({ t }: { t: Record<string, string> }) {
-  const [open, setOpen] = useState(false);
-  const steps = [
-    t.how_to_use_step1,
-    t.how_to_use_step2,
-    t.how_to_use_step3,
-    t.how_to_use_step4,
-    t.how_to_use_step5,
-  ].filter(Boolean);
-
-  return (
-    <div className="bg-white rounded-[28px] border border-blue-100 shadow-sm overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-blue-50/50 transition-colors"
-      >
-        <div className="flex items-center gap-2.5">
-          <span className="text-xl">💡</span>
-          <span className="font-bold text-sm text-blue-700">{t.how_to_use_title || 'Hướng dẫn đặt vé từng bước'}</span>
-        </div>
-        <ChevronDown size={16} className={cn("text-blue-400 transition-transform duration-200", open ? "rotate-180" : "")} />
-      </button>
-      {open && (
-        <div className="px-5 pb-5 border-t border-blue-50">
-          <div className="space-y-3 mt-4">
-            {steps.map((step, idx) => {
-              // Split on first occurrence of ' – ' (en dash) or ' - ' (regular hyphen) so the
-              // bold step title is separated from the body even if translation uses different dashes.
-              const match = (step || '').match(/^(.+?)\s[–-]\s(.+)$/s);
-              const bold = match ? match[1] : null;
-              const body = match ? match[2] : step;
-              return (
-                <div key={idx} className="flex gap-3">
-                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-daiichi-red text-white text-xs font-bold flex items-center justify-center mt-0.5">
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1 text-sm text-gray-700 leading-relaxed">
-                    {bold ? (
-                      <>
-                        <span className="font-semibold text-gray-800">{bold} –</span>{' '}
-                        {body}
-                      </>
-                    ) : (
-                      step
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -1425,18 +1366,16 @@ export function BookTicketPage({
 
   return (
     <div className="space-y-8">
-      {/* Step-by-step guide – collapsible, helpful for first-time users */}
-      <HowToUseGuide t={t} />
       <div className="bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
-        <div className="flex items-center gap-6 mb-6">
-          <h2 className="text-2xl font-bold">{t.search_title}</h2>
-          <div className="flex bg-gray-100 p-1 rounded-xl">
+        <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+          <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
+          <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
             {(['ONE_WAY', 'ROUND_TRIP'] as const).map((type) => (
               <button 
                 key={type}
                 onClick={() => setTripType(type)}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                  "px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all whitespace-nowrap",
                   tripType === type ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500"
                 )}
               >
@@ -1445,29 +1384,12 @@ export function BookTicketPage({
             ))}
           </div>
         </div>
-        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
-          <div>
-            <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
-            <div className="relative mt-1">
-              <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
-              <select
-                value={vehicleTypeFilter}
-                onChange={e => setVehicleTypeFilter(e.target.value)}
-                className="w-full pl-12 pr-8 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm appearance-none"
-              >
-                <option value="">{t.all_vehicle_types}</option>
-                {VEHICLE_TYPES.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
-            </div>
-          </div>
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           {/* FROM + swap button + TO in a combined cell spanning 2 columns on large screens */}
           <div className="lg:col-span-2 flex flex-col sm:flex-row sm:items-start gap-2">
             <div className="flex-1 min-w-0">
-              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
-              <div className="mt-1">
+              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
+              <div className="sm:mt-1">
                 <StopSearchInput
                   value={searchFrom}
                   terminalValue={searchStationFrom}
@@ -1493,13 +1415,13 @@ export function BookTicketPage({
               type="button"
               onClick={handleSwap}
               title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="flex-shrink-0 self-center sm:self-start sm:mt-7 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
+              className="flex-shrink-0 self-center sm:self-start sm:mt-0 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
             >
               <ArrowUpDown size={15} />
             </button>
             <div className="flex-1 min-w-0">
-              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
-              <div className="mt-1">
+              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
+              <div className="sm:mt-1">
                 <StopSearchInput
                   ref={toStopRef}
                   value={searchTo}
@@ -1522,16 +1444,16 @@ export function BookTicketPage({
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
-            <div className="relative mt-1">
+            <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
+            <div className="relative sm:mt-1">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
             </div>
           </div>
           {tripType === 'ROUND_TRIP' && (
             <div>
-              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
-              <div className="relative mt-1">
+              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
+              <div className="relative sm:mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
               </div>
@@ -1546,23 +1468,26 @@ export function BookTicketPage({
           </div>
         )}
         {/* Passenger count row + search button */}
-        <div className="flex flex-col sm:flex-row sm:items-end gap-3 mt-4 sm:mt-4">
-          <div className="flex-1 sm:flex-none grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4 sm:w-64">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3 mt-2 sm:mt-4">
+          <div className="flex-1 sm:flex-none grid grid-cols-2 gap-2 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
-              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate block">{t.num_adults}</label>
-              <div className="relative mt-1 flex items-center">
+              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.num_adults}</label>
+              <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setSearchAdults(v => Math.max(1, v - 1))}
                   className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
                 >−</button>
-                <input
-                  type="number"
-                  min="1"
-                  value={searchAdults}
-                  onChange={e => setSearchAdults(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full text-center px-8 sm:px-10 py-3 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
-                />
+                <div className="w-full flex flex-col items-center px-8 sm:px-10 py-2 sm:py-3">
+                  <span className="text-[10px] sm:hidden font-semibold text-gray-400 uppercase tracking-wide leading-none mb-0.5">{t.num_adults}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={searchAdults}
+                    onChange={e => setSearchAdults(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full text-center bg-transparent focus:outline-none font-bold text-gray-700 text-sm leading-none"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setSearchAdults(v => v + 1)}
@@ -1571,21 +1496,24 @@ export function BookTicketPage({
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate block">{t.num_children}</label>
-              <div className="relative mt-1 flex items-center">
+              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.num_children}</label>
+              <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setSearchChildren(v => Math.max(0, v - 1))}
                   className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
                 >−</button>
-                <input
-                  type="number"
-                  min="0"
-                  value={searchChildren === 0 ? '' : searchChildren}
-                  onChange={e => setSearchChildren(Math.max(0, parseInt(e.target.value) || 0))}
-                  placeholder=""
-                  className="w-full text-center px-8 sm:px-10 py-3 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 font-bold text-gray-700"
-                />
+                <div className="w-full flex flex-col items-center px-8 sm:px-10 py-2 sm:py-3">
+                  <span className="text-[10px] sm:hidden font-semibold text-gray-400 uppercase tracking-wide leading-none mb-0.5">{t.num_children}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={searchChildren === 0 ? '' : searchChildren}
+                    onChange={e => setSearchChildren(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full text-center bg-transparent focus:outline-none font-bold text-gray-700 text-sm leading-none"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setSearchChildren(v => v + 1)}
