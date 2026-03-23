@@ -172,6 +172,25 @@ interface StopSearchInputHandle {
 // onMouseDown on a suggestion button fires and updates state before we evaluate.
 const BLUR_DEBOUNCE_MS = 150;
 
+/**
+ * Renders a location name so that any parenthetical note "(…)" is displayed
+ * in a noticeably smaller font, making the primary name stand out while the
+ * supplementary note remains visible but unobtrusive.
+ * The underlying string value is never modified, so search/booking logic is unaffected.
+ */
+function renderNameWithParens(name: string): React.ReactNode {
+  const parenIdx = name.indexOf('(');
+  if (parenIdx === -1) return name;
+  const before = name.slice(0, parenIdx);
+  const paren = name.slice(parenIdx);
+  return (
+    <>
+      {before}
+      <span className="text-[10px] font-normal opacity-70">{paren}</span>
+    </>
+  );
+}
+
 const StopSearchInput = React.forwardRef<StopSearchInputHandle, StopSearchInputProps>(
 function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, pickupSuggestionLabel, selectedStop, onPickupStopSelect, selectStopPrompt, stopPickerMatchingLabel, stopPickerAllLabel, stopPickerCloseLabel, stopPickerNoStopsLabel }: StopSearchInputProps, ref) {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -369,7 +388,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
-          {value}
+          {renderNameWithParens(value)}
         </div>
       ) : (
         <input
@@ -417,7 +436,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
             >
               <MapPin size={13} className="flex-shrink-0 mt-0.5 text-daiichi-red" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-800 break-words">{item.stop.name}</p>
+                <p className="text-sm font-medium text-gray-800 break-words">{renderNameWithParens(item.stop.name)}</p>
                 {item.stop.type !== 'TERMINAL' && item.terminal && (
                   <p className="text-[11px] text-daiichi-red font-semibold break-words">🏢 {item.terminal.name}</p>
                 )}
