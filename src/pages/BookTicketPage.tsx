@@ -365,7 +365,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           role="button"
           tabIndex={0}
           aria-label={`${value} – nhấn để chỉnh sửa`}
-          className="w-full pl-12 pr-14 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-800 break-words leading-snug min-h-[56px] max-h-[72px] overflow-hidden cursor-pointer"
+          className="w-full pl-12 pr-14 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[56px] cursor-pointer"
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
@@ -1543,49 +1543,6 @@ export function BookTicketPage({
           <div className="mt-3 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
             <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-amber-500" />
             <span>{t.no_segment_warning || 'Không tìm thấy chặng nào kết nối hai điểm này. Vui lòng thay đổi điểm đi hoặc điểm đến.'}</span>
-          </div>
-        )}
-        {/* Booking summary – shows what the customer has selected so far */}
-        {(searchStationFrom || searchStationTo || pickupAddress || dropoffAddress) && (
-          <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100">
-            <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span>📋</span>
-              <span>{t.booking_summary_title || 'Thông tin hành trình bạn đang chọn'}</span>
-            </p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-              <div className="space-y-0.5">
-                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
-                  <span>🚌</span> {t.booking_summary_from || 'Bến xuất phát'}
-                </span>
-                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
-                  {searchStationFrom || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
-                </p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
-                  <span>🏁</span> {t.booking_summary_to || 'Bến đến'}
-                </span>
-                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
-                  {searchStationTo || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
-                </p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
-                  <span>📍</span> {t.booking_summary_pickup || 'Điểm đón'}
-                </span>
-                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
-                  {pickupAddress || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
-                </p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
-                  <span>📌</span> {t.booking_summary_dropoff || 'Điểm trả'}
-                </span>
-                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
-                  {dropoffAddress || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
-                </p>
-              </div>
-            </div>
           </div>
         )}
         {/* Passenger count row + search button */}
