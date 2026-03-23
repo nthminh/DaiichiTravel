@@ -8,11 +8,14 @@ import { Route } from '../types';
 export function getJourneyStops(routes: Route[], routeName: string, fromStop?: string, toStop?: string): string[] {
   const route = routes.find(r => r.name === routeName);
   if (!route) return [];
-  const ordered: string[] = [
+  const raw: string[] = [
     route.departurePoint,
     ...(route.routeStops || []).slice().sort((a, b) => a.order - b.order).map(s => s.stopName),
     route.arrivalPoint,
   ].filter(Boolean) as string[];
+  // Remove consecutive duplicates (prevents departurePoint/arrivalPoint from appearing twice
+  // when they are also present as the first/last entry in routeStops).
+  const ordered = raw.filter((name, idx) => idx === 0 || name !== raw[idx - 1]);
   if (!fromStop && !toStop) return ordered;
   const fromIdx = fromStop ? ordered.findIndex(s => s === fromStop) : 0;
   let toIdx = ordered.length - 1;
