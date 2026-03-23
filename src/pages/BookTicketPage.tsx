@@ -73,7 +73,7 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                           "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
                           selectedStop === stop.name
                             ? "bg-daiichi-red text-white border-daiichi-red"
-                            : "bg-white border-gray-200 hover:bg-daiichi-red hover:text-white hover:border-daiichi-red"
+                            : "bg-pink-50 border-pink-200 hover:bg-daiichi-red hover:text-white hover:border-daiichi-red"
                         )}
                       >
                         <MapPin size={13} className="flex-shrink-0 mt-0.5" />
@@ -417,10 +417,10 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
         <button
           type="button"
           onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); setLastTypedQuery(''); setShowSubStopPicker(false); pendingOnConfirmedRef.current = false; }}
-          className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-2.5 sm:top-4" : "top-1/2 -translate-y-1/2")}
+          className={cn("absolute right-3 text-gray-500 hover:text-gray-800 transition-colors", isConfirmed ? "top-2.5 sm:top-4" : "top-1/2 -translate-y-1/2")}
           aria-label="Clear"
         >
-          <X size={14} />
+          <X size={18} strokeWidth={2.5} />
         </button>
       )}
       {showMustSelect && !showDropdown && mustSelectError && (
@@ -1704,9 +1704,9 @@ export function BookTicketPage({
           if (nearestTrips.length > 0) {
             return (
               <>
-                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                <div className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-2xl">
                   <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
-                  <p className="text-sm font-medium text-amber-700">{t.no_exact_trips}</p>
+                  <p className="text-sm font-bold text-gray-800">{t.no_exact_trips}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {nearestTrips.map(trip => renderTripCard(trip, true))}
