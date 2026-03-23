@@ -73,7 +73,7 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                           "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
                           selectedStop === stop.name
                             ? "bg-daiichi-red text-white border-daiichi-red"
-                            : "bg-red-50 border-red-100 hover:bg-daiichi-red hover:text-white hover:border-daiichi-red"
+                            : "bg-white border-gray-200 hover:bg-daiichi-red hover:text-white hover:border-daiichi-red"
                         )}
                       >
                         <MapPin size={13} className="flex-shrink-0 mt-0.5" />
@@ -107,7 +107,7 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                           "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
                           selectedStop === stop.name
                             ? "bg-daiichi-red text-white border-daiichi-red"
-                            : "bg-gray-50 border-gray-100 hover:bg-gray-100"
+                            : "bg-white border-gray-200 hover:bg-gray-100"
                         )}
                       >
                         <MapPin size={13} className={cn("flex-shrink-0 mt-0.5", selectedStop === stop.name ? "text-white" : "text-gray-400")} />
@@ -390,7 +390,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           role="button"
           tabIndex={0}
           aria-label={`${value} – nhấn để chỉnh sửa`}
-          className="w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer"
+          className="w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer"
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
@@ -409,7 +409,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
             "w-full pl-12 pr-8 py-2.5 sm:py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm font-medium text-gray-800",
             showMustSelect
               ? "border-daiichi-red focus:ring-daiichi-red/10"
-              : "border-gray-100 focus:ring-daiichi-red/10"
+              : "border-gray-200 hover:border-gray-400 focus:ring-daiichi-red/10"
           )}
         />
       )}
@@ -1485,7 +1485,7 @@ export function BookTicketPage({
             <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
             <div className="relative sm:mt-1">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
             </div>
           </div>
           {tripType === 'ROUND_TRIP' && (
@@ -1493,7 +1493,7 @@ export function BookTicketPage({
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
               <div className="relative sm:mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
               </div>
             </div>
           )}
@@ -1510,7 +1510,7 @@ export function BookTicketPage({
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-2 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.num_adults}</label>
-              <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+              <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl overflow-hidden transition-colors">
                 <button
                   type="button"
                   onClick={() => setSearchAdults(v => Math.max(1, v - 1))}
@@ -1535,7 +1535,7 @@ export function BookTicketPage({
             </div>
             <div>
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.num_children}</label>
-              <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+              <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl overflow-hidden transition-colors">
                 <button
                   type="button"
                   onClick={() => setSearchChildren(v => Math.max(0, v - 1))}
