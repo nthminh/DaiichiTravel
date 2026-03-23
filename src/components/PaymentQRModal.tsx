@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constants/bankConfig';
 import { Language, TRANSLATIONS } from '../App';
 
-const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
+const PAYMENT_TIMEOUT_SECONDS = 3 * 60; // 3 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
 
 interface PaymentQRModalProps {
@@ -38,7 +38,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [expired, setExpired] = useState(false);
 
-  // 30-minute countdown timer
+  // 3-minute countdown timer
   useEffect(() => {
     const intervalId = setInterval(() => {
       setSecondsLeft(prev => {
@@ -63,7 +63,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
-  const timerIsUrgent = secondsLeft <= 300; // last 5 minutes
+  const timerIsUrgent = secondsLeft <= 60; // last 1 minute
 
   const description = `${paymentRef}${bookingLabel ? ' ' + bookingLabel : ''}`;
   const qrImageUrl = generateVietQrUrl({ amount, description });
