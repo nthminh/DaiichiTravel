@@ -1140,7 +1140,17 @@ export default function App() {
     } catch (err) {
       if (requestId !== fareRequestIdRef.current) return;
       if (err instanceof FareError) {
-        setFareError(err.message);
+        // When no fare is explicitly configured for this segment, fall back to
+        // the route's base price (mirrors BookTicketPage behaviour).  This also
+        // covers the common case where the user selects the full-route segment
+        // whose synthetic __departure__/__arrival__ stop IDs don't have a
+        // dedicated Firestore fare document.
+        if (err.code === 'FARE_NOT_CONFIGURED' && tripRoute) {
+          setFareAmount(tripRoute.price);
+          setFareAgentAmount(tripRoute.agentPrice ?? null);
+        } else {
+          setFareError(err.message);
+        }
       } else {
         setFareError(language === 'vi' ? 'Lỗi tra cứu giá vé.' : 'Fare lookup error.');
       }
