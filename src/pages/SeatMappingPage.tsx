@@ -913,8 +913,8 @@ export function SeatMappingPage({
                       <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultDeparture}` : `Default: ${defaultDeparture}`}</p>
                     )}
                   </div>
-                  <div className="pl-3 border-l-2 border-gray-100">
-                    <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.pickup_address || 'Điểm đón'}</label>
+                  <div className="pl-3 border-l-2 border-gray-200">
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
                     <SearchableSelect
                       options={pickupStopNames}
                       optionDetails={pickupStopAddresses}
@@ -1002,8 +1002,8 @@ export function SeatMappingPage({
                       </div>
                     )}
                   </div>
-                  <div className="pl-3 border-l-2 border-gray-100">
-                    <label className="text-[10px] font-semibold text-gray-400 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
+                  <div className="pl-3 border-l-2 border-gray-200">
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
                     <SearchableSelect
                       options={dropoffStopNames}
                       optionDetails={dropoffStopAddresses}
