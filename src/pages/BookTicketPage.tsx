@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
@@ -272,6 +272,7 @@ interface BookTicketPageProps {
   setPriceMax: (v: string) => void;
   setSearchTimeFrom: (v: string) => void;
   setSearchTimeTo: (v: string) => void;
+  setVehicleTypeFilter: (v: string) => void;
   setHasSearched: (v: boolean) => void;
   setClearedTripCards: React.Dispatch<React.SetStateAction<Set<string>>>;
   setSearchAdults: React.Dispatch<React.SetStateAction<number>>;
@@ -294,6 +295,10 @@ interface BookTicketPageProps {
   compareTripDateTime: (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => number;
   formatTripDateDisplay: (dateStr: string) => string;
 }
+
+// Vehicle type options shown in the search form selector.
+// These values match the `type` field stored on Vehicle documents.
+const VEHICLE_TYPES = ['Bus', 'Limousine', 'Limogreen'] as const;
 
 export function BookTicketPage({
   trips,
@@ -343,6 +348,7 @@ export function BookTicketPage({
   setPriceMax,
   setSearchTimeFrom,
   setSearchTimeTo,
+  setVehicleTypeFilter,
   setHasSearched,
   setClearedTripCards,
   setSearchAdults,
@@ -469,6 +475,48 @@ export function BookTicketPage({
       return toIdx !== -1 && fromIdx < toIdx;
     });
   }, [searchFrom, searchTo, tripType, roundTripPhase, routes]);
+
+  // When a vehicle type filter is active, narrow the stop suggestions to only terminals /
+  // child stops that belong to routes served by that vehicle type.
+  const filteredStops = useMemo<Stop[]>(() => {
+    if (!vehicleTypeFilter) return stops;
+    // Collect license plates of vehicles matching the selected type
+    const matchingPlates = new Set(
+      vehicles.filter(v => v.type === vehicleTypeFilter).map(v => v.licensePlate)
+    );
+    // Collect route names from trips that use those vehicles
+    const filteredRouteNames = new Set(
+      trips
+        .filter(trip => matchingPlates.has(trip.licensePlate))
+        .map(trip => trip.route)
+        .filter(Boolean)
+    );
+    if (filteredRouteNames.size === 0) return stops;
+    // Collect all stop names referenced by those routes
+    const allowedStopNames = new Set<string>();
+    routes
+      .filter(r => filteredRouteNames.has(r.name))
+      .forEach(r => {
+        if (r.departurePoint) allowedStopNames.add(r.departurePoint);
+        if (r.arrivalPoint) allowedStopNames.add(r.arrivalPoint);
+        (r.routeStops || []).forEach(rs => {
+          if (rs.stopName) allowedStopNames.add(rs.stopName);
+        });
+      });
+    // Build set of terminal IDs whose name is allowed
+    const allowedTerminalIds = new Set<string>();
+    stops.forEach(stop => {
+      if (stop.type === 'TERMINAL' && stop.id && allowedStopNames.has(stop.name)) {
+        allowedTerminalIds.add(stop.id);
+      }
+    });
+    return stops.filter(stop => {
+      if (stop.type === 'TERMINAL') return allowedStopNames.has(stop.name);
+      // Child stops without a valid terminalId cannot be linked to a filtered terminal,
+      // so they are excluded to avoid surfacing unresolvable suggestions.
+      return stop.terminalId ? allowedTerminalIds.has(stop.terminalId) : false;
+    });
+  }, [vehicleTypeFilter, stops, vehicles, trips, routes]);
 
   const filterTrip = (trip: Trip, includeDate: boolean) => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
@@ -897,14 +945,31 @@ export function BookTicketPage({
             ))}
           </div>
         </div>
-        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
+            <div className="relative mt-1">
+              <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
+              <select
+                value={vehicleTypeFilter}
+                onChange={e => setVehicleTypeFilter(e.target.value)}
+                className="w-full pl-12 pr-8 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm appearance-none"
+              >
+                <option value="">{t.all_vehicle_types}</option>
+                {VEHICLE_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+            </div>
+          </div>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
             <div className="mt-1">
               <StopSearchInput
                 value={searchFrom}
                 terminalValue={searchStationFrom}
-                stops={stops}
+                stops={filteredStops}
                 placeholder={t.stop_search_from_placeholder || t.from}
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
@@ -918,7 +983,7 @@ export function BookTicketPage({
               <StopSearchInput
                 value={searchTo}
                 terminalValue={searchStationTo}
-                stops={stops}
+                stops={filteredStops}
                 placeholder={t.stop_search_to_placeholder || t.to}
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
