@@ -23,14 +23,13 @@ interface StopSearchInputProps {
   nearestHint?: string;
   mustSelectError?: string;
   onChange: (text: string, terminal: string) => void;
-  vehicleTypeSuffix?: string;
 }
 
 // Delay (ms) between input blur and checking the selection state, ensuring that
 // onMouseDown on a suggestion button fires and updates state before we evaluate.
 const BLUR_DEBOUNCE_MS = 150;
 
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, vehicleTypeSuffix }: StopSearchInputProps) {
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange }: StopSearchInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMustSelect, setShowMustSelect] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -43,9 +42,11 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!value.trim()) return [];
-    // Append vehicle type suffix to the search term when a vehicle type is selected
-    // e.g. "ha noi" + "Bus" → "ha noi Bus" so stops like "Hà Nội Bus 45C" rank higher
-    const effectiveSearch = vehicleTypeSuffix ? `${value} ${vehicleTypeSuffix}` : value;
+    // Use only the user-typed text for matching. Stop suggestions are already
+    // pre-filtered by vehicle type via `filteredStops` (computed in the parent),
+    // so appending a vehicle-type suffix here is unnecessary and would break
+    // search for terminals whose names do not contain any vehicle-type tokens.
+    const effectiveSearch = value;
     // Use a Map keyed by terminal id so each parent terminal appears at most once,
     // keeping the highest match score found (via direct name match or via a child stop).
     const resultMap = new Map<string, { sug: Suggestion; score: number }>();
@@ -94,7 +95,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       return b.score - a.score;
     });
     return arr.slice(0, 8).map(r => r.sug);
-  }, [value, stops, vehicleTypeSuffix]);
+  }, [value, stops]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -1001,7 +1002,6 @@ export function BookTicketPage({
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
                 onChange={(text, terminal) => { setSearchFrom(text); setSearchStationFrom(terminal); }}
-                vehicleTypeSuffix={vehicleTypeFilter}
               />
             </div>
           </div>
@@ -1016,7 +1016,6 @@ export function BookTicketPage({
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
                 onChange={(text, terminal) => { setSearchTo(text); setSearchStationTo(terminal); }}
-                vehicleTypeSuffix={vehicleTypeFilter}
               />
             </div>
           </div>
