@@ -29,7 +29,7 @@
  */
 
 import 'dotenv/config';
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { resolve } from 'path';
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import {
@@ -135,7 +135,7 @@ Examples:
 // Template generation
 // ---------------------------------------------------------------------------
 
-function generateTemplates() {
+async function generateTemplates() {
   // Stops template
   const stopsData = [
     { 'Tên điểm dừng': 'Văn phòng Hà Nội', 'Địa chỉ': '12 Nguyễn Du, Hoàn Kiếm, Hà Nội', 'Loại điểm': 'OFFICE', 'Phí phụ thêm': 0 },
@@ -155,28 +155,38 @@ function generateTemplates() {
     { 'Biển số': '30M-67890', 'Loại xe': 'Giường nằm', 'Số ghế': 40, 'Hạn đăng kiểm': '2026-06-30', 'Điện thoại': '0912345678' },
   ];
 
+  const writeSheet = (wb: ExcelJS.Workbook, name: string, data: Record<string, unknown>[]) => {
+    const ws = wb.addWorksheet(name);
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]);
+    ws.addRow(headers);
+    for (const row of data) {
+      ws.addRow(headers.map(h => row[h] ?? ''));
+    }
+  };
+
   // Single workbook with all three sheets
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(stopsData), 'Điểm dừng');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(routesData), 'Tuyến');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vehiclesData), 'Xe');
-  XLSX.writeFile(wb, 'Mau_Import_Firestore.xlsx');
+  const wb = new ExcelJS.Workbook();
+  writeSheet(wb, 'Điểm dừng', stopsData);
+  writeSheet(wb, 'Tuyến', routesData);
+  writeSheet(wb, 'Xe', vehiclesData);
+  await wb.xlsx.writeFile('Mau_Import_Firestore.xlsx');
   console.log('✅ Generated: Mau_Import_Firestore.xlsx  (sheets: Điểm dừng, Tuyến, Xe)');
 
   // Individual templates
-  const wbStops = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wbStops, XLSX.utils.json_to_sheet(stopsData), 'Điểm dừng');
-  XLSX.writeFile(wbStops, 'Mau_Import_Diem_Dung.xlsx');
+  const wbStops = new ExcelJS.Workbook();
+  writeSheet(wbStops, 'Điểm dừng', stopsData);
+  await wbStops.xlsx.writeFile('Mau_Import_Diem_Dung.xlsx');
   console.log('✅ Generated: Mau_Import_Diem_Dung.xlsx');
 
-  const wbRoutes = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wbRoutes, XLSX.utils.json_to_sheet(routesData), 'Tuyến');
-  XLSX.writeFile(wbRoutes, 'Mau_Import_Tuyen.xlsx');
+  const wbRoutes = new ExcelJS.Workbook();
+  writeSheet(wbRoutes, 'Tuyến', routesData);
+  await wbRoutes.xlsx.writeFile('Mau_Import_Tuyen.xlsx');
   console.log('✅ Generated: Mau_Import_Tuyen.xlsx');
 
-  const wbVehicles = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wbVehicles, XLSX.utils.json_to_sheet(vehiclesData), 'Xe');
-  XLSX.writeFile(wbVehicles, 'Mau_Import_Xe.xlsx');
+  const wbVehicles = new ExcelJS.Workbook();
+  writeSheet(wbVehicles, 'Xe', vehiclesData);
+  await wbVehicles.xlsx.writeFile('Mau_Import_Xe.xlsx');
   console.log('✅ Generated: Mau_Import_Xe.xlsx');
 }
 
@@ -341,7 +351,7 @@ async function main() {
   }
 
   if (args.generateTemplates) {
-    generateTemplates();
+    await generateTemplates();
     process.exit(0);
   }
 
@@ -389,26 +399,45 @@ async function main() {
 
   // ── Read Excel file ────────────────────────────────────────────────────────
   const filePath = resolve(args.file as string);
-  let wb: XLSX.WorkBook;
+  const wb = new ExcelJS.Workbook();
   try {
-    wb = XLSX.readFile(filePath);
+    await wb.xlsx.readFile(filePath);
   } catch (err) {
     console.error(`❌ Cannot read file "${filePath}":`, err);
     process.exit(1);
   }
 
+  /** Extract all rows from a worksheet as an array of plain objects. */
+  const sheetToJson = (worksheet: ExcelJS.Worksheet): Record<string, unknown>[] => {
+    const rows: Record<string, unknown>[] = [];
+    let headers: string[] = [];
+    worksheet.eachRow((row, rowNumber) => {
+      // row.values is 1-indexed (index 0 is undefined)
+      const values = (row.values as unknown[]).slice(1);
+      if (rowNumber === 1) {
+        headers = values.map(v => (v == null ? '' : String(v)));
+      } else {
+        const obj: Record<string, unknown> = {};
+        headers.forEach((h, i) => { obj[h] = values[i] ?? ''; });
+        rows.push(obj);
+      }
+    });
+    return rows;
+  };
+
   const dryRun = args.dryRun === true;
   const targetCollection = typeof args.collection === 'string' ? args.collection : 'all';
+  const sheetNames = wb.worksheets.map(ws => ws.name);
 
   console.log(`\n📂 File : ${filePath}`);
-  console.log(`📋 Sheets: ${wb.SheetNames.join(', ')}`);
+  console.log(`📋 Sheets: ${sheetNames.join(', ')}`);
   if (dryRun) console.log('🔍 DRY-RUN mode – no data will be written to Firestore.');
   console.log('');
 
   // ── Process sheets ─────────────────────────────────────────────────────────
   let processedAny = false;
 
-  for (const sheetName of wb.SheetNames) {
+  for (const sheetName of sheetNames) {
     const collectionName = detectCollection(sheetName);
     if (!collectionName) {
       console.log(`  ⏭  Sheet "${sheetName}" – not recognised (expected: "Điểm dừng", "Tuyến", "Xe"). Skipping.`);
@@ -419,8 +448,8 @@ async function main() {
       continue;
     }
 
-    const ws = wb.Sheets[sheetName];
-    const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    const worksheet = wb.getWorksheet(sheetName)!;
+    const rows = sheetToJson(worksheet);
 
     if (rows.length === 0) {
       console.log(`  ⚠️  Sheet "${sheetName}" is empty. Skipping.`);

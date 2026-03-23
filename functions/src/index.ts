@@ -4,7 +4,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import * as nodemailer from 'nodemailer';
 import { sanitize } from 'isomorphic-dompurify';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 /**
  * Sanitize a user-supplied value for safe inclusion in HTML content or plain-text
@@ -756,11 +756,11 @@ const excelAddonTypeLabel = (type: string): string =>
  * Build an XLSX workbook for a trip's passenger manifest and return it as a
  * base-64 string so the caller can stream it back to the browser.
  */
-function buildTripExcelBase64(
+async function buildTripExcelBase64(
   trip: Record<string, unknown>,
   bookings: Record<string, unknown>[],
   route: Record<string, unknown> | null,
-): { base64: string; filename: string } {
+): Promise<{ base64: string; filename: string }> {
   const SEAT_STATUS_EMPTY = 'EMPTY';
   const SEAT_STATUS_PAID  = 'PAID';
 
@@ -831,13 +831,15 @@ function buildTripExcelBase64(
     [`Tổng doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ`],
   ];
 
-  const worksheet = XLSX.utils.aoa_to_sheet([...headerRows, ...dataRows, ...summaryRows]);
-  worksheet['!cols'] = [
-    { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 15 },
-    { wch: 35 }, { wch: 35 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 30 },
+  const workbook = new ExcelJS.Workbook();
+  const ws = workbook.addWorksheet('Danh sách khách');
+  ws.columns = [
+    { width: 5 }, { width: 14 }, { width: 12 }, { width: 25 }, { width: 15 },
+    { width: 35 }, { width: 35 }, { width: 30 }, { width: 15 }, { width: 15 }, { width: 30 },
   ];
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
+  for (const row of [...headerRows, ...dataRows, ...summaryRows]) {
+    ws.addRow(row);
+  }
 
   // Addon sheet
   const addonUsersMap = excelBuildAddonUsersMap(trip, passengerGroups);
@@ -868,20 +870,22 @@ function buildTripExcelBase64(
       addonStt++;
     }
   }
-  const addonWorksheet = XLSX.utils.aoa_to_sheet([...addonHeaderRows, ...addonDataRows]);
-  addonWorksheet['!cols'] = [
-    { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 14 }, { wch: 10 },
-    { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 },
+  const addonWs = workbook.addWorksheet('Dịch vụ');
+  addonWs.columns = [
+    { width: 5 }, { width: 25 }, { width: 15 }, { width: 14 }, { width: 10 },
+    { width: 25 }, { width: 15 }, { width: 12 }, { width: 10 },
   ];
-  XLSX.utils.book_append_sheet(workbook, addonWorksheet, 'Dịch vụ');
+  for (const row of [...addonHeaderRows, ...addonDataRows]) {
+    addonWs.addRow(row);
+  }
 
   const sanitizedPlate = ((trip.licensePlate as string) || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
   const formattedDate = ((trip.date as string) || 'nodate').replace(/-/g, '');
   const formattedTime = ((trip.time as string) || 'notime').replace(/:/g, '');
   const filename = `Chuyen_${sanitizedPlate}_${formattedDate}_${formattedTime}.xlsx`;
 
-  const base64 = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' }) as string;
-  return { base64, filename };
+  const buffer = await workbook.xlsx.writeBuffer() as Buffer;
+  return { base64: buffer.toString('base64'), filename };
 }
 
 /**
@@ -934,7 +938,7 @@ export const exportTripExcel = https.onCall(
     }
 
     try {
-      return buildTripExcelBase64(trip, bookings, route);
+      return await buildTripExcelBase64(trip, bookings, route);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error('[exportTripExcel] Failed to build workbook', { tripId, error: msg });
@@ -984,11 +988,16 @@ export const exportGenericExcel = https.onCall(
       : `${data.filename.trim()}.xlsx`;
 
     try {
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-      const base64 = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' }) as string;
-      return { base64, filename };
+      // Derive column headers from the first row's keys
+      const headers = Object.keys(rows[0]);
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(sheetName);
+      worksheet.addRow(headers);
+      for (const row of rows) {
+        worksheet.addRow(headers.map(h => row[h] ?? ''));
+      }
+      const buffer = await workbook.xlsx.writeBuffer() as Buffer;
+      return { base64: buffer.toString('base64'), filename };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error('[exportGenericExcel] Failed to build workbook', { filename, error: msg });
