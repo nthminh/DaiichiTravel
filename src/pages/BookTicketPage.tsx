@@ -20,6 +20,8 @@ interface SubStopPickerModalProps {
   title: string;
   selectedStop: string;
   matchingLabel: string;
+  /** When provided, shown as the section header for matching stops instead of matchingLabel. */
+  parentStation?: string;
   allLabel: string;
   closeLabel: string;
   noStopsLabel: string;
@@ -27,7 +29,7 @@ interface SubStopPickerModalProps {
   onClose: () => void;
 }
 
-function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchingLabel, allLabel, closeLabel, noStopsLabel, onSelect, onClose }: SubStopPickerModalProps) {
+function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchingLabel, parentStation, allLabel, closeLabel, noStopsLabel, onSelect, onClose }: SubStopPickerModalProps) {
   // Deduplicate the "all stops" list so matching stops are not shown twice.
   const matchingIds = useMemo(() => new Set(matchingStops.map(s => s.id)), [matchingStops]);
   const otherStops = useMemo(() => stops.filter(s => !matchingIds.has(s.id)), [stops, matchingIds]);
@@ -59,7 +61,7 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
               {matchingStops.length > 0 && (
                 <div>
                   <p className="text-[10px] font-bold text-daiichi-red uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <span>🎯</span> {matchingLabel}
+                    <span>{parentStation ? '🏢' : '🎯'}</span> {parentStation || matchingLabel}
                   </p>
                   <div className="space-y-1 pl-2">
                     {matchingStops.map(stop => (
@@ -88,9 +90,13 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
               {/* All other stops */}
               {otherStops.length > 0 && (
                 <div>
-                  {matchingStops.length > 0 && (
+                  {matchingStops.length > 0 ? (
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{allLabel}</p>
-                  )}
+                  ) : parentStation ? (
+                    <p className="text-[10px] font-bold text-daiichi-red uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <span>🏢</span> {parentStation}
+                    </p>
+                  ) : null}
                   <div className="space-y-1 pl-2">
                     {otherStops.map(stop => (
                       <button
@@ -486,6 +492,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           title={selectStopPrompt || pickupSuggestionLabel || 'Chọn điểm'}
           selectedStop={selectedStop || ''}
           matchingLabel={stopPickerMatchingLabel || 'Kết quả liên quan'}
+          parentStation={terminalValue || undefined}
           allLabel={stopPickerAllLabel || 'Tất cả điểm dừng'}
           closeLabel={stopPickerCloseLabel || 'Đóng'}
           noStopsLabel={stopPickerNoStopsLabel || 'Không có điểm dừng'}
