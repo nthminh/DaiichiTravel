@@ -276,22 +276,6 @@ export const transportService = {
     await deleteDoc(doc(db, 'stops', stopId));
   },
 
-  // Import stops from Excel data (skips duplicates by name)
-  importStops: async (rows: Omit<Stop, 'id'>[]) => {
-    if (!db) throw new Error('Firebase not configured');
-    const existing = await getDocs(collection(db, 'stops'));
-    const existingNames = new Set(existing.docs.map(d => (d.data() as Stop).name));
-    const toAdd = rows.filter(r => r.name && !existingNames.has(r.name));
-    if (toAdd.length === 0) return 0;
-    const batch = writeBatch(db);
-    toAdd.forEach(r => {
-      const ref = doc(collection(db, 'stops'));
-      batch.set(ref, r);
-    });
-    await batch.commit();
-    return toAdd.length;
-  },
-
   // Listen to bookings
   subscribeToBookings: (callback: (bookings: any[]) => void) => {
     if (!db) return () => {};
@@ -518,22 +502,6 @@ export const transportService = {
     await deleteDoc(doc(db, 'routes', routeId));
   },
 
-  // Import routes from Excel data (skips duplicates by name)
-  importRoutes: async (rows: Omit<Route, 'id'>[]) => {
-    if (!db) throw new Error('Firebase not configured');
-    const existing = await getDocs(collection(db, 'routes'));
-    const existingNames = new Set(existing.docs.map(d => (d.data() as Route).name));
-    const toAdd = rows.filter(r => r.name && !existingNames.has(r.name));
-    if (toAdd.length === 0) return 0;
-    const batch = writeBatch(db);
-    toAdd.forEach(r => {
-      const ref = doc(collection(db, 'routes'));
-      batch.set(ref, r);
-    });
-    await batch.commit();
-    return toAdd.length;
-  },
-
   // ===== FARE TABLE METHODS (Option 2: explicit fare between any two stops) =====
 
   /** Look up the fare for a (fromStop → toStop) pair on a given route. */
@@ -608,22 +576,6 @@ export const transportService = {
   deleteVehicle: async (vehicleId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'vehicles', vehicleId));
-  },
-
-  // Import vehicles from Excel data (skips duplicates by licensePlate)
-  importVehicles: async (rows: Omit<Vehicle, 'id' | 'stt' | 'ownerId' | 'layout'>[]) => {
-    if (!db) throw new Error('Firebase not configured');
-    const existing = await getDocs(collection(db, 'vehicles'));
-    const existingPlates = new Set(existing.docs.map(d => (d.data() as Vehicle).licensePlate));
-    const toAdd = rows.filter(r => r.licensePlate && !existingPlates.has(r.licensePlate));
-    if (toAdd.length === 0) return 0;
-    const batch = writeBatch(db);
-    toAdd.forEach(r => {
-      const ref = doc(collection(db, 'vehicles'));
-      batch.set(ref, { ...r, status: 'ACTIVE' });
-    });
-    await batch.commit();
-    return toAdd.length;
   },
 
   // Seed the 53 company vehicles (safe: only adds missing ones by licensePlate)
