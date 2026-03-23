@@ -1,5 +1,6 @@
-import * as XLSX from 'xlsx';
 import { Route, RouteFare, SeatStatus } from '../types';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '../lib/firebase';
 
 const COMPANY_LOGO_URL =
   'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
@@ -125,103 +126,65 @@ const isSeatSegment = (seat: any, totalStops: number): boolean => {
 
 // --- Public export functions ---
 
-export const exportTripToExcel = (trip: any, bookings: any[], routes: Route[]) => {
-  const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
-  const routeData = routes.find(r => r.name === trip.route);
-  const seatTicketCodeMap = buildSeatTicketCodeMap(trip.id, bookings);
-  const passengerGroups = buildPassengerGroups(trip.id, bookedSeats, bookings);
-  const sortedRouteStopsExcel = (routeData?.routeStops || []).slice().sort((a: any, b: any) => a.order - b.order);
-  const totalStopsExcel = sortedRouteStopsExcel.length;
-  const stopNameByOrderExcel: Record<number, string> = {};
-  for (const stop of sortedRouteStopsExcel) stopNameByOrderExcel[stop.order] = stop.stopName;
-  const headerRows = [
-    ['DANH SÁCH HÀNH KHÁCH - TRIP DETAIL'],
-    [`Số xe: ${trip.licensePlate || '—'}`],
-    [`Tài xế: ${trip.driverName || '—'}`],
-    [`Tuyến: ${trip.route || '—'}${routeData ? ` (${routeData.departurePoint} → ${routeData.arrivalPoint})` : ''}`],
-    [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
-    [`Trạng thái: ${trip.status}`],
-    [],
-    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Chặng đi', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
-  ];
-  const dataRows = passengerGroups.map((g, idx) => {
-    const primarySeat = g.seats[0];
-    const seatIds = g.seats.map((s: any) => s.id).join(', ');
-    const ticketCode = g.booking?.ticketCode || seatTicketCodeMap.get(primarySeat.id) || '—';
-    const allPaid = g.seats.every((s: any) => s.status === SeatStatus.PAID);
-    const totalAmount = g.booking?.amount ?? (trip.price || 0) * g.seats.length;
-    const segLabel = buildSegmentLabel(primarySeat, stopNameByOrderExcel);
-    const isSeg = g.seats.some((s: any) => isSeatSegment(s, totalStopsExcel));
-    return [
-      idx + 1,
-      ticketCode,
-      seatIds,
-      primarySeat.customerName || '—',
-      primarySeat.customerPhone || '—',
-      getPickupDisplay(primarySeat) || '—',
-      getDropoffDisplay(primarySeat) || '—',
-      isSeg ? (segLabel || 'Chặng lẻ') : 'Toàn tuyến',
-      allPaid ? 'Đã thanh toán' : 'Đã đặt',
-      totalAmount.toLocaleString(),
-      primarySeat.bookingNote || '',
-    ];
-  });
-  const totalRevenue = passengerGroups.reduce((sum, g) => sum + (g.booking?.amount ?? (trip.price || 0) * g.seats.length), 0);
-  const segmentCount = passengerGroups.filter(g => g.seats.some((s: any) => isSeatSegment(s, totalStopsExcel))).length;
-  const summaryRows = [
-    [],
-    [`Tổng số đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)`],
-    [`Khách chặng lẻ: ${segmentCount}`],
-    [`Tổng doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ`],
-  ];
-  const allRows = [...headerRows, ...dataRows, ...summaryRows];
-  const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-  worksheet['!cols'] = [
-    { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 35 }, { wch: 35 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
-  ];
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
-
-  // Build addon → users map for the "Dịch vụ" sheet
-  const addonUsersMap = buildAddonUsersMap(trip, passengerGroups);
-  const addonHeaderRows = [
-    ['DANH SÁCH DỊCH VỤ BỔ SUNG'],
-    [`Số xe: ${trip.licensePlate || '—'}`],
-    [`Tuyến: ${trip.route || '—'}`],
-    [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
-    [],
-    ['STT', 'Tên dịch vụ', 'Loại', 'Giá/người (đ)', 'Số khách', 'Tên khách hàng', 'Số điện thoại', 'Số ghế', 'Số lượng'],
-  ];
-  const addonDataRows: (string | number)[][] = [];
-  let addonStt = 1;
-  for (const [, info] of addonUsersMap) {
-    if (info.users.length === 0) {
-      addonDataRows.push([addonStt++, info.name, addonTypeLabel(info.type), info.price.toLocaleString(), 0, '—', '—', '—', '—']);
-    } else {
-      info.users.forEach((u, i) => {
-        addonDataRows.push([
-          i === 0 ? addonStt : '',
-          i === 0 ? info.name : '',
-          i === 0 ? addonTypeLabel(info.type) : '',
-          i === 0 ? info.price.toLocaleString() : '',
-          i === 0 ? info.users.length : '',
-          u.name, u.phone, u.seats, u.quantity,
-        ]);
-      });
-      addonStt++;
-    }
+/**
+ * Trigger a browser download from a base-64 encoded .xlsx string returned by
+ * one of the server-side Cloud Functions.
+ */
+export const downloadBase64Excel = (base64: string, filename: string): void => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
   }
-  const addonWorksheet = XLSX.utils.aoa_to_sheet([...addonHeaderRows, ...addonDataRows]);
-  addonWorksheet['!cols'] = [
-    { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 14 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 }
-  ];
-  XLSX.utils.book_append_sheet(workbook, addonWorksheet, 'Dịch vụ');
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
-  const sanitizedPlate = (trip.licensePlate || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
-  const formattedDate = (trip.date || 'nodate').replace(/-/g, '');
-  const formattedTime = (trip.time || 'notime').replace(/:/g, '');
-  const filename = `Chuyen_${sanitizedPlate}_${formattedDate}_${formattedTime}.xlsx`;
-  XLSX.writeFile(workbook, filename);
+/**
+ * Export a trip's passenger manifest to Excel.
+ *
+ * Calls the `exportTripExcel` Cloud Function which reads the trip, bookings,
+ * and route directly from Firestore server-side, generates the workbook, and
+ * returns the file as a base-64 string.  The client never needs to send raw
+ * passenger data – only the tripId.
+ */
+export const exportTripToExcel = async (tripId: string): Promise<void> => {
+  if (!app) throw new Error('Firebase not configured');
+  const fns = getFunctions(app, 'asia-southeast1');
+  const callExport = httpsCallable<{ tripId: string }, { base64: string; filename: string }>(
+    fns,
+    'exportTripExcel',
+  );
+  const result = await callExport({ tripId });
+  downloadBase64Excel(result.data.base64, result.data.filename);
+};
+
+/**
+ * Export arbitrary rows to a single-sheet Excel file via the server-side
+ * `exportGenericExcel` Cloud Function.  Use this for simple table exports
+ * (bookings list, financial report, pickup/dropoff, …) where the client has
+ * already filtered the data it wants exported.
+ */
+export const exportRowsToExcel = async (
+  rows: Record<string, unknown>[],
+  filename: string,
+  sheetName?: string,
+): Promise<void> => {
+  if (!app) throw new Error('Firebase not configured');
+  const fns = getFunctions(app, 'asia-southeast1');
+  const callExport = httpsCallable<
+    { rows: Record<string, unknown>[]; sheetName?: string; filename: string },
+    { base64: string; filename: string }
+  >(fns, 'exportGenericExcel');
+  const result = await callExport({ rows, sheetName, filename });
+  downloadBase64Excel(result.data.base64, result.data.filename);
 };
 
 export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => {

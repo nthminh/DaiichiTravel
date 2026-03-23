@@ -10,7 +10,7 @@ import { matchesSearch } from '../lib/searchUtils';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 import { Invoice, InvoiceItem } from '../types';
-import * as XLSX from 'xlsx';
+import { exportRowsToExcel } from '../utils/exportUtils';
 import { ResizableTh } from '../components/ResizableTh';
 
 interface FinancialReportProps {
@@ -218,10 +218,9 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
       [t.debt_amount || 'Debt']: inv.debtAmount,
       [t.invoice_status || 'Status']: inv.status,
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-    XLSX.writeFile(wb, `financial-report-${getTodayVN()}.xlsx`);
+    exportRowsToExcel(data, `financial-report-${getTodayVN()}.xlsx`, 'Invoices').catch(err =>
+      console.error('[Excel] Export failed:', err),
+    );
   };
 
   const COMPANY_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';

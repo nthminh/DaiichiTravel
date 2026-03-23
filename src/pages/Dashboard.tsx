@@ -7,12 +7,12 @@ import {
   Eye, Moon, Coffee, Hotel
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import * as XLSX from 'xlsx';
 import { cn, getTodayVN } from '../lib/utils';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App';
 import { transportService } from '../services/transportService';
 import { ResizableTh } from '../components/ResizableTh';
+import { exportRowsToExcel } from '../utils/exportUtils';
 
 interface DashboardProps {
   language: Language;
@@ -78,10 +78,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const exportToExcel = () => {
     const dataToExport = isAgent ? filteredBookings : bookings;
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Bookings");
-    XLSX.writeFile(workbook, `Daiichi_Bookings_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`);
+    const filename = `Daiichi_Bookings_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`;
+    exportRowsToExcel(dataToExport, filename, 'Bookings').catch(err =>
+      console.error('[Excel] Export failed:', err),
+    );
   };
 
   const handleDelete = async (id: string) => {
@@ -703,7 +703,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
             {/* Export */}
             <button
               onClick={() => {
-                const worksheet = XLSX.utils.json_to_sheet(filteredConsignments.map(c => ({
+                const rows = filteredConsignments.map(c => ({
                   ID: c.id,
                   [language === 'vi' ? 'Người gửi' : 'Sender']: c.senderName || c.sender || '',
                   [language === 'vi' ? 'SĐT người gửi' : 'Sender Phone']: c.senderPhone || '',
@@ -714,10 +714,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   COD: c.cod || 0,
                   [language === 'vi' ? 'Trạng thái' : 'Status']: c.status || '',
                   [language === 'vi' ? 'Ghi chú' : 'Notes']: c.notes || '',
-                })));
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, worksheet, language === 'vi' ? 'Hàng hóa' : 'Consignments');
-                XLSX.writeFile(workbook, `Daiichi_Consignments_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`);
+                }));
+                const filename = `Daiichi_Consignments_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`;
+                exportRowsToExcel(rows, filename, language === 'vi' ? 'Hàng hóa' : 'Consignments').catch(err =>
+                  console.error('[Excel] Export failed:', err),
+                );
               }}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all"
             >

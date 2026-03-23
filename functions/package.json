@@ -12,6 +12,7 @@
   "main": "lib/index.js",
   "dependencies": {
     "@exodus/bytes": "^1.15.0",
+    "exceljs": "^4.4.0",
     "firebase-admin": "^12.1.1",
     "firebase-functions": "^5.0.1",
     "html-encoding-sniffer": "^6.0.0",
