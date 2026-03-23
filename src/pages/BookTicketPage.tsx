@@ -783,7 +783,13 @@ export function BookTicketPage({
         uniqueRouteNames.map(async (routeName) => {
           const route = routes.find(r => r.name === routeName);
           if (!route) return null;
-          if (!route.routeStops?.length) {
+          // A route is "direct" when it has no actual intermediate stops.
+          // New-format routes always include synthetic __departure__ / __arrival__ entries
+          // in routeStops, so we must exclude those when deciding whether real stops exist.
+          const hasIntermediateStops = (route.routeStops || []).some(
+            s => s.stopId !== '__departure__' && s.stopId !== '__arrival__',
+          );
+          if (!hasIntermediateStops) {
             // Direct route (no intermediate stops): the full route is the only segment.
             // Return the base route price so this route passes the segment-fare filter in filterTrip.
             return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
