@@ -352,11 +352,19 @@ export function SeatMappingPage({
     const routeOrders = (tripRoute?.routeStops ?? []).map(rs => rs.order);
     const minRouteOrder = routeOrders.length > 0 ? Math.min(...routeOrders) : 1;
     const maxRouteOrder = routeOrders.length > 0 ? Math.max(...routeOrders) : totalStops;
+    const segBookings = seatDataForBtn?.segmentBookings ?? [];
     const isFullRouteBooking =
       totalStops > 0 &&
-      (seatDataForBtn?.segmentBookings ?? []).length === 0 &&
-      seatDataForBtn?.fromStopOrder === minRouteOrder &&
-      seatDataForBtn?.toStopOrder === maxRouteOrder;
+      (
+        // Legacy: stop orders stored directly on the seat, no segmentBookings array
+        (segBookings.length === 0 &&
+          seatDataForBtn?.fromStopOrder === minRouteOrder &&
+          seatDataForBtn?.toStopOrder === maxRouteOrder) ||
+        // Single segmentBooking that spans the entire route is also a full-route booking
+        (segBookings.length === 1 &&
+          segBookings[0].fromStopOrder === minRouteOrder &&
+          segBookings[0].toStopOrder === maxRouteOrder)
+      );
     const isPartiallyBooked =
       rawStatus !== SeatStatus.EMPTY &&
       !isSegmentFree &&
