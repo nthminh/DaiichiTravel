@@ -553,7 +553,7 @@ export function BookTicketPage({
     const effectiveDate = isReturnPhase ? searchReturnDate : searchDate;
 
     if (trip.status !== TripStatus.WAITING) return false;
-    const tripVehicle = (bookTicketSearch || vehicleTypeFilter)
+    const tripVehicle = bookTicketSearch
       ? vehicles.find(v => v.licensePlate === trip.licensePlate)
       : undefined;
     if (bookTicketSearch) {
@@ -597,7 +597,6 @@ export function BookTicketPage({
       }
     }
     if (includeDate && effectiveDate && trip.date && trip.date !== effectiveDate) return false;
-    if (vehicleTypeFilter && (!tripVehicle || tripVehicle.type !== vehicleTypeFilter)) return false;
     if (priceMin) {
       const minVal = parseInt(priceMin);
       if (!isNaN(minVal) && trip.price < minVal) return false;
