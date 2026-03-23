@@ -274,15 +274,18 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     });
 
     const arr = Array.from(resultMap.values());
-    // Sort: priority stops first (ascending priority number), then by match score descending
+    // Sort: match score first (descending – best match on top), then priority as tiebreaker
+    // (ascending – lower priority number = more important terminal) so that when two
+    // terminals score equally the one marked as higher priority surfaces first.
     arr.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
       const aPriority = a.sug.stop.priority && a.sug.stop.priority > 0 ? a.sug.stop.priority : undefined;
       const bPriority = b.sug.stop.priority && b.sug.stop.priority > 0 ? b.sug.stop.priority : undefined;
       const aHas = aPriority !== undefined;
       const bHas = bPriority !== undefined;
       if (aHas !== bHas) return aHas ? -1 : 1;
       if (aHas && bHas) return aPriority! - bPriority!;
-      return b.score - a.score;
+      return 0;
     });
     return arr.slice(0, 8).map(r => r.sug);
   }, [value, stops]);

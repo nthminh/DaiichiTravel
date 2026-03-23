@@ -71,8 +71,13 @@ export const matchScore = (text: string, searchTerm: string): number => {
   const searchTokens = normSearch.split(/\s+/).filter(Boolean);
   if (searchTokens.length === 0) return 1;
 
-  // Each search token must fuzzy-match (prefix or small edit distance) at least one text token
+  // Each search token must fuzzy-match (prefix or small edit distance) at least one text token.
+  // Short tokens (≤ 3 chars) only use prefix matching to avoid false positives such as
+  // "cat" matching "cau" (cầu) or "ba" matching "ha" in unrelated Vietnamese addresses.
   const allTokensMatch = searchTokens.every(st => {
+    if (st.length <= 3) {
+      return textTokens.some(tt => tt.startsWith(st));
+    }
     const threshold = Math.max(1, Math.floor(st.length / TOKEN_FUZZY_DIVISOR));
     return textTokens.some(tt => tt.startsWith(st) || levenshteinDistance(st, tt) <= threshold);
   });
