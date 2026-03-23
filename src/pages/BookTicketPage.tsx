@@ -4,6 +4,7 @@ import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
 import { matchesSearch, matchScore } from '../lib/searchUtils'
+import { FareError } from '../services/fareService'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
@@ -844,8 +845,15 @@ export function BookTicketPage({
               stops,
             });
             return { routeId: route.id, price: fare.price, agentPrice: fare.agentPrice };
-          } catch {
-            // Fare not configured for this segment
+          } catch (err) {
+            // When no fare is explicitly configured for this exact segment but the
+            // segment itself is valid (stops are in the correct order within the route),
+            // fall back to the route's base price so trips are still shown to the user.
+            // Only suppress the trip when the segment is genuinely invalid (reversed
+            // direction, unknown stops, etc.) or a database error occurred.
+            if (err instanceof FareError && err.code === 'FARE_NOT_CONFIGURED') {
+              return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
+            }
             return null;
           }
         })
