@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowLeftRight } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
@@ -740,6 +740,23 @@ export function BookTicketPage({
     }
   };
 
+  // Swap origin and destination (and their respective sub-stop selections).
+  const handleSwap = () => {
+    const prevFrom = searchFrom;
+    const prevStationFrom = searchStationFrom;
+    const prevPickup = pickupAddress;
+    setSearchFrom(searchTo);
+    setSearchStationFrom(searchStationTo);
+    setPickupAddress(dropoffAddress);
+    setPickupStopAddress('');
+    setPickupAddressSurcharge(0);
+    setSearchTo(prevFrom);
+    setSearchStationTo(prevStationFrom);
+    setDropoffAddress(prevPickup);
+    setDropoffStopAddress('');
+    setDropoffAddressSurcharge(0);
+  };
+
   useEffect(() => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
     // Prefer specific stop selection (searchStationFrom/To) over plain city text (searchFrom/To)
@@ -767,12 +784,22 @@ export function BookTicketPage({
           const route = routes.find(r => r.name === routeName);
           if (!route?.routeStops?.length) return null;
 
-          // Resolve stop IDs (prefer route-embedded stops, fall back to global stops)
-          // Use exact match first; fall back to fuzzy match for stop names that may have slight variations
+          // Resolve stop IDs (prefer route-embedded stops, fall back to global stops).
+          // Use exact match first; then bidirectional fuzzy match to handle cases where
+          // the terminal name in the stops collection is longer than route.departurePoint
+          // (e.g. stop name = "Hà Nội (đón trả Phố Cổ)" vs departurePoint = "Hà Nội").
           const fromRouteStop = route.routeStops.find(rs => rs.stopName === effectiveFrom)
-            ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveFrom));
+            ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveFrom) || matchesSearch(effectiveFrom, rs.stopName))
+            // Fallback: effectiveFrom matches the route's departure point – use __departure__ ID.
+            ?? (route.departurePoint && (matchesSearch(effectiveFrom, route.departurePoint) || matchesSearch(route.departurePoint, effectiveFrom))
+              ? { stopId: '__departure__', stopName: route.departurePoint, order: 0 }
+              : undefined);
           const toRouteStop = route.routeStops.find(rs => rs.stopName === effectiveTo)
-            ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveTo));
+            ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveTo) || matchesSearch(effectiveTo, rs.stopName))
+            // Fallback: effectiveTo matches the route's arrival point – use __arrival__ ID.
+            ?? (route.arrivalPoint && (matchesSearch(effectiveTo, route.arrivalPoint) || matchesSearch(route.arrivalPoint, effectiveTo))
+              ? { stopId: '__arrival__', stopName: route.arrivalPoint, order: 9999 }
+              : undefined);
           const fromGlobalStop = stops.find(s => s.name === effectiveFrom)
             ?? stops.find(s => matchesSearch(s.name, effectiveFrom));
           const toGlobalStop = stops.find(s => s.name === effectiveTo)
@@ -783,12 +810,19 @@ export function BookTicketPage({
 
           if (!fromStopId || !toStopId) return null;
 
+          // Only pass routeStops to getFare if both stop IDs are actually present in
+          // route.routeStops (avoids STOP_NOT_IN_ROUTE errors for old-format routes that
+          // don't include __departure__/__arrival__ entries, and for cases where we
+          // synthesized a stopId from the departure/arrival point name above).
+          const fromInRouteStops = route.routeStops.some(rs => rs.stopId === fromStopId);
+          const toInRouteStops = route.routeStops.some(rs => rs.stopId === toStopId);
+
           try {
             const fare = await transportService.getFare({
               routeId: route.id,
               fromStopId,
               toStopId,
-              routeStops: route.routeStops,
+              routeStops: fromInRouteStops && toInRouteStops ? route.routeStops : undefined,
               stops,
             });
             return { routeId: route.id, price: fare.price, agentPrice: fare.agentPrice };
@@ -828,9 +862,11 @@ export function BookTicketPage({
         ...(r.routeStops || []).slice().sort((a, b) => a.order - b.order).map(s => s.stopName),
         r.arrivalPoint,
       ].filter(Boolean);
-      const fromIdx = orderedStops.findIndex(name => matchesSearch(name as string, effectiveFrom));
+      const fromIdx = orderedStops.findIndex(name =>
+        matchesSearch(name as string, effectiveFrom) || matchesSearch(effectiveFrom, name as string));
       if (fromIdx === -1) return false;
-      const toIdx = orderedStops.findIndex(name => matchesSearch(name as string, effectiveTo));
+      const toIdx = orderedStops.findIndex(name =>
+        matchesSearch(name as string, effectiveTo) || matchesSearch(effectiveTo, name as string));
       return toIdx !== -1 && fromIdx < toIdx;
     });
   }, [searchFrom, searchTo, tripType, roundTripPhase, routes]);
@@ -928,14 +964,17 @@ export function BookTicketPage({
           tripRoute.arrivalPoint,
         ].filter(Boolean);
         if (effectiveFrom) {
-          const fromIdx = orderedStops.findIndex(name => matchesSearch(name, effectiveFrom));
+          const fromIdx = orderedStops.findIndex(name =>
+            matchesSearch(name, effectiveFrom) || matchesSearch(effectiveFrom, name));
           if (fromIdx === -1) return false;
           if (effectiveTo) {
-            const toIdx = orderedStops.findIndex(name => matchesSearch(name, effectiveTo));
+            const toIdx = orderedStops.findIndex(name =>
+              matchesSearch(name, effectiveTo) || matchesSearch(effectiveTo, name));
             if (toIdx === -1 || fromIdx >= toIdx) return false;
           }
         } else {
-          const toIdx = orderedStops.findIndex(name => matchesSearch(name, effectiveTo));
+          const toIdx = orderedStops.findIndex(name =>
+            matchesSearch(name, effectiveTo) || matchesSearch(effectiveTo, name));
           if (toIdx === -1) return false;
         }
       } else {
@@ -1340,52 +1379,64 @@ export function BookTicketPage({
               <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
             </div>
           </div>
-          <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
-            <div className="mt-1">
-              <StopSearchInput
-                value={searchFrom}
-                terminalValue={searchStationFrom}
-                stops={filteredStops}
-                placeholder={t.stop_search_from_placeholder || t.from}
-                nearestHint={t.stop_search_nearest_hint}
-                mustSelectError={t.stop_search_must_select}
-                onChange={handleFromChange}
-                onConfirmed={() => toStopRef.current?.focus()}
-                terminalLabel={t.departure_terminal_label}
-                pickupSuggestionLabel={t.pickup_stop_suggestion}
-                selectedStop={pickupAddress}
-                onPickupStopSelect={(name, address, surcharge) => { setPickupAddress(name); setPickupStopAddress(address); setPickupAddressSurcharge(surcharge); }}
-                selectStopPrompt={t.select_pickup_point}
-                stopPickerMatchingLabel={t.stop_picker_matching}
-                stopPickerAllLabel={t.stop_picker_all}
-                stopPickerCloseLabel={t.stop_picker_close}
-                stopPickerNoStopsLabel={t.stop_picker_no_stops}
-              />
+          {/* FROM + swap button + TO in a combined cell spanning 2 columns on large screens */}
+          <div className="lg:col-span-2 flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
+              <div className="mt-1">
+                <StopSearchInput
+                  value={searchFrom}
+                  terminalValue={searchStationFrom}
+                  stops={filteredStops}
+                  placeholder={t.stop_search_from_placeholder || t.from}
+                  nearestHint={t.stop_search_nearest_hint}
+                  mustSelectError={t.stop_search_must_select}
+                  onChange={handleFromChange}
+                  onConfirmed={() => toStopRef.current?.focus()}
+                  terminalLabel={t.departure_terminal_label}
+                  pickupSuggestionLabel={t.pickup_stop_suggestion}
+                  selectedStop={pickupAddress}
+                  onPickupStopSelect={(name, address, surcharge) => { setPickupAddress(name); setPickupStopAddress(address); setPickupAddressSurcharge(surcharge); }}
+                  selectStopPrompt={t.select_pickup_point}
+                  stopPickerMatchingLabel={t.stop_picker_matching}
+                  stopPickerAllLabel={t.stop_picker_all}
+                  stopPickerCloseLabel={t.stop_picker_close}
+                  stopPickerNoStopsLabel={t.stop_picker_no_stops}
+                />
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
-            <div className="mt-1">
-              <StopSearchInput
-                ref={toStopRef}
-                value={searchTo}
-                terminalValue={searchStationTo}
-                stops={filteredStops}
-                placeholder={t.stop_search_to_placeholder || t.to}
-                nearestHint={t.stop_search_nearest_hint}
-                mustSelectError={t.stop_search_must_select}
-                onChange={handleToChange}
-                terminalLabel={t.arrival_terminal_label}
-                pickupSuggestionLabel={t.dropoff_stop_suggestion}
-                selectedStop={dropoffAddress}
-                onPickupStopSelect={(name, address, surcharge) => { setDropoffAddress(name); setDropoffStopAddress(address); setDropoffAddressSurcharge(surcharge); }}
-                selectStopPrompt={t.select_dropoff_point}
-                stopPickerMatchingLabel={t.stop_picker_matching}
-                stopPickerAllLabel={t.stop_picker_all}
-                stopPickerCloseLabel={t.stop_picker_close}
-                stopPickerNoStopsLabel={t.stop_picker_no_stops}
-              />
+            {/* Swap button */}
+            <button
+              type="button"
+              onClick={handleSwap}
+              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+              className="flex-shrink-0 mt-7 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
+            >
+              <ArrowLeftRight size={15} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
+              <div className="mt-1">
+                <StopSearchInput
+                  ref={toStopRef}
+                  value={searchTo}
+                  terminalValue={searchStationTo}
+                  stops={filteredStops}
+                  placeholder={t.stop_search_to_placeholder || t.to}
+                  nearestHint={t.stop_search_nearest_hint}
+                  mustSelectError={t.stop_search_must_select}
+                  onChange={handleToChange}
+                  terminalLabel={t.arrival_terminal_label}
+                  pickupSuggestionLabel={t.dropoff_stop_suggestion}
+                  selectedStop={dropoffAddress}
+                  onPickupStopSelect={(name, address, surcharge) => { setDropoffAddress(name); setDropoffStopAddress(address); setDropoffAddressSurcharge(surcharge); }}
+                  selectStopPrompt={t.select_dropoff_point}
+                  stopPickerMatchingLabel={t.stop_picker_matching}
+                  stopPickerAllLabel={t.stop_picker_all}
+                  stopPickerCloseLabel={t.stop_picker_close}
+                  stopPickerNoStopsLabel={t.stop_picker_no_stops}
+                />
+              </div>
             </div>
           </div>
           <div>
