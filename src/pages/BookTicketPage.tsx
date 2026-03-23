@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
@@ -23,13 +23,29 @@ interface StopSearchInputProps {
   nearestHint?: string;
   mustSelectError?: string;
   onChange: (text: string, terminal: string) => void;
+  /** Called once a terminal is confirmed (e.g. to auto-focus the next field). */
+  onConfirmed?: () => void;
+  /** Label shown below the confirmed input, e.g. "Bến xuất phát" or "Bến đến". */
+  terminalLabel?: string;
+  /** Label for the pickup/dropoff stop suggestion chips, e.g. "Gợi ý điểm đón". */
+  pickupSuggestionLabel?: string;
+  /** Currently pre-selected pickup/dropoff stop name. */
+  selectedStop?: string;
+  /** Called when user taps a pickup/dropoff stop suggestion chip. */
+  onPickupStopSelect?: (name: string, address: string, surcharge: number) => void;
+}
+
+/** Imperative handle exposed by StopSearchInput via forwardRef. */
+interface StopSearchInputHandle {
+  focus(): void;
 }
 
 // Delay (ms) between input blur and checking the selection state, ensuring that
 // onMouseDown on a suggestion button fires and updates state before we evaluate.
 const BLUR_DEBOUNCE_MS = 150;
 
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange }: StopSearchInputProps) {
+const StopSearchInput = React.forwardRef<StopSearchInputHandle, StopSearchInputProps>(
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, terminalLabel, pickupSuggestionLabel, selectedStop, onPickupStopSelect }: StopSearchInputProps, ref) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMustSelect, setShowMustSelect] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -37,6 +53,34 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
   // Ref to always access the latest terminalValue inside async callbacks
   const terminalValueRef = useRef(terminalValue);
   terminalValueRef.current = terminalValue;
+  // Refs for imperative handle (always latest value/onChange without stale closures)
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // Expose a focus() method that auto-switches back to edit mode when needed.
+  useImperativeHandle(ref, () => ({
+    focus() {
+      if (terminalValueRef.current) {
+        // Currently in confirmed display mode – clear the terminal to re-enter edit mode.
+        onChangeRef.current(valueRef.current, '');
+        setShowDropdown(true);
+        setShowMustSelect(false);
+      }
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+  }), []);
+
+  // Child stops (pickup / dropoff suggestions) for the confirmed terminal.
+  const pickupStops = useMemo(() => {
+    if (!terminalValue) return [];
+    const terminal = stops.find(s => s.name === terminalValue && s.type === 'TERMINAL');
+    if (!terminal) return [];
+    return stops
+      .filter(s => s.terminalId === terminal.id)
+      .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+  }, [terminalValue, stops]);
 
   interface Suggestion { stop: Stop; terminal: Stop | undefined }
 
@@ -119,6 +163,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     onChange(terminalName, terminalName);
     setShowDropdown(false);
     setShowMustSelect(false);
+    onConfirmed?.();
   };
 
   // When the input loses focus without a confirmed selection, show an error hint.
@@ -224,9 +269,41 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           )}
         </div>
       )}
+      {/* Terminal name + pickup/dropoff stop suggestions shown below the confirmed input */}
+      {isConfirmed && terminalLabel && (
+        <div className="mt-2 px-1 space-y-1.5">
+          <p className="text-[11px] text-gray-500 flex items-center gap-1">
+            <span className="font-semibold text-gray-700">{terminalLabel}:</span>
+            <span>{terminalValue}</span>
+          </p>
+          {pickupStops.length > 0 && pickupSuggestionLabel && onPickupStopSelect && (
+            <div>
+              <p className="text-[11px] text-gray-500 mb-1">{pickupSuggestionLabel}:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {pickupStops.map(stop => (
+                  <button
+                    key={stop.id}
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); onPickupStopSelect(stop.name, stop.address || '', stop.surcharge || 0); }}
+                    className={cn(
+                      "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+                      selectedStop === stop.name
+                        ? "bg-daiichi-red text-white border-daiichi-red"
+                        : "bg-white text-gray-600 border-gray-300 hover:border-daiichi-red hover:text-daiichi-red"
+                    )}
+                  >
+                    {stop.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+);
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -296,6 +373,15 @@ interface BookTicketPageProps {
   setRoundTripPhase: (phase: 'outbound' | 'return') => void;
   setTripCardImgIdx: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   setShowAddonDetailTrip: (trip: Trip | null) => void;
+  // Pre-fill pickup/dropoff from the search form → flows into SeatMappingPage
+  pickupAddress: string;
+  dropoffAddress: string;
+  setPickupAddress: (v: string) => void;
+  setDropoffAddress: (v: string) => void;
+  setPickupAddressSurcharge: (v: number) => void;
+  setDropoffAddressSurcharge: (v: number) => void;
+  setPickupStopAddress: (v: string) => void;
+  setDropoffStopAddress: (v: string) => void;
   // Helpers
   compareTripDateTime: (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => number;
   formatTripDateDisplay: (dateStr: string) => string;
@@ -380,6 +466,14 @@ export function BookTicketPage({
   setShowAddonDetailTrip,
   compareTripDateTime,
   formatTripDateDisplay,
+  pickupAddress,
+  dropoffAddress,
+  setPickupAddress,
+  setDropoffAddress,
+  setPickupAddressSurcharge,
+  setDropoffAddressSurcharge,
+  setPickupStopAddress,
+  setDropoffStopAddress,
 }: BookTicketPageProps) {
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
@@ -391,6 +485,30 @@ export function BookTicketPage({
   // Used to filter out trips whose route has no fare configuration for the searched segment.
   const [segmentFaresLoaded, setSegmentFaresLoaded] = useState(false);
   const segmentFareFetchRef = useRef(0);
+  // Ref to the "To" StopSearchInput – used to auto-focus it when "From" is confirmed.
+  const toStopRef = useRef<StopSearchInputHandle>(null);
+
+  // Handler for the "From" stop input: clears pre-selected pickup when terminal is cleared.
+  const handleFromChange = (text: string, terminal: string) => {
+    setSearchFrom(text);
+    setSearchStationFrom(terminal);
+    if (!terminal) {
+      setPickupAddress('');
+      setPickupStopAddress('');
+      setPickupAddressSurcharge(0);
+    }
+  };
+
+  // Handler for the "To" stop input: clears pre-selected dropoff when terminal is cleared.
+  const handleToChange = (text: string, terminal: string) => {
+    setSearchTo(text);
+    setSearchStationTo(terminal);
+    if (!terminal) {
+      setDropoffAddress('');
+      setDropoffStopAddress('');
+      setDropoffAddressSurcharge(0);
+    }
+  };
 
   useEffect(() => {
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
@@ -1000,7 +1118,12 @@ export function BookTicketPage({
                 placeholder={t.stop_search_from_placeholder || t.from}
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
-                onChange={(text, terminal) => { setSearchFrom(text); setSearchStationFrom(terminal); }}
+                onChange={handleFromChange}
+                onConfirmed={() => toStopRef.current?.focus()}
+                terminalLabel={t.departure_terminal_label}
+                pickupSuggestionLabel={t.pickup_stop_suggestion}
+                selectedStop={pickupAddress}
+                onPickupStopSelect={(name, address, surcharge) => { setPickupAddress(name); setPickupStopAddress(address); setPickupAddressSurcharge(surcharge); }}
               />
             </div>
           </div>
@@ -1008,13 +1131,18 @@ export function BookTicketPage({
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
             <div className="mt-1">
               <StopSearchInput
+                ref={toStopRef}
                 value={searchTo}
                 terminalValue={searchStationTo}
                 stops={filteredStops}
                 placeholder={t.stop_search_to_placeholder || t.to}
                 nearestHint={t.stop_search_nearest_hint}
                 mustSelectError={t.stop_search_must_select}
-                onChange={(text, terminal) => { setSearchTo(text); setSearchStationTo(terminal); }}
+                onChange={handleToChange}
+                terminalLabel={t.arrival_terminal_label}
+                pickupSuggestionLabel={t.dropoff_stop_suggestion}
+                selectedStop={dropoffAddress}
+                onPickupStopSelect={(name, address, surcharge) => { setDropoffAddress(name); setDropoffStopAddress(address); setDropoffAddressSurcharge(surcharge); }}
               />
             </div>
           </div>

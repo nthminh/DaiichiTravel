@@ -1270,6 +1270,14 @@ export default function App() {
               setShowAddonDetailTrip={setShowAddonDetailTrip}
               compareTripDateTime={compareTripDateTime}
               formatTripDateDisplay={formatTripDateDisplay}
+              pickupAddress={pickupAddress}
+              dropoffAddress={dropoffAddress}
+              setPickupAddress={setPickupAddress}
+              setDropoffAddress={setDropoffAddress}
+              setPickupAddressSurcharge={setPickupAddressSurcharge}
+              setDropoffAddressSurcharge={setDropoffAddressSurcharge}
+              setPickupStopAddress={setPickupStopAddress}
+              setDropoffStopAddress={setDropoffStopAddress}
             />
           </Suspense>
         );
