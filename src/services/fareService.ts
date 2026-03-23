@@ -95,7 +95,9 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
     ),
   );
 
-  // Resolve stop names once for both error messages and success result
+  // Resolve stop names once for both error messages and success result.
+  // Also check routeStops so that synthetic IDs like __departure__/__arrival__
+  // are shown with their human-readable station name in error messages.
   const fromStop = stops?.find((s) => s.id === fromStopId);
   const toStop = stops?.find((s) => s.id === toStopId);
 
@@ -104,8 +106,12 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
     .filter(f => f['active'] !== false);
 
   if (activeFares.length === 0) {
-    const fromName = fromStop?.name ?? fromStopId;
-    const toName = toStop?.name ?? toStopId;
+    const fromName = fromStop?.name
+      ?? routeStops?.find((rs) => rs.stopId === fromStopId)?.stopName
+      ?? fromStopId;
+    const toName = toStop?.name
+      ?? routeStops?.find((rs) => rs.stopId === toStopId)?.stopName
+      ?? toStopId;
     throw new FareError(
       'FARE_NOT_CONFIGURED',
       `Chưa cấu hình giá vé cho hành trình ${fromName} → ${toName}. Vui lòng cấu hình giá vé.`,
