@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, Filter, X, Download, FileText, Users, Copy, Edit3, Trash2, SlidersHorizontal } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { getLocalDateString, getOffsetDayLabel } from '../lib/utils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
 import { Trip, Route, TripAddon } from '../types';
@@ -146,23 +147,8 @@ export function CompletedTripsPage({
         // Segment detection: find matched route to get total stop count
         const matchedRoute = routes.find(r => r.name === showTripPassengers.route);
         const totalStops = matchedRoute?.routeStops?.length ?? 0;
-        const stopNameByOrder: Record<number, string> = {};
-        if (matchedRoute?.routeStops) {
-          matchedRoute.routeStops.forEach(rs => { stopNameByOrder[rs.order] = rs.stopName; });
-        }
-        const getSegmentInfo = (seat: any): { type: 'full' | 'partial' | 'multi'; label: string } => {
-          if (seat.segmentBookings?.length > 0) {
-            return { type: 'multi', label: `${seat.segmentBookings.length} ${language === 'vi' ? 'chặng' : 'seg.'}` };
-          }
-          const from = seat.fromStopOrder as number | undefined;
-          const to = seat.toStopOrder as number | undefined;
-          const isFull = (from == null && to == null) || (from === 1 && (totalStops === 0 || to === totalStops));
-          if (isFull) return { type: 'full', label: language === 'vi' ? 'Cả chặng' : 'Full route' };
-          const fromName = seat.pickupPoint || (from != null ? stopNameByOrder[from] || `Trạm ${from}` : '');
-          const toName = seat.dropoffPoint || (to != null ? stopNameByOrder[to] || `Trạm ${to}` : '');
-          const segLabel = (fromName || toName) ? `${fromName}→${toName}` : (language === 'vi' ? 'Nửa chặng' : 'Partial');
-          return { type: 'partial', label: segLabel };
-        };
+        const stopNameByOrder = buildStopNameByOrder(matchedRoute?.routeStops);
+        const getSegmentInfo = (seat: any) => getSegmentInfoUtil(seat, totalStops, stopNameByOrder, language);
         return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
