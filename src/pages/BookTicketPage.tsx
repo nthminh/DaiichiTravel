@@ -791,6 +791,8 @@ export function BookTicketPage({
           const fromRouteStop = route.routeStops.find(rs => rs.stopName === effectiveFrom)
             ?? route.routeStops.find(rs => matchesSearch(rs.stopName, effectiveFrom) || matchesSearch(effectiveFrom, rs.stopName))
             // Fallback: effectiveFrom matches the route's departure point – use __departure__ ID.
+            // The order value is not used below (routeStops is only passed to getFare when
+            // both IDs are confirmed to be present in the actual route.routeStops array).
             ?? (route.departurePoint && (matchesSearch(effectiveFrom, route.departurePoint) || matchesSearch(route.departurePoint, effectiveFrom))
               ? { stopId: '__departure__', stopName: route.departurePoint, order: 0 }
               : undefined);
@@ -814,6 +816,8 @@ export function BookTicketPage({
           // route.routeStops (avoids STOP_NOT_IN_ROUTE errors for old-format routes that
           // don't include __departure__/__arrival__ entries, and for cases where we
           // synthesized a stopId from the departure/arrival point name above).
+          // When routeStops is undefined, getFare skips ordering validation and performs
+          // a direct Firestore query for the (fromStopId, toStopId) pair.
           const fromInRouteStops = route.routeStops.some(rs => rs.stopId === fromStopId);
           const toInRouteStops = route.routeStops.some(rs => rs.stopId === toStopId);
 
