@@ -84,7 +84,12 @@ import type { TourItem } from './components/TourBookingForm';
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
 export type { Language, User };
 
-
+/** Returns true when a routeStops array contains at least one real (non-synthetic) stop. */
+function hasRealIntermediateStops(routeStops?: RouteStop[]): boolean {
+  return (routeStops || []).some(
+    (s) => s.stopId !== '__departure__' && s.stopId !== '__arrival__',
+  );
+}
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -735,27 +740,27 @@ export default function App() {
     setPickupPoint(effectiveFrom);
     setDropoffPoint(effectiveTo);
 
-    // Always reset stop IDs, surcharges and address sub-fields for the new trip so that
-    // stale values from a previous selection do not leak into fare/surcharge calculations.
+    // Reset stop IDs and main surcharges for the new trip.
+    // Sub-stop selections (pickupAddress/dropoffAddress) and their surcharges are
+    // intentionally preserved so that choices made on the search form carry over
+    // into the customer info form on SeatMappingPage.
     setFromStopId('');
     setToStopId('');
     setPickupSurcharge(0);
     setDropoffSurcharge(0);
-    setPickupAddress('');
-    setDropoffAddress('');
     setPickupAddressDetail('');
     setDropoffAddressDetail('');
-    setPickupStopAddress('');
-    setDropoffStopAddress('');
-    setPickupAddressSurcharge(0);
-    setDropoffAddressSurcharge(0);
 
     let newFromId = '';
     let newToId = '';
 
     if (effectiveFrom) {
+      // Bidirectional fuzzy match + __departure__ fallback (mirrors BookTicketPage logic).
       const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveFrom)
-        ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveFrom));
+        ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveFrom) || matchesSearch(effectiveFrom, rs.stopName))
+        ?? (tripRoute?.departurePoint && (matchesSearch(effectiveFrom, tripRoute.departurePoint) || matchesSearch(tripRoute.departurePoint, effectiveFrom))
+          ? { stopId: '__departure__', stopName: tripRoute.departurePoint, order: 0 }
+          : undefined);
       const globalStop = stops.find((s) => s.name === effectiveFrom)
         ?? stops.find((s) => matchesSearch(s.name, effectiveFrom));
       newFromId = routeStop?.stopId || globalStop?.id || '';
@@ -764,8 +769,12 @@ export default function App() {
     }
 
     if (effectiveTo) {
+      // Bidirectional fuzzy match + __arrival__ fallback (mirrors BookTicketPage logic).
       const routeStop = tripRoute?.routeStops?.find((rs) => rs.stopName === effectiveTo)
-        ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveTo));
+        ?? tripRoute?.routeStops?.find((rs) => matchesSearch(rs.stopName, effectiveTo) || matchesSearch(effectiveTo, rs.stopName))
+        ?? (tripRoute?.arrivalPoint && (matchesSearch(effectiveTo, tripRoute.arrivalPoint) || matchesSearch(tripRoute.arrivalPoint, effectiveTo))
+          ? { stopId: '__arrival__', stopName: tripRoute.arrivalPoint, order: 9999 }
+          : undefined);
       const globalStop = stops.find((s) => s.name === effectiveTo)
         ?? stops.find((s) => matchesSearch(s.name, effectiveTo));
       newToId = routeStop?.stopId || globalStop?.id || '';
@@ -773,8 +782,11 @@ export default function App() {
       setDropoffSurcharge(globalStop?.surcharge || 0);
     }
 
-    // Trigger fare lookup immediately if both stops are identified
-    if (newFromId && newToId && (tripRoute?.routeStops?.length ?? 0) > 0) {
+    // Trigger fare lookup immediately if both stops are identified.
+    // Only run for routes with real intermediate stops (not just synthetic __departure__/__arrival__
+    // entries) to match the behaviour of BookTicketPage which skips the Firestore query for
+    // direct (non-segmented) routes and falls back to the route's base price instead.
+    if (newFromId && newToId && hasRealIntermediateStops(tripRoute?.routeStops)) {
       lookupFare(tripRoute, newFromId, newToId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1097,18 +1109,28 @@ export default function App() {
     if (!tripRoute || !fFromStopId || !fToStopId) return;
     if (!tripRoute.routeStops || tripRoute.routeStops.length === 0) return;
 
+    // Skip fare lookup for direct routes (only synthetic __departure__/__arrival__ entries).
+    // These routes use the base route price, matching BookTicketPage behaviour.
+    if (!hasRealIntermediateStops(tripRoute.routeStops)) return;
+
     const requestId = ++fareRequestIdRef.current;
     setFareLoading(true);
     setFareError('');
     setFareAmount(null);
     setFareAgentAmount(null);
 
+    // Only pass routeStops for order validation when both stop IDs are actually
+    // present in routeStops.  This mirrors BookTicketPage and avoids STOP_NOT_IN_ROUTE
+    // errors when a stop ID comes from a global stop or a synthetic __departure__/__arrival__.
+    const fromInRouteStops = tripRoute.routeStops.some((rs) => rs.stopId === fFromStopId);
+    const toInRouteStops = tripRoute.routeStops.some((rs) => rs.stopId === fToStopId);
+
     try {
       const result = await transportService.getFare({
         routeId: tripRoute.id,
         fromStopId: fFromStopId,
         toStopId: fToStopId,
-        routeStops: tripRoute.routeStops,
+        routeStops: fromInRouteStops && toInRouteStops ? tripRoute.routeStops : undefined,
         stops,
       });
       // Discard if a newer request has been initiated
