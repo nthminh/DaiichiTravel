@@ -10,6 +10,127 @@ import { ToastContainer } from '../components/ToastContainer'
 import { transportService } from '../services/transportService'
 
 // ---------------------------------------------------------------------------
+// SubStopPickerModal – a clean popup dialog for picking a specific sub-stop
+// (pickup or dropoff point) after the parent terminal has been confirmed.
+// ---------------------------------------------------------------------------
+interface SubStopPickerModalProps {
+  stops: Stop[];
+  matchingStops: Stop[];
+  title: string;
+  selectedStop: string;
+  matchingLabel: string;
+  allLabel: string;
+  closeLabel: string;
+  noStopsLabel: string;
+  onSelect: (name: string, address: string, surcharge: number) => void;
+  onClose: () => void;
+}
+
+function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchingLabel, allLabel, closeLabel, noStopsLabel, onSelect, onClose }: SubStopPickerModalProps) {
+  // Deduplicate the "all stops" list so matching stops are not shown twice.
+  const matchingIds = useMemo(() => new Set(matchingStops.map(s => s.id)), [matchingStops]);
+  const otherStops = useMemo(() => stops.filter(s => !matchingIds.has(s.id)), [stops, matchingIds]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[75vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+          <div className="flex items-center gap-2">
+            <MapPin size={15} className="text-daiichi-red" />
+            <h3 className="font-bold text-sm text-gray-800">{title}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-200">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-3 space-y-3">
+          {stops.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">{noStopsLabel}</p>
+          ) : (
+            <>
+              {/* Matching stops section – shown when user typed a query before confirming terminal */}
+              {matchingStops.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-daiichi-red uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <span>🎯</span> {matchingLabel}
+                  </p>
+                  <div className="space-y-1">
+                    {matchingStops.map(stop => (
+                      <button
+                        key={stop.id}
+                        type="button"
+                        onClick={() => onSelect(stop.name, stop.address || '', stop.surcharge || 0)}
+                        className={cn(
+                          "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
+                          selectedStop === stop.name
+                            ? "bg-daiichi-red text-white border-daiichi-red"
+                            : "bg-red-50 border-red-100 hover:bg-daiichi-red hover:text-white hover:border-daiichi-red"
+                        )}
+                      >
+                        <MapPin size={13} className="flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium break-words">{stop.name}</p>
+                          {stop.address && <p className={cn("text-[11px] break-words", selectedStop === stop.name ? "text-white/80" : "text-red-400")}>{stop.address}</p>}
+                        </div>
+                        {selectedStop === stop.name && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* All other stops */}
+              {otherStops.length > 0 && (
+                <div>
+                  {matchingStops.length > 0 && (
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{allLabel}</p>
+                  )}
+                  <div className="space-y-1">
+                    {otherStops.map(stop => (
+                      <button
+                        key={stop.id}
+                        type="button"
+                        onClick={() => onSelect(stop.name, stop.address || '', stop.surcharge || 0)}
+                        className={cn(
+                          "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
+                          selectedStop === stop.name
+                            ? "bg-daiichi-red text-white border-daiichi-red"
+                            : "bg-gray-50 border-gray-100 hover:bg-gray-100"
+                        )}
+                      >
+                        <MapPin size={13} className={cn("flex-shrink-0 mt-0.5", selectedStop === stop.name ? "text-white" : "text-gray-400")} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium break-words">{stop.name}</p>
+                          {stop.address && <p className={cn("text-[11px] break-words", selectedStop === stop.name ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
+                        </div>
+                        {selectedStop === stop.name && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-100">
+          <button type="button" onClick={onClose} className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-600 transition-colors">
+            {closeLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // StopSearchInput – unified autocomplete for departure / destination.
 // Searches the global stops collection (sub-stops by name + address, terminals
 // by name) and resolves the selection to the parent TERMINAL name so that route
@@ -33,6 +154,16 @@ interface StopSearchInputProps {
   selectedStop?: string;
   /** Called when user taps a pickup/dropoff stop suggestion chip. */
   onPickupStopSelect?: (name: string, address: string, surcharge: number) => void;
+  /** Prompt text shown on the sub-stop picker button when nothing is selected yet. */
+  selectStopPrompt?: string;
+  /** Label for the "matching" section inside the sub-stop picker. */
+  stopPickerMatchingLabel?: string;
+  /** Label for the "all stops" section inside the sub-stop picker. */
+  stopPickerAllLabel?: string;
+  /** Label for the close button inside the sub-stop picker. */
+  stopPickerCloseLabel?: string;
+  /** Label shown when there are no sub-stops in the picker. */
+  stopPickerNoStopsLabel?: string;
 }
 
 /** Imperative handle exposed by StopSearchInput via forwardRef. */
@@ -45,9 +176,13 @@ interface StopSearchInputHandle {
 const BLUR_DEBOUNCE_MS = 150;
 
 const StopSearchInput = React.forwardRef<StopSearchInputHandle, StopSearchInputProps>(
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, terminalLabel, pickupSuggestionLabel, selectedStop, onPickupStopSelect }: StopSearchInputProps, ref) {
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, terminalLabel, pickupSuggestionLabel, selectedStop, onPickupStopSelect, selectStopPrompt, stopPickerMatchingLabel, stopPickerAllLabel, stopPickerCloseLabel, stopPickerNoStopsLabel }: StopSearchInputProps, ref) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMustSelect, setShowMustSelect] = useState(false);
+  const [showSubStopPicker, setShowSubStopPicker] = useState(false);
+  // Remember what the user typed just before they confirmed a terminal, so we can
+  // pre-filter sub-stops to only the ones that are relevant to their search query.
+  const [lastTypedQuery, setLastTypedQuery] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Ref to always access the latest terminalValue inside async callbacks
@@ -81,6 +216,17 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       .filter(s => s.terminalId === terminal.id)
       .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
   }, [terminalValue, stops]);
+
+  // Child stops that match what the user typed before selecting the terminal.
+  // When lastTypedQuery is set, this is the pre-filtered list shown at the top of the picker.
+  const matchingPickupStops = useMemo(() => {
+    if (!lastTypedQuery.trim() || !pickupStops.length) return [];
+    return pickupStops.filter(stop => {
+      const nameScore = matchScore(stop.name, lastTypedQuery);
+      const addressScore = stop.address ? matchScore(stop.address, lastTypedQuery) : 0;
+      return Math.max(nameScore, addressScore) > 0;
+    });
+  }, [lastTypedQuery, pickupStops]);
 
   interface Suggestion { stop: Stop; terminal: Stop | undefined }
 
@@ -160,6 +306,8 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 
   const handleSelect = (stop: Stop, terminal: Stop | undefined) => {
     const terminalName = terminal?.name || stop.name;
+    // Save what the user typed so we can pre-filter sub-stops to matching ones.
+    setLastTypedQuery(value);
     onChange(terminalName, terminalName);
     setShowDropdown(false);
     setShowMustSelect(false);
@@ -182,6 +330,8 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 
   const handleEditMode = () => {
     onChange(value, '');
+    setLastTypedQuery('');
+    setShowSubStopPicker(false);
     setShowDropdown(true);
     setShowMustSelect(false);
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -225,7 +375,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       {value && (
         <button
           type="button"
-          onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); }}
+          onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); setLastTypedQuery(''); setShowSubStopPicker(false); }}
           className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
           aria-label="Clear"
         >
@@ -269,41 +419,121 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           )}
         </div>
       )}
-      {/* Terminal name + pickup/dropoff stop suggestions shown below the confirmed input */}
+      {/* Terminal label + sub-stop picker trigger button shown below the confirmed input */}
       {isConfirmed && terminalLabel && (
         <div className="mt-2 px-1 space-y-1.5">
           <p className="text-[11px] text-gray-500 flex items-center gap-1">
             <span className="font-semibold text-gray-700">{terminalLabel}:</span>
             <span>{terminalValue}</span>
           </p>
-          {pickupStops.length > 0 && pickupSuggestionLabel && onPickupStopSelect && (
-            <div>
-              <p className="text-[11px] text-gray-500 mb-1">{pickupSuggestionLabel}:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {pickupStops.map(stop => (
-                  <button
-                    key={stop.id}
-                    type="button"
-                    onMouseDown={e => { e.preventDefault(); onPickupStopSelect(stop.name, stop.address || '', stop.surcharge || 0); }}
-                    className={cn(
-                      "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
-                      selectedStop === stop.name
-                        ? "bg-daiichi-red text-white border-daiichi-red"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-daiichi-red hover:text-daiichi-red"
-                    )}
-                  >
-                    {stop.name}
-                  </button>
-                ))}
+          {pickupStops.length > 0 && onPickupStopSelect && (
+            <button
+              type="button"
+              onClick={() => setShowSubStopPicker(true)}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-all",
+                selectedStop
+                  ? "bg-daiichi-red/5 border-daiichi-red/30 text-daiichi-red"
+                  : "bg-gray-50 border-gray-200 text-gray-500 hover:border-daiichi-red/40 hover:text-daiichi-red"
+              )}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <MapPin size={13} className="flex-shrink-0" />
+                <span className="truncate text-left text-xs">
+                  {selectedStop || selectStopPrompt || pickupSuggestionLabel}
+                </span>
               </div>
-            </div>
+              {selectedStop ? (
+                <CheckCircle2 size={13} className="flex-shrink-0 text-daiichi-red" />
+              ) : (
+                <ChevronDown size={13} className="flex-shrink-0" />
+              )}
+            </button>
           )}
         </div>
+      )}
+      {/* Sub-stop picker modal – rendered as a fixed overlay so it floats above all other content */}
+      {showSubStopPicker && pickupStops.length > 0 && onPickupStopSelect && (
+        <SubStopPickerModal
+          stops={pickupStops}
+          matchingStops={matchingPickupStops}
+          title={selectStopPrompt || pickupSuggestionLabel || 'Chọn điểm'}
+          selectedStop={selectedStop || ''}
+          matchingLabel={stopPickerMatchingLabel || 'Kết quả liên quan'}
+          allLabel={stopPickerAllLabel || 'Tất cả điểm dừng'}
+          closeLabel={stopPickerCloseLabel || 'Đóng'}
+          noStopsLabel={stopPickerNoStopsLabel || 'Không có điểm dừng'}
+          onSelect={(name, address, surcharge) => {
+            onPickupStopSelect(name, address, surcharge);
+            setShowSubStopPicker(false);
+          }}
+          onClose={() => setShowSubStopPicker(false)}
+        />
       )}
     </div>
   );
 }
 );
+
+// ---------------------------------------------------------------------------
+// HowToUseGuide – collapsible step-by-step guide for non-tech-savvy users.
+// ---------------------------------------------------------------------------
+function HowToUseGuide({ t }: { t: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const steps = [
+    t.how_to_use_step1,
+    t.how_to_use_step2,
+    t.how_to_use_step3,
+    t.how_to_use_step4,
+    t.how_to_use_step5,
+  ].filter(Boolean);
+
+  return (
+    <div className="bg-white rounded-[28px] border border-blue-100 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-blue-50/50 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-xl">💡</span>
+          <span className="font-bold text-sm text-blue-700">{t.how_to_use_title || 'Hướng dẫn đặt vé từng bước'}</span>
+        </div>
+        <ChevronDown size={16} className={cn("text-blue-400 transition-transform duration-200", open ? "rotate-180" : "")} />
+      </button>
+      {open && (
+        <div className="px-5 pb-5 border-t border-blue-50">
+          <div className="space-y-3 mt-4">
+            {steps.map((step, idx) => {
+              // Split on first occurrence of ' – ' (en dash) or ' - ' (regular hyphen) so the
+              // bold step title is separated from the body even if translation uses different dashes.
+              const match = (step || '').match(/^(.+?)\s[–-]\s(.+)$/s);
+              const bold = match ? match[1] : null;
+              const body = match ? match[2] : step;
+              return (
+                <div key={idx} className="flex gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-daiichi-red text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1 text-sm text-gray-700 leading-relaxed">
+                    {bold ? (
+                      <>
+                        <span className="font-semibold text-gray-800">{bold} –</span>{' '}
+                        {body}
+                      </>
+                    ) : (
+                      step
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -1072,6 +1302,8 @@ export function BookTicketPage({
 
   return (
     <div className="space-y-8">
+      {/* Step-by-step guide – collapsible, helpful for first-time users */}
+      <HowToUseGuide t={t} />
       <div className="bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center gap-6 mb-6">
           <h2 className="text-2xl font-bold">{t.search_title}</h2>
@@ -1124,6 +1356,11 @@ export function BookTicketPage({
                 pickupSuggestionLabel={t.pickup_stop_suggestion}
                 selectedStop={pickupAddress}
                 onPickupStopSelect={(name, address, surcharge) => { setPickupAddress(name); setPickupStopAddress(address); setPickupAddressSurcharge(surcharge); }}
+                selectStopPrompt={t.select_pickup_point}
+                stopPickerMatchingLabel={t.stop_picker_matching}
+                stopPickerAllLabel={t.stop_picker_all}
+                stopPickerCloseLabel={t.stop_picker_close}
+                stopPickerNoStopsLabel={t.stop_picker_no_stops}
               />
             </div>
           </div>
@@ -1143,6 +1380,11 @@ export function BookTicketPage({
                 pickupSuggestionLabel={t.dropoff_stop_suggestion}
                 selectedStop={dropoffAddress}
                 onPickupStopSelect={(name, address, surcharge) => { setDropoffAddress(name); setDropoffStopAddress(address); setDropoffAddressSurcharge(surcharge); }}
+                selectStopPrompt={t.select_dropoff_point}
+                stopPickerMatchingLabel={t.stop_picker_matching}
+                stopPickerAllLabel={t.stop_picker_all}
+                stopPickerCloseLabel={t.stop_picker_close}
+                stopPickerNoStopsLabel={t.stop_picker_no_stops}
               />
             </div>
           </div>
@@ -1168,6 +1410,49 @@ export function BookTicketPage({
           <div className="mt-3 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
             <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-amber-500" />
             <span>{t.no_segment_warning || 'Không tìm thấy chặng nào kết nối hai điểm này. Vui lòng thay đổi điểm đi hoặc điểm đến.'}</span>
+          </div>
+        )}
+        {/* Booking summary – shows what the customer has selected so far */}
+        {(searchStationFrom || searchStationTo || pickupAddress || dropoffAddress) && (
+          <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100">
+            <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <span>📋</span>
+              <span>{t.booking_summary_title || 'Thông tin hành trình bạn đang chọn'}</span>
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
+                  <span>🚌</span> {t.booking_summary_from || 'Bến xuất phát'}
+                </span>
+                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
+                  {searchStationFrom || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
+                  <span>🏁</span> {t.booking_summary_to || 'Bến đến'}
+                </span>
+                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
+                  {searchStationTo || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
+                  <span>📍</span> {t.booking_summary_pickup || 'Điểm đón'}
+                </span>
+                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
+                  {pickupAddress || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide flex items-center gap-1">
+                  <span>📌</span> {t.booking_summary_dropoff || 'Điểm trả'}
+                </span>
+                <p className="text-xs font-bold text-gray-800 break-words leading-snug">
+                  {dropoffAddress || <span className="text-gray-400 font-normal italic">{t.not_selected_yet || 'Chưa chọn'}</span>}
+                </p>
+              </div>
+            </div>
           </div>
         )}
         {/* Passenger count row + search button */}
