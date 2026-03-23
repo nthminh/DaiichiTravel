@@ -36,6 +36,7 @@ export function usePassengerManagement({ language, bookings, setTrips }: UsePass
     seat: true,
     name: true,
     phone: true,
+    segment: true,
     pickup: true,
     dropoff: true,
     status: true,
