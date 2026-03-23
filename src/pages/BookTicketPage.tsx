@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowLeftRight } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
@@ -1495,7 +1495,7 @@ export function BookTicketPage({
               title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
               className="flex-shrink-0 self-center sm:self-start sm:mt-7 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-daiichi-red/50 hover:bg-daiichi-red/5 hover:text-daiichi-red transition-all"
             >
-              <ArrowLeftRight size={15} />
+              <ArrowUpDown size={15} />
             </button>
             <div className="flex-1 min-w-0">
               <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
