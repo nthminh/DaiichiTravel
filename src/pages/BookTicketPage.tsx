@@ -61,7 +61,7 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                   <p className="text-[10px] font-bold text-daiichi-red uppercase tracking-wider mb-1.5 flex items-center gap-1">
                     <span>🎯</span> {matchingLabel}
                   </p>
-                  <div className="space-y-1">
+                  <div className="space-y-1 pl-2">
                     {matchingStops.map(stop => (
                       <button
                         key={stop.id}
@@ -91,7 +91,7 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                   {matchingStops.length > 0 && (
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{allLabel}</p>
                   )}
-                  <div className="space-y-1">
+                  <div className="space-y-1 pl-2">
                     {otherStops.map(stop => (
                       <button
                         key={stop.id}
@@ -453,25 +453,25 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       )}
       {/* Sub-stop picker trigger button shown below the confirmed input */}
       {isConfirmed && pickupStops.length > 0 && onPickupStopSelect && (
-        <div className="mt-2 px-1">
+        <div className="mt-1.5 ml-5 mr-1">
           <button
             type="button"
             onClick={() => setShowSubStopPicker(true)}
             className={cn(
               "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-all",
               selectedStop
-                ? "bg-daiichi-red/5 border-daiichi-red/30 text-daiichi-red"
-                : "bg-gray-50 border-gray-200 text-gray-500 hover:border-daiichi-red/40 hover:text-daiichi-red"
+                ? "bg-gray-50 border-gray-200 text-gray-800"
+                : "bg-gray-50 border-gray-100 text-gray-500 hover:border-gray-200 hover:text-gray-700"
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <MapPin size={13} className="flex-shrink-0" />
+              <MapPin size={13} className={cn("flex-shrink-0", selectedStop ? "text-gray-500" : "text-gray-400")} />
               <span className="truncate text-left text-xs">
                 {selectedStop || selectStopPrompt || pickupSuggestionLabel}
               </span>
             </div>
             {selectedStop ? (
-              <CheckCircle2 size={13} className="flex-shrink-0 text-daiichi-red" />
+              <CheckCircle2 size={13} className="flex-shrink-0 text-gray-500" />
             ) : (
               <ChevronDown size={13} className="flex-shrink-0" />
             )}
