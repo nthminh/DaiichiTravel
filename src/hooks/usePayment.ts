@@ -116,7 +116,7 @@ export interface PendingQrBooking {
   ref: string;
   label: string;
   execute: () => Promise<void>;
-  /** Called when the user cancels or the 30-min timer expires – releases the reserved seats */
+  /** Called when the user cancels or the 3-min timer expires – releases the reserved seats */
   cancel: () => Promise<void>;
 }
 
@@ -938,7 +938,7 @@ export function usePayment(ctx: BookingContext) {
         ? { fromStopOrder, toStopOrder }
         : undefined;
 
-      // Release reserved seats when the user cancels or the 30-min timer expires
+      // Release reserved seats when the user cancels or the 3-min timer expires
       const releaseReservation = async () => {
         const ctx2 = ctxRef.current;
         await transportService.releaseSeats(capturedTripId, capturedSeatIds, capturedSegmentInfo)

@@ -168,8 +168,10 @@ export function SeatMappingPage({
 
   // Internal state – only used by this page
   const [segmentConflictSeat, setSegmentConflictSeat] = useState<string | null>(null);
+  const [takenSeatNotice, setTakenSeatNotice] = useState<string | null>(null);
   const [showRouteDetails, setShowRouteDetails] = useState(false);
   const segmentConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const takenSeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Returns true if the address input should be disabled for the given trip date. */
   const isAddressDisabled = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
@@ -403,6 +405,11 @@ export function SeatMappingPage({
                   }
                 }
               }
+            } else {
+              // Fully-booked / paid seat → notify the user
+              if (takenSeatTimerRef.current) clearTimeout(takenSeatTimerRef.current);
+              setTakenSeatNotice(seatId);
+              takenSeatTimerRef.current = setTimeout(() => setTakenSeatNotice(null), 4000);
             }
             return;
           }
@@ -469,7 +476,7 @@ export function SeatMappingPage({
   return (
   <>
   {/* Mobile backdrop dim when a bottom-sheet form is visible */}
-  {(showPreBookingInfo || !!showBookingForm) && (
+  {(showPreBookingInfo || (!!showBookingForm && !(isSelectingExtraSeats && !canConfirmBooking))) && (
     <div className="fixed inset-0 bg-black/20 z-[140] lg:hidden" />
   )}
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -744,6 +751,28 @@ export function SeatMappingPage({
                   ? `座席 ${segmentConflictSeat}: この区間はすでに予約されています — 別の区間を選んでください。`
                   : `Seat ${segmentConflictSeat}: This segment is already booked — please choose a different segment.`}
             </span>
+          </div>
+        )}
+
+        {/* Taken-seat warning banner */}
+        {takenSeatNotice && (
+          <div className="mt-3 mx-auto max-w-xs p-2 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2 text-xs font-bold text-red-700">
+            <span>🚫</span>
+            <span className="flex-1">
+              {language === 'vi'
+                ? `Ghế ${takenSeatNotice} đã có người đặt rồi — vui lòng chọn ghế khác.`
+                : language === 'ja'
+                  ? `座席 ${takenSeatNotice} はすでに予約済みです — 別の座席を選んでください。`
+                  : `Seat ${takenSeatNotice} is already booked — please choose another seat.`}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTakenSeatNotice(null)}
+              className="flex-shrink-0 text-red-400 hover:text-red-600 transition-colors"
+              aria-label={language === 'vi' ? 'Đóng thông báo' : 'Dismiss'}
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
       </div>
@@ -1153,7 +1182,10 @@ export function SeatMappingPage({
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white p-3 sm:p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
+              className={cn(
+                "bg-white p-3 sm:p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red",
+                isSelectingExtraSeats && !canConfirmBooking && "hidden lg:block"
+              )}
             >
               {/* Drag handle visible on mobile */}
               <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 lg:hidden" />
@@ -1367,10 +1399,10 @@ export function SeatMappingPage({
                       </div>
                       <p className="text-[10px] text-blue-400 mt-1 ml-1">
                         {language === 'vi'
-                          ? 'Thanh toán QR bắt buộc. Thời gian chờ thanh toán: 30 phút.'
+                          ? 'Thanh toán QR bắt buộc. Thời gian chờ thanh toán: 3 phút.'
                           : language === 'ja'
-                          ? 'QR支払い必須。支払い待機時間：30分。'
-                          : 'QR payment required. Payment window: 30 minutes.'}
+                          ? 'QR支払い必須。支払い待機時間：3分。'
+                          : 'QR payment required. Payment window: 3 minutes.'}
                       </p>
                     </div>
                   );
