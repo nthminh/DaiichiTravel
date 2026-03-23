@@ -59,9 +59,6 @@ export default defineConfig(({mode}) => {
             ) {
               return 'vendor-motion';
             }
-            if (id.includes('node_modules/xlsx')) {
-              return 'vendor-xlsx';
-            }
           },
         },
       },

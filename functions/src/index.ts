@@ -4,6 +4,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import * as nodemailer from 'nodemailer';
 import { sanitize } from 'isomorphic-dompurify';
+import * as XLSX from 'xlsx';
 
 /**
  * Sanitize a user-supplied value for safe inclusion in HTML content or plain-text
@@ -625,6 +626,373 @@ ${companyInfoHtml(appUrl)}`;
         customerId: event.params.customerId,
         error: msg,
       });
+    }
+  },
+);
+
+// ── Excel Export Cloud Functions ──────────────────────────────────────────────
+//
+// These functions replace the former client-side xlsx usage.
+// Moving xlsx to the server:
+//   1. Removes the xlsx bundle from the browser (smaller download, no
+//      client-side ReDoS / Prototype-Pollution exposure).
+//   2. Centralises export logic so it cannot be tampered with in DevTools.
+//   3. Lets the server read Firestore data directly (exportTripExcel),
+//      so the client only needs to supply a tripId rather than the full
+//      trip + bookings + routes payload.
+//
+// The xlsx library is used ONLY for generating files (no user-supplied
+// Excel parsing), so the Prototype-Pollution and ReDoS advisories have
+// negligible practical impact in this context.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ---------- private helpers shared by both export functions ----------
+
+const excelFormatTripTime = (trip: Record<string, unknown>): string =>
+  trip.date ? `${trip.date} ${trip.time}` : (trip.time as string) || '';
+
+const excelGetPickup = (seat: Record<string, unknown>): string => {
+  const parts = [seat.pickupAddressDetail, seat.pickupAddress, seat.pickupStopAddress].filter(Boolean);
+  if (parts.length) return parts.join(' & ');
+  return seat.fromStopOrder != null ? (seat.pickupPoint as string) || '' : '';
+};
+
+const excelGetDropoff = (seat: Record<string, unknown>): string => {
+  const parts = [seat.dropoffAddressDetail, seat.dropoffAddress, seat.dropoffStopAddress].filter(Boolean);
+  if (parts.length) return parts.join(' & ');
+  return seat.toStopOrder != null ? (seat.dropoffPoint as string) || '' : '';
+};
+
+const excelBuildSegmentLabel = (
+  seat: Record<string, unknown>,
+  stopNameByOrder: Record<number, string>,
+): string => {
+  const segs = seat.segmentBookings as unknown[] | undefined;
+  if (segs && segs.length > 0) return `${segs.length} chặng`;
+  const fromOrder = seat.fromStopOrder as number | undefined;
+  const toOrder = seat.toStopOrder as number | undefined;
+  if (fromOrder == null && toOrder == null) return '';
+  const fromName: string =
+    (seat.pickupPoint as string) || (fromOrder ? stopNameByOrder[fromOrder] || `Trạm ${fromOrder}` : '');
+  const toName: string =
+    (seat.dropoffPoint as string) || (toOrder ? stopNameByOrder[toOrder] || `Trạm ${toOrder}` : '');
+  if (!fromName && !toName) return '';
+  return `${fromName} → ${toName}`;
+};
+
+const excelIsSeatSegment = (seat: Record<string, unknown>, totalStops: number): boolean => {
+  const segs = seat.segmentBookings as unknown[] | undefined;
+  if (segs && segs.length > 0) return true;
+  const fromOrder = seat.fromStopOrder as number | undefined;
+  const toOrder = seat.toStopOrder as number | undefined;
+  if (fromOrder != null && fromOrder > 1) return true;
+  if (toOrder != null && totalStops > 0 && toOrder < totalStops) return true;
+  return false;
+};
+
+const excelBuildPassengerGroups = (
+  tripId: string,
+  bookedSeats: Record<string, unknown>[],
+  bookings: Record<string, unknown>[],
+): { booking: Record<string, unknown> | undefined; seats: Record<string, unknown>[] }[] => {
+  const seatToBooking = new Map<string, Record<string, unknown>>();
+  for (const bk of bookings) {
+    if (bk.tripId !== tripId) continue;
+    if (bk.seatId) seatToBooking.set(bk.seatId as string, bk);
+    if (Array.isArray(bk.seatIds)) {
+      for (const sid of bk.seatIds as string[]) seatToBooking.set(sid, bk);
+    }
+  }
+  const groupMap = new Map<string, { booking: Record<string, unknown> | undefined; seats: Record<string, unknown>[] }>();
+  for (const seat of bookedSeats) {
+    const bk = seatToBooking.get(seat.id as string);
+    const key = (bk?.id as string) || (bk?.ticketCode as string) || `__${seat.id}`;
+    if (!groupMap.has(key)) groupMap.set(key, { booking: bk, seats: [] });
+    groupMap.get(key)!.seats.push(seat);
+  }
+  return [...groupMap.values()];
+};
+
+const excelBuildAddonUsersMap = (
+  trip: Record<string, unknown>,
+  passengerGroups: { booking: Record<string, unknown> | undefined; seats: Record<string, unknown>[] }[],
+) => {
+  const map = new Map<string, {
+    name: string; price: number; type: string; description?: string;
+    users: { name: string; phone: string; seats: string; quantity: number }[];
+  }>();
+  for (const addon of ((trip.addons as Record<string, unknown>[]) || [])) {
+    map.set(addon.id as string, {
+      name: addon.name as string,
+      price: addon.price as number,
+      type: addon.type as string,
+      description: addon.description as string | undefined,
+      users: [],
+    });
+  }
+  for (const g of passengerGroups) {
+    const selectedAddons = (g.booking?.selectedAddons as { id: string; name: string; price: number; quantity?: number }[]) || [];
+    const primarySeat = g.seats[0];
+    const seatIds = g.seats.map(s => s.id).join(', ');
+    for (const sa of selectedAddons) {
+      if (!map.has(sa.id)) {
+        map.set(sa.id, { name: sa.name, price: sa.price, type: '—', users: [] });
+      }
+      map.get(sa.id)!.users.push({
+        name: (primarySeat.customerName as string) || '—',
+        phone: (primarySeat.customerPhone as string) || '—',
+        seats: seatIds,
+        quantity: sa.quantity || 1,
+      });
+    }
+  }
+  return map;
+};
+
+const excelAddonTypeLabel = (type: string): string =>
+  type === 'SIGHTSEEING' ? 'Tham quan' : type === 'TRANSPORT' ? 'Di chuyển' : type === 'FOOD' ? 'Ăn uống' : 'Khác';
+
+/**
+ * Build an XLSX workbook for a trip's passenger manifest and return it as a
+ * base-64 string so the caller can stream it back to the browser.
+ */
+function buildTripExcelBase64(
+  trip: Record<string, unknown>,
+  bookings: Record<string, unknown>[],
+  route: Record<string, unknown> | null,
+): { base64: string; filename: string } {
+  const SEAT_STATUS_EMPTY = 'EMPTY';
+  const SEAT_STATUS_PAID  = 'PAID';
+
+  const bookedSeats = ((trip.seats as Record<string, unknown>[]) || [])
+    .filter(s => s.status !== SEAT_STATUS_EMPTY);
+
+  const sortedRouteStops = ((route?.routeStops as Record<string, unknown>[]) || [])
+    .slice()
+    .sort((a, b) => (a.order as number) - (b.order as number));
+  const totalStops = sortedRouteStops.length;
+  const stopNameByOrder: Record<number, string> = {};
+  for (const stop of sortedRouteStops) {
+    stopNameByOrder[stop.order as number] = stop.stopName as string;
+  }
+
+  const passengerGroups = excelBuildPassengerGroups(trip.id as string, bookedSeats, bookings);
+
+  const headerRows: (string | number)[][] = [
+    ['DANH SÁCH HÀNH KHÁCH - TRIP DETAIL'],
+    [`Số xe: ${(trip.licensePlate as string) || '—'}`],
+    [`Tài xế: ${(trip.driverName as string) || '—'}`],
+    [
+      `Tuyến: ${(trip.route as string) || '—'}${route
+        ? ` (${route.departurePoint} → ${route.arrivalPoint})`
+        : ''}`,
+    ],
+    [`Ngày giờ chạy: ${excelFormatTripTime(trip)}`],
+    [`Trạng thái: ${(trip.status as string) || '—'}`],
+    [],
+    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Chặng đi', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
+  ];
+
+  const dataRows = passengerGroups.map((g, idx) => {
+    const primarySeat = g.seats[0];
+    const seatIds = g.seats.map(s => s.id).join(', ');
+    const ticketCode = (g.booking?.ticketCode as string) || '—';
+    const allPaid = g.seats.every(s => s.status === SEAT_STATUS_PAID);
+    const totalAmount: number =
+      (g.booking?.amount as number) ?? ((trip.price as number) || 0) * g.seats.length;
+    const segLabel = excelBuildSegmentLabel(primarySeat, stopNameByOrder);
+    const isSeg = g.seats.some(s => excelIsSeatSegment(s, totalStops));
+    return [
+      idx + 1,
+      ticketCode,
+      seatIds,
+      (primarySeat.customerName as string) || '—',
+      (primarySeat.customerPhone as string) || '—',
+      excelGetPickup(primarySeat) || '—',
+      excelGetDropoff(primarySeat) || '—',
+      isSeg ? (segLabel || 'Chặng lẻ') : 'Toàn tuyến',
+      allPaid ? 'Đã thanh toán' : 'Đã đặt',
+      totalAmount.toLocaleString(),
+      (primarySeat.bookingNote as string) || '',
+    ];
+  });
+
+  const totalRevenue = passengerGroups.reduce(
+    (sum, g) => sum + ((g.booking?.amount as number) ?? ((trip.price as number) || 0) * g.seats.length),
+    0,
+  );
+  const segmentCount = passengerGroups.filter(g =>
+    g.seats.some(s => excelIsSeatSegment(s, totalStops)),
+  ).length;
+  const summaryRows: (string | number)[][] = [
+    [],
+    [`Tổng số đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)`],
+    [`Khách chặng lẻ: ${segmentCount}`],
+    [`Tổng doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ`],
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet([...headerRows, ...dataRows, ...summaryRows]);
+  worksheet['!cols'] = [
+    { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 15 },
+    { wch: 35 }, { wch: 35 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 30 },
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách');
+
+  // Addon sheet
+  const addonUsersMap = excelBuildAddonUsersMap(trip, passengerGroups);
+  const addonHeaderRows: (string | number)[][] = [
+    ['DANH SÁCH DỊCH VỤ BỔ SUNG'],
+    [`Số xe: ${(trip.licensePlate as string) || '—'}`],
+    [`Tuyến: ${(trip.route as string) || '—'}`],
+    [`Ngày giờ chạy: ${excelFormatTripTime(trip)}`],
+    [],
+    ['STT', 'Tên dịch vụ', 'Loại', 'Giá/người (đ)', 'Số khách', 'Tên khách hàng', 'Số điện thoại', 'Số ghế', 'Số lượng'],
+  ];
+  const addonDataRows: (string | number)[][] = [];
+  let addonStt = 1;
+  for (const [, info] of addonUsersMap) {
+    if (info.users.length === 0) {
+      addonDataRows.push([addonStt++, info.name, excelAddonTypeLabel(info.type), info.price.toLocaleString(), 0, '—', '—', '—', '—']);
+    } else {
+      info.users.forEach((u, i) => {
+        addonDataRows.push([
+          i === 0 ? addonStt : '',
+          i === 0 ? info.name : '',
+          i === 0 ? excelAddonTypeLabel(info.type) : '',
+          i === 0 ? info.price.toLocaleString() : '',
+          i === 0 ? info.users.length : '',
+          u.name, u.phone, u.seats, u.quantity,
+        ]);
+      });
+      addonStt++;
+    }
+  }
+  const addonWorksheet = XLSX.utils.aoa_to_sheet([...addonHeaderRows, ...addonDataRows]);
+  addonWorksheet['!cols'] = [
+    { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 14 }, { wch: 10 },
+    { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 },
+  ];
+  XLSX.utils.book_append_sheet(workbook, addonWorksheet, 'Dịch vụ');
+
+  const sanitizedPlate = ((trip.licensePlate as string) || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
+  const formattedDate = ((trip.date as string) || 'nodate').replace(/-/g, '');
+  const formattedTime = ((trip.time as string) || 'notime').replace(/:/g, '');
+  const filename = `Chuyen_${sanitizedPlate}_${formattedDate}_${formattedTime}.xlsx`;
+
+  const base64 = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' }) as string;
+  return { base64, filename };
+}
+
+/**
+ * exportTripExcel – HTTPS Callable
+ *
+ * Accepts a `tripId`, reads the trip, its bookings, and its route from
+ * Firestore server-side, then returns the passenger manifest as a base-64
+ * encoded .xlsx file.
+ *
+ * Request payload: `{ tripId: string }`
+ * Response:        `{ base64: string; filename: string }`
+ */
+export const exportTripExcel = https.onCall(
+  { region: 'asia-southeast1', cors: true },
+  async (request): Promise<{ base64: string; filename: string }> => {
+    const data = request.data as { tripId?: unknown };
+
+    if (!data || typeof data.tripId !== 'string' || !data.tripId.trim()) {
+      throw new https.HttpsError('invalid-argument', 'A non-empty tripId is required.');
+    }
+
+    const tripId = data.tripId.trim();
+    const db = admin.firestore();
+
+    // Fetch trip
+    const tripSnap = await db.collection('trips').doc(tripId).get();
+    if (!tripSnap.exists) {
+      throw new https.HttpsError('not-found', `Trip "${tripId}" not found.`);
+    }
+    const trip = { id: tripSnap.id, ...tripSnap.data() } as Record<string, unknown>;
+
+    // Fetch bookings for this trip
+    const bookingsSnap = await db
+      .collection('bookings')
+      .where('tripId', '==', tripId)
+      .get();
+    const bookings = bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Record<string, unknown>[];
+
+    // Fetch the matching route by name
+    let route: Record<string, unknown> | null = null;
+    if (trip.route) {
+      const routeSnap = await db
+        .collection('routes')
+        .where('name', '==', trip.route)
+        .limit(1)
+        .get();
+      if (!routeSnap.empty) {
+        route = { id: routeSnap.docs[0].id, ...routeSnap.docs[0].data() } as Record<string, unknown>;
+      }
+    }
+
+    try {
+      return buildTripExcelBase64(trip, bookings, route);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('[exportTripExcel] Failed to build workbook', { tripId, error: msg });
+      throw new https.HttpsError('internal', 'Failed to generate Excel file.');
+    }
+  },
+);
+
+/**
+ * exportGenericExcel – HTTPS Callable
+ *
+ * Generic export helper used by Dashboard (bookings), FinancialReport
+ * (invoices) and PickupDropoffManagement (pickup/dropoff rows).
+ *
+ * The client pre-filters and serialises the rows it wants exported, then
+ * sends them here.  The function produces a single-sheet workbook and
+ * returns it as a base-64 string.
+ *
+ * Request payload: `{ rows: Record<string, unknown>[]; sheetName?: string; filename: string }`
+ * Response:        `{ base64: string; filename: string }`
+ */
+export const exportGenericExcel = https.onCall(
+  { region: 'asia-southeast1', cors: true },
+  async (request): Promise<{ base64: string; filename: string }> => {
+    const data = request.data as {
+      rows?: unknown;
+      sheetName?: unknown;
+      filename?: unknown;
+    };
+
+    if (!data || !Array.isArray(data.rows) || data.rows.length === 0) {
+      throw new https.HttpsError('invalid-argument', '`rows` must be a non-empty array.');
+    }
+    if (data.rows.length > 50000) {
+      throw new https.HttpsError('invalid-argument', 'Row count exceeds the 50,000-row limit.');
+    }
+    if (typeof data.filename !== 'string' || !data.filename.trim()) {
+      throw new https.HttpsError('invalid-argument', 'A non-empty `filename` is required.');
+    }
+
+    const rows = data.rows as Record<string, unknown>[];
+    const sheetName = typeof data.sheetName === 'string' && data.sheetName.trim()
+      ? data.sheetName.trim().slice(0, 31) // Excel sheet-name limit
+      : 'Sheet1';
+    const filename = data.filename.trim().endsWith('.xlsx')
+      ? data.filename.trim()
+      : `${data.filename.trim()}.xlsx`;
+
+    try {
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      const base64 = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' }) as string;
+      return { base64, filename };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('[exportGenericExcel] Failed to build workbook', { filename, error: msg });
+      throw new https.HttpsError('internal', 'Failed to generate Excel file.');
     }
   },
 );

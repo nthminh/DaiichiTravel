@@ -879,7 +879,7 @@ export default function App() {
   const buildPassengerGroups = (tripId: string, bookedSeats: any[]) =>
     libBuildPassengerGroups(tripId, bookedSeats, bookings);
 
-  const exportTripToExcelHandler = (trip: any) => exportTripToExcel(trip, bookings, routes);
+  const exportTripToExcelHandler = (trip: any) => exportTripToExcel(trip.id).catch(err => console.error('[Excel] Export failed:', err));
   const exportTripToPDFHandler = (trip: any) => exportTripToPDF(trip, bookings, routes);
 
 

@@ -16,7 +16,8 @@
     "firebase-functions": "^5.0.1",
     "html-encoding-sniffer": "^6.0.0",
     "isomorphic-dompurify": "^3.3.0",
-    "nodemailer": "^8.0.2"
+    "nodemailer": "^8.0.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.5",

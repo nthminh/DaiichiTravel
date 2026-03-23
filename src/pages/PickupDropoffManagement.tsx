@@ -4,7 +4,6 @@ import {
   XCircle, Clock, Truck, Bus, Filter, Download, AlertCircle,
   ArrowDownCircle, ArrowUpCircle, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS } from '../constants/translations';
@@ -13,6 +12,7 @@ import { Trip, Employee, Seat, DriverAssignment, SeatStatus, User, UserRole } fr
 import { transportService } from '../services/transportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ToastContainer';
+import { exportRowsToExcel } from '../utils/exportUtils';
 import { nowVN } from '../lib/vnDate';
 
 interface BookingRow {
@@ -499,10 +499,9 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       ...makeRows(pickupRows,  language === 'vi' ? 'Đón' : 'Pickup'),
       ...makeRows(dropoffRows, language === 'vi' ? 'Trả' : 'Dropoff'),
     ];
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'PickupDropoff');
-    XLSX.writeFile(wb, `diem-don-tra-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportRowsToExcel(data, `diem-don-tra-${new Date().toISOString().slice(0, 10)}.xlsx`, 'PickupDropoff').catch(err =>
+      console.error('[Excel] Export failed:', err),
+    );
   };
 
   // ── Status badge helper ────────────────────────────────────────────────────
