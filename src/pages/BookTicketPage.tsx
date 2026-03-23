@@ -77,7 +77,6 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                         <MapPin size={13} className="flex-shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium break-words">{stop.name}</p>
-                          {stop.address && <p className={cn("text-[11px] break-words", selectedStop === stop.name ? "text-white/80" : "text-red-400")}>{stop.address}</p>}
                         </div>
                         {selectedStop === stop.name && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
                       </button>
@@ -108,7 +107,6 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
                         <MapPin size={13} className={cn("flex-shrink-0 mt-0.5", selectedStop === stop.name ? "text-white" : "text-gray-400")} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium break-words">{stop.name}</p>
-                          {stop.address && <p className={cn("text-[11px] break-words", selectedStop === stop.name ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
                         </div>
                         {selectedStop === stop.name && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
                       </button>
@@ -147,8 +145,6 @@ interface StopSearchInputProps {
   onChange: (text: string, terminal: string) => void;
   /** Called once a terminal is confirmed (e.g. to auto-focus the next field). */
   onConfirmed?: () => void;
-  /** Label shown below the confirmed input, e.g. "Bến xuất phát" or "Bến đến". */
-  terminalLabel?: string;
   /** Label for the pickup/dropoff stop suggestion chips, e.g. "Gợi ý điểm đón". */
   pickupSuggestionLabel?: string;
   /** Currently pre-selected pickup/dropoff stop name. */
@@ -177,13 +173,16 @@ interface StopSearchInputHandle {
 const BLUR_DEBOUNCE_MS = 150;
 
 const StopSearchInput = React.forwardRef<StopSearchInputHandle, StopSearchInputProps>(
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, terminalLabel, pickupSuggestionLabel, selectedStop, onPickupStopSelect, selectStopPrompt, stopPickerMatchingLabel, stopPickerAllLabel, stopPickerCloseLabel, stopPickerNoStopsLabel }: StopSearchInputProps, ref) {
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, pickupSuggestionLabel, selectedStop, onPickupStopSelect, selectStopPrompt, stopPickerMatchingLabel, stopPickerAllLabel, stopPickerCloseLabel, stopPickerNoStopsLabel }: StopSearchInputProps, ref) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMustSelect, setShowMustSelect] = useState(false);
   const [showSubStopPicker, setShowSubStopPicker] = useState(false);
   // Remember what the user typed just before they confirmed a terminal, so we can
   // pre-filter sub-stops to only the ones that are relevant to their search query.
   const [lastTypedQuery, setLastTypedQuery] = useState('');
+  // When a terminal with child stops is confirmed, we defer onConfirmed until the
+  // sub-stop picker is dismissed (either by selection or by pressing Close).
+  const pendingOnConfirmedRef = useRef(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Ref to always access the latest terminalValue inside async callbacks
@@ -315,6 +314,18 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     onChange(terminalName, terminalName);
     setShowDropdown(false);
     setShowMustSelect(false);
+    // If this terminal has child (pickup/dropoff) stops, auto-open the picker
+    // immediately so the user can select one right away, and defer onConfirmed
+    // until after the picker is dismissed.
+    if (onPickupStopSelect) {
+      const selectedTerminal = stops.find(s => s.name === terminalName && s.type === 'TERMINAL');
+      const hasChildStops = selectedTerminal ? stops.some(s => s.terminalId === selectedTerminal.id) : false;
+      if (hasChildStops) {
+        pendingOnConfirmedRef.current = true;
+        setShowSubStopPicker(true);
+        return;
+      }
+    }
     onConfirmed?.();
   };
 
@@ -336,6 +347,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     onChange(value, '');
     setLastTypedQuery('');
     setShowSubStopPicker(false);
+    pendingOnConfirmedRef.current = false;
     setShowDropdown(true);
     setShowMustSelect(false);
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -379,7 +391,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       {value && (
         <button
           type="button"
-          onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); setLastTypedQuery(''); setShowSubStopPicker(false); }}
+          onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); setLastTypedQuery(''); setShowSubStopPicker(false); pendingOnConfirmedRef.current = false; }}
           className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
           aria-label="Clear"
         >
@@ -420,37 +432,31 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           )}
         </div>
       )}
-      {/* Terminal label + sub-stop picker trigger button shown below the confirmed input */}
-      {isConfirmed && terminalLabel && (
-        <div className="mt-2 px-1 space-y-1.5">
-          <p className="text-[11px] text-gray-500 flex items-center gap-1">
-            <span className="font-semibold text-gray-700">{terminalLabel}:</span>
-            <span>{terminalValue}</span>
-          </p>
-          {pickupStops.length > 0 && onPickupStopSelect && (
-            <button
-              type="button"
-              onClick={() => setShowSubStopPicker(true)}
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-all",
-                selectedStop
-                  ? "bg-daiichi-red/5 border-daiichi-red/30 text-daiichi-red"
-                  : "bg-gray-50 border-gray-200 text-gray-500 hover:border-daiichi-red/40 hover:text-daiichi-red"
-              )}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <MapPin size={13} className="flex-shrink-0" />
-                <span className="truncate text-left text-xs">
-                  {selectedStop || selectStopPrompt || pickupSuggestionLabel}
-                </span>
-              </div>
-              {selectedStop ? (
-                <CheckCircle2 size={13} className="flex-shrink-0 text-daiichi-red" />
-              ) : (
-                <ChevronDown size={13} className="flex-shrink-0" />
-              )}
-            </button>
-          )}
+      {/* Sub-stop picker trigger button shown below the confirmed input */}
+      {isConfirmed && pickupStops.length > 0 && onPickupStopSelect && (
+        <div className="mt-2 px-1">
+          <button
+            type="button"
+            onClick={() => setShowSubStopPicker(true)}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-all",
+              selectedStop
+                ? "bg-daiichi-red/5 border-daiichi-red/30 text-daiichi-red"
+                : "bg-gray-50 border-gray-200 text-gray-500 hover:border-daiichi-red/40 hover:text-daiichi-red"
+            )}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin size={13} className="flex-shrink-0" />
+              <span className="truncate text-left text-xs">
+                {selectedStop || selectStopPrompt || pickupSuggestionLabel}
+              </span>
+            </div>
+            {selectedStop ? (
+              <CheckCircle2 size={13} className="flex-shrink-0 text-daiichi-red" />
+            ) : (
+              <ChevronDown size={13} className="flex-shrink-0" />
+            )}
+          </button>
         </div>
       )}
       {/* Sub-stop picker modal – rendered as a fixed overlay so it floats above all other content */}
@@ -467,8 +473,18 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           onSelect={(name, address, surcharge) => {
             onPickupStopSelect(name, address, surcharge);
             setShowSubStopPicker(false);
+            if (pendingOnConfirmedRef.current) {
+              pendingOnConfirmedRef.current = false;
+              onConfirmed?.();
+            }
           }}
-          onClose={() => setShowSubStopPicker(false)}
+          onClose={() => {
+            setShowSubStopPicker(false);
+            if (pendingOnConfirmedRef.current) {
+              pendingOnConfirmedRef.current = false;
+              onConfirmed?.();
+            }
+          }}
         />
       )}
     </div>
@@ -1031,12 +1047,40 @@ export function BookTicketPage({
     return true;
   };
 
+  // Returns true when the given terminal has child (pickup/dropoff) sub-stops configured.
+  const terminalHasSubStops = (terminalName: string): boolean => {
+    if (!terminalName) return false;
+    const terminal = stops.find(s => s.name === terminalName && s.type === 'TERMINAL');
+    if (!terminal) return false;
+    return stops.some(s => s.terminalId === terminal.id);
+  };
+
+  // Returns true when the terminal is ready to search: either it has no sub-stops,
+  // or the user has already selected one.
+  const isTerminalReadyForSearch = (terminalName: string, selectedAddress: string): boolean =>
+    !terminalName || !terminalHasSubStops(terminalName) || !!selectedAddress;
+
+  // The search button is only enabled once all required stops are selected.
+  // If a terminal has sub-stops (pickup/dropoff points), one must be chosen before searching.
+  const isSearchReady =
+    isTerminalReadyForSearch(searchStationFrom, pickupAddress) &&
+    isTerminalReadyForSearch(searchStationTo, dropoffAddress);
+
   const handleSearch = () => {
     // Block search if the user typed text in a stop field but did not confirm a selection
     const fromUnconfirmed = searchFrom.trim() && !searchStationFrom;
     const toUnconfirmed = searchTo.trim() && !searchStationTo;
     if (fromUnconfirmed || toUnconfirmed) {
       showToast(t.stop_search_must_select, 'error');
+      return;
+    }
+    // Block search if a terminal has pickup/dropoff stops but none has been selected yet
+    if (!isTerminalReadyForSearch(searchStationFrom, pickupAddress)) {
+      showToast(t.select_pickup_point || 'Vui lòng chọn điểm đón', 'error');
+      return;
+    }
+    if (!isTerminalReadyForSearch(searchStationTo, dropoffAddress)) {
+      showToast(t.select_dropoff_point || 'Vui lòng chọn điểm trả', 'error');
       return;
     }
     setHasSearched(true);
@@ -1433,7 +1477,6 @@ export function BookTicketPage({
                   mustSelectError={t.stop_search_must_select}
                   onChange={handleFromChange}
                   onConfirmed={() => toStopRef.current?.focus()}
-                  terminalLabel={t.departure_terminal_label}
                   pickupSuggestionLabel={t.pickup_stop_suggestion}
                   selectedStop={pickupAddress}
                   onPickupStopSelect={(name, address, surcharge) => { setPickupAddress(name); setPickupStopAddress(address); setPickupAddressSurcharge(surcharge); }}
@@ -1466,7 +1509,6 @@ export function BookTicketPage({
                   nearestHint={t.stop_search_nearest_hint}
                   mustSelectError={t.stop_search_must_select}
                   onChange={handleToChange}
-                  terminalLabel={t.arrival_terminal_label}
                   pickupSuggestionLabel={t.dropoff_stop_suggestion}
                   selectedStop={dropoffAddress}
                   onPickupStopSelect={(name, address, surcharge) => { setDropoffAddress(name); setDropoffStopAddress(address); setDropoffAddressSurcharge(surcharge); }}
@@ -1597,92 +1639,19 @@ export function BookTicketPage({
           </div>
           {/* Search button – icon-only on mobile, full text on sm+ */}
           <div className="shrink-0 ml-auto sm:flex sm:mt-4">
-            <button onClick={handleSearch} className="px-4 sm:px-8 py-3 sm:py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+            <button
+              onClick={handleSearch}
+              disabled={!isSearchReady}
+              className={cn(
+                "px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap",
+                isSearchReady
+                  ? "bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]"
+                  : "bg-gray-300 shadow-gray-300/20 cursor-not-allowed"
+              )}
+            >
               <Search size={18} />
               <span className="sm:inline hidden">{t.search_btn}</span>
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Search & Price Filter Bar */}
-      <div className="bg-white p-4 sm:p-6 rounded-[32px] shadow-sm border border-gray-100">
-        <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
-          {/* Keyword Search */}
-          <div className="flex-1 min-w-[180px]">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.keyword_search}</label>
-            <div className="relative mt-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                value={bookTicketSearch}
-                onChange={e => setBookTicketSearch(e.target.value)}
-                placeholder={t.keyword_search_placeholder}
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-              />
-            </div>
-          </div>
-          {/* Time Range Filter */}
-          <div className="flex items-end gap-2">
-            <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.time_filter}</label>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                  <input
-                    type="time"
-                    value={searchTimeFrom}
-                    onChange={e => setSearchTimeFrom(e.target.value)}
-                    title={t.time_from}
-                    className="w-32 pl-9 pr-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                  />
-                </div>
-                <span className="text-gray-400 font-bold">—</span>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                  <input
-                    type="time"
-                    value={searchTimeTo}
-                    onChange={e => setSearchTimeTo(e.target.value)}
-                    title={t.time_to}
-                    className="w-32 pl-9 pr-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* Price Range Filter */}
-          <div className="flex items-end gap-2">
-            <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.price_range}</label>
-              <div className="flex items-center gap-2 mt-1">
-                <input
-                  type="number"
-                  min="0"
-                  value={priceMin}
-                  onChange={e => setPriceMin(e.target.value)}
-                  placeholder={t.price_min_placeholder}
-                  className="w-36 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                />
-                <span className="text-gray-400 font-bold">—</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={priceMax}
-                  onChange={e => setPriceMax(e.target.value)}
-                  placeholder={t.price_max_placeholder}
-                  className="w-36 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                />
-              </div>
-            </div>
-            {(bookTicketSearch || priceMin || priceMax || searchTimeFrom || searchTimeTo) && (
-              <button
-                onClick={() => { setBookTicketSearch(''); setPriceMin(''); setPriceMax(''); setSearchTimeFrom(''); setSearchTimeTo(''); }}
-                className="px-4 py-3 text-sm font-bold text-gray-400 hover:text-daiichi-red hover:bg-red-50 rounded-2xl transition-colors"
-              >
-                <X size={16} />
-              </button>
-            )}
           </div>
         </div>
       </div>
