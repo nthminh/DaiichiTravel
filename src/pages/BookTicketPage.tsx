@@ -375,7 +375,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
   return (
     <div ref={wrapperRef} className="relative">
       <MapPin
-        className={cn("absolute left-4 z-10 text-gray-400", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
+        className={cn("absolute left-4 z-10 text-gray-400", isConfirmed ? "top-2.5 sm:top-4" : "top-1/2 -translate-y-1/2")}
         size={18}
       />
       {isConfirmed ? (
@@ -384,7 +384,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           role="button"
           tabIndex={0}
           aria-label={`${value} – nhấn để chỉnh sửa`}
-          className="w-full pl-12 pr-14 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[56px] cursor-pointer"
+          className="w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer"
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
@@ -400,7 +400,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           onBlur={handleBlur}
           placeholder={placeholder}
           className={cn(
-            "w-full pl-12 pr-8 py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm font-medium text-gray-800",
+            "w-full pl-12 pr-8 py-2.5 sm:py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm font-medium text-gray-800",
             showMustSelect
               ? "border-daiichi-red focus:ring-daiichi-red/10"
               : "border-gray-100 focus:ring-daiichi-red/10"
@@ -411,14 +411,14 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
         <button
           type="button"
           onClick={() => { onChange('', ''); setShowDropdown(false); setShowMustSelect(false); setLastTypedQuery(''); setShowSubStopPicker(false); pendingOnConfirmedRef.current = false; }}
-          className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-4" : "top-1/2 -translate-y-1/2")}
+          className={cn("absolute right-3 text-gray-300 hover:text-gray-500 transition-colors", isConfirmed ? "top-2.5 sm:top-4" : "top-1/2 -translate-y-1/2")}
           aria-label="Clear"
         >
           <X size={14} />
         </button>
       )}
       {terminalValue && !showDropdown && (
-        <span className="absolute right-8 top-4 text-daiichi-red" title={terminalValue}>
+        <span className="absolute right-8 top-2.5 sm:top-4 text-daiichi-red" title={terminalValue}>
           <CheckCircle2 size={14} />
         </span>
       )}
@@ -1385,7 +1385,7 @@ export function BookTicketPage({
 
   return (
     <div className="space-y-8">
-      <div className="bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
+      <div className="bg-white p-3 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
           <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
@@ -1466,7 +1466,7 @@ export function BookTicketPage({
             <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
             <div className="relative sm:mt-1">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
             </div>
           </div>
           {tripType === 'ROUND_TRIP' && (
@@ -1474,7 +1474,7 @@ export function BookTicketPage({
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
               <div className="relative sm:mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
               </div>
             </div>
           )}
