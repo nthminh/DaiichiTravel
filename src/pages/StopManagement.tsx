@@ -35,6 +35,7 @@ const EMPTY_FORM: Omit<Stop, 'id'> = {
   terminalId: undefined,
   priority: undefined,
   vehicleTypes: undefined,
+  stt: undefined,
 };
 
 interface CopyModal {
@@ -66,6 +67,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   };
 
   const [colWidths, setColWidths] = useState({
+    stt: 70,
     name: 220,
     type: 120,
     terminal: 180,
@@ -278,6 +280,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
       terminalId: stop.terminalId,
       priority: stop.priority,
       vehicleTypes: stop.vehicleTypes,
+      stt: stop.stt,
     });
     setIsAdding(true);
   };
@@ -319,19 +322,24 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
     );
   });
 
-  // Group: terminals first, then their children sorted, then unaffiliated stops
+  // Group: terminals first (sorted by stt), then their children sorted by stt, then unaffiliated stops sorted by stt
   const sortedDisplay = (() => {
-    const terminals = filteredStops.filter(s => s.type === 'TERMINAL');
+    const byStt = (a: Stop, b: Stop) => {
+      const aStt = a.stt ?? Infinity;
+      const bStt = b.stt ?? Infinity;
+      return aStt - bStt;
+    };
+    const terminals = filteredStops.filter(s => s.type === 'TERMINAL').sort(byStt);
     const childMap: Record<string, Stop[]> = {};
     filteredStops.filter(s => s.type !== 'TERMINAL' && s.terminalId).forEach(s => {
       if (!childMap[s.terminalId!]) childMap[s.terminalId!] = [];
       childMap[s.terminalId!].push(s);
     });
-    const unaffiliated = filteredStops.filter(s => s.type !== 'TERMINAL' && !s.terminalId);
+    const unaffiliated = filteredStops.filter(s => s.type !== 'TERMINAL' && !s.terminalId).sort(byStt);
 
     const rows: { stop: Stop; isChild: boolean; childCount: number }[] = [];
     terminals.forEach(terminal => {
-      const children = childMap[terminal.id] || [];
+      const children = (childMap[terminal.id] || []).sort(byStt);
       rows.push({ stop: terminal, isChild: false, childCount: children.length });
       if (!collapsedTerminals.has(terminal.id)) {
         children.forEach(child => rows.push({ stop: child, isChild: true, childCount: 0 }));
@@ -550,6 +558,20 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                 placeholder={language === 'vi' ? 'Tuỳ chọn (1 = cao nhất)' : language === 'ja' ? '任意 (1 = 最高)' : 'Optional (1 = highest)'}
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                {language === 'vi' ? 'Số thứ tự (STT)' : language === 'ja' ? '順番号 (STT)' : 'Order No. (STT)'}
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={formData.stt ?? ''}
+                onChange={e => setFormData(prev => ({ ...prev, stt: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                placeholder={language === 'vi' ? 'Tuỳ chọn' : 'Optional'}
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-4 pt-4">
@@ -668,6 +690,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
+                <ResizableTh width={colWidths.stt} onResize={(w) => setColWidths(p => ({ ...p, stt: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">STT</ResizableTh>
                 <ResizableTh width={colWidths.name} onResize={(w) => setColWidths(p => ({ ...p, name: w }))} className="px-8 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_name}</ResizableTh>
                 <ResizableTh width={colWidths.type} onResize={(w) => setColWidths(p => ({ ...p, type: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   {language === 'vi' ? 'Cấp' : 'Level'}
@@ -700,6 +723,13 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                         isEditing && 'ring-2 ring-inset ring-daiichi-red/30'
                       )}
                     >
+                      {/* STT */}
+                      <td className="px-4 py-5 text-center">
+                        <span className="text-sm font-semibold text-gray-500">
+                          {stop.stt ?? '—'}
+                        </span>
+                      </td>
+
                       {/* Name */}
                       <td className="px-8 py-5">
                         <div className={cn('flex items-center gap-3', isChild && 'pl-5')}>
@@ -829,7 +859,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                     {/* Inline Edit Form — appears right below the row being edited */}
                     {isEditing && (
                       <tr ref={editRowRef}>
-                        <td colSpan={8} className="px-4 py-4 bg-gray-50/80 border-b border-gray-100">
+                        <td colSpan={9} className="px-4 py-4 bg-gray-50/80 border-b border-gray-100">
                           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div className="flex justify-between items-center">
                               <h3 className="text-lg font-bold">
@@ -985,6 +1015,20 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                                   placeholder={language === 'vi' ? 'Tuỳ chọn (1 = cao nhất)' : language === 'ja' ? '任意 (1 = 最高)' : 'Optional (1 = highest)'}
                                 />
                               </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                                  {language === 'vi' ? 'Số thứ tự (STT)' : language === 'ja' ? '順番号 (STT)' : 'Order No. (STT)'}
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={formData.stt ?? ''}
+                                  onChange={e => setFormData(prev => ({ ...prev, stt: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
+                                  placeholder={language === 'vi' ? 'Tuỳ chọn' : 'Optional'}
+                                />
+                              </div>
                             </div>
 
                             <div className="flex justify-end gap-4 pt-2">
@@ -1009,7 +1053,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
               })}
               {sortedDisplay.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-8 py-12 text-center text-gray-400">
+                  <td colSpan={9} className="px-8 py-12 text-center text-gray-400">
                     {language === 'vi' ? 'Không tìm thấy điểm dừng nào' : 'No stops found'}
                   </td>
                 </tr>
