@@ -1353,11 +1353,28 @@ export function BookTicketPage({
           const effectiveTo = (isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo)) || tripRoute?.arrivalPoint || '';
           if (!effectiveFrom && !effectiveTo) return null;
           return (
-            <div className="px-3 pb-2.5 flex items-start gap-1 text-[10px] text-gray-500 border-t border-gray-100 pt-1.5 mt-0.5">
-              <MapPin size={9} className="flex-shrink-0 mt-0.5 text-daiichi-red" />
-              <span className="font-medium break-words min-w-0">
-                {effectiveFrom || '—'} → {effectiveTo || '—'}
-              </span>
+            <div className="px-3 pb-2.5 border-t border-gray-100 pt-1.5 mt-0.5">
+              <div className="flex items-stretch gap-2 min-w-0">
+                <div className="flex flex-col items-center flex-shrink-0 mt-0.5" aria-hidden="true">
+                  <div className="w-1.5 h-1.5 rounded-full bg-daiichi-red" />
+                  <div className="w-px flex-1 bg-gray-200 my-0.5" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                </div>
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <span
+                    className="text-[10px] font-semibold text-gray-700 leading-tight line-clamp-1"
+                    aria-label={`${language === 'vi' ? 'Điểm đi' : language === 'ja' ? '出発地' : 'From'}: ${effectiveFrom || '—'}`}
+                  >
+                    {effectiveFrom || '—'}
+                  </span>
+                  <span
+                    className="text-[10px] font-medium text-gray-500 leading-tight line-clamp-1"
+                    aria-label={`${language === 'vi' ? 'Điểm đến' : language === 'ja' ? '目的地' : 'To'}: ${effectiveTo || '—'}`}
+                  >
+                    {effectiveTo || '—'}
+                  </span>
+                </div>
+              </div>
             </div>
           );
         })()}

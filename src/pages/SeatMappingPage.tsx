@@ -745,10 +745,22 @@ export function SeatMappingPage({
           {showRouteDetails && (
             <div className="px-5 pb-5 space-y-3 border-t border-blue-100">
               {(tripRoute.departurePoint || tripRoute.arrivalPoint) && (
-                <div className="flex items-center gap-2 text-sm pt-3">
-                  <span className="font-semibold text-gray-700">{tripRoute.departurePoint}</span>
-                  <span className="text-blue-400 font-bold">→</span>
-                  <span className="font-semibold text-gray-700">{tripRoute.arrivalPoint}</span>
+                <div className="flex items-stretch gap-2 pt-3">
+                  <div className="flex flex-col items-center flex-shrink-0 mt-1" aria-hidden="true">
+                    <div className="w-2 h-2 rounded-full bg-daiichi-red" />
+                    <div className="w-px flex-1 bg-gray-300 my-1" />
+                    <div className="w-2 h-2 rounded-full bg-blue-400" />
+                  </div>
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <span
+                      className="font-semibold text-gray-700 text-sm leading-tight break-words"
+                      aria-label={`${language === 'vi' ? 'Điểm đi' : language === 'ja' ? '出発地' : 'From'}: ${tripRoute.departurePoint}`}
+                    >{tripRoute.departurePoint}</span>
+                    <span
+                      className="font-semibold text-gray-700 text-sm leading-tight break-words"
+                      aria-label={`${language === 'vi' ? 'Điểm đến' : language === 'ja' ? '目的地' : 'To'}: ${tripRoute.arrivalPoint}`}
+                    >{tripRoute.arrivalPoint}</span>
+                  </div>
                 </div>
               )}
               {tripRoute.details && (
