@@ -32,15 +32,15 @@ export const levenshteinDistance = (a: string, b: string): number => {
 
 /**
  * Allow 1 edit per this many characters for full-word (no-spaces) fuzzy matching.
- * More conservative (20%) to avoid false positives when comparing full city names.
+ * Conservative (10%) to target ~90% similarity and avoid false positives when comparing full city names.
  */
-const NO_SPACES_FUZZY_DIVISOR = 5;
+const NO_SPACES_FUZZY_DIVISOR = 10;
 
 /**
  * Allow 1 edit per this many characters for token-level fuzzy matching.
- * Slightly more lenient (25%) because tokens are shorter individual words.
+ * Conservative (10%) to target ~90% similarity for individual word tokens.
  */
-const TOKEN_FUZZY_DIVISOR = 4;
+const TOKEN_FUZZY_DIVISOR = 10;
 
 /**
  * Returns a match score (0 = no match, higher = better match) for use when
