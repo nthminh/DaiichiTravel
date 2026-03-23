@@ -301,8 +301,14 @@ interface BookTicketPageProps {
 }
 
 // Vehicle type options shown in the search form selector.
-// These values match the `type` field stored on Vehicle documents.
-const VEHICLE_TYPES = ['Bus', 'Limousine', 'Limogreen'] as const;
+const VEHICLE_TYPES = [
+  'Limousine 11 ghế',
+  'Xe điện 7 chỗ',
+  'Bus 45 chỗ',
+  'Xe cabin 24 phòng',
+  'Xe giường nằm Khách sạn',
+  'Xe giường nằm',
+] as const;
 
 export function BookTicketPage({
   trips,
@@ -484,6 +490,23 @@ export function BookTicketPage({
   // child stops that belong to routes served by that vehicle type.
   const filteredStops = useMemo<Stop[]>(() => {
     if (!vehicleTypeFilter) return stops;
+
+    // Primary approach: filter by the terminal's vehicleTypes field (set in stop management).
+    // If any terminal has vehicleTypes configured, use this direct approach.
+    const terminalsWithType = stops.filter(s => s.type === 'TERMINAL' && s.vehicleTypes);
+    if (terminalsWithType.length > 0) {
+      const allowedTerminalIds = new Set<string>(
+        terminalsWithType
+          .filter(t => matchesSearch(t.vehicleTypes!, vehicleTypeFilter))
+          .map(t => t.id)
+      );
+      return stops.filter(stop => {
+        if (stop.type === 'TERMINAL') return allowedTerminalIds.has(stop.id);
+        return stop.terminalId ? allowedTerminalIds.has(stop.terminalId) : false;
+      });
+    }
+
+    // Fallback (legacy): filter via vehicle → trips → routes → stops.
     // Collect license plates of vehicles matching the selected type
     const matchingPlates = new Set(
       vehicles.filter(v => v.type === vehicleTypeFilter).map(v => v.licensePlate)
