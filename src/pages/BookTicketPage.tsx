@@ -1447,7 +1447,7 @@ export function BookTicketPage({
         </div>
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
           <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
+            <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
             <div className="relative mt-1">
               <Bus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
               <select
@@ -1466,7 +1466,7 @@ export function BookTicketPage({
           {/* FROM + swap button + TO in a combined cell spanning 2 columns on large screens */}
           <div className="lg:col-span-2 flex items-start gap-2">
             <div className="flex-1 min-w-0">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.from}</label>
+              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="mt-1">
                 <StopSearchInput
                   value={searchFrom}
@@ -1498,7 +1498,7 @@ export function BookTicketPage({
               <ArrowLeftRight size={15} />
             </button>
             <div className="flex-1 min-w-0">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.to}</label>
+              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="mt-1">
                 <StopSearchInput
                   ref={toStopRef}
@@ -1522,7 +1522,7 @@ export function BookTicketPage({
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.departure_date}</label>
+            <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
             <div className="relative mt-1">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
@@ -1530,7 +1530,7 @@ export function BookTicketPage({
           </div>
           {tripType === 'ROUND_TRIP' && (
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.return_date}</label>
+              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
               <div className="relative mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
@@ -1549,7 +1549,7 @@ export function BookTicketPage({
         <div className="flex items-end gap-3 mt-4 sm:mt-4">
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-3 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 truncate block">{t.num_adults}</label>
+              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate block">{t.num_adults}</label>
               <div className="relative mt-1 flex items-center">
                 <button
                   type="button"
@@ -1571,7 +1571,7 @@ export function BookTicketPage({
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 truncate block">{t.num_children}</label>
+              <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate block">{t.num_children}</label>
               <div className="relative mt-1 flex items-center">
                 <button
                   type="button"
@@ -1640,8 +1640,6 @@ export function BookTicketPage({
           </div>
         )}
         {tripType === 'ONE_WAY' && <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>}
-        {/* Carrier selection hint */}
-        <p className="px-2 text-xs text-gray-500 italic">{t.select_carrier_hint}</p>
 
         {(() => {
           const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
