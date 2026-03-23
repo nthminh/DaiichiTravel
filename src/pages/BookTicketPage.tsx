@@ -718,6 +718,7 @@ export function BookTicketPage({
       setPickupStopAddress('');
       setPickupAddressSurcharge(0);
     }
+    if (hasSearched) setHasSearched(false);
   };
 
   // Handler for the "To" stop input: clears pre-selected dropoff when terminal is cleared.
@@ -729,6 +730,7 @@ export function BookTicketPage({
       setDropoffStopAddress('');
       setDropoffAddressSurcharge(0);
     }
+    if (hasSearched) setHasSearched(false);
   };
 
   // Swap origin and destination (and their respective sub-stop selections).
@@ -746,6 +748,7 @@ export function BookTicketPage({
     setDropoffAddress(prevPickup);
     setDropoffStopAddress('');
     setDropoffAddressSurcharge(0);
+    if (hasSearched) setHasSearched(false);
   };
 
   useEffect(() => {
@@ -1480,7 +1483,7 @@ export function BookTicketPage({
             <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
             <div className="relative sm:mt-1">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => setSearchDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => { setSearchDate(e.target.value); if (hasSearched) setHasSearched(false); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
             </div>
           </div>
           {tripType === 'ROUND_TRIP' && (
@@ -1488,7 +1491,7 @@ export function BookTicketPage({
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
               <div className="relative sm:mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => setSearchReturnDate(e.target.value)} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => { setSearchReturnDate(e.target.value); if (hasSearched) setHasSearched(false); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
               </div>
             </div>
           )}

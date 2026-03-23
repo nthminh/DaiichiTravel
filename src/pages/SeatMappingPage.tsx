@@ -346,13 +346,17 @@ export function SeatMappingPage({
     const hasSegmentInfo =
       (seatDataForBtn?.segmentBookings ?? []).length > 0 ||
       (seatDataForBtn?.fromStopOrder !== undefined && seatDataForBtn?.toStopOrder !== undefined);
-    // A single booking that spans the full route (stop 1 → last stop) is NOT partial.
+    // A single booking that spans the full route (first stop → last stop) is NOT partial.
     const totalStops = tripRoute?.routeStops?.length ?? 0;
+    // Use actual min/max orders (robust against non-consecutive or non-1-based order values).
+    const routeOrders = (tripRoute?.routeStops ?? []).map(rs => rs.order);
+    const minRouteOrder = routeOrders.length > 0 ? Math.min(...routeOrders) : 1;
+    const maxRouteOrder = routeOrders.length > 0 ? Math.max(...routeOrders) : totalStops;
     const isFullRouteBooking =
       totalStops > 0 &&
       (seatDataForBtn?.segmentBookings ?? []).length === 0 &&
-      seatDataForBtn?.fromStopOrder === 1 &&
-      seatDataForBtn?.toStopOrder === totalStops;
+      seatDataForBtn?.fromStopOrder === minRouteOrder &&
+      seatDataForBtn?.toStopOrder === maxRouteOrder;
     const isPartiallyBooked =
       rawStatus !== SeatStatus.EMPTY &&
       !isSegmentFree &&
@@ -791,40 +795,45 @@ export function SeatMappingPage({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
+          className="bg-white p-3 sm:p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
         >
           {/* Drag handle visible on mobile */}
-          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 lg:hidden" />
-          <h3 className="text-lg font-bold mb-1">
+          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 lg:hidden" />
+          <h3 className="text-base sm:text-lg font-bold mb-0.5 sm:mb-1">
             {language === 'vi' ? '📋 Khai báo thông tin' : language === 'ja' ? '📋 乗客情報の入力' : '📋 Passenger Information'}
           </h3>
-          <p className="text-xs text-gray-400 mb-4">
-            {language === 'vi'
-              ? 'Nhập thông tin hành khách và điểm xuất phát / điểm đến trước khi chọn ghế.'
-              : language === 'ja'
-                ? '座席を選ぶ前に乗客情報と乗降区間を入力してください。'
-                : 'Enter passenger details and departure / destination before selecting seats.'}
+          <p className="text-xs text-gray-400 mb-2 sm:mb-4">
+            <span className="sm:hidden">
+              {language === 'vi' ? 'Nhập thông tin, chọn ghế trước khi đặt.' : language === 'ja' ? '情報入力後、座席を選んでください。' : 'Enter info, then select a seat.'}
+            </span>
+            <span className="hidden sm:inline">
+              {language === 'vi'
+                ? 'Nhập thông tin hành khách và điểm xuất phát / điểm đến trước khi chọn ghế.'
+                : language === 'ja'
+                  ? '座席を選ぶ前に乗客情報と乗降区間を入力してください。'
+                  : 'Enter passenger details and departure / destination before selecting seats.'}
+            </span>
           </p>
-          <form className="space-y-4">
+          <form className="space-y-2.5 sm:space-y-4">
             {/* Adults / Children */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
-                <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
+                <div className="flex items-center gap-2 mt-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl">
                   <button type="button" onClick={() => {
                     const newAdults = Math.max(1, adults - 1);
                     setAdults(newAdults);
                     const currentOver5Count = childrenAges.filter(age => age >= 5).length;
                     const newExtraSeatsNeeded = (newAdults - 1) + currentOver5Count;
                     setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
-                  }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                  }} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                   <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
-                  <button type="button" onClick={() => setAdults(adults + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
+                  <button type="button" onClick={() => setAdults(adults + 1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label>
-                <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
+                <div className="flex items-center gap-2 mt-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl">
                   <button type="button" onClick={() => {
                     const count = Math.max(0, children - 1);
                     setChildren(count);
@@ -832,7 +841,7 @@ export function SeatMappingPage({
                     const newAges = childrenAges.slice(0, count);
                     const newOver5Count = newAges.filter(age => age >= 5).length;
                     setExtraSeatIds(prev => prev.slice(0, newOver5Count));
-                  }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                  }} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                   <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
                   <button type="button" onClick={() => {
                     const count = children + 1;
@@ -842,16 +851,21 @@ export function SeatMappingPage({
                       while (arr.length < count) arr.push(undefined);
                       return arr.slice(0, count);
                     });
-                  }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
+                  }} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
                 </div>
               </div>
             </div>
 
             {/* Children ages */}
             {children > 0 && (
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
+              <div className="p-2 sm:p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1.5 sm:space-y-2">
                 <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</p>
+                <p className="text-[10px] text-blue-400">
+                  <span className="sm:hidden">
+                    {language === 'vi' ? '≥5 tuổi: mua vé; <5 tuổi: miễn phí' : language === 'ja' ? '5歳以上：有料、4歳以下：無料' : '≥5 yrs: charged; <5 yrs: free'}
+                  </span>
+                  <span className="hidden sm:inline">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</span>
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {Array.from({ length: children }).map((_, i) => (
                     <div key={i} className="relative">
@@ -869,7 +883,7 @@ export function SeatMappingPage({
                           const newOver5Count = ages.filter(age => (age ?? 0) >= 5).length;
                           setExtraSeatIds(prev => prev.slice(0, newOver5Count));
                         }}
-                        className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
+                        className="w-full px-3 py-1.5 sm:py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
                       />
                       {(childrenAges[i] ?? 0) >= 5 && (
                         <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
@@ -883,9 +897,9 @@ export function SeatMappingPage({
             )}
 
             {/* Name */}
-            <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_name} /></div>
+            <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_name} /></div>
             {/* Phone */}
-            <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20" placeholder={t.enter_phone} /></div>
+            <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_phone} /></div>
 
             {/* Departure Stop (Điểm xuất phát) + Pickup Address */}
             {(() => {
@@ -1062,7 +1076,7 @@ export function SeatMappingPage({
               onClick={() => setShowPreBookingInfo(false)}
               disabled={hasFareBlocker || !childAgesComplete}
               className={cn(
-                "w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all",
+                "w-full py-3 sm:py-4 text-white rounded-xl font-bold shadow-lg transition-all",
                 (hasFareBlocker || !childAgesComplete)
                   ? "bg-gray-300 shadow-gray-200 cursor-not-allowed"
                   : "bg-daiichi-red shadow-daiichi-red/20"
@@ -1131,19 +1145,19 @@ export function SeatMappingPage({
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
+              className="bg-white p-3 sm:p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
             >
               {/* Drag handle visible on mobile */}
-              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3 lg:hidden" />
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold">
+              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 lg:hidden" />
+              <div className="flex justify-between items-center mb-2 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-bold">
                   {isFreeSeatingTrip
                     ? (language === 'vi' ? '🪑 Xác nhận đặt vé' : language === 'ja' ? '🪑 予約確認' : '🪑 Confirm Booking')
                     : `${t.booking_title}: ${showBookingForm}`}
                 </h3>
                 <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-2.5 sm:space-y-4">
                 {/* Segment conflict warning */}
                 {(() => {
                   if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;

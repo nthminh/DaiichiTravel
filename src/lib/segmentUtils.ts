@@ -48,7 +48,11 @@ export function getSegmentInfo(
   }
 
   // Both endpoints set and they exactly span the route → full route
-  if (totalStops > 0 && from === 1 && to === totalStops) {
+  // Use actual min/max orders from the stop map (robust against non-1-based or gapped orders).
+  const orderKeys = Object.keys(stopNameByOrder).map(Number);
+  const minOrder = orderKeys.length > 0 ? Math.min(...orderKeys) : 1;
+  const maxOrder = orderKeys.length > 0 ? Math.max(...orderKeys) : totalStops;
+  if ((totalStops > 0 || orderKeys.length > 0) && from === minOrder && to === maxOrder) {
     return { type: 'full', label: language === 'vi' ? 'Cả chặng' : 'Full route' };
   }
 

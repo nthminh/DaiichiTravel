@@ -719,7 +719,7 @@ export function usePayment(ctx: BookingContext) {
             const capturedLeg = capturedOutboundRef.current!;
 
             const savedOutbound = await saveSingleBooking(
-              capturedLeg.bookingData,
+              { ...capturedLeg.bookingData, paymentStatus: 'PAID' },
               capturedLeg.seatUpdateData,
               capturedLeg.allSeatIds,
               capturedLeg.tripId,
@@ -733,7 +733,7 @@ export function usePayment(ctx: BookingContext) {
               return;
             }
 
-            const returnBookingData = { ...bookingData };
+            const returnBookingData = { ...bookingData, paymentStatus: 'PAID' };
             const savedReturn = await saveSingleBooking(
               returnBookingData,
               seatUpdateData,
@@ -752,6 +752,28 @@ export function usePayment(ctx: BookingContext) {
               resetFormState();
               return;
             }
+
+            // Update pre-reserved seats from BOOKED (held/yellow) to PAID (confirmed/green)
+            await Promise.all([
+              transportService.bookSeats(capturedOutboundTripId, capturedOutboundSeatIds, { status: SeatStatus.PAID }),
+              transportService.bookSeats(capturedReturnTripId, capturedReturnSeatIds, { status: SeatStatus.PAID }),
+            ]).catch(err => console.error('Failed to update seats to PAID:', err));
+            // Optimistic UI updates for both legs
+            const outboundSet = new Set(capturedOutboundSeatIds);
+            const returnSet = new Set(capturedReturnSeatIds);
+            ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+              if (trip.id === capturedOutboundTripId) {
+                return { ...trip, seats: trip.seats.map((s: any) => outboundSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+              }
+              if (trip.id === capturedReturnTripId) {
+                return { ...trip, seats: trip.seats.map((s: any) => returnSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+              }
+              return trip;
+            }));
+            ctx2.setSelectedTrip((prev: any) => {
+              if (!prev || prev.id !== capturedReturnTripId) return prev;
+              return { ...prev, seats: prev.seats.map((s: any) => returnSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+            });
 
             const combinedTicket = {
               ...savedReturn,
@@ -937,7 +959,7 @@ export function usePayment(ctx: BookingContext) {
       const saveBookingAfterReservation = async () => {
         const ctx2 = ctxRef.current;
         try {
-          const result = await transportService.createBooking(bookingData);
+          const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID' });
           const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
           ctx2.setLastBooking(savedBooking);
           // Persist ticket to localStorage for CUSTOMER and GUEST so they can view it later
@@ -951,6 +973,20 @@ export function usePayment(ctx: BookingContext) {
             : 'Booking failed: Unable to connect to server. Please try again.');
           return;
         }
+
+        // Update pre-reserved seats from BOOKED (held/yellow) to PAID (confirmed/green)
+        await transportService.bookSeats(capturedTripId, capturedSeatIds, { status: SeatStatus.PAID })
+          .catch(err => console.error('Failed to update seat status to PAID:', err));
+        // Optimistic UI update: show seats as PAID immediately
+        const seatIdSet = new Set(capturedSeatIds);
+        ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+          if (trip.id !== capturedTripId) return trip;
+          return { ...trip, seats: trip.seats.map((s: any) => seatIdSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+        }));
+        ctx2.setSelectedTrip((prev: any) => {
+          if (!prev || prev.id !== capturedTripId) return prev;
+          return { ...prev, seats: prev.seats.map((s: any) => seatIdSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+        });
 
         ctx2.setIsTicketOpen(true);
         ctx2.setShowBookingForm(null);
