@@ -32,6 +32,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   const [endDate, setEndDate] = useState('');
   const [agentFilter, setAgentFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [bookingPage, setBookingPage] = useState(1);
   const BOOKINGS_PER_PAGE = 50;
 
@@ -200,6 +202,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     return getTime(b.createdAt) - getTime(a.createdAt);
   };
 
+  const normalizedSearchAmount = searchTerm.replace(/[.,\s]/g, '');
+  const isNumericSearch = normalizedSearchAmount !== '' && !isNaN(Number(normalizedSearchAmount));
+  const minPriceNum = minPrice ? Number(minPrice) : null;
+  const maxPriceNum = maxPrice ? Number(maxPrice) : null;
+
   const filteredBookings = bookings.filter(b => {
     // Agent scope: only show bookings created by this agent
     if (isAgent) {
@@ -214,17 +221,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       matchesSearch(b.agent || '', searchTerm) ||
       matchesSearch(b.id || '', searchTerm) ||
       matchesSearch(b.customerPhone || '', searchTerm) ||
-      matchesSearch(b.route || '', searchTerm);
-    
+      matchesSearch(b.route || '', searchTerm) ||
+      (isNumericSearch && String(b.amount ?? '').includes(normalizedSearchAmount));
+
     const matchesAgent = agentFilter === 'ALL' || b.agent === agentFilter;
     const matchesStatus = filterStatus === 'ALL' || b.status === filterStatus;
-    
+
+    const amount = b.amount ?? 0;
+    const matchesMinPrice = minPriceNum === null || amount >= minPriceNum;
+    const matchesMaxPrice = maxPriceNum === null || amount <= maxPriceNum;
+
     const rawDate = b.date ? String(b.date).split(' ')[0] : '';
     const bookingDate = rawDate ? new Date(rawDate) : new Date(0);
     const matchesStart = !startDate || bookingDate >= new Date(startDate);
     const matchesEnd = !endDate || bookingDate <= new Date(endDate);
 
-    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesStatus;
+    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesStatus && matchesMinPrice && matchesMaxPrice;
   }).sort(sortByCreatedDesc);
 
   const bookingTotalPages = Math.max(1, Math.ceil(filteredBookings.length / BOOKINGS_PER_PAGE));
@@ -326,6 +338,71 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
       {/* Stats Grid removed as per requirements */}
 
+      {/* Global Quick Search Bar */}
+      <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 p-6">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-daiichi-red" size={20} />
+              <input
+                type="text"
+                placeholder={language === 'vi' ? 'Tìm nhanh theo tên, SĐT, tuyến, giá...' : 'Quick search by name, phone, route, price...'}
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setBookingPage(1); }}
+                className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 focus:border-daiichi-red/40 transition-all"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => { setSearchTerm(''); setBookingPage(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3.5 rounded-2xl border font-semibold text-sm transition-all",
+                showFilters || minPrice || maxPrice || startDate || endDate || agentFilter !== 'ALL'
+                  ? "bg-daiichi-red text-white border-daiichi-red shadow-md shadow-daiichi-red/20"
+                  : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+              )}
+            >
+              <Filter size={16} />
+              {language === 'vi' ? 'Bộ lọc' : 'Filters'}
+              {(minPrice || maxPrice || startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterStatus !== 'ALL') && (
+                <span className={cn("w-2 h-2 rounded-full", showFilters ? "bg-white" : "bg-daiichi-red")} />
+              )}
+            </button>
+          </div>
+          {/* Search hint chips */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: language === 'vi' ? 'Tên KH' : 'Name', example: language === 'vi' ? 'vd: Nguyễn Văn A' : 'e.g. John' },
+              { label: language === 'vi' ? 'SĐT' : 'Phone', example: language === 'vi' ? 'vd: 0912...' : 'e.g. 091...' },
+              { label: language === 'vi' ? 'Tuyến' : 'Route', example: language === 'vi' ? 'vd: Hà Nội - Đà Nẵng' : 'e.g. Hanoi - Danang' },
+              { label: language === 'vi' ? 'Mã đặt vé' : 'Booking ID', example: language === 'vi' ? 'vd: BK-...' : 'e.g. BK-...' },
+            ].map(chip => (
+              <span key={chip.label} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-50 border border-gray-100 rounded-full text-[11px] text-gray-400">
+                <Search size={10} />
+                <span className="font-semibold text-gray-500">{chip.label}</span>
+                <span className="text-gray-300">·</span>
+                <span>{chip.example}</span>
+              </span>
+            ))}
+          </div>
+          {/* Result count */}
+          {searchTerm && (
+            <p className="text-xs text-gray-400">
+              {language === 'vi'
+                ? `Tìm thấy ${filteredBookings.length} kết quả${filteredBookings.length !== bookings.length ? ` / ${bookings.length} đơn` : ''}`
+                : `Found ${filteredBookings.length} result${filteredBookings.length !== 1 ? 's' : ''}${filteredBookings.length !== bookings.length ? ` of ${bookings.length} bookings` : ''}`}
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-8">
         {/* Main Booking List - Full Width */}
         <div className="space-y-6">
@@ -335,27 +412,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 <h3 className="text-xl font-bold text-gray-800">
                   {language === 'vi' ? 'Danh sách đặt chỗ mới nhất' : 'Latest Bookings'}
                 </h3>
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={cn(
-                      "p-2 rounded-xl border transition-all",
-                      showFilters ? "bg-daiichi-red text-white border-daiichi-red" : "bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100"
-                    )}
-                  >
-                    <Filter size={20} />
-                  </button>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder={t.search_customer}
-                      value={searchTerm}
-                      onChange={(e) => { setSearchTerm(e.target.value); setBookingPage(1); }}
-                      className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 w-64"
-                    />
-                  </div>
-                </div>
               </div>
 
               {/* Advanced Filters */}
@@ -433,6 +489,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                             </button>
                           ))}
                         </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">
+                          {t.price_range}
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder={t.price_min_placeholder}
+                            value={minPrice}
+                            onChange={(e) => { setMinPrice(e.target.value); setBookingPage(1); }}
+                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder={t.price_max_placeholder}
+                            value={maxPrice}
+                            onChange={(e) => { setMaxPrice(e.target.value); setBookingPage(1); }}
+                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                          />
+                        </div>
+                      </div>
+                      <div className="md:col-span-3 flex justify-end">
+                        <button
+                          onClick={() => {
+                            setStartDate(''); setEndDate(''); setAgentFilter('ALL');
+                            setFilterType('ALL'); setFilterStatus('ALL');
+                            setMinPrice(''); setMaxPrice('');
+                            setSearchTerm(''); setBookingPage(1);
+                          }}
+                          className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-daiichi-red border border-gray-200 rounded-xl hover:border-daiichi-red/30 transition-all"
+                        >
+                          {language === 'vi' ? 'Xoá bộ lọc' : 'Clear filters'}
+                        </button>
                       </div>
                     </div>
                   </motion.div>
