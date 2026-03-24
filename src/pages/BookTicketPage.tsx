@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
@@ -594,6 +594,21 @@ interface BookTicketPageProps {
   // Helpers
   compareTripDateTime: (a: { date?: string; time?: string }, b: { date?: string; time?: string }) => number;
   formatTripDateDisplay: (dateStr: string) => string;
+  // Favorites
+  likedTrips: Set<string>;
+  toggleLikedTrip: (tripId: string) => void;
+}
+
+// Snapshot of search parameters committed when the Search button is clicked.
+// filterTrip() uses these values so the trip list only updates on explicit button click.
+interface CommittedSearchParams {
+  from: string; to: string;
+  stationFrom: string; stationTo: string;
+  date: string; returnDate: string;
+  adults: number; children: number;
+  priceMinVal: string; priceMaxVal: string;
+  timeFrom: string; timeTo: string;
+  freeSearch: string;
 }
 
 // Vehicle type options shown in the search form selector.
@@ -683,6 +698,8 @@ export function BookTicketPage({
   setDropoffAddressSurcharge,
   setPickupStopAddress,
   setDropoffStopAddress,
+  likedTrips,
+  toggleLikedTrip,
 }: BookTicketPageProps) {
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
@@ -698,6 +715,11 @@ export function BookTicketPage({
     window.addEventListener('resize', handleResize);
     return () => { window.removeEventListener('resize', handleResize); clearTimeout(resizeTimer); };
   }, []);
+
+  // Committed search parameters: set when the user clicks the Search button.
+  // filterTrip() and segmentFares use these values so that the list only updates
+  // when the button is explicitly clicked, not on every keystroke.
+  const [committedParams, setCommittedParams] = useState<CommittedSearchParams | null>(null);
 
   // Segment-based fare lookup: map from routeId → { price, agentPrice }
   // Updated whenever the customer's searchFrom / searchTo changes.
@@ -718,7 +740,8 @@ export function BookTicketPage({
       setPickupStopAddress('');
       setPickupAddressSurcharge(0);
     }
-    if (hasSearched) setHasSearched(false);
+    // Do NOT reset hasSearched here – results remain visible until the search
+    // button is clicked again (committed params drive the filter, not live inputs).
   };
 
   // Handler for the "To" stop input: clears pre-selected dropoff when terminal is cleared.
@@ -730,7 +753,7 @@ export function BookTicketPage({
       setDropoffStopAddress('');
       setDropoffAddressSurcharge(0);
     }
-    if (hasSearched) setHasSearched(false);
+    // Do NOT reset hasSearched – committed params drive the filter.
   };
 
   // Swap origin and destination (and their respective sub-stop selections).
@@ -748,18 +771,26 @@ export function BookTicketPage({
     setDropoffAddress(prevPickup);
     setDropoffStopAddress('');
     setDropoffAddressSurcharge(0);
-    if (hasSearched) setHasSearched(false);
+    // Do NOT reset hasSearched – committed params drive the filter.
   };
 
   useEffect(() => {
+    // Only fetch segment fares when the user has committed a search (clicked the button).
+    // This avoids Firestore reads on every keystroke and ensures the list only refreshes
+    // when the customer explicitly clicks "Search".
+    if (!committedParams) {
+      setSegmentFares(new Map());
+      setSegmentFaresLoaded(false);
+      return;
+    }
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-    // Prefer specific stop selection (searchStationFrom/To) over plain city text (searchFrom/To)
+    // Prefer specific stop selection (stationFrom/To) over plain city text (from/to)
     const effectiveFrom = isReturnPhase
-      ? (searchStationTo || searchTo)
-      : (searchStationFrom || searchFrom);
+      ? (committedParams.stationTo || committedParams.to)
+      : (committedParams.stationFrom || committedParams.from);
     const effectiveTo = isReturnPhase
-      ? (searchStationFrom || searchFrom)
-      : (searchStationTo || searchTo);
+      ? (committedParams.stationFrom || committedParams.from)
+      : (committedParams.stationTo || committedParams.to);
 
     if (!effectiveFrom || !effectiveTo) {
       setSegmentFares(new Map());
@@ -861,7 +892,7 @@ export function BookTicketPage({
 
     fetchFares();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchFrom, searchTo, searchStationFrom, searchStationTo, tripType, roundTripPhase, routes, stops, trips]);
+  }, [committedParams, tripType, roundTripPhase, routes, stops, trips]);
 
   const routeByName = new Map(routes.map(r => [r.name, r]));
 
@@ -946,17 +977,29 @@ export function BookTicketPage({
     });
   }, [vehicleTypeFilter, stops, vehicles, trips, routes]);
 
-  const filterTrip = (trip: Trip, includeDate: boolean) => {
-    const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-    const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
-    const effectiveTo = isReturnPhase ? searchFrom : searchTo;
-    const effectiveDate = isReturnPhase ? searchReturnDate : searchDate;
+  // filterTrip accepts an optional explicit params object so that handleSearch can pass
+  // the newly-committed values synchronously (before the React state update is applied).
+  const filterTrip = (trip: Trip, includeDate: boolean, params?: {
+    from: string; to: string; stationFrom: string; stationTo: string;
+    date: string; returnDate: string; adults: number; children: number;
+    priceMinVal: string; priceMaxVal: string; timeFrom: string; timeTo: string;
+    freeSearch: string;
+  } | null) => {
+    const p = params !== undefined ? params : committedParams;
+    // Before the first search no committed params exist → nothing to show.
+    if (!p) return false;
 
-    if (trip.status !== TripStatus.WAITING) return false;
-    const tripVehicle = bookTicketSearch
+    const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+    const effectiveFrom = isReturnPhase ? p.to : p.from;
+    const effectiveTo = isReturnPhase ? p.from : p.to;
+    const effectiveDate = isReturnPhase ? p.returnDate : p.date;
+
+    // Show WAITING and RUNNING trips. RUNNING trips are visible but not directly bookable.
+    if (trip.status !== TripStatus.WAITING && trip.status !== TripStatus.RUNNING) return false;
+    const tripVehicle = p.freeSearch
       ? vehicles.find(v => v.licensePlate === trip.licensePlate)
       : undefined;
-    if (bookTicketSearch) {
+    if (p.freeSearch) {
       const searchable = [
         trip.route || '',
         trip.driverName || '',
@@ -966,7 +1009,7 @@ export function BookTicketPage({
         String(trip.price || ''),
         tripVehicle?.type || '',
       ].join(' ');
-      if (!matchesSearch(searchable, bookTicketSearch)) return false;
+      if (!matchesSearch(searchable, p.freeSearch)) return false;
     }
     const tripRoute = routeByName.get(trip.route);
     if (effectiveFrom || effectiveTo) {
@@ -1000,21 +1043,22 @@ export function BookTicketPage({
       }
     }
     if (includeDate && effectiveDate && trip.date && trip.date !== effectiveDate) return false;
-    if (priceMin) {
-      const minVal = parseInt(priceMin);
+    if (p.priceMinVal) {
+      const minVal = parseInt(p.priceMinVal);
       if (!isNaN(minVal) && trip.price < minVal) return false;
     }
-    if (priceMax) {
-      const maxVal = parseInt(priceMax);
+    if (p.priceMaxVal) {
+      const maxVal = parseInt(p.priceMaxVal);
       if (!isNaN(maxVal) && trip.price > maxVal) return false;
     }
     // Time-range filter: HH:MM strings compare correctly lexicographically
     // (e.g. '06:00' < '14:30' < '23:59'), so a direct string comparison is safe.
-    if (searchTimeFrom && trip.time && trip.time < searchTimeFrom) return false;
-    if (searchTimeTo && trip.time && trip.time > searchTimeTo) return false;
-    const totalPassengers = searchAdults + searchChildren;
+    if (p.timeFrom && trip.time && trip.time < p.timeFrom) return false;
+    if (p.timeTo && trip.time && trip.time > p.timeTo) return false;
+    const totalPassengers = p.adults + p.children;
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
-    if (emptySeats < totalPassengers) return false;
+    // For RUNNING trips, skip seat availability check (no open booking slots).
+    if (trip.status === TripStatus.WAITING && emptySeats < totalPassengers) return false;
     // Only show trips whose route has fare configuration for the searched segment.
     // Skip this check when fares haven't loaded yet (avoid false negatives during async fetch).
     // Also skip when tripRoute is unknown (route data not yet loaded) to avoid hiding trips incorrectly.
@@ -1060,8 +1104,21 @@ export function BookTicketPage({
       showToast(t.select_dropoff_point || 'Vui lòng chọn điểm trả', 'error');
       return;
     }
+    // Snapshot the current input values as committed params so that filterTrip and
+    // the segmentFares effect use a stable set of values (not live-updating on keystrokes).
+    const newParams = {
+      from: searchFrom, to: searchTo,
+      stationFrom: searchStationFrom, stationTo: searchStationTo,
+      date: searchDate, returnDate: searchReturnDate,
+      adults: searchAdults, children: searchChildren,
+      priceMinVal: priceMin, priceMaxVal: priceMax,
+      timeFrom: searchTimeFrom, timeTo: searchTimeTo,
+      freeSearch: bookTicketSearch,
+    };
+    setCommittedParams(newParams);
     setHasSearched(true);
-    const count = trips.filter(trip => filterTrip(trip, true)).length;
+    // Count using the new params directly (state update is async)
+    const count = trips.filter(trip => filterTrip(trip, true, newParams)).length;
     if (count > 0) {
       showToast(t.search_results_found.replace('{count}', String(count)), 'success');
     } else {
@@ -1092,15 +1149,31 @@ export function BookTicketPage({
     const vehicleImg = tripRoute?.vehicleImageUrl;
     const carouselIdx = tripCardImgIdx[trip.id] ?? 0;
     const currentImg = routeImages[carouselIdx] ?? null;
-    const isTripRevealed = hasSearched || clearedTripCards.has(trip.id);
+    // Suggestions are always revealed; search results require the search button to have been clicked.
+    const isTripRevealed = isSuggestion || hasSearched || clearedTripCards.has(trip.id);
     const tripVehicle = vehicles.find(v => v.licensePlate === trip.licensePlate);
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
     const cardBg = getRouteCardBg(trip.route || '');
+    const isRunning = trip.status === TripStatus.RUNNING;
+    const isLiked = likedTrips.has(trip.id);
     return (
-      <div key={trip.id} className={cn(cardBg, "rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : "border-gray-100")}>
-        {/* Route name – full-width header row */}
-        <div className="px-3 pt-2.5 pb-1">
-          <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase block text-center w-full">{trip.route}</span>
+      <div key={trip.id} className={cn(cardBg, "rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : isRunning ? "border-blue-200" : "border-gray-100")}>
+        {/* Route name + favourite button – full-width header row */}
+        <div className="px-3 pt-2.5 pb-1 flex items-center gap-1">
+          <span aria-label={`Tuyến: ${trip.route}`} className="px-2 py-0.5 bg-daiichi-accent text-daiichi-red rounded-full text-[11px] font-bold uppercase flex-1 text-center truncate">{trip.route}</span>
+          {isRunning && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full text-[9px] font-bold whitespace-nowrap">
+              🚌 {t.running_trip_label || 'Đang chạy'}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); toggleLikedTrip(trip.id); }}
+            aria-label={isLiked ? (t.remove_from_favourites || 'Bỏ yêu thích') : (t.add_to_favourites || 'Thêm vào yêu thích')}
+            className={cn("flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full transition-all", isLiked ? "text-red-500 bg-red-50 hover:bg-red-100" : "text-gray-300 hover:text-red-400 hover:bg-red-50")}
+          >
+            <Heart size={14} fill={isLiked ? 'currentColor' : 'none'} strokeWidth={2} />
+          </button>
         </div>
         {/* 3-column body: [image | schedule info | seats+price+CTA] */}
         {/* Mobile: image full-width on top row, info columns side by side below */}
@@ -1303,6 +1376,18 @@ export function BookTicketPage({
             </div>
             {/* Select seat CTA */}
             {(() => {
+              // RUNNING trips: visible to customers but direct booking is not available.
+              // Customers must contact an agency to book.
+              if (isRunning) {
+                return (
+                  <button
+                    onClick={() => showToast(t.running_trip_contact_msg || 'Chuyến này đang chạy. Vui lòng liên hệ đại lý để đặt vé.', 'info')}
+                    className="w-full px-2 py-1.5 bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/10 cursor-pointer"
+                  >
+                    🚌 {t.contact_agency_to_book || 'Liên hệ đại lý để đặt'}
+                  </button>
+                );
+              }
               // Merged trips: customers must contact the bus company directly
               if (trip.isMerged) {
                 return (
@@ -1483,7 +1568,7 @@ export function BookTicketPage({
             <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
             <div className="relative sm:mt-1">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => { setSearchDate(e.target.value); if (hasSearched) setHasSearched(false); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => { setSearchDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
             </div>
           </div>
           {tripType === 'ROUND_TRIP' && (
@@ -1491,7 +1576,7 @@ export function BookTicketPage({
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
               <div className="relative sm:mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => { setSearchReturnDate(e.target.value); if (hasSearched) setHasSearched(false); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => { setSearchReturnDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
               </div>
             </div>
           )}
@@ -1605,18 +1690,52 @@ export function BookTicketPage({
         )}
         {tripType === 'ONE_WAY' && <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>}
 
-        {(() => {
-          const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-          const effectiveFrom = isReturnPhase ? searchTo : searchFrom;
-          const effectiveTo = isReturnPhase ? searchFrom : searchTo;
-          const effectiveDate = isReturnPhase ? searchReturnDate : searchDate;
+        {/* Suggestions section: shown before the first search (liked trips + discounted trips) */}
+        {!hasSearched && (() => {
+          const eligibleStatuses = [TripStatus.WAITING, TripStatus.RUNNING];
+          const likedSuggestions = trips.filter(tr => likedTrips.has(tr.id) && eligibleStatuses.includes(tr.status));
+          const discountedSuggestions = trips.filter(tr =>
+            !likedTrips.has(tr.id) &&
+            (tr.discountPercent || 0) > 0 &&
+            eligibleStatuses.includes(tr.status)
+          );
+          const allSuggestions = [...likedSuggestions, ...discountedSuggestions];
+          if (allSuggestions.length === 0) return null;
+          return (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold px-2 text-amber-700">{t.trip_suggestions_title || '✨ Gợi ý cho bạn'}</h3>
+              {likedSuggestions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-red-500 px-1">{t.liked_trips_title || '❤️ Xe bạn yêu thích'}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {likedSuggestions.map(tr => renderTripCard(tr, true))}
+                  </div>
+                </div>
+              )}
+              {discountedSuggestions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-green-600 px-1">{t.discounted_trips_title || '🏷️ Xe đang giảm giá'}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {discountedSuggestions.map(tr => renderTripCard(tr, true))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
-          const filteredBookingTrips = trips.filter(t => filterTrip(t, true)).sort((a, b) => compareTripDateTime(a, b));
+        {hasSearched && (() => {
+          const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+          const effectiveFrom = isReturnPhase ? (committedParams?.to || '') : (committedParams?.from || '');
+          const effectiveTo = isReturnPhase ? (committedParams?.from || '') : (committedParams?.to || '');
+          const effectiveDate = isReturnPhase ? (committedParams?.returnDate || '') : (committedParams?.date || '');
+
+          const filteredBookingTrips = trips.filter(tr => filterTrip(tr, true)).sort((a, b) => compareTripDateTime(a, b));
 
           // Nearest trips: same route/direction but without date restriction, sorted by date proximity
           const nearestTrips = filteredBookingTrips.length === 0 && (effectiveFrom || effectiveTo)
             ? trips
-                .filter(t => filterTrip(t, false))
+                .filter(tr => filterTrip(tr, false))
                 .sort((a, b) => {
                   if (!effectiveDate) return compareTripDateTime(a, b);
                   const target = new Date(effectiveDate).getTime();
