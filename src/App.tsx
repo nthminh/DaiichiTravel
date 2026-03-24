@@ -42,7 +42,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { exportTripToExcel, exportTripToPDF, exportRouteToPDF } from './utils/exportUtils';
+import { exportTripToExcel, exportAllTripsToExcel, exportTripToPDF, exportRouteToPDF } from './utils/exportUtils';
 import { EmailLinkReenterForm } from './components/EmailLinkReenterForm';
 import { useEmployees } from './hooks/useEmployees';
 import { buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGroups as libBuildPassengerGroups } from './lib/bookingUtils';
@@ -879,7 +879,8 @@ export default function App() {
   const buildPassengerGroups = (tripId: string, bookedSeats: any[]) =>
     libBuildPassengerGroups(tripId, bookedSeats, bookings);
 
-  const exportTripToExcelHandler = (trip: any) => exportTripToExcel(trip.id).catch(err => console.error('[Excel] Export failed:', err));
+  const exportTripToExcelHandler = (trip: any) => exportTripToExcel(trip, bookings, routes).catch(err => console.error('[Excel] Export failed:', err));
+  const exportAllTripsToExcelHandler = (trips: any[]) => exportAllTripsToExcel(trips).catch(err => console.error('[Excel] Export all trips failed:', err));
   const exportTripToPDFHandler = (trip: any) => exportTripToPDF(trip, bookings, routes);
 
 
@@ -1692,6 +1693,7 @@ export default function App() {
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
               exportTripToExcelHandler={exportTripToExcelHandler}
+              exportAllTripsToExcelHandler={exportAllTripsToExcelHandler}
               exportTripToPDFHandler={exportTripToPDFHandler}
               handleSaveTrip={handleSaveTrip}
               handleStartEditTrip={handleStartEditTrip}

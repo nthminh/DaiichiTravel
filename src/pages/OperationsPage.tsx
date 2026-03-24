@@ -94,6 +94,7 @@ interface OperationsPageProps {
   handleAddTripAddon: () => void;
   handleDeleteTripAddon: (addonId: string) => void;
   exportTripToExcelHandler: (trip: any) => void;
+  exportAllTripsToExcelHandler: (trips: Trip[]) => void;
   exportTripToPDFHandler: (trip: any) => void;
   handleSaveTrip: () => void;
   handleStartEditTrip: (trip: Trip) => void;
@@ -200,6 +201,7 @@ export function OperationsPage({
   handleAddTripAddon,
   handleDeleteTripAddon,
   exportTripToExcelHandler,
+  exportAllTripsToExcelHandler,
   exportTripToPDFHandler,
   handleSaveTrip,
   handleStartEditTrip,
@@ -295,6 +297,13 @@ export function OperationsPage({
               {language === 'vi' ? 'Bỏ chọn' : 'Deselect'}
             </button>
           )}
+          <button
+            onClick={() => exportAllTripsToExcelHandler(filteredTrips)}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 transition-colors"
+          >
+            <Download size={16} />
+            {language === 'vi' ? 'Xuất Excel tất cả' : 'Export All Excel'}
+          </button>
           <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
           <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, discountPercent: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
         </div>

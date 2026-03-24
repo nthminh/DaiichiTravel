@@ -1,6 +1,4 @@
 import { Route, RouteFare, SeatStatus } from '../types';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '../lib/firebase';
 
 const COMPANY_LOGO_URL =
   'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
@@ -126,17 +124,13 @@ const isSeatSegment = (seat: any, totalStops: number): boolean => {
 
 // --- Public export functions ---
 
+// --- Excel download helper ---
+
 /**
- * Trigger a browser download from a base-64 encoded .xlsx string returned by
- * one of the server-side Cloud Functions.
+ * Trigger a browser download of an Excel workbook buffer.
  */
-export const downloadBase64Excel = (base64: string, filename: string): void => {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  const blob = new Blob([bytes], {
+const downloadExcelBuffer = (buffer: ArrayBuffer | Buffer, filename: string): void => {
+  const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);
@@ -148,43 +142,194 @@ export const downloadBase64Excel = (base64: string, filename: string): void => {
 };
 
 /**
- * Export a trip's passenger manifest to Excel.
+ * Export a trip's passenger manifest to Excel (client-side, using ExcelJS).
  *
- * Calls the `exportTripExcel` Cloud Function which reads the trip, bookings,
- * and route directly from Firestore server-side, generates the workbook, and
- * returns the file as a base-64 string.  The client never needs to send raw
- * passenger data – only the tripId.
+ * Produces a two-sheet workbook:
+ *   Sheet 1 – "Danh sách khách" : passenger manifest
+ *   Sheet 2 – "Dịch vụ"         : add-on services
  */
-export const exportTripToExcel = async (tripId: string): Promise<void> => {
-  if (!app) throw new Error('Firebase not configured');
-  const fns = getFunctions(app, 'asia-southeast1');
-  const callExport = httpsCallable<{ tripId: string }, { base64: string; filename: string }>(
-    fns,
-    'exportTripExcel',
+export const exportTripToExcel = async (trip: any, bookings: any[], routes: any[]): Promise<void> => {
+  const { default: ExcelJS } = await import('exceljs');
+  const routeData: any = routes.find((r: any) => r.name === trip.route) || null;
+
+  const bookedSeats = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
+  const sortedRouteStops = ((routeData?.routeStops || []) as any[]).slice().sort((a: any, b: any) => a.order - b.order);
+  const totalStops = sortedRouteStops.length;
+  const stopNameByOrder: Record<number, string> = {};
+  for (const stop of sortedRouteStops) {
+    stopNameByOrder[stop.order] = stop.stopName;
+  }
+
+  const passengerGroups = buildPassengerGroups(trip.id, bookedSeats, bookings);
+
+  const workbook = new ExcelJS.Workbook();
+
+  // --- Sheet 1: Passenger list ---
+  const ws = workbook.addWorksheet('Danh sách khách');
+  ws.columns = [
+    { width: 5 }, { width: 14 }, { width: 12 }, { width: 25 }, { width: 15 },
+    { width: 35 }, { width: 35 }, { width: 30 }, { width: 15 }, { width: 15 }, { width: 30 },
+  ];
+
+  const headerRows: (string | number)[][] = [
+    ['DANH SÁCH HÀNH KHÁCH - TRIP DETAIL'],
+    [`Số xe: ${trip.licensePlate || '—'}`],
+    [`Tài xế: ${trip.driverName || '—'}`],
+    [`Tuyến: ${trip.route || '—'}${routeData ? ` (${routeData.departurePoint} → ${routeData.arrivalPoint})` : ''}`],
+    [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
+    [`Trạng thái: ${trip.status || '—'}`],
+    [],
+    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Chặng đi', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
+  ];
+
+  const dataRows = passengerGroups.map((g, idx) => {
+    const primarySeat = g.seats[0];
+    const seatIds = g.seats.map((s: any) => s.id).join(', ');
+    const ticketCode = g.booking?.ticketCode || '—';
+    const allPaid = g.seats.every((s: any) => s.status === SeatStatus.PAID);
+    const totalAmount: number = g.booking?.amount ?? (trip.price || 0) * g.seats.length;
+    const segLabel = buildSegmentLabel(primarySeat, stopNameByOrder);
+    const isSeg = g.seats.some((s: any) => isSeatSegment(s, totalStops));
+    return [
+      idx + 1,
+      ticketCode,
+      seatIds,
+      primarySeat?.customerName || '—',
+      primarySeat?.customerPhone || '—',
+      getPickupDisplay(primarySeat) || '—',
+      getDropoffDisplay(primarySeat) || '—',
+      isSeg ? (segLabel || 'Chặng lẻ') : 'Toàn tuyến',
+      allPaid ? 'Đã thanh toán' : 'Đã đặt',
+      totalAmount.toLocaleString(),
+      primarySeat?.bookingNote || '',
+    ];
+  });
+
+  const totalRevenue = passengerGroups.reduce(
+    (sum, g) => sum + (g.booking?.amount ?? (trip.price || 0) * g.seats.length),
+    0,
   );
-  const result = await callExport({ tripId });
-  downloadBase64Excel(result.data.base64, result.data.filename);
+  const segmentCount = passengerGroups.filter(g =>
+    g.seats.some((s: any) => isSeatSegment(s, totalStops)),
+  ).length;
+
+  const summaryRows: (string | number)[][] = [
+    [],
+    [`Tổng số đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)`],
+    [`Khách chặng lẻ: ${segmentCount}`],
+    [`Tổng doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ`],
+  ];
+
+  for (const row of [...headerRows, ...dataRows, ...summaryRows]) {
+    ws.addRow(row);
+  }
+
+  // --- Sheet 2: Add-on services ---
+  const addonUsersMap = buildAddonUsersMap(trip, passengerGroups);
+  const addonHeaderRows: (string | number)[][] = [
+    ['DANH SÁCH DỊCH VỤ BỔ SUNG'],
+    [`Số xe: ${trip.licensePlate || '—'}`],
+    [`Tuyến: ${trip.route || '—'}`],
+    [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
+    [],
+    ['STT', 'Tên dịch vụ', 'Loại', 'Giá/người (đ)', 'Số khách', 'Tên khách hàng', 'Số điện thoại', 'Số ghế', 'Số lượng'],
+  ];
+  const addonDataRows: (string | number)[][] = [];
+  let addonStt = 1;
+  for (const [, info] of addonUsersMap) {
+    if (info.users.length === 0) {
+      addonDataRows.push([addonStt++, info.name, addonTypeLabel(info.type), info.price.toLocaleString(), 0, '—', '—', '—', '—']);
+    } else {
+      info.users.forEach((u, i) => {
+        addonDataRows.push([
+          i === 0 ? addonStt : '',
+          i === 0 ? info.name : '',
+          i === 0 ? addonTypeLabel(info.type) : '',
+          i === 0 ? info.price.toLocaleString() : '',
+          i === 0 ? info.users.length : '',
+          u.name, u.phone, u.seats, u.quantity,
+        ]);
+      });
+      addonStt++;
+    }
+  }
+
+  const addonWs = workbook.addWorksheet('Dịch vụ');
+  addonWs.columns = [
+    { width: 5 }, { width: 25 }, { width: 15 }, { width: 14 }, { width: 10 },
+    { width: 25 }, { width: 15 }, { width: 12 }, { width: 10 },
+  ];
+  for (const row of [...addonHeaderRows, ...addonDataRows]) {
+    addonWs.addRow(row);
+  }
+
+  const sanitizedPlate = (trip.licensePlate || 'xe').replace(/[^a-zA-Z0-9]/g, '_');
+  const formattedDate = (trip.date || 'nodate').replace(/-/g, '');
+  const formattedTime = (trip.time || 'notime').replace(/:/g, '');
+  const filename = `Chuyen_${sanitizedPlate}_${formattedDate}_${formattedTime}.xlsx`;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadExcelBuffer(buffer, filename);
 };
 
 /**
- * Export arbitrary rows to a single-sheet Excel file via the server-side
- * `exportGenericExcel` Cloud Function.  Use this for simple table exports
- * (bookings list, financial report, pickup/dropoff, …) where the client has
- * already filtered the data it wants exported.
+ * Export arbitrary rows to a single-sheet Excel file (client-side, using ExcelJS).
+ * Column headers are derived from the keys of the first row object.
  */
 export const exportRowsToExcel = async (
   rows: Record<string, unknown>[],
   filename: string,
   sheetName?: string,
 ): Promise<void> => {
-  if (!app) throw new Error('Firebase not configured');
-  const fns = getFunctions(app, 'asia-southeast1');
-  const callExport = httpsCallable<
-    { rows: Record<string, unknown>[]; sheetName?: string; filename: string },
-    { base64: string; filename: string }
-  >(fns, 'exportGenericExcel');
-  const result = await callExport({ rows, sheetName, filename });
-  downloadBase64Excel(result.data.base64, result.data.filename);
+  if (!rows || rows.length === 0) return;
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet(
+    sheetName ? sheetName.slice(0, 31) : 'Sheet1',
+  );
+  const headers = Object.keys(rows[0]);
+  worksheet.addRow(headers);
+  for (const row of rows) {
+    worksheet.addRow(
+      headers.map(h => {
+        const v = row[h];
+        return v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : v as string | number);
+      }),
+    );
+  }
+  const safeFilename = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadExcelBuffer(buffer, safeFilename);
+};
+
+/**
+ * Export a summary of multiple trips to Excel.
+ * Used by the "Export all trips" button on the Operations page.
+ */
+export const exportAllTripsToExcel = async (trips: any[]): Promise<void> => {
+  if (!trips || trips.length === 0) return;
+  const rows: Record<string, unknown>[] = trips.map(trip => {
+    const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length;
+    const emptyCount = (trip.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
+    const totalSeats = (trip.seats || []).length;
+    return {
+      'Ngày': trip.date || '',
+      'Giờ': trip.time || '',
+      'Tuyến': trip.route || '',
+      'Biển số xe': trip.licensePlate || '',
+      'Tài xế': trip.driverName || '',
+      'Đã đặt': bookedCount,
+      'Còn trống': emptyCount,
+      'Tổng ghế': totalSeats,
+      'Trạng thái': trip.status || '',
+      'Ghi chú': trip.note || '',
+    };
+  });
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  await exportRowsToExcel(rows, `Danh_sach_chuyen_${today}.xlsx`, 'Chuyến xe');
 };
 
 export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => {
