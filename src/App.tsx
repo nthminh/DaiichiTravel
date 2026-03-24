@@ -198,6 +198,14 @@ export default function App() {
       return new Set();
     }
   });
+  const [likedTrips, setLikedTrips] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('likedTrips');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [searchAdults, setSearchAdults] = useState(1);
   const [searchChildren, setSearchChildren] = useState(0);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -836,6 +844,19 @@ export default function App() {
     });
   };
 
+  const toggleLikedTrip = (tripId: string) => {
+    setLikedTrips(prev => {
+      const next = new Set(prev);
+      if (next.has(tripId)) {
+        next.delete(tripId);
+      } else {
+        next.add(tripId);
+      }
+      try { localStorage.setItem('likedTrips', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
   // --- Trip CRUD handlers ---
   const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
     trip.date ? `${trip.date} ${trip.time}` : trip.time;
@@ -1311,6 +1332,8 @@ export default function App() {
               setDropoffAddressSurcharge={setDropoffAddressSurcharge}
               setPickupStopAddress={setPickupStopAddress}
               setDropoffStopAddress={setDropoffStopAddress}
+              likedTrips={likedTrips}
+              toggleLikedTrip={toggleLikedTrip}
             />
           </Suspense>
         );
