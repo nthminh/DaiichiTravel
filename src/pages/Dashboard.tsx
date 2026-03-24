@@ -78,8 +78,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const exportToExcel = () => {
     const dataToExport = isAgent ? filteredBookings : bookings;
+    const rows: Record<string, unknown>[] = dataToExport.map((b: any) => ({
+      [language === 'vi' ? 'Mã đặt vé' : 'Booking ID']: b.id || '',
+      [language === 'vi' ? 'Tên khách hàng' : 'Customer Name']: b.customerName || '',
+      [language === 'vi' ? 'Số điện thoại' : 'Phone']: b.customerPhone || '',
+      [language === 'vi' ? 'Tuyến đường' : 'Route']: b.route || '',
+      [language === 'vi' ? 'Loại' : 'Type']: b.type || '',
+      [language === 'vi' ? 'Ngày' : 'Date']: b.date || '',
+      [language === 'vi' ? 'Giá vé (đ)' : 'Amount']: b.amount ?? 0,
+      [language === 'vi' ? 'Trạng thái' : 'Status']: b.status || '',
+      [language === 'vi' ? 'Đại lý' : 'Agent']: b.agent || '',
+      [language === 'vi' ? 'Mã vé' : 'Ticket Code']: b.ticketCode || '',
+      [language === 'vi' ? 'Phương thức thanh toán' : 'Payment Method']: b.paymentMethod || '',
+      [language === 'vi' ? 'Ghi chú' : 'Notes']: b.note || '',
+    }));
     const filename = `Daiichi_Bookings_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}.xlsx`;
-    exportRowsToExcel(dataToExport, filename, 'Bookings').catch(err =>
+    exportRowsToExcel(rows, filename, language === 'vi' ? 'Đặt vé' : 'Bookings').catch(err =>
       console.error('[Excel] Export failed:', err),
     );
   };
