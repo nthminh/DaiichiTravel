@@ -62,6 +62,15 @@ export default defineConfig(({mode}) => {
             if (id.includes('node_modules/exceljs/')) {
               return 'vendor-excel';
             }
+            if (id.includes('node_modules/lucide-react/')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('node_modules/qrcode.react/')) {
+              return 'vendor-qrcode';
+            }
+            if (id.includes('node_modules/date-fns/')) {
+              return 'vendor-date';
+            }
           },
         },
       },
