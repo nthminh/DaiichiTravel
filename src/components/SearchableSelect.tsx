@@ -26,6 +26,8 @@ interface SearchableSelectProps {
    * (e.g. `inputClassName="pl-12"`) if a larger icon or more spacing is needed.
    */
   leftIcon?: React.ReactNode;
+  /** Optional label rendered always-visible inside the top of the input (like a floating label). */
+  inlineLabel?: string;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -38,6 +40,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   optionDetails,
   leftIcon,
+  inlineLabel,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value);
@@ -99,8 +102,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   return (
     <div className={cn("relative", className)} ref={containerRef}>
       <div className="relative">
+        {inlineLabel && (
+          <div className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">
+            {inlineLabel}
+          </div>
+        )}
         {leftIcon && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">
+          <div className={cn("absolute left-4 text-gray-400 z-10 pointer-events-none", inlineLabel ? "top-[1.35rem]" : "top-1/2 -translate-y-1/2")}>
             {leftIcon}
           </div>
         )}
@@ -112,13 +120,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           placeholder={placeholder}
           disabled={disabled}
           className={cn(
-            "w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm pr-10",
+            "w-full px-4 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm pr-10",
+            inlineLabel ? "pt-5 pb-1" : "py-2",
             leftIcon && "pl-10",
             disabled && "opacity-50 cursor-not-allowed bg-gray-100",
             inputClassName
           )}
         />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-400">
+        <div className={cn("absolute right-3 flex items-center gap-1 text-gray-400", inlineLabel ? "bottom-1.5" : "top-1/2 -translate-y-1/2")}>
           {searchTerm && !disabled && (
             <button 
               onClick={(e) => {

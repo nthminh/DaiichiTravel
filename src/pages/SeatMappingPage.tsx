@@ -832,14 +832,14 @@ export function SeatMappingPage({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-3 sm:p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
+          className="bg-white p-2 sm:p-3 lg:p-3 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
         >
           {/* Drag handle visible on mobile */}
           <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 lg:hidden" />
           <h3 className="text-base sm:text-lg font-bold mb-0.5 sm:mb-1">
             {language === 'vi' ? '📋 Khai báo thông tin' : language === 'ja' ? '📋 乗客情報の入力' : '📋 Passenger Information'}
           </h3>
-          <p className="text-xs text-gray-400 mb-2 sm:mb-4">
+          <p className="text-xs text-gray-400 mb-1">
             <span className="sm:hidden">
               {language === 'vi' ? 'Nhập thông tin, chọn ghế trước khi đặt.' : language === 'ja' ? '情報入力後、座席を選んでください。' : 'Enter info, then select a seat.'}
             </span>
@@ -851,9 +851,9 @@ export function SeatMappingPage({
                   : 'Enter passenger details and departure / destination before selecting seats.'}
             </span>
           </p>
-          <form className="space-y-2.5 sm:space-y-4">
+          <form className="space-y-1.5">
             {/* Adults / Children */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
                 <div className="flex items-center gap-2 mt-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl">
@@ -934,9 +934,15 @@ export function SeatMappingPage({
             )}
 
             {/* Name */}
-            <div><label className="text-xs font-bold text-gray-500 uppercase">{t.customer_name}</label><input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full mt-1 px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_name} /></div>
+            <div className="relative">
+              <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.customer_name}</label>
+              <input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_name} />
+            </div>
             {/* Phone */}
-            <div><label className="text-xs font-bold text-gray-500 uppercase">{t.phone_number}</label><input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full mt-1 px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_phone} /></div>
+            <div className="relative">
+              <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.phone_number}</label>
+              <input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_phone} />
+            </div>
 
             {/* Departure Stop (Điểm xuất phát) + Pickup Address */}
             {(() => {
@@ -948,10 +954,10 @@ export function SeatMappingPage({
               return (
                 <>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_point}</label>
                     <SearchableSelect
                       options={pickupOptions}
                       value={pickupPoint}
+                      inlineLabel={t.pickup_point}
                       onChange={(val) => {
                         setPickupPoint(val);
                         setPickupAddress('');
@@ -969,7 +975,6 @@ export function SeatMappingPage({
                         }
                       }}
                       placeholder={pickupPoint ? t.select_pickup : (defaultDeparture || t.select_pickup)}
-                      className="mt-1"
                     />
                     {!pickupPoint && defaultDeparture && (
                       <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultDeparture}` : `Default: ${defaultDeparture}`}</p>
@@ -1018,10 +1023,10 @@ export function SeatMappingPage({
               return (
                 <>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_point}</label>
                     <SearchableSelect
                       options={dropoffOptions}
                       value={dropoffPoint}
+                      inlineLabel={t.dropoff_point}
                       onChange={(val) => {
                         setDropoffPoint(val);
                         setDropoffAddress('');
@@ -1039,7 +1044,6 @@ export function SeatMappingPage({
                         }
                       }}
                       placeholder={dropoffPoint ? t.select_dropoff : (defaultArrival || t.select_dropoff)}
-                      className="mt-1"
                     />
                     {!dropoffPoint && defaultArrival && (
                       <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultArrival}` : `Default: ${defaultArrival}`}</p>
