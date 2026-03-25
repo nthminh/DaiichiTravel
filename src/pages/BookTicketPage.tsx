@@ -1839,7 +1839,6 @@ export function BookTicketPage({
             )}
           </div>
         )}
-        {tripType === 'ONE_WAY' && <h3 className="text-xl font-bold px-2">{t.available_trips}</h3>}
 
         {/* Suggestions section: shown before the first search (liked trips + discounted trips) */}
         {!hasSearched && (() => {
