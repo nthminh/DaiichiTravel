@@ -1648,7 +1648,7 @@ export function BookTicketPage({
                 type="button"
                 onClick={handleSwap}
                 title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
+                className="absolute right-14 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
               >
                 <ArrowUpDown size={15} strokeWidth={2.5} />
               </button>
