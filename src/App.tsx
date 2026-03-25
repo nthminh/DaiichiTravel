@@ -21,7 +21,7 @@ import { useTrips } from './hooks/useTrips';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAuth } from './hooks/useAuth';
 import { usePassengerManagement } from './hooks/usePassengerManagement';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat, User } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat, User, VehicleType } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { auth, db, storage } from './lib/firebase';
@@ -232,6 +232,17 @@ export default function App() {
     () => Array.from(new Set(vehicles.map(v => v.type).filter(Boolean))).sort(),
     [vehicles]
   );
+
+  // Vehicle types managed in Firestore (for the vehicle form dropdown)
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+
+  // Subscribe to vehicle types collection in real-time
+  useEffect(() => {
+    const unsub = transportService.subscribeToVehicleTypes((types) => {
+      setVehicleTypes(types);
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
 
   // Terminal stops (Ga/Bến) used as departure/arrival options in route form
   const terminalStops = useMemo(
@@ -1633,7 +1644,7 @@ export default function App() {
         );
 
       case 'vehicles':
-        return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} currentUser={currentUser} />;
+        return <VehiclesPage vehicles={vehicles as any[]} language={language} uniqueVehicleTypes={uniqueVehicleTypes} vehicleTypes={vehicleTypes} currentUser={currentUser} />;
 
 
       case 'operations':

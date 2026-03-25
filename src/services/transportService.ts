@@ -15,7 +15,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage } from '../types';
+import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -42,6 +42,8 @@ interface TourData {
   itinerary?: { day: number; content: string }[];
   addons?: { id: string; name: string; price: number; description?: string }[]; // optional add-on services
 }
+
+export const DEFAULT_VEHICLE_TYPES = ['Ghế ngồi', 'Ghế ngồi limousine', 'Giường nằm', 'Phòng VIP (cabin)'];
 
 export const transportService = {
   // Listen to all trips
@@ -588,6 +590,47 @@ export const transportService = {
   deleteVehicle: async (vehicleId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'vehicles', vehicleId));
+  },
+
+  // ===== VEHICLE TYPE METHODS =====
+
+  // Listen to all vehicle types
+  subscribeToVehicleTypes: (callback: (types: VehicleType[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'vehicleTypes'), orderBy('order', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const types = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as VehicleType[];
+      callback(types);
+    });
+  },
+
+  // Add a new vehicle type
+  addVehicleType: async (name: string, order?: number) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'vehicleTypes'), { name, order: order ?? Date.now() });
+  },
+
+  // Update a vehicle type name
+  updateVehicleType: async (id: string, name: string) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'vehicleTypes', id), { name });
+  },
+
+  // Delete a vehicle type
+  deleteVehicleType: async (id: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'vehicleTypes', id));
+  },
+
+  // Seed default vehicle types (safe: only adds if collection is empty)
+  seedVehicleTypes: async () => {
+    if (!db) throw new Error('Firebase not configured');
+    const snap = await getDocs(collection(db, 'vehicleTypes'));
+    if (!snap.empty) return 0;
+    for (let i = 0; i < DEFAULT_VEHICLE_TYPES.length; i++) {
+      await addDoc(collection(db, 'vehicleTypes'), { name: DEFAULT_VEHICLE_TYPES[i], order: i });
+    }
+    return DEFAULT_VEHICLE_TYPES.length;
   },
 
   // Seed the 53 company vehicles (safe: only adds missing ones by licensePlate)

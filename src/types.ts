@@ -336,6 +336,12 @@ export interface Vehicle {
   seatType?: 'assigned' | 'free'; // 'assigned' = ghế chỉ định (default), 'free' = ghế tự do
 }
 
+export interface VehicleType {
+  id: string;
+  name: string;
+  order?: number;
+}
+
 export enum PaymentMethod {
   MOMO = 'MOMO',
   ZALOPAY = 'ZALOPAY',

@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { Bus, Search, X, Filter, Edit3, Trash2, Copy } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Bus, Search, X, Filter, Edit3, Trash2, Copy, Settings2, Plus, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
-import { Vehicle as VehicleBase, User, UserRole } from '../types';
+import { Vehicle as VehicleBase, VehicleType, User, UserRole } from '../types';
 
 type Vehicle = VehicleBase & { id: string };
-import { transportService } from '../services/transportService';
+import { transportService, DEFAULT_VEHICLE_TYPES } from '../services/transportService';
 import { ResizableTh } from '../components/ResizableTh';
 import { VehicleSeatDiagram, SerializedSeat } from '../components/VehicleSeatDiagram';
 import { NotePopover } from '../components/NotePopover';
@@ -14,10 +14,11 @@ interface VehiclesPageProps {
   vehicles: Vehicle[];
   language: Language;
   uniqueVehicleTypes: string[];
+  vehicleTypes: VehicleType[];
   currentUser?: User | null;
 }
 
-export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUser }: VehiclesPageProps) {
+export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, vehicleTypes, currentUser }: VehiclesPageProps) {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
 
@@ -27,17 +28,33 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUs
   const [vehicleFilterType, setVehicleFilterType] = useState('');
   const [vehicleFilterStatus, setVehicleFilterStatus] = useState('ALL');
 
-  // Default/blank vehicle form
-  const DEFAULT_VEHICLE_FORM = { licensePlate: '', type: 'Ghế ngồi', seats: 16, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' as 'assigned' | 'free' };
+  // Fallback: if no managed types yet, use the derived unique types
+  const typeOptions = vehicleTypes.length > 0
+    ? vehicleTypes.map(vt => vt.name)
+    : uniqueVehicleTypes.length > 0
+      ? uniqueVehicleTypes
+      : DEFAULT_VEHICLE_TYPES;
+
+  // Returns a blank vehicle form using the current first type option
+  const makeDefaultForm = useCallback(() => ({
+    licensePlate: '', type: typeOptions[0] || DEFAULT_VEHICLE_TYPES[0], seats: 16, registrationExpiry: '', status: 'ACTIVE', seatType: 'assigned' as 'assigned' | 'free'
+  }), [typeOptions]);
 
   // CRUD modal state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isCopyingVehicle, setIsCopyingVehicle] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState(DEFAULT_VEHICLE_FORM);
+  const [vehicleForm, setVehicleForm] = useState(makeDefaultForm);
 
   // Seat diagram state
   const [diagramVehicle, setDiagramVehicle] = useState<Vehicle | null>(null);
+
+  // Vehicle Types management modal state
+  const [showManageTypes, setShowManageTypes] = useState(false);
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [editingTypeName, setEditingTypeName] = useState('');
+  const [newTypeName, setNewTypeName] = useState('');
+  const [typesSaving, setTypesSaving] = useState(false);
 
   // Column widths
   const [vehicleColWidths, setVehicleColWidths] = useState({
@@ -48,6 +65,17 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUs
     expiry: 170,
     options: 160,
   });
+
+  const handleSeedVehicles = async () => {
+    try {
+      const added = await transportService.seedVehicles();
+      if (added === 0) alert(language === 'vi' ? 'Tất cả xe đã tồn tại.' : 'All vehicles already exist.');
+      else alert(language === 'vi' ? `Đã thêm ${added} xe.` : `Added ${added} vehicles.`);
+    } catch (e) {
+      console.error(e);
+      alert(language === 'vi' ? 'Lỗi khi thêm dữ liệu xe.' : 'Error seeding vehicles.');
+    }
+  };
 
   // Handlers
   const handleSaveVehicle = async () => {
@@ -60,7 +88,7 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUs
       setShowAddVehicle(false);
       setEditingVehicle(null);
       setIsCopyingVehicle(false);
-      setVehicleForm(DEFAULT_VEHICLE_FORM);
+      setVehicleForm(makeDefaultForm());
     } catch (err) {
       console.error('Failed to save vehicle:', err);
     }
@@ -107,6 +135,51 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUs
     }
   };
 
+  // Vehicle type management handlers
+  const handleAddVehicleType = async () => {
+    const name = newTypeName.trim();
+    if (!name) return;
+    setTypesSaving(true);
+    try {
+      await transportService.addVehicleType(name);
+      setNewTypeName('');
+    } catch (err) {
+      console.error('Failed to add vehicle type:', err);
+    } finally {
+      setTypesSaving(false);
+    }
+  };
+
+  const handleUpdateVehicleType = async (id: string) => {
+    const name = editingTypeName.trim();
+    if (!name) return;
+    setTypesSaving(true);
+    try {
+      await transportService.updateVehicleType(id, name);
+      setEditingTypeId(null);
+      setEditingTypeName('');
+    } catch (err) {
+      console.error('Failed to update vehicle type:', err);
+    } finally {
+      setTypesSaving(false);
+    }
+  };
+
+  const handleDeleteVehicleType = async (id: string, name: string) => {
+    const confirmMsg = language === 'vi'
+      ? `Xóa loại xe "${name}"? Các xe đang dùng loại này sẽ không bị ảnh hưởng.`
+      : `Delete vehicle type "${name}"? Existing vehicles using this type will not be affected.`;
+    if (!window.confirm(confirmMsg)) return;
+    setTypesSaving(true);
+    try {
+      await transportService.deleteVehicleType(id);
+    } catch (err) {
+      console.error('Failed to delete vehicle type:', err);
+    } finally {
+      setTypesSaving(false);
+    }
+  };
+
   const filteredVehicles = vehicles.filter(v => {
     if (vehicleFilterType && (v.type || '') !== vehicleFilterType) return false;
     if (vehicleFilterStatus !== 'ALL' && (v.status || 'ACTIVE') !== vehicleFilterStatus) return false;
@@ -123,26 +196,113 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUs
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div><h2 className="text-2xl font-bold">{t.vehicle_management}</h2><p className="text-sm text-gray-500">{t.vehicle_list}</p></div>
         <div className="flex gap-3 flex-wrap">
+          {isAdmin && (
+            <button
+              onClick={() => setShowManageTypes(true)}
+              className="flex items-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200 px-5 py-3 rounded-xl font-bold text-sm transition-all"
+            >
+              <Settings2 size={16} />
+              {language === 'vi' ? 'Quản lý loại xe' : language === 'en' ? 'Manage Types' : '車種管理'}
+            </button>
+          )}
           {vehicles.length === 0 && (
             <button
-              onClick={async () => {
-                try {
-                  const added = await transportService.seedVehicles();
-                  if (added === 0) alert(language === 'vi' ? 'Tất cả xe đã tồn tại.' : 'All vehicles already exist.');
-                  else alert(language === 'vi' ? `Đã thêm ${added} xe.` : `Added ${added} vehicles.`);
-                } catch (e) {
-                  console.error(e);
-                  alert(language === 'vi' ? 'Lỗi khi thêm dữ liệu xe.' : 'Error seeding vehicles.');
-                }
-              }}
+              onClick={handleSeedVehicles}
               className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm"
             >
               {language === 'vi' ? '📋 Nạp danh sách xe' : '📋 Seed Vehicles'}
             </button>
           )}
-          <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm(DEFAULT_VEHICLE_FORM); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
+          <button onClick={() => { setShowAddVehicle(true); setEditingVehicle(null); setIsCopyingVehicle(false); setVehicleForm(makeDefaultForm()); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_vehicle}</button>
         </div>
       </div>
+
+      {/* Manage Vehicle Types Modal */}
+      {showManageTypes && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[32px] p-8 max-w-md w-full space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">
+                {language === 'vi' ? 'Quản lý loại xe' : language === 'en' ? 'Manage Vehicle Types' : '車種管理'}
+              </h3>
+              <button onClick={() => { setShowManageTypes(false); setEditingTypeId(null); setEditingTypeName(''); setNewTypeName(''); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+            </div>
+
+            {/* Seed defaults button (shown only when list is empty) */}
+            {vehicleTypes.length === 0 && (
+              <button
+                onClick={async () => {
+                  setTypesSaving(true);
+                  try { await transportService.seedVehicleTypes(); } catch (e) { console.error(e); } finally { setTypesSaving(false); }
+                }}
+                disabled={typesSaving}
+                className="w-full py-2.5 rounded-xl text-sm font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all disabled:opacity-50"
+              >
+                {language === 'vi' ? '📋 Nạp loại xe mặc định' : '📋 Seed Default Types'}
+              </button>
+            )}
+
+            {/* Existing types list */}
+            <div className="space-y-2">
+              {vehicleTypes.map(vt => (
+                <div key={vt.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                  {editingTypeId === vt.id ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editingTypeName}
+                        onChange={e => setEditingTypeName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleUpdateVehicleType(vt.id); if (e.key === 'Escape') { setEditingTypeId(null); setEditingTypeName(''); } }}
+                        className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                      />
+                      <button onClick={() => handleUpdateVehicleType(vt.id)} disabled={typesSaving || !editingTypeName.trim()} className="p-2 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 disabled:opacity-50">
+                        <Check size={15} />
+                      </button>
+                      <button onClick={() => { setEditingTypeId(null); setEditingTypeName(''); }} className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200">
+                        <X size={15} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm font-semibold text-gray-700">{vt.name}</span>
+                      <button onClick={() => { setEditingTypeId(vt.id); setEditingTypeName(vt.name); }} className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-daiichi-red transition-all">
+                        <Edit3 size={14} />
+                      </button>
+                      <button onClick={() => handleDeleteVehicleType(vt.id, vt.name)} disabled={typesSaving} className="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all disabled:opacity-50">
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+              {vehicleTypes.length === 0 && (
+                <p className="text-center text-sm text-gray-400 py-4">
+                  {language === 'vi' ? 'Chưa có loại xe nào. Thêm mới bên dưới.' : 'No vehicle types yet. Add one below.'}
+                </p>
+              )}
+            </div>
+
+            {/* Add new type */}
+            <div className="flex gap-2 pt-2 border-t border-gray-100">
+              <input
+                value={newTypeName}
+                onChange={e => setNewTypeName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddVehicleType(); }}
+                placeholder={language === 'vi' ? 'Tên loại xe mới...' : language === 'en' ? 'New vehicle type name...' : '新しい車種名...'}
+                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+              />
+              <button
+                onClick={handleAddVehicleType}
+                disabled={typesSaving || !newTypeName.trim()}
+                className="flex items-center gap-1.5 px-4 py-3 bg-daiichi-red text-white rounded-xl font-bold text-sm shadow-md shadow-daiichi-red/20 disabled:opacity-50 transition-all"
+              >
+                <Plus size={16} />
+                {language === 'vi' ? 'Thêm' : language === 'en' ? 'Add' : '追加'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Vehicle Modal */}
       {showAddVehicle && (
@@ -163,12 +323,19 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, currentUs
                 <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.license_plate}</label><input type="text" value={vehicleForm.licensePlate} onChange={e => setVehicleForm(p => ({ ...p, licensePlate: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder="29B-123.45" /></div>
                 <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={vehicleForm.seats} onChange={e => setVehicleForm(p => ({ ...p, seats: parseInt(e.target.value) || 6 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
               </div>
-              <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
-                <select value={vehicleForm.type} onChange={e => setVehicleForm(p => ({ ...p, type: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
-                  <option value="Ghế ngồi">Ghế ngồi</option>
-                  <option value="Ghế ngồi limousine">Ghế ngồi limousine</option>
-                  <option value="Giường nằm">Giường nằm</option>
-                  <option value="Phòng VIP (cabin)">Phòng VIP (cabin)</option>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.vehicle_type}</label>
+                  {isAdmin && (
+                    <button onClick={() => setShowManageTypes(true)} className="text-[10px] text-daiichi-red hover:underline font-semibold">
+                      {language === 'vi' ? '+ Quản lý loại xe' : language === 'en' ? '+ Manage types' : '+ 車種管理'}
+                    </button>
+                  )}
+                </div>
+                <select value={vehicleForm.type} onChange={e => setVehicleForm(p => ({ ...p, type: e.target.value }))} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                  {typeOptions.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
                 </select>
               </div>
               <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.registration_expiry}</label><input type="date" value={vehicleForm.registrationExpiry} onChange={e => setVehicleForm(p => ({ ...p, registrationExpiry: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
