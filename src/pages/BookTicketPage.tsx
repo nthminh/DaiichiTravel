@@ -167,6 +167,13 @@ interface StopSearchInputProps {
   stopPickerCloseLabel?: string;
   /** Label shown when there are no sub-stops in the picker. */
   stopPickerNoStopsLabel?: string;
+  /**
+   * When set, applies mobile-specific "grouped" styling so adjacent inputs appear
+   * as a single connected card (no individual borders; shared outer container).
+   * 'top' = rounded top corners only; 'bottom' = rounded bottom corners only on last child.
+   * sm+ breakpoint always renders individual rounded inputs regardless of this prop.
+   */
+  grouped?: 'top' | 'bottom';
 }
 
 /** Imperative handle exposed by StopSearchInput via forwardRef. */
@@ -198,7 +205,7 @@ function renderNameWithParens(name: string): React.ReactNode {
 }
 
 const StopSearchInput = React.forwardRef<StopSearchInputHandle, StopSearchInputProps>(
-function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, pickupSuggestionLabel, selectedStop, onPickupStopSelect, selectStopPrompt, stopPickerMatchingLabel, stopPickerAllLabel, stopPickerCloseLabel, stopPickerNoStopsLabel }: StopSearchInputProps, ref) {
+function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint, mustSelectError, onChange, onConfirmed, pickupSuggestionLabel, selectedStop, onPickupStopSelect, selectStopPrompt, stopPickerMatchingLabel, stopPickerAllLabel, stopPickerCloseLabel, stopPickerNoStopsLabel, grouped }: StopSearchInputProps, ref) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMustSelect, setShowMustSelect] = useState(false);
   const [showSubStopPicker, setShowSubStopPicker] = useState(false);
@@ -378,6 +385,29 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  // Grouped styling: on mobile, adjacent inputs share a container border; sm+ always uses individual rounded inputs.
+  const showSubStopPickerButton = Boolean(isConfirmed && pickupStops.length > 0 && onPickupStopSelect);
+  // Classes applied to the input / confirmed-display-div when part of a grouped pair.
+  let groupedInputClass = '';
+  if (grouped === 'top') {
+    groupedInputClass = 'border-0 sm:border rounded-t-2xl rounded-b-none sm:rounded-2xl';
+  } else if (grouped === 'bottom') {
+    // The last visible element (input or sub-stop picker) carries the bottom radius.
+    const bottomRadius = showSubStopPickerButton ? 'rounded-b-none sm:rounded-b-2xl' : 'rounded-b-2xl';
+    groupedInputClass = cn('border-0 sm:border rounded-t-none sm:rounded-t-2xl', bottomRadius);
+  }
+  // Classes applied to the sub-stop picker wrapper div when grouped (remove indentation on mobile).
+  const groupedPickerWrapperClass = grouped
+    ? 'm-0 sm:mt-1.5 sm:ml-5 sm:mr-1 border-t border-gray-200 sm:border-t-0'
+    : '';
+  // Classes applied to the sub-stop picker trigger button when grouped.
+  let groupedPickerButtonClass = '';
+  if (grouped === 'top') {
+    groupedPickerButtonClass = 'rounded-none sm:rounded-xl border-0 sm:border';
+  } else if (grouped === 'bottom') {
+    groupedPickerButtonClass = 'rounded-t-none rounded-b-2xl sm:rounded-xl border-0 sm:border';
+  }
+
   return (
     <div ref={wrapperRef} className="relative">
       <MapPin
@@ -390,7 +420,10 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
           role="button"
           tabIndex={0}
           aria-label={`${value} – nhấn để chỉnh sửa`}
-          className="w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-daiichi-red rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer transition-colors"
+          className={cn(
+            "w-full pl-12 pr-14 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-daiichi-red rounded-2xl text-sm font-medium text-gray-800 line-clamp-2 leading-snug min-h-[44px] sm:min-h-[56px] cursor-pointer transition-colors",
+            groupedInputClass
+          )}
           onClick={handleEditMode}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditMode(); } }}
         >
@@ -409,7 +442,8 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
             "w-full pl-12 pr-8 py-2.5 sm:py-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:outline-none text-sm font-medium text-gray-800",
             showMustSelect
               ? "border-daiichi-red focus:ring-daiichi-red/20"
-              : "border-gray-200 hover:border-daiichi-red focus:border-daiichi-red focus:ring-daiichi-red/20"
+              : "border-gray-200 hover:border-daiichi-red focus:border-daiichi-red focus:ring-daiichi-red/20",
+            groupedInputClass
           )}
         />
       )}
@@ -454,7 +488,7 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
       )}
       {/* Sub-stop picker trigger button shown below the confirmed input */}
       {isConfirmed && pickupStops.length > 0 && onPickupStopSelect && (
-        <div className="mt-1.5 ml-5 mr-1">
+        <div className={cn("mt-1.5 ml-5 mr-1", groupedPickerWrapperClass)}>
           <button
             type="button"
             onClick={() => setShowSubStopPicker(true)}
@@ -462,7 +496,8 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
               "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-all",
               selectedStop
                 ? "bg-gray-50 border-gray-200 text-gray-800"
-                : "bg-gray-50 border-gray-100 text-gray-500 hover:border-gray-200 hover:text-gray-700"
+                : "bg-gray-50 border-gray-100 text-gray-500 hover:border-gray-200 hover:text-gray-700",
+              groupedPickerButtonClass
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -1559,8 +1594,8 @@ export function BookTicketPage({
 
   return (
     <div className="space-y-8">
-      <div className="bg-white p-3 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+      <div className="bg-white p-2 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between gap-2 mb-2 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
           <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
             {(['ONE_WAY', 'ROUND_TRIP'] as const).map((type) => (
@@ -1577,7 +1612,7 @@ export function BookTicketPage({
             ))}
           </div>
         </div>
-        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           {/* FROM + TO combined cell with swap button on the left */}
           <div className="lg:col-span-2 flex items-start gap-2">
             {/* Swap button – left side, vertically centered between FROM and TO labels */}
@@ -1589,8 +1624,8 @@ export function BookTicketPage({
             >
               <ArrowUpDown size={15} strokeWidth={2.5} />
             </button>
-            {/* FROM and TO side by side */}
-            <div className="flex-1 flex flex-col sm:flex-row gap-2 min-w-0">
+            {/* FROM and TO – on mobile: grouped as a single card; on sm+: side by side */}
+            <div className="flex-1 flex flex-col sm:flex-row gap-0 sm:gap-2 min-w-0 border border-gray-200 rounded-2xl sm:border-0 sm:rounded-none bg-gray-50 sm:bg-transparent">
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="sm:mt-1">
@@ -1611,9 +1646,12 @@ export function BookTicketPage({
                   stopPickerAllLabel={t.stop_picker_all}
                   stopPickerCloseLabel={t.stop_picker_close}
                   stopPickerNoStopsLabel={t.stop_picker_no_stops}
+                  grouped="top"
                 />
               </div>
             </div>
+            {/* Thin divider visible on mobile only, between FROM and TO */}
+            <div className="h-px bg-gray-200 sm:hidden" />
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="sm:mt-1">
@@ -1634,6 +1672,7 @@ export function BookTicketPage({
                   stopPickerAllLabel={t.stop_picker_all}
                   stopPickerCloseLabel={t.stop_picker_close}
                   stopPickerNoStopsLabel={t.stop_picker_no_stops}
+                  grouped="bottom"
                 />
               </div>
             </div>
@@ -1664,7 +1703,7 @@ export function BookTicketPage({
           </div>
         )}
         {/* Passenger count row + vehicle/seat filters + search button */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2 sm:gap-3 mt-2 sm:mt-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-1.5 sm:gap-3 mt-1.5 sm:mt-4">
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-2 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.num_adults}</label>
