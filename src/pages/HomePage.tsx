@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Bus, Star, Phone, UserPlus, Search, Package, Building2, Anchor, Map, LayoutGrid, Ticket, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Bus, Star, UserPlus, Search, Package, Building2, Anchor, Map, LayoutGrid, Ticket, ChevronRight, ChevronLeft, Play } from 'lucide-react';
 import { motion } from 'motion/react';
 import { TRANSLATIONS } from '../constants/translations';
 import { UserRole } from '../constants/translations';
@@ -18,13 +18,105 @@ interface HomePageProps {
 
 const HERO_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/hinhnenhome.png?alt=media&token=4be06677-5484-4225-a48f-2a7f92dc99f4';
 const TOUR_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/tours%2F1773789577464_tourHagiang.jpg?alt=media&token=eb94d1e8-52c1-4049-a6ee-7604fe17af93';
+const CRUISE_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/tours%2Fcruise%20sangtrong.png?alt=media&token=d27309e2-4e20-41b2-a4a9-100e67af6212';
+const YOUTUBE_VIDEO_ID = 'Uqhsq1MYIZk';
+const CAROUSEL_GAP = 16; // px – matches gap-4
 
 export function HomePage({ language, currentUser, agents, setActiveTab, setAgentTopUpModal }: HomePageProps) {
   const t = TRANSLATIONS[language];
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ── Carousel state ──
+  const [slideIdx, setSlideIdx] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const isVi = language === 'vi';
   const isJa = language === 'ja';
+
+  // ── Responsive container width tracking ──
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const services = [
+    {
+      title: t.feature_limo_title,
+      desc: t.feature_limo_desc,
+      icon: Bus,
+      tab: 'book-ticket',
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+      image: HERO_IMAGE_URL,
+      type: 'service' as const,
+    },
+    {
+      title: t.feature_tour_title,
+      desc: t.feature_tour_desc,
+      icon: Star,
+      tab: 'tours',
+      color: 'text-green-600',
+      bg: 'bg-green-50',
+      image: TOUR_IMAGE_URL,
+      type: 'service' as const,
+    },
+    {
+      title: isVi ? 'Cruise Sang Trọng' : isJa ? '豪華クルーズ' : 'Luxury Cruise',
+      desc: isVi ? 'Du thuyền cao cấp, trải nghiệm đẳng cấp.' : isJa ? '高級クルーズ体験。' : 'Premium cruise experience.',
+      icon: Anchor,
+      tab: 'book-ticket',
+      color: 'text-cyan-600',
+      bg: 'bg-cyan-50',
+      image: CRUISE_IMAGE_URL,
+      type: 'service' as const,
+    },
+  ];
+
+  type ServiceCard = typeof services[number];
+  type YoutubeCard = { type: 'youtube'; title: string; youtubeId: string; icon: typeof Play; tab: string; color: string; bg: string };
+  type AnyCard = ServiceCard | YoutubeCard;
+
+  const youtubeCard: YoutubeCard = {
+    type: 'youtube',
+    title: isVi ? 'Video Nổi Bật' : isJa ? '注目動画' : 'Featured Video',
+    youtubeId: YOUTUBE_VIDEO_ID,
+    icon: Play,
+    tab: 'book-ticket',
+    color: 'text-red-600',
+    bg: 'bg-red-50',
+  };
+
+  const allCards: AnyCard[] = [...services, youtubeCard];
+  const totalCards = allCards.length;
+
+  const visibleCount = containerWidth > 0 && containerWidth >= 640 ? 3 : 1;
+  const cardWidth = containerWidth > 0 ? (containerWidth - CAROUSEL_GAP * (visibleCount - 1)) / visibleCount : 0;
+  const slotWidth = cardWidth + CAROUSEL_GAP;
+  const maxIdx = Math.max(0, totalCards - visibleCount);
+
+  // goTo wraps around for consistent UX with auto-play
+  const goTo = useCallback((idx: number) => {
+    setSlideIdx(((idx % (maxIdx + 1)) + (maxIdx + 1)) % (maxIdx + 1));
+  }, [maxIdx]);
+
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setSlideIdx(prev => (prev >= maxIdx ? 0 : prev + 1));
+    }, 3500);
+  }, [maxIdx]);
+
+  useEffect(() => {
+    resetTimer();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [resetTimer]);
 
   const heroTagline = isVi
     ? 'Tour, xe & nhiều khuyến mại hấp dẫn khác'
@@ -81,36 +173,6 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
     e.preventDefault();
     setActiveTab('book-ticket');
   };
-
-  const services = [
-    {
-      title: t.feature_limo_title,
-      desc: t.feature_limo_desc,
-      icon: Bus,
-      tab: 'book-ticket',
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-      image: HERO_IMAGE_URL,
-    },
-    {
-      title: t.feature_tour_title,
-      desc: t.feature_tour_desc,
-      icon: Star,
-      tab: 'tours',
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      image: TOUR_IMAGE_URL,
-    },
-    {
-      title: t.feature_support_title,
-      desc: '+84 96 100 47 09',
-      icon: Phone,
-      tab: 'book-ticket',
-      color: 'text-daiichi-red',
-      bg: 'bg-daiichi-accent',
-      image: null,
-    },
-  ];
 
   return (
     <div className="space-y-5">
@@ -283,53 +345,119 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
         );
       })()}
 
-      {/* ── Product / Services Listing (shown on scroll) ── */}
+      {/* ── Product / Services Carousel ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base sm:text-lg font-bold text-gray-800">
             {isVi ? 'Sản phẩm & dịch vụ nổi bật' : isJa ? '注目のサービス' : 'Featured Services'}
           </h3>
-          <button
-            onClick={() => setActiveTab('book-ticket')}
-            className="flex items-center gap-1 text-daiichi-red text-xs font-semibold hover:underline"
-          >
-            {isVi ? 'Xem tất cả' : isJa ? 'すべて見る' : 'View all'}
-            <ChevronRight size={14} />
-          </button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {services.map((s, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07 }}
-              onClick={() => setActiveTab(s.tab)}
-              className="flex flex-col rounded-3xl border border-gray-100 shadow-sm hover:shadow-md cursor-pointer transition-all overflow-hidden group h-64"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { goTo(slideIdx - 1); resetTimer(); }}
+              className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-all"
+              aria-label="Previous"
             >
-              {s.image ? (
-                <div className="flex-[9] min-h-0 overflow-hidden">
-                  <img
-                    src={s.image}
-                    alt={s.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-              ) : (
-                <div className={`flex-[9] min-h-0 ${s.bg} flex items-center justify-center`}>
-                  <s.icon size={72} className={`${s.color} opacity-25`} />
-                </div>
-              )}
-              <div className="flex-[1] min-h-0 bg-white flex items-center gap-2 px-4 border-t border-gray-100 overflow-hidden">
-                <div className={`w-6 h-6 ${s.bg} ${s.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                  <s.icon size={13} />
-                </div>
-                <span className="font-bold text-gray-900 text-sm truncate">{s.title}</span>
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              onClick={() => { goTo(slideIdx + 1); resetTimer(); }}
+              className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-all"
+              aria-label="Next"
+            >
+              <ChevronRight size={14} />
+            </button>
+            <button
+              onClick={() => setActiveTab('book-ticket')}
+              className="flex items-center gap-1 text-daiichi-red text-xs font-semibold hover:underline ml-1"
+            >
+              {isVi ? 'Xem tất cả' : isJa ? 'すべて見る' : 'View all'}
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Carousel track */}
+        <div ref={carouselRef} className="overflow-hidden">
+          <div
+            className="flex gap-4"
+            style={{
+              transform: containerWidth > 0 ? `translateX(-${slideIdx * slotWidth}px)` : undefined,
+              transition: 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+            }}
+          >
+            {allCards.map((card, i) => (
+              <div
+                key={i}
+                style={{ width: cardWidth > 0 ? cardWidth : undefined, flexShrink: 0 }}
+              >
+                {card.type === 'youtube' ? (
+                  /* ── YouTube card ── */
+                  <a
+                    href={`https://youtu.be/${card.youtubeId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden group h-64 block"
+                  >
+                    <div className="flex-[9] min-h-0 relative overflow-hidden bg-black">
+                      <img
+                        src={`https://i.ytimg.com/vi/${card.youtubeId}/hqdefault.jpg`}
+                        alt={card.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      {/* Play button overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform duration-300">
+                          <Play size={22} className="text-white ml-1" fill="white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-[1] min-h-0 bg-white flex items-center gap-2 px-4 border-t border-gray-100 overflow-hidden">
+                      <div className="w-6 h-6 bg-red-50 text-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Play size={13} fill="currentColor" />
+                      </div>
+                      <span className="font-bold text-gray-900 text-sm truncate">{card.title}</span>
+                    </div>
+                  </a>
+                ) : (
+                  /* ── Service card ── */
+                  <div
+                    onClick={() => setActiveTab(card.tab)}
+                    className="flex flex-col rounded-3xl border border-gray-100 shadow-sm hover:shadow-md cursor-pointer transition-all overflow-hidden group h-64"
+                  >
+                    <div className="flex-[9] min-h-0 overflow-hidden">
+                      <img
+                        src={card.image}
+                        alt={card.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                    <div className="flex-[1] min-h-0 bg-white flex items-center gap-2 px-4 border-t border-gray-100 overflow-hidden">
+                      <div className={`w-6 h-6 ${card.bg} ${card.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <card.icon size={13} />
+                      </div>
+                      <span className="font-bold text-gray-900 text-sm truncate">{card.title}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Dot indicators */}
+        <div className="flex justify-center gap-1.5 mt-3">
+          {Array.from({ length: maxIdx + 1 }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { goTo(i); resetTimer(); }}
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === slideIdx ? 'w-5 bg-daiichi-red' : 'w-1.5 bg-gray-300 hover:bg-gray-400'}`}
+              aria-label={`Go to slide ${i + 1}`}
+            />
           ))}
         </div>
       </div>
