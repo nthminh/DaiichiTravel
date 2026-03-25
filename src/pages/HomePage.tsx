@@ -305,10 +305,10 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07 }}
               onClick={() => setActiveTab(s.tab)}
-              className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md cursor-pointer transition-all overflow-hidden group"
+              className="flex flex-col rounded-3xl border border-gray-100 shadow-sm hover:shadow-md cursor-pointer transition-all overflow-hidden group h-64"
             >
               {s.image ? (
-                <div className="h-32 overflow-hidden">
+                <div className="flex-[9] min-h-0 overflow-hidden">
                   <img
                     src={s.image}
                     alt={s.title}
@@ -319,16 +319,15 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
                   />
                 </div>
               ) : (
-                <div className="h-32 bg-daiichi-accent flex items-center justify-center">
-                  <s.icon size={48} className="text-daiichi-red/30" />
+                <div className={`flex-[9] min-h-0 ${s.bg} flex items-center justify-center`}>
+                  <s.icon size={72} className={`${s.color} opacity-25`} />
                 </div>
               )}
-              <div className="p-4 sm:p-5">
-                <div className={`w-10 h-10 ${s.bg} ${s.color} rounded-xl flex items-center justify-center mb-3`}>
-                  <s.icon size={20} />
+              <div className="flex-[1] min-h-0 bg-white flex items-center gap-2 px-4 border-t border-gray-100 overflow-hidden">
+                <div className={`w-6 h-6 ${s.bg} ${s.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                  <s.icon size={13} />
                 </div>
-                <h4 className="font-bold text-gray-900 mb-1">{s.title}</h4>
-                <p className="text-gray-500 text-sm leading-relaxed">{s.desc}</p>
+                <span className="font-bold text-gray-900 text-sm truncate">{s.title}</span>
               </div>
             </motion.div>
           ))}
