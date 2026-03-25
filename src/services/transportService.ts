@@ -229,7 +229,7 @@ export const transportService = {
   updateAgent: async (agentId: string, updates: Partial<Agent>) => {
     if (!db) return;
     const agentRef = doc(db, 'agents', agentId);
-    await updateDoc(agentRef, updates as Record<string, unknown>);
+    await updateDoc(agentRef, { ...updates, updatedAt: new Date().toISOString() } as Record<string, unknown>);
   },
 
   // Listen to routes
@@ -486,7 +486,7 @@ export const transportService = {
   // Add agent
   addAgent: async (agent: Omit<Agent, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
-    return await addDoc(collection(db, 'agents'), agent);
+    return await addDoc(collection(db, 'agents'), { ...agent, updatedAt: new Date().toISOString() });
   },
 
   // Delete agent
@@ -769,14 +769,14 @@ export const transportService = {
   // Add employee
   addEmployee: async (employee: Omit<Employee, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
-    return await addDoc(collection(db, 'employees'), employee);
+    return await addDoc(collection(db, 'employees'), { ...employee, updatedAt: new Date().toISOString() });
   },
 
   // Update employee
   updateEmployee: async (employeeId: string, updates: Partial<Employee>) => {
     if (!db) return;
     const ref = doc(db, 'employees', employeeId);
-    await updateDoc(ref, updates as Record<string, unknown>);
+    await updateDoc(ref, { ...updates, updatedAt: new Date().toISOString() } as Record<string, unknown>);
   },
 
   // Delete employee
@@ -835,7 +835,7 @@ export const transportService = {
   // Add trip
   addTrip: async (trip: Omit<Trip, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
-    return await addDoc(collection(db, 'trips'), trip);
+    return await addDoc(collection(db, 'trips'), { ...trip, updatedAt: new Date().toISOString() });
   },
 
   // Add multiple trips in batch
@@ -852,7 +852,7 @@ export const transportService = {
   updateTrip: async (tripId: string, updates: Partial<Trip>) => {
     if (!db) return;
     const ref = doc(db, 'trips', tripId);
-    await updateDoc(ref, updates as Record<string, unknown>);
+    await updateDoc(ref, { ...updates, updatedAt: new Date().toISOString() } as Record<string, unknown>);
   },
 
   // Delete trip

@@ -8,6 +8,7 @@ import { generateVehicleLayout, serializeLayout, SerializedSeat } from '../lib/v
 /** External dependencies that useTrips needs from App.tsx */
 export interface TripContext {
   vehicles: Vehicle[];
+  trips: Trip[];
   language: 'vi' | 'en' | 'ja';
 }
 
@@ -57,6 +58,9 @@ export function useTrips(ctx: TripContext) {
   // Saving / error state for trip save operations
   const [isSavingTrip, setIsSavingTrip] = useState(false);
   const [tripSaveError, setTripSaveError] = useState<string | null>(null);
+  // Conflict detection: tracks the updatedAt of the trip when editing was opened
+  const editingTripUpdatedAtRef = useRef<string | null>(null);
+  const [tripConflictWarning, setTripConflictWarning] = useState(false);
 
   // Merge trips state
   const [selectedTripIdsForMerge, setSelectedTripIdsForMerge] = useState<string[]>([]);
@@ -94,10 +98,23 @@ export function useTrips(ctx: TripContext) {
     }));
   };
 
-  const handleSaveTrip = async () => {
+  const handleSaveTrip = async (forceOverwrite = false) => {
     setIsSavingTrip(true);
     setTripSaveError(null);
+    setTripConflictWarning(false);
     try {
+      // Conflict detection: if editing an existing trip, compare the updatedAt we
+      // recorded when editing started against the live version from context.
+      if (editingTrip && !forceOverwrite && editingTripUpdatedAtRef.current !== null) {
+        const liveTrip = ctxRef.current.trips.find(tr => tr.id === editingTrip.id);
+        const liveUpdatedAt = liveTrip?.updatedAt ?? null;
+        if (liveUpdatedAt && liveUpdatedAt !== editingTripUpdatedAtRef.current) {
+          // Someone else saved this trip while we were editing – warn the user.
+          setTripConflictWarning(true);
+          setIsSavingTrip(false);
+          return;
+        }
+      }
       const seats = buildSeatsForVehicle(tripForm.licensePlate, tripForm.seatCount);
       const tripVehicle = ctxRef.current.vehicles.find(v => v.licensePlate === tripForm.licensePlate);
       const seatType = tripVehicle?.seatType || 'assigned';
@@ -187,6 +204,8 @@ export function useTrips(ctx: TripContext) {
     setEditingTrip(trip);
     setIsCopyingTrip(false);
     setTripSaveError(null);
+    setTripConflictWarning(false);
+    editingTripUpdatedAtRef.current = trip.updatedAt ?? null;
     setTripForm({
       time: trip.time,
       date: trip.date || '',
@@ -369,8 +388,11 @@ export function useTrips(ctx: TripContext) {
     isSavingTrip,
     tripSaveError,
     setTripSaveError,
+    tripConflictWarning,
+    setTripConflictWarning,
     buildSeatsForVehicle,
     handleSaveTrip,
+    handleForceSaveTrip: () => handleSaveTrip(true),
     handleStartEditTrip,
     handleCopyTrip,
     handleCopyTripsToDate,
