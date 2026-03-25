@@ -274,7 +274,7 @@ export function useRoutes(ctx: RouteContext) {
         const file = files[i];
         const compressed = await compressImage(file, 0.75, 1280);
         const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
-        const task = uploadBytesResumable(sRef, compressed, { contentType: 'image/jpeg' });
+        const task = uploadBytesResumable(sRef, compressed, { contentType: compressed.type });
         await new Promise<void>((resolve, reject) => {
           task.on(
             'state_changed',
