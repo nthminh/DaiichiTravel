@@ -56,7 +56,7 @@ export const transportService = {
         ...doc.data()
       })) as Trip[];
       callback(trips);
-    });
+    }, (err) => { console.error('[trips] subscription error:', err); callback([]); });
   },
 
   // Update seat status (atomic transaction to avoid race conditions)
@@ -187,7 +187,7 @@ export const transportService = {
         ...doc.data()
       })) as Consignment[];
       callback(consignments);
-    });
+    }, (err) => { console.error('[consignments] subscription error:', err); callback([]); });
   },
 
   // Add new consignment
@@ -222,7 +222,7 @@ export const transportService = {
         ...doc.data()
       })) as Agent[];
       callback(agents);
-    });
+    }, (err) => { console.error('[agents] subscription error:', err); callback([]); });
   },
 
   // Update agent
@@ -242,7 +242,7 @@ export const transportService = {
         ...doc.data()
       })) as Route[];
       callback(routes);
-    });
+    }, (err) => { console.error('[routes] subscription error:', err); callback([]); });
   },
 
   // Listen to vehicles
@@ -255,7 +255,7 @@ export const transportService = {
         ...doc.data()
       })) as (Vehicle & { id: string })[];
       callback(vehicles);
-    });
+    }, (err) => { console.error('[vehicles] subscription error:', err); callback([]); });
   },
 
   // Listen to stops
@@ -268,7 +268,7 @@ export const transportService = {
         ...doc.data()
       })) as Stop[];
       callback(stops);
-    });
+    }, (err) => { console.error('[stops] subscription error:', err); callback([]); });
   },
 
   // Add stop
@@ -300,7 +300,7 @@ export const transportService = {
         ...doc.data()
       }));
       callback(bookings);
-    });
+    }, (err) => { console.error('[bookings] subscription error:', err); callback([]); });
   },
 
   // Generate a short unique ticket code like DT-XXXXXXXX (6 random + 2 time-based chars)
@@ -562,7 +562,7 @@ export const transportService = {
         return aSortOrder - bSortOrder;
       });
       callback(fares);
-    });
+    }, (err) => { console.error('[routeFares] subscription error:', err); callback([]); });
   },
 
   /** Delete a fare entry. */
@@ -601,7 +601,7 @@ export const transportService = {
     return onSnapshot(q, (snapshot) => {
       const types = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as VehicleType[];
       callback(types);
-    });
+    }, (err) => { console.error('[vehicleTypes] subscription error:', err); callback([]); });
   },
 
   // Add a new vehicle type
@@ -971,7 +971,7 @@ export const transportService = {
     return onSnapshot(q, (snapshot) => {
       const guides = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as UserGuide[];
       callback(guides);
-    });
+    }, (err) => { console.error('[userGuides] subscription error:', err); callback([]); });
   },
 
   addUserGuide: async (guide: Omit<UserGuide, 'id'>) => {
