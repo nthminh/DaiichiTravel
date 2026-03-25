@@ -65,6 +65,43 @@ function busLayout(seatCount: number): DeckLayout {
   return rows;
 }
 
+/**
+ * Standard 45-seat Vietnamese coach layout:
+ * - Row 0: driver area (1 driver cell + 3 aisle cells)
+ * - Rows 1–10: left2 | aisle | right2 (seats 1–40)
+ * - Row 11: back row with 5 seats across (seats 41–45)
+ */
+function bus45Layout(): DeckLayout {
+  const rows: SeatCell[][] = [];
+  // Row 0: driver area
+  rows.push([
+    { label: '', isDriver: true },
+    { label: '', isAisle: true },
+    { label: '', isAisle: true },
+    { label: '', isAisle: true },
+  ]);
+  // Rows 1–10: two seats | aisle | two seats (seats 1–40)
+  let n = 1;
+  for (let i = 0; i < 10; i++) {
+    rows.push([
+      { label: String(n++) },
+      { label: String(n++) },
+      { label: '', isAisle: true },
+      { label: String(n++) },
+      { label: String(n++) },
+    ]);
+  }
+  // Row 11: back row – 5 seats across, no aisle (seats 41–45)
+  rows.push([
+    { label: String(n++) },
+    { label: String(n++) },
+    { label: String(n++) },
+    { label: String(n++) },
+    { label: String(n++) },
+  ]);
+  return rows;
+}
+
 function minivanLayout(seatCount: number): DeckLayout {
   const rows: SeatCell[][] = [];
   rows.push([{ label: '', isDriver: true }, { label: '', isAisle: true }, { label: '1' }]);
@@ -171,6 +208,7 @@ export function generateVehicleLayout(type: string, seatCount: number): VehicleL
 
   if (seatCount <= 7) return { decks: [minivanLayout(seatCount)] };
   if (seatCount <= 11) return { decks: [van10Layout(seatCount)] };
+  if (seatCount === 45) return { decks: [bus45Layout()] };
 
   return { decks: [busLayout(seatCount)] };
 }
