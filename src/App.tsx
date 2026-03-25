@@ -79,6 +79,7 @@ const SeatMappingPage = lazy(() => import('./pages/SeatMappingPage').then(m => (
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 import { DriverAssignment, StaffMessage } from './types';
 import type { TourItem } from './components/TourBookingForm';
+import { TripFormModal } from './components/TripFormModal';
 
 // Re-export types for components
 export { UserRole, TripStatus, SeatStatus, TRANSLATIONS };
@@ -554,6 +555,11 @@ export default function App() {
   const [lastBooking, setLastBooking] = useState<any>(null);
 
   const t = TRANSLATIONS[language];
+
+  const activeEmployeeNames = useMemo(() => [
+    ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
+    ...employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
+  ], [employees]);
 
   useEffect(() => {
     const unsubscribeTrips = transportService.subscribeToTrips(setTrips);
@@ -2011,6 +2017,31 @@ export default function App() {
           onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
         />
       </Suspense>
+
+      {/* Trip Add/Edit Modal – rendered at root level so it works from any tab (e.g. completed-trips) */}
+      <TripFormModal
+        showAddTrip={showAddTrip}
+        setShowAddTrip={setShowAddTrip}
+        editingTrip={editingTrip}
+        setEditingTrip={setEditingTrip}
+        isCopyingTrip={isCopyingTrip}
+        setIsCopyingTrip={setIsCopyingTrip}
+        tripForm={tripForm}
+        setTripForm={setTripForm}
+        isSavingTrip={isSavingTrip}
+        tripSaveError={tripSaveError}
+        setTripSaveError={setTripSaveError}
+        handleSaveTrip={handleSaveTrip}
+        handleTripVehicleSelect={handleTripVehicleSelect}
+        routes={routes}
+        vehicles={vehicles}
+        activeEmployeeNames={activeEmployeeNames}
+        language={language}
+        t={t}
+        getRouteActivePeriod={getRouteActivePeriod}
+        isRouteValidForDate={isRouteValidForDate}
+        formatRouteOption={formatRouteOption}
+      />
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
