@@ -244,6 +244,15 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, vehicleTy
 
             {/* Existing types list */}
             <div className="space-y-2">
+              {vehicleTypes.length > 0 && (
+                <p className="text-xs text-gray-400 mb-2">
+                  {language === 'vi'
+                    ? 'Nhấn ✏️ để đổi tên, 🗑️ để xóa một loại xe.'
+                    : language === 'en'
+                      ? 'Click ✏️ to rename, 🗑️ to delete a vehicle type.'
+                      : '✏️ で名前変更、🗑️ で削除できます。'}
+                </p>
+              )}
               {vehicleTypes.map(vt => (
                 <div key={vt.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
                   {editingTypeId === vt.id ? (
@@ -255,20 +264,38 @@ export function VehiclesPage({ vehicles, language, uniqueVehicleTypes, vehicleTy
                         onKeyDown={e => { if (e.key === 'Enter') handleUpdateVehicleType(vt.id); if (e.key === 'Escape') { setEditingTypeId(null); setEditingTypeName(''); } }}
                         className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                       />
-                      <button onClick={() => handleUpdateVehicleType(vt.id)} disabled={typesSaving || !editingTypeName.trim()} className="p-2 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 disabled:opacity-50">
+                      <button
+                        onClick={() => handleUpdateVehicleType(vt.id)}
+                        disabled={typesSaving || !editingTypeName.trim()}
+                        title={language === 'vi' ? 'Lưu' : 'Save'}
+                        className="p-2 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 disabled:opacity-50"
+                      >
                         <Check size={15} />
                       </button>
-                      <button onClick={() => { setEditingTypeId(null); setEditingTypeName(''); }} className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200">
+                      <button
+                        onClick={() => { setEditingTypeId(null); setEditingTypeName(''); }}
+                        title={language === 'vi' ? 'Hủy' : 'Cancel'}
+                        className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      >
                         <X size={15} />
                       </button>
                     </>
                   ) : (
                     <>
                       <span className="flex-1 text-sm font-semibold text-gray-700">{vt.name}</span>
-                      <button onClick={() => { setEditingTypeId(vt.id); setEditingTypeName(vt.name); }} className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-daiichi-red transition-all">
+                      <button
+                        onClick={() => { setEditingTypeId(vt.id); setEditingTypeName(vt.name); }}
+                        title={language === 'vi' ? 'Đổi tên loại xe này' : 'Rename this vehicle type'}
+                        className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-daiichi-red transition-all"
+                      >
                         <Edit3 size={14} />
                       </button>
-                      <button onClick={() => handleDeleteVehicleType(vt.id, vt.name)} disabled={typesSaving} className="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all disabled:opacity-50">
+                      <button
+                        onClick={() => handleDeleteVehicleType(vt.id, vt.name)}
+                        disabled={typesSaving}
+                        title={language === 'vi' ? 'Xóa loại xe này' : 'Delete this vehicle type'}
+                        className="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all disabled:opacity-50"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </>
