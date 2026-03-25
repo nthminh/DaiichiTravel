@@ -115,6 +115,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSignedIn();
     }
+    match /vehicleTypes/{vehicleType} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
     match /stops/{stop} {
       allow read: if true;
       allow write: if isSignedIn();
