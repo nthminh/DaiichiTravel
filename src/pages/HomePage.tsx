@@ -17,6 +17,7 @@ interface HomePageProps {
 }
 
 const HERO_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/hinhnenhome.png?alt=media&token=4be06677-5484-4225-a48f-2a7f92dc99f4';
+const TOUR_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/tours%2F1773789577464_tourHagiang.jpg?alt=media&token=eb94d1e8-52c1-4049-a6ee-7604fe17af93';
 
 export function HomePage({ language, currentUser, agents, setActiveTab, setAgentTopUpModal }: HomePageProps) {
   const t = TRANSLATIONS[language];
@@ -98,7 +99,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
       tab: 'tours',
       color: 'text-green-600',
       bg: 'bg-green-50',
-      image: HERO_IMAGE_URL,
+      image: TOUR_IMAGE_URL,
     },
     {
       title: t.feature_support_title,
