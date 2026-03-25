@@ -1645,7 +1645,7 @@ export function BookTicketPage({
             <span>{t.no_segment_warning || 'Không tìm thấy chặng nào kết nối hai điểm này. Vui lòng thay đổi điểm đi hoặc điểm đến.'}</span>
           </div>
         )}
-        {/* Passenger count row + search button */}
+        {/* Passenger count row + vehicle/seat filters (desktop) + search button */}
         <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3 mt-2 sm:mt-4">
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-2 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
@@ -1700,6 +1700,45 @@ export function BookTicketPage({
               </div>
             </div>
           </div>
+          {/* Vehicle type + seat count filters — desktop only, same row as adults/children */}
+          <div className="hidden sm:flex items-end gap-2 sm:mt-4">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.vehicle_type || 'Loại xe'}</label>
+              <select
+                value={localVehicleTypeFilter}
+                onChange={e => setLocalVehicleTypeFilter(e.target.value)}
+                className="mt-1 px-3 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+              >
+                <option value="">{t.vehicle_type || 'Loại xe'}</option>
+                {availableVehicleTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.seats || 'Số ghế'}</label>
+              <select
+                value={localSeatFilter === 0 ? '' : localSeatFilter}
+                onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
+                className="mt-1 px-3 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+              >
+                <option value="">{t.seats || 'Số ghế'}</option>
+                {availableSeatCounts.map(count => (
+                  <option key={count} value={count}>{count} {t.seat || 'ghế'}</option>
+                ))}
+              </select>
+            </div>
+            {(localVehicleTypeFilter || localSeatFilter > 0) && (
+              <button
+                onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
+                className="flex items-center self-end px-2.5 py-[13px] rounded-2xl text-xs font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                title={t.reset_filter || 'Xóa bộ lọc'}
+                aria-label={t.reset_filter || 'Xóa bộ lọc'}
+              >
+                ✕
+              </button>
+            )}
+          </div>
           {/* Search button – full width on mobile, auto on sm+ */}
           <div className="sm:shrink-0 sm:ml-auto sm:flex sm:mt-4">
             <button
@@ -1717,45 +1756,6 @@ export function BookTicketPage({
             </button>
           </div>
         </div>
-        {/* Filter dropdowns: vehicle type + seat count — below the adults/children row */}
-        {(availableVehicleTypes.length > 0 || availableSeatCounts.length > 0) && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {availableVehicleTypes.length > 0 && (
-              <select
-                value={localVehicleTypeFilter}
-                onChange={e => setLocalVehicleTypeFilter(e.target.value)}
-                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
-              >
-                <option value="">{t.vehicle_type || 'Loại xe'}</option>
-                {availableVehicleTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            )}
-            {availableSeatCounts.length > 0 && (
-              <select
-                value={localSeatFilter === 0 ? '' : localSeatFilter}
-                onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
-                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
-              >
-                <option value="">{t.seats || 'Số ghế'}</option>
-                {availableSeatCounts.map(count => (
-                  <option key={count} value={count}>{count} {t.seat || 'ghế'}</option>
-                ))}
-              </select>
-            )}
-            {(localVehicleTypeFilter || localSeatFilter > 0) && (
-              <button
-                onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
-                className="flex items-center px-2.5 py-2 rounded-xl text-xs font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
-                title={t.reset_filter || 'Xóa bộ lọc'}
-                aria-label={t.reset_filter || 'Xóa bộ lọc'}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
 
