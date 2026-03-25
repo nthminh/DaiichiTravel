@@ -1267,8 +1267,13 @@ export default function App() {
               language={language}
               currentUser={currentUser}
               agents={agents}
+              stops={stops}
+              routes={routes}
               setActiveTab={setActiveTab}
               setAgentTopUpModal={setAgentTopUpModal}
+              setSearchFrom={setSearchFrom}
+              setSearchTo={setSearchTo}
+              setVehicleTypeFilter={setVehicleTypeFilter}
             />
           </Suspense>
         );
