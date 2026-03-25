@@ -4,6 +4,7 @@ import { getLocalDateString } from '../lib/utils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
 import { Trip, Route, Vehicle, PricePeriod } from '../types';
 import { SearchableSelect } from './SearchableSelect';
+import { ConflictWarningBanner } from './ConflictWarningBanner';
 
 type TranslationRecord = typeof TRANSLATIONS['vi'];
 
@@ -41,7 +42,10 @@ export interface TripFormModalProps {
   isSavingTrip: boolean;
   tripSaveError: string | null;
   setTripSaveError: (v: string | null) => void;
+  tripConflictWarning: boolean;
+  setTripConflictWarning: (v: boolean) => void;
   handleSaveTrip: () => void;
+  handleForceSaveTrip: () => void;
   handleTripVehicleSelect: (licensePlate: string) => void;
   routes: Route[];
   vehicles: Vehicle[];
@@ -65,7 +69,10 @@ export function TripFormModal({
   isSavingTrip,
   tripSaveError,
   setTripSaveError,
+  tripConflictWarning,
+  setTripConflictWarning,
   handleSaveTrip,
+  handleForceSaveTrip,
   handleTripVehicleSelect,
   routes,
   vehicles,
@@ -222,6 +229,14 @@ export function TripFormModal({
           <div className="mx-1 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
             {tripSaveError}
           </div>
+        )}
+        {tripConflictWarning && (
+          <ConflictWarningBanner
+            language={language}
+            isSaving={isSavingTrip}
+            onCancel={() => { setTripConflictWarning(false); setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); setTripSaveError(null); }}
+            onForceOverwrite={handleForceSaveTrip}
+          />
         )}
         <div className="flex justify-end gap-4 pt-2">
           <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); setTripSaveError(null); }} disabled={isSavingTrip} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>

@@ -5,6 +5,7 @@ import { TRANSLATIONS, Language } from '../constants/translations';
 import { Agent, Employee, Route, User, UserRole } from '../types';
 import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
+import { ConflictWarningBanner } from '../components/ConflictWarningBanner';
 import { useAgents, DEFAULT_AGENT_FORM } from '../hooks/useAgents';
 
 interface AgentsPageProps {
@@ -34,7 +35,10 @@ export function AgentsPage({ agents, employees, language, routes, currentUser }:
     setAgentForm,
     agentFormError,
     setAgentFormError,
+    agentConflictWarning,
+    setAgentConflictWarning,
     handleSaveAgent,
+    handleForceSaveAgent,
     handleDeleteAgent,
     handleStartEditAgent,
     handleSaveAgentNote,
@@ -204,9 +208,16 @@ export function AgentsPage({ agents, employees, language, routes, currentUser }:
             )}
 
             <div className="flex justify-end gap-4 pt-2">
-              <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); setAgentFormError(''); setShowRouteCommissions(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
-              <button onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.code} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingAgent ? t.save : t.add_agent}</button>
+              <button onClick={() => { setShowAddAgent(false); setEditingAgent(null); setAgentFormError(''); setShowRouteCommissions(false); setAgentConflictWarning(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+              <button onClick={() => handleSaveAgent()} disabled={!agentForm.name || !agentForm.code} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingAgent ? t.save : t.add_agent}</button>
             </div>
+            {agentConflictWarning && (
+              <ConflictWarningBanner
+                language={language}
+                onCancel={() => { setAgentConflictWarning(false); setShowAddAgent(false); setEditingAgent(null); setAgentFormError(''); setShowRouteCommissions(false); }}
+                onForceOverwrite={handleForceSaveAgent}
+              />
+            )}
           </div>
         </div>
       )}

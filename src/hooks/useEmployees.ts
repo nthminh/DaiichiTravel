@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { transportService } from '../services/transportService';
 import type { Employee, Agent } from '../types';
 import type { Language } from '../constants/translations';
 
+/** External dependencies that useEmployees needs from App.tsx */
 export interface EmployeeContext {
   language: Language;
   agents: Agent[];
+  employees: Employee[];
 }
 
 export const DEFAULT_EMPLOYEE_FORM = {
@@ -26,28 +28,35 @@ export const DEFAULT_EMPLOYEE_FORM = {
  * Pattern follows useTrips / useRoutes hooks in this codebase.
  */
 export function useEmployees(ctx: EmployeeContext) {
-  const { language, agents } = ctx;
+  const { language } = ctx;
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [employeeForm, setEmployeeForm] = useState({ ...DEFAULT_EMPLOYEE_FORM });
   const [employeeFormError, setEmployeeFormError] = useState('');
+  // Conflict detection: tracks the updatedAt of the employee when editing was opened
+  const editingEmployeeUpdatedAtRef = useRef<string | null>(null);
+  const [employeeConflictWarning, setEmployeeConflictWarning] = useState(false);
+
+  // Keep a stable ref so async handlers always read the latest context values.
+  const ctxRef = useRef<EmployeeContext>(ctx);
+  ctxRef.current = ctx;
 
   /** Returns true if the username is already taken by another agent or employee */
   const isUsernameTaken = (
     username: string,
-    employees: Employee[],
     excludeAgentId?: string,
     excludeEmployeeId?: string,
   ): boolean => {
+    const { agents: ctxAgents, employees: ctxEmployees } = ctxRef.current;
     const normalized = username.trim().toLowerCase();
-    const takenByAgent = agents.some(
+    const takenByAgent = ctxAgents.some(
       a =>
         a.username &&
         String(a.username).trim().toLowerCase() === normalized &&
         (!excludeAgentId || a.id !== excludeAgentId),
     );
-    const takenByEmployee = employees.some(
+    const takenByEmployee = ctxEmployees.some(
       emp =>
         emp.username &&
         String(emp.username).trim().toLowerCase() === normalized &&
@@ -56,10 +65,10 @@ export function useEmployees(ctx: EmployeeContext) {
     return takenByAgent || takenByEmployee;
   };
 
-  const handleSaveEmployee = async (employees: Employee[]) => {
+  const handleSaveEmployee = async (forceOverwrite = false) => {
     try {
       if (employeeForm.username && employeeForm.username.trim()) {
-        if (isUsernameTaken(employeeForm.username, employees, undefined, editingEmployee?.id)) {
+        if (isUsernameTaken(employeeForm.username, undefined, editingEmployee?.id)) {
           setEmployeeFormError(
             language === 'vi'
               ? 'Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác.'
@@ -69,6 +78,16 @@ export function useEmployees(ctx: EmployeeContext) {
         }
       }
       setEmployeeFormError('');
+      // Conflict detection: compare updatedAt snapshots for existing employees
+      if (editingEmployee && !forceOverwrite && editingEmployeeUpdatedAtRef.current !== null) {
+        const liveEmployee = ctxRef.current.employees.find(e => e.id === editingEmployee.id);
+        const liveUpdatedAt = liveEmployee?.updatedAt ?? null;
+        if (liveUpdatedAt && liveUpdatedAt !== editingEmployeeUpdatedAtRef.current) {
+          setEmployeeConflictWarning(true);
+          return;
+        }
+      }
+      setEmployeeConflictWarning(false);
       if (editingEmployee) {
         await transportService.updateEmployee(editingEmployee.id, employeeForm);
       } else {
@@ -97,6 +116,8 @@ export function useEmployees(ctx: EmployeeContext) {
 
   const handleStartEditEmployee = (employee: Employee) => {
     setEditingEmployee(employee);
+    setEmployeeConflictWarning(false);
+    editingEmployeeUpdatedAtRef.current = employee.updatedAt ?? null;
     setEmployeeForm({
       name: String(employee.name ?? ''),
       phone: String(employee.phone ?? ''),
@@ -122,7 +143,10 @@ export function useEmployees(ctx: EmployeeContext) {
     setEmployeeForm,
     employeeFormError,
     setEmployeeFormError,
+    employeeConflictWarning,
+    setEmployeeConflictWarning,
     handleSaveEmployee,
+    handleForceSaveEmployee: () => handleSaveEmployee(true),
     handleDeleteEmployee,
     handleStartEditEmployee,
   };

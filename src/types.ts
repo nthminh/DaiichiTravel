@@ -121,6 +121,7 @@ export interface Agent {
   holdTicketHours?: number;        // hours the agent may hold a ticket (using customer hold time)
   // Per-route commission rates: routeId -> commission percentage (overrides global commissionRate for that route)
   routeCommissionRates?: Record<string, number>;
+  updatedAt?: string; // ISO timestamp of last modification – used for conflict detection
 }
 
 export type AgentPaymentOption = 'DEPOSIT' | 'BANK_TRANSFER' | 'HOLD_WITH_CUSTOMER_TIME';
@@ -137,6 +138,7 @@ export interface Employee {
   username?: string;
   password?: string;
   note?: string;
+  updatedAt?: string; // ISO timestamp of last modification – used for conflict detection
 }
 
 export interface TourAddon {
@@ -248,6 +250,7 @@ export interface Trip {
   seatType?: 'assigned' | 'free'; // 'assigned' = ghế chỉ định (default), 'free' = ghế tự do
   isMerged?: boolean;             // true when this trip was created by merging two trips
   mergedFromTripIds?: string[];   // IDs of the source trips that were merged into this one
+  updatedAt?: string;             // ISO timestamp of last modification – used for conflict detection
 }
 
 export interface ConsignmentItem {
