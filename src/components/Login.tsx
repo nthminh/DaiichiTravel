@@ -766,6 +766,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
               src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724"
               alt="Daiichi Logo"
               className="h-12 sm:h-14"
+              decoding="async"
             />
           </motion.div>
           <div className="flex gap-1 bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20">

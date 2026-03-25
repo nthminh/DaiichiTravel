@@ -27,6 +27,8 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
           alt="Travel Hero"
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
+          fetchPriority="high"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-6 sm:px-12">
           <div className="max-w-xl text-white">

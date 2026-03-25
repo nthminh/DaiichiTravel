@@ -120,7 +120,10 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
 
               {/* Company Logo */}
               <div className="flex items-center justify-center gap-3 pb-2 border-b border-gray-100">
-                <img src="/icon-192.png" alt="Daiichi Travel" className="w-10 h-10 rounded-lg object-contain" />
+                <picture>
+                  <source srcSet="/icon-192.webp" type="image/webp" />
+                  <img src="/icon-192.png" alt="Daiichi Travel" className="w-10 h-10 rounded-lg object-contain" decoding="async" />
+                </picture>
                 <div className="text-center">
                   <p className="text-lg font-bold text-daiichi-red tracking-wide">DAIICHI TRAVEL</p>
                   <p className="text-[10px] text-gray-400 uppercase tracking-widest">
