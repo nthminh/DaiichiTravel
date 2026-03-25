@@ -716,6 +716,23 @@ export function BookTicketPage({
     return () => { window.removeEventListener('resize', handleResize); clearTimeout(resizeTimer); };
   }, []);
 
+  // Local filter state for vehicle type and seat count (applied on top of search results)
+  const [localVehicleTypeFilter, setLocalVehicleTypeFilter] = useState('');
+  const [localSeatFilter, setLocalSeatFilter] = useState(0);
+
+  // Compute unique vehicle types and seat counts from active trips for filter chips
+  const { availableVehicleTypes, availableSeatCounts } = useMemo(() => {
+    const activePlates = new Set(
+      trips
+        .filter(tr => tr.status === TripStatus.WAITING || tr.status === TripStatus.RUNNING)
+        .map(tr => tr.licensePlate)
+    );
+    const activeVehicles = vehicles.filter(v => activePlates.has(v.licensePlate));
+    const vehicleTypes = [...new Set(activeVehicles.map(v => v.type).filter(Boolean))].sort();
+    const seatCounts = [...new Set(activeVehicles.map(v => v.seats).filter(s => s > 0))].sort((a, b) => a - b);
+    return { availableVehicleTypes: vehicleTypes as string[], availableSeatCounts: seatCounts as number[] };
+  }, [trips, vehicles]);
+
   // Committed search parameters: set when the user clicks the Search button.
   // filterTrip() and segmentFares use these values so that the list only updates
   // when the button is explicitly clicked, not on every keystroke.
@@ -1525,6 +1542,51 @@ export function BookTicketPage({
   return (
     <div className="space-y-8">
       <div className="bg-white p-3 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
+        {/* Compact filter chips: vehicle type + seat count — shown at the very top */}
+        {(availableVehicleTypes.length > 0 || availableSeatCounts.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1 mb-3 sm:mb-4 overflow-x-auto pb-0.5">
+            {availableVehicleTypes.map(type => (
+              <button
+                key={type}
+                onClick={() => setLocalVehicleTypeFilter(prev => prev === type ? '' : type)}
+                className={cn(
+                  "flex-shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all whitespace-nowrap",
+                  localVehicleTypeFilter === type
+                    ? "bg-daiichi-red text-white border-daiichi-red"
+                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-daiichi-red/50"
+                )}
+              >
+                {type}
+              </button>
+            ))}
+            {availableVehicleTypes.length > 0 && availableSeatCounts.length > 0 && (
+              <span className="text-gray-300 text-xs select-none">|</span>
+            )}
+            {availableSeatCounts.map(count => (
+              <button
+                key={count}
+                onClick={() => setLocalSeatFilter(prev => prev === count ? 0 : count)}
+                className={cn(
+                  "flex-shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all whitespace-nowrap",
+                  localSeatFilter === count
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-400/50"
+                )}
+              >
+                {count} {t.seat || 'ghế'}
+              </button>
+            ))}
+            {(localVehicleTypeFilter || localSeatFilter > 0) && (
+              <button
+                onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
+                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-daiichi-red/10 hover:text-daiichi-red text-[10px] font-bold transition-all"
+                title={t.reset_filter || 'Xóa bộ lọc'}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
           <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
@@ -1543,8 +1605,19 @@ export function BookTicketPage({
           </div>
         </div>
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
-          {/* FROM + swap button + TO in a combined cell spanning 2 columns on large screens */}
-          <div className="lg:col-span-2 flex flex-col sm:flex-row sm:items-start gap-2">
+          {/* FROM + TO combined cell with swap button on the left */}
+          <div className="lg:col-span-2 flex items-start gap-2">
+            {/* Swap button – left side, vertically centered between FROM and TO labels */}
+            <button
+              type="button"
+              onClick={handleSwap}
+              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+              className="flex-shrink-0 mt-5 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
+            >
+              <ArrowUpDown size={15} strokeWidth={2.5} />
+            </button>
+            {/* FROM and TO side by side */}
+            <div className="flex-1 flex flex-col sm:flex-row gap-2 min-w-0">
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="sm:mt-1">
@@ -1568,15 +1641,6 @@ export function BookTicketPage({
                 />
               </div>
             </div>
-            {/* Swap button */}
-            <button
-              type="button"
-              onClick={handleSwap}
-              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="flex-shrink-0 self-center sm:self-start sm:mt-0 w-9 h-9 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
-            >
-              <ArrowUpDown size={18} strokeWidth={2.5} />
-            </button>
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="sm:mt-1">
@@ -1599,6 +1663,7 @@ export function BookTicketPage({
                   stopPickerNoStopsLabel={t.stop_picker_no_stops}
                 />
               </div>
+            </div>
             </div>
           </div>
           <div>
@@ -1767,7 +1832,18 @@ export function BookTicketPage({
           const effectiveTo = isReturnPhase ? (committedParams?.from || '') : (committedParams?.to || '');
           const effectiveDate = isReturnPhase ? (committedParams?.returnDate || '') : (committedParams?.date || '');
 
-          const filteredBookingTrips = trips.filter(tr => filterTrip(tr, true)).sort((a, b) => compareTripDateTime(a, b));
+          const filteredBookingTrips = (() => {
+            const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
+            return trips.filter(tr => {
+              if (!filterTrip(tr, true)) return false;
+              if (localVehicleTypeFilter || localSeatFilter) {
+                const v = vehicleMap.get(tr.licensePlate);
+                if (localVehicleTypeFilter && v?.type !== localVehicleTypeFilter) return false;
+                if (localSeatFilter && v?.seats !== localSeatFilter) return false;
+              }
+              return true;
+            }).sort((a, b) => compareTripDateTime(a, b));
+          })();
 
           // Nearest trips: same route/direction but without date restriction, sorted by date proximity
           const nearestTrips = filteredBookingTrips.length === 0 && (effectiveFrom || effectiveTo)
