@@ -3,6 +3,7 @@ import { Users, Truck, Search, Filter, X, Edit3, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
 import { Employee, User, UserRole } from '../types';
+import { ConflictWarningBanner } from '../components/ConflictWarningBanner';
 
 type EmployeeForm = {
   name: string; phone: string; email: string; address: string;
@@ -19,16 +20,19 @@ interface EmployeesPageProps {
   editingEmployee: Employee | null;
   employeeForm: EmployeeForm;
   employeeFormError: string;
+  employeeConflictWarning: boolean;
   language: Language;
   permissions: Record<string, Record<string, boolean>> | null;
   currentUser?: User | null;
   handleSaveEmployee: () => void;
+  handleForceSaveEmployee: () => void;
   handleDeleteEmployee: (id: string) => void;
   handleStartEditEmployee: (emp: Employee) => void;
   setShowAddEmployee: (v: boolean) => void;
   setEditingEmployee: (v: Employee | null) => void;
   setEmployeeForm: React.Dispatch<React.SetStateAction<EmployeeForm>>;
   setEmployeeFormError: (v: string) => void;
+  setEmployeeConflictWarning: (v: boolean) => void;
   setEmployeeSearch: (v: string) => void;
   setEmployeeRoleFilter: (v: string) => void;
   setShowEmployeeFilters: React.Dispatch<React.SetStateAction<boolean>>;
@@ -43,16 +47,19 @@ export function EmployeesPage({
   editingEmployee,
   employeeForm,
   employeeFormError,
+  employeeConflictWarning,
   language,
   permissions,
   currentUser,
   handleSaveEmployee,
+  handleForceSaveEmployee,
   handleDeleteEmployee,
   handleStartEditEmployee,
   setShowAddEmployee,
   setEditingEmployee,
   setEmployeeForm,
   setEmployeeFormError,
+  setEmployeeConflictWarning,
   setEmployeeSearch,
   setEmployeeRoleFilter,
   setShowEmployeeFilters,
@@ -156,9 +163,16 @@ export function EmployeesPage({
               <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mật khẩu' : 'Password'}</label><input type="text" value={employeeForm.password} onChange={e => setEmployeeForm(p => ({ ...p, password: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
             </div>
             <div className="flex justify-end gap-4 pt-2">
-              <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
+              <button onClick={() => { setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); setEmployeeConflictWarning(false); }} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600">{t.cancel}</button>
               <button onClick={handleSaveEmployee} disabled={!employeeForm.name} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50">{editingEmployee ? t.save : (t.add_employee || 'Thêm nhân viên')}</button>
             </div>
+            {employeeConflictWarning && (
+              <ConflictWarningBanner
+                language={language}
+                onCancel={() => { setEmployeeConflictWarning(false); setShowAddEmployee(false); setEditingEmployee(null); setEmployeeFormError(''); }}
+                onForceOverwrite={handleForceSaveEmployee}
+              />
+            )}
           </div>
         </div>
       )}

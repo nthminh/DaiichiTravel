@@ -40,6 +40,9 @@ export function useAgents(ctx: AgentContext) {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [agentForm, setAgentForm] = useState({ ...DEFAULT_AGENT_FORM });
   const [agentFormError, setAgentFormError] = useState('');
+  // Conflict detection: tracks the updatedAt of the agent when editing was opened
+  const editingAgentUpdatedAtRef = useRef<string | null>(null);
+  const [agentConflictWarning, setAgentConflictWarning] = useState(false);
 
   // Keep a stable ref so async handlers always read the latest context values.
   const ctxRef = useRef<AgentContext>(ctx);
@@ -73,7 +76,7 @@ export function useAgents(ctx: AgentContext) {
     return takenByAgent || takenByEmployee;
   };
 
-  const handleSaveAgent = async () => {
+  const handleSaveAgent = async (forceOverwrite = false) => {
     const form = agentFormRef.current;
     const editing = editingAgentRef.current;
     try {
@@ -88,6 +91,16 @@ export function useAgents(ctx: AgentContext) {
         }
       }
       setAgentFormError('');
+      // Conflict detection: compare updatedAt snapshots for existing agents
+      if (editing && !forceOverwrite && editingAgentUpdatedAtRef.current !== null) {
+        const liveAgent = ctxRef.current.agents.find(a => a.id === editing.id);
+        const liveUpdatedAt = liveAgent?.updatedAt ?? null;
+        if (liveUpdatedAt && liveUpdatedAt !== editingAgentUpdatedAtRef.current) {
+          setAgentConflictWarning(true);
+          return;
+        }
+      }
+      setAgentConflictWarning(false);
       if (editing) {
         await transportService.updateAgent(editing.id, form);
       } else {
@@ -119,6 +132,8 @@ export function useAgents(ctx: AgentContext) {
 
   const handleStartEditAgent = (agent: Agent) => {
     setEditingAgent(agent);
+    setAgentConflictWarning(false);
+    editingAgentUpdatedAtRef.current = agent.updatedAt ?? null;
     setAgentForm({
       name: String(agent.name ?? ''),
       code: String(agent.code ?? ''),
@@ -158,7 +173,10 @@ export function useAgents(ctx: AgentContext) {
     setAgentForm,
     agentFormError,
     setAgentFormError,
+    agentConflictWarning,
+    setAgentConflictWarning,
     handleSaveAgent,
+    handleForceSaveAgent: () => handleSaveAgent(true),
     handleDeleteAgent,
     handleStartEditAgent,
     handleSaveAgentNote,

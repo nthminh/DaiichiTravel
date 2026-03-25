@@ -383,12 +383,13 @@ export default function App() {
     setEmployeeForm,
     employeeFormError,
     setEmployeeFormError,
-    handleSaveEmployee: _handleSaveEmployee,
+    employeeConflictWarning,
+    setEmployeeConflictWarning,
+    handleSaveEmployee,
+    handleForceSaveEmployee,
     handleDeleteEmployee,
     handleStartEditEmployee,
-  } = useEmployees({ language, agents });
-
-  const handleSaveEmployee = () => _handleSaveEmployee(employees);
+  } = useEmployees({ language, agents, employees });
 
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
@@ -479,8 +480,11 @@ export default function App() {
     isSavingTrip,
     tripSaveError,
     setTripSaveError,
+    tripConflictWarning,
+    setTripConflictWarning,
     buildSeatsForVehicle,
     handleSaveTrip,
+    handleForceSaveTrip,
     handleStartEditTrip,
     handleCopyTrip,
     handleCopyTripsToDate,
@@ -496,7 +500,7 @@ export default function App() {
     setMergeError,
     handleToggleTripForMerge,
     handleMergeTrips,
-  } = useTrips({ vehicles, language });
+  } = useTrips({ vehicles, trips, language });
 
   // ─── Auth helpers (logic extracted to useAuth hook) ──────────────────────────
   const { handleRegisterMember, handleOtpMemberLogin } = useAuth({ language, customers });
@@ -1544,16 +1548,19 @@ export default function App() {
               editingEmployee={editingEmployee}
               employeeForm={employeeForm}
               employeeFormError={employeeFormError}
+              employeeConflictWarning={employeeConflictWarning}
               language={language}
               permissions={permissions}
               currentUser={currentUser}
               handleSaveEmployee={handleSaveEmployee}
+              handleForceSaveEmployee={handleForceSaveEmployee}
               handleDeleteEmployee={handleDeleteEmployee}
               handleStartEditEmployee={handleStartEditEmployee}
               setShowAddEmployee={setShowAddEmployee}
               setEditingEmployee={setEditingEmployee}
               setEmployeeForm={setEmployeeForm}
               setEmployeeFormError={setEmployeeFormError}
+              setEmployeeConflictWarning={setEmployeeConflictWarning}
               setEmployeeSearch={setEmployeeSearch}
               setEmployeeRoleFilter={setEmployeeRoleFilter}
               setShowEmployeeFilters={setShowEmployeeFilters}
@@ -2046,7 +2053,10 @@ export default function App() {
         isSavingTrip={isSavingTrip}
         tripSaveError={tripSaveError}
         setTripSaveError={setTripSaveError}
+        tripConflictWarning={tripConflictWarning}
+        setTripConflictWarning={setTripConflictWarning}
         handleSaveTrip={handleSaveTrip}
+        handleForceSaveTrip={handleForceSaveTrip}
         handleTripVehicleSelect={handleTripVehicleSelect}
         routes={routes}
         vehicles={vehicles}
