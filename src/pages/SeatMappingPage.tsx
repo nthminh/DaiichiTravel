@@ -695,35 +695,37 @@ export function SeatMappingPage({
           <span>← {language === 'vi' ? 'Đầu xe (Tài xế bên trái)' : 'Front (Driver on left)'}</span>
         </div>
 
-        {hasLayoutGrid && currentGrid ? (
-          // Render proper bus layout grid
-          <div className="space-y-1.5">
-            {currentGrid.map((row, rowIdx) => (
-              <div key={rowIdx} className="flex gap-1.5 justify-center">
-                {row.map((cell, colIdx) => {
-                  if (!cell) {
-                    // Aisle / empty cell
-                    return <div key={colIdx} className="w-10 h-10 flex-shrink-0" />;
-                  }
-                  return (
-                    <div key={colIdx} className="w-10 flex-shrink-0">
-                      {renderSeatButton(cell.label)}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        ) : (
-          // Fallback: flat grid (old behaviour)
-          <div className="grid grid-cols-3 gap-3">
-            {selectedTrip.seats.filter((s: any) => (s.deck || 0) === activeDeck).map((seat: any) => (
-              <div key={seat.id}>
-                {renderSeatButton(seat.id)}
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="overflow-y-auto max-h-[45vh] sm:max-h-[55vh] overflow-x-auto">
+          {hasLayoutGrid && currentGrid ? (
+            // Render proper bus layout grid
+            <div className="space-y-1.5">
+              {currentGrid.map((row, rowIdx) => (
+                <div key={rowIdx} className="flex gap-1.5 justify-center">
+                  {row.map((cell, colIdx) => {
+                    if (!cell) {
+                      // Aisle / empty cell
+                      return <div key={colIdx} className="w-10 h-10 flex-shrink-0" />;
+                    }
+                    return (
+                      <div key={colIdx} className="w-10 flex-shrink-0">
+                        {renderSeatButton(cell.label)}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Fallback: flat grid (old behaviour)
+            <div className="grid grid-cols-3 gap-3">
+              {selectedTrip.seats.filter((s: any) => (s.deck || 0) === activeDeck).map((seat: any) => (
+                <div key={seat.id}>
+                  {renderSeatButton(seat.id)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="mt-6 flex justify-center flex-wrap gap-4 text-xs font-bold uppercase tracking-wider">
           <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
