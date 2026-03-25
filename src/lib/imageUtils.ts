@@ -1,13 +1,15 @@
 /**
  * Compress an image file using the Canvas API before uploading to Firebase Storage.
+ * Outputs WebP format for smaller file sizes and better performance.
+ * Falls back to JPEG if the browser does not support WebP encoding.
  * @param file     The original image File
- * @param quality  JPEG quality 0–1 (default 0.75 = medium quality)
+ * @param quality  Quality 0–1 (default 0.80)
  * @param maxWidth Maximum width in pixels (default 1280)
- * @returns        A new compressed File (image/jpeg)
+ * @returns        A new compressed File (image/webp or image/jpeg as fallback)
  */
 export async function compressImage(
   file: File,
-  quality = 0.75,
+  quality = 0.80,
   maxWidth = 1280
 ): Promise<File> {
   return new Promise((resolve, reject) => {
@@ -29,6 +31,12 @@ export async function compressImage(
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
+
+      // Prefer WebP for ~30-50 % smaller files; fall back to JPEG when unsupported.
+      const supportsWebP = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+      const mimeType = supportsWebP ? 'image/webp' : 'image/jpeg';
+      const ext = supportsWebP ? '.webp' : '.jpg';
+
       canvas.toBlob(
         (blob) => {
           if (!blob) {
@@ -37,12 +45,12 @@ export async function compressImage(
           }
           const compressed = new File(
             [blob],
-            file.name.replace(/\.[^.]+$/, '.jpg'),
-            { type: 'image/jpeg', lastModified: Date.now() }
+            file.name.replace(/\.[^.]+$/, ext),
+            { type: mimeType, lastModified: Date.now() }
           );
           resolve(compressed);
         },
-        'image/jpeg',
+        mimeType,
         quality
       );
     };

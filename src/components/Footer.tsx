@@ -17,6 +17,8 @@ export const Footer: React.FC<FooterProps> = ({ language }) => {
             src="https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724" 
             alt="Daiichi Logo" 
             className="h-10"
+            loading="lazy"
+            decoding="async"
           />
           <p className="text-gray-500 text-sm leading-relaxed">
             {language === 'vi' 

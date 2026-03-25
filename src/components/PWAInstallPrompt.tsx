@@ -71,7 +71,10 @@ export function PWAInstallPrompt() {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-[200] p-4 safe-bottom">
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 flex items-center gap-4 max-w-lg mx-auto">
-          <img src="/icon-192.png" alt="Daiichi Travel" className="w-12 h-12 rounded-xl shrink-0" />
+          <picture>
+            <source srcSet="/icon-192.webp" type="image/webp" />
+            <img src="/icon-192.png" alt="Daiichi Travel" className="w-12 h-12 rounded-xl shrink-0" decoding="async" />
+          </picture>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-gray-800 text-sm">Cài đặt Daiichi Travel</p>
             <p className="text-xs text-gray-500 mt-0.5">Thêm vào màn hình chính để truy cập nhanh hơn</p>
@@ -104,7 +107,10 @@ export function PWAInstallPrompt() {
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <img src="/icon-192.png" alt="Daiichi Travel" className="w-12 h-12 rounded-2xl shadow-md" />
+              <picture>
+                <source srcSet="/icon-192.webp" type="image/webp" />
+                <img src="/icon-192.png" alt="Daiichi Travel" className="w-12 h-12 rounded-2xl shadow-md" decoding="async" />
+              </picture>
               <div>
                 <p className="font-bold text-gray-800">Daiichi Travel</p>
                 <p className="text-xs text-gray-500">Cài đặt ứng dụng</p>
