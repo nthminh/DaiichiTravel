@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle } from 'lucide-react';
+import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check } from 'lucide-react';
 import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
@@ -741,6 +741,7 @@ export function OperationsPage({
         const stopNameByOrder = buildStopNameByOrder(matchedRoute?.routeStops);
         const getSegmentInfo = (seat: any) => getSegmentInfoUtil(seat, totalStops, stopNameByOrder, language);
         return (
+        <>
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
             {/* Header */}
@@ -840,41 +841,8 @@ export function OperationsPage({
                     const isEditing = editingPassengerSeatId === primarySeat.id;
                     const rowKey = group.booking?.id || `${primarySeat.id}-${idx}`;
                     const segInfo = getSegmentInfo(primarySeat);
-                    return isEditing ? (
-                      <tr key={rowKey} className="bg-blue-50">
-                        <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                        {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs text-gray-500">{ticketCode}</td>}
-                        {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">{seatIds}</td>}
-                        {passengerColVisibility.name && <td className="px-4 py-3"><input value={passengerEditForm.customerName} onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                        {passengerColVisibility.phone && <td className="px-4 py-3"><input value={passengerEditForm.customerPhone} onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                        {passengerColVisibility.segment && <td className="px-4 py-3"><span className={cn('px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap', segInfo.type === 'full' ? 'bg-green-100 text-green-700' : segInfo.type === 'multi' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700')}>{segInfo.label}</span></td>}
-                        {passengerColVisibility.pickup && <td className="px-4 py-3">
-                          <input value={passengerEditForm.pickupAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder={language === 'vi' ? 'Tên điểm đón' : 'Stop name'} />
-                          <input value={passengerEditForm.pickupAddressDetail} onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddressDetail: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Chi tiết (số nhà...)' : 'Detail (house no.)'} />
-                          <input value={passengerEditForm.pickupStopAddress} onChange={e => setPassengerEditForm(p => ({ ...p, pickupStopAddress: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Địa chỉ điểm đón' : 'Stop address'} />
-                        </td>}
-                        {passengerColVisibility.dropoff && <td className="px-4 py-3">
-                          <input value={passengerEditForm.dropoffAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder={language === 'vi' ? 'Tên điểm trả' : 'Stop name'} />
-                          <input value={passengerEditForm.dropoffAddressDetail} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddressDetail: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Chi tiết (số nhà...)' : 'Detail (house no.)'} />
-                          <input value={passengerEditForm.dropoffStopAddress} onChange={e => setPassengerEditForm(p => ({ ...p, dropoffStopAddress: e.target.value }))} className="mt-1 w-full px-2 py-1 bg-white border border-blue-100 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-200" placeholder={language === 'vi' ? 'Địa chỉ điểm trả' : 'Stop address'} />
-                        </td>}
-                        {passengerColVisibility.status && <td className="px-4 py-3">
-                          <select value={passengerEditForm.status} onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))} className="px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none">
-                            <option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
-                            <option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
-                          </select>
-                        </td>}
-                        {passengerColVisibility.price && <td className="px-4 py-3 font-bold text-daiichi-red">{totalAmount.toLocaleString()}đ</td>}
-                        {passengerColVisibility.note && <td className="px-4 py-3"><input value={passengerEditForm.bookingNote} onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))} className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></td>}
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1">
-                            <button onClick={handleSavePassengerEdit} className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">{t.save}</button>
-                            <button onClick={() => setEditingPassengerSeatId(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">{t.cancel}</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={rowKey} className={cn('hover:bg-gray-50', isGroup && 'bg-amber-50/40', segInfo.type === 'partial' && 'border-l-2 border-orange-300', segInfo.type === 'multi' && 'border-l-2 border-purple-300')}>
+                    return (
+                      <tr key={rowKey} className={cn('hover:bg-gray-50', isEditing && 'bg-blue-50/60', isGroup && 'bg-amber-50/40', segInfo.type === 'partial' && 'border-l-2 border-orange-300', segInfo.type === 'multi' && 'border-l-2 border-purple-300')}>
                         <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
                         {passengerColVisibility.ticketCode && <td className="px-4 py-3 font-mono text-xs font-bold text-daiichi-red">{ticketCode}</td>}
                         {passengerColVisibility.seat && <td className="px-4 py-3 font-bold">
@@ -938,6 +906,103 @@ export function OperationsPage({
             </div>
           </div>
         </div>
+        {/* Edit Passenger Modal */}
+        {editingPassengerSeatId && (() => {
+          const editingGroup = passengerGroups.find(g => g.seats[0].id === editingPassengerSeatId);
+          const editSeatIds = editingGroup?.seats.map((s: any) => s.id).join(', ') || editingPassengerSeatId;
+          const editTicketCode = editingGroup?.booking?.ticketCode || seatTicketCodeMap.get(editingPassengerSeatId) || '—';
+          return (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+              <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <div className="p-8 overflow-y-auto flex-1">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-800">
+                        {language === 'vi' ? 'Chỉnh sửa hành khách' : 'Edit Passenger'}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {language === 'vi' ? 'Ghế' : 'Seat'}: {editSeatIds} • #{editTicketCode}
+                      </p>
+                    </div>
+                    <button onClick={() => setEditingPassengerSeatId(null)} className="text-gray-400 hover:text-gray-600">
+                      <X size={24} />
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tên khách hàng' : 'Customer Name'}</label>
+                      <input type="text" value={passengerEditForm.customerName}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, customerName: e.target.value }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số điện thoại' : 'Phone'}</label>
+                      <input type="text" value={passengerEditForm.customerPhone}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, customerPhone: e.target.value }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm đón (tên điểm)' : 'Pickup Stop Name'}</label>
+                      <input type="text" value={passengerEditForm.pickupAddress}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddress: e.target.value }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      <input type="text" value={passengerEditForm.pickupAddressDetail}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, pickupAddressDetail: e.target.value }))}
+                        placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : 'Detail (house no., floor...)'}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      <input type="text" value={passengerEditForm.pickupStopAddress}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, pickupStopAddress: e.target.value }))}
+                        placeholder={language === 'vi' ? 'Địa chỉ điểm đón' : 'Stop address'}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm trả (tên điểm)' : 'Dropoff Stop Name'}</label>
+                      <input type="text" value={passengerEditForm.dropoffAddress}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddress: e.target.value }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      <input type="text" value={passengerEditForm.dropoffAddressDetail}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, dropoffAddressDetail: e.target.value }))}
+                        placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : 'Detail (house no., floor...)'}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                      <input type="text" value={passengerEditForm.dropoffStopAddress}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, dropoffStopAddress: e.target.value }))}
+                        placeholder={language === 'vi' ? 'Địa chỉ điểm trả' : 'Stop address'}
+                        className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Trạng thái' : 'Status'}</label>
+                      <select value={passengerEditForm.status}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, status: e.target.value as SeatStatus }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10">
+                        <option value={SeatStatus.BOOKED}>{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
+                        <option value={SeatStatus.PAID}>{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú' : 'Notes'}</label>
+                      <textarea value={passengerEditForm.bookingNote}
+                        onChange={e => setPassengerEditForm(p => ({ ...p, bookingNote: e.target.value }))}
+                        rows={2}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 resize-none" />
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mt-8">
+                    <button onClick={() => setEditingPassengerSeatId(null)}
+                      className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl font-bold hover:bg-gray-100 transition-all">
+                      {t.cancel}
+                    </button>
+                    <button onClick={handleSavePassengerEdit}
+                      className="flex-1 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+                      <Check size={20} />
+                      {t.save}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        </>
         );
       })()}
 
