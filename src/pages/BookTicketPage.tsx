@@ -1613,19 +1613,10 @@ export function BookTicketPage({
           </div>
         </div>
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
-          {/* FROM + TO combined cell with swap button on the left */}
-          <div className="lg:col-span-2 flex items-start gap-2">
-            {/* Swap button – left side, vertically centered between FROM and TO labels */}
-            <button
-              type="button"
-              onClick={handleSwap}
-              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="flex-shrink-0 mt-5 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
-            >
-              <ArrowUpDown size={15} strokeWidth={2.5} />
-            </button>
+          {/* FROM + TO combined cell with swap button overlaid between inputs */}
+          <div className="lg:col-span-2">
             {/* FROM and TO – on mobile: grouped as a single card; on sm+: side by side */}
-            <div className="flex-1 flex flex-col sm:flex-row gap-0 sm:gap-2 min-w-0 border border-gray-200 rounded-2xl sm:border-0 sm:rounded-none bg-gray-50 sm:bg-transparent">
+            <div className="relative flex flex-col sm:flex-row gap-0 sm:gap-2 min-w-0 border border-gray-200 rounded-2xl sm:border-0 sm:rounded-none bg-gray-50 sm:bg-transparent">
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="sm:mt-1">
@@ -1650,8 +1641,18 @@ export function BookTicketPage({
                 />
               </div>
             </div>
-            {/* Thin divider visible on mobile only, between FROM and TO */}
-            <div className="h-px bg-gray-200 sm:hidden" />
+            {/* Thin divider visible on mobile only, between FROM and TO – swap button overlaid on right */}
+            <div className="relative sm:hidden">
+              <div className="h-px bg-gray-200" />
+              <button
+                type="button"
+                onClick={handleSwap}
+                title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
+              >
+                <ArrowUpDown size={15} strokeWidth={2.5} />
+              </button>
+            </div>
             <div className="flex-1 min-w-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="sm:mt-1">
@@ -1676,6 +1677,15 @@ export function BookTicketPage({
                 />
               </div>
             </div>
+            {/* Swap button for desktop (sm+): absolutely positioned between FROM and TO */}
+            <button
+              type="button"
+              onClick={handleSwap}
+              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+              className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
+            >
+              <ArrowUpDown size={15} strokeWidth={2.5} />
+            </button>
             </div>
           </div>
           <div>
