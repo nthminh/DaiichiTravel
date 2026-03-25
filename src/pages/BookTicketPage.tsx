@@ -1720,12 +1720,11 @@ export function BookTicketPage({
           </div>
           {/* Vehicle type + seat count filters — visible on all screen sizes */}
           <div className="flex items-center gap-2 sm:items-end sm:mt-4">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.vehicle_type || 'Loại xe'}</label>
+            <div className="flex-1 min-w-0">
               <select
                 value={localVehicleTypeFilter}
                 onChange={e => setLocalVehicleTypeFilter(e.target.value)}
-                className="mt-1 px-3 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+                className="w-full px-3 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
               >
                 <option value="">{t.vehicle_type || 'Loại xe'}</option>
                 {availableVehicleTypes.map(type => (
@@ -1733,12 +1732,11 @@ export function BookTicketPage({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.seats || 'Số ghế'}</label>
+            <div className="shrink-0">
               <select
                 value={localSeatFilter === 0 ? '' : localSeatFilter}
                 onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
-                className="mt-1 px-3 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+                className="w-20 px-2 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
               >
                 <option value="">{t.seats || 'Số ghế'}</option>
                 {availableSeatCounts.map(count => (
