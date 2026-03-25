@@ -1542,51 +1542,6 @@ export function BookTicketPage({
   return (
     <div className="space-y-8">
       <div className="bg-white p-3 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
-        {/* Compact filter chips: vehicle type + seat count — shown at the very top */}
-        {(availableVehicleTypes.length > 0 || availableSeatCounts.length > 0) && (
-          <div className="flex flex-wrap items-center gap-1 mb-3 sm:mb-4 overflow-x-auto pb-0.5">
-            {availableVehicleTypes.map(type => (
-              <button
-                key={type}
-                onClick={() => setLocalVehicleTypeFilter(prev => prev === type ? '' : type)}
-                className={cn(
-                  "flex-shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all whitespace-nowrap",
-                  localVehicleTypeFilter === type
-                    ? "bg-daiichi-red text-white border-daiichi-red"
-                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-daiichi-red/50"
-                )}
-              >
-                {type}
-              </button>
-            ))}
-            {availableVehicleTypes.length > 0 && availableSeatCounts.length > 0 && (
-              <span className="text-gray-300 text-xs select-none">|</span>
-            )}
-            {availableSeatCounts.map(count => (
-              <button
-                key={count}
-                onClick={() => setLocalSeatFilter(prev => prev === count ? 0 : count)}
-                className={cn(
-                  "flex-shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all whitespace-nowrap",
-                  localSeatFilter === count
-                    ? "bg-blue-500 text-white border-blue-500"
-                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-400/50"
-                )}
-              >
-                {count} {t.seat || 'ghế'}
-              </button>
-            ))}
-            {(localVehicleTypeFilter || localSeatFilter > 0) && (
-              <button
-                onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
-                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-daiichi-red/10 hover:text-daiichi-red text-[10px] font-bold transition-all"
-                title={t.reset_filter || 'Xóa bộ lọc'}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        )}
         <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
           <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
@@ -1762,6 +1717,50 @@ export function BookTicketPage({
             </button>
           </div>
         </div>
+        {/* Filter dropdowns: vehicle type + seat count — below the adults/children row */}
+        {(availableVehicleTypes.length > 0 || availableSeatCounts.length > 0) && (
+          <div className="flex flex-wrap items-end gap-3 mt-3 sm:mt-4 pt-3 border-t border-gray-100">
+            {availableVehicleTypes.length > 0 && (
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">{t.vehicle_type || 'Loại xe'}</label>
+                <select
+                  value={localVehicleTypeFilter}
+                  onChange={e => setLocalVehicleTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+                >
+                  <option value="">{t.all_vehicle_types || 'Tất cả loại xe'}</option>
+                  {availableVehicleTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {availableSeatCounts.length > 0 && (
+              <div className="flex-1 min-w-[130px]">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">{t.seats || 'Số ghế'}</label>
+                <select
+                  value={localSeatFilter === 0 ? '' : localSeatFilter}
+                  onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+                >
+                  <option value="">{t.all_seat_counts || 'Tất cả số ghế'}</option>
+                  {availableSeatCounts.map(count => (
+                    <option key={count} value={count}>{count} {t.seat || 'ghế'}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(localVehicleTypeFilter || localSeatFilter > 0) && (
+              <button
+                onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all whitespace-nowrap"
+                title={t.reset_filter || 'Xóa bộ lọc'}
+              >
+                ✕ {t.reset_filter || 'Xóa bộ lọc'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
 
