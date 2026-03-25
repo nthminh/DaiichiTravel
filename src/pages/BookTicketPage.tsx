@@ -925,7 +925,16 @@ export function BookTicketPage({
 
     if (!wasLoaded && segmentFaresLoaded && pendingNotificationRef.current) {
       pendingNotificationRef.current = false;
-      const count = trips.filter(trip => filterTrip(trip, true)).length;
+      const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
+      const count = trips.filter(trip => {
+        if (!filterTrip(trip, true)) return false;
+        if (localVehicleTypeFilter || localSeatFilter) {
+          const v = vehicleMap.get(trip.licensePlate);
+          if (localVehicleTypeFilter && v?.type !== localVehicleTypeFilter) return false;
+          if (localSeatFilter && v?.seats !== localSeatFilter) return false;
+        }
+        return true;
+      }).length;
       if (count > 0) {
         showToast(t.search_results_found.replace('{count}', String(count)), 'success');
       } else {
@@ -1171,7 +1180,16 @@ export function BookTicketPage({
       pendingNotificationRef.current = true;
     } else {
       // No segment fare filter will be applied (from/to not specified), so count now directly.
-      const count = trips.filter(trip => filterTrip(trip, true, newParams)).length;
+      const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
+      const count = trips.filter(trip => {
+        if (!filterTrip(trip, true, newParams)) return false;
+        if (localVehicleTypeFilter || localSeatFilter) {
+          const v = vehicleMap.get(trip.licensePlate);
+          if (localVehicleTypeFilter && v?.type !== localVehicleTypeFilter) return false;
+          if (localSeatFilter && v?.seats !== localSeatFilter) return false;
+        }
+        return true;
+      }).length;
       if (count > 0) {
         showToast(t.search_results_found.replace('{count}', String(count)), 'success');
       } else {
@@ -1645,8 +1663,8 @@ export function BookTicketPage({
             <span>{t.no_segment_warning || 'Không tìm thấy chặng nào kết nối hai điểm này. Vui lòng thay đổi điểm đi hoặc điểm đến.'}</span>
           </div>
         )}
-        {/* Passenger count row + vehicle/seat filters (desktop) + search button */}
-        <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3 mt-2 sm:mt-4">
+        {/* Passenger count row + vehicle/seat filters + search button */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2 sm:gap-3 mt-2 sm:mt-4">
           <div className="flex-1 sm:flex-none grid grid-cols-2 gap-2 sm:gap-4 sm:mt-4 sm:w-64">
             <div>
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.num_adults}</label>
@@ -1700,8 +1718,8 @@ export function BookTicketPage({
               </div>
             </div>
           </div>
-          {/* Vehicle type + seat count filters — desktop only, same row as adults/children */}
-          <div className="hidden sm:flex items-end gap-2 sm:mt-4">
+          {/* Vehicle type + seat count filters — visible on all screen sizes */}
+          <div className="flex items-center gap-2 sm:items-end sm:mt-4">
             <div>
               <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1 truncate">{t.vehicle_type || 'Loại xe'}</label>
               <select
