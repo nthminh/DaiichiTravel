@@ -36,6 +36,14 @@ jobs:
           # reCAPTCHA v3 Standard site key (public – safe to embed in workflow)
           VITE_RECAPTCHA_SITE_KEY: 6Lc-vIosAAAAAPJ1NRFhFu43lldk12EAjgii-8Ke
 
+      - name: Deploy Firestore rules and Storage rules
+        run: |
+          printf '%s' "$FIREBASE_SA_JSON" > "$RUNNER_TEMP/sa.json"
+          npx firebase-tools@latest deploy --only firestore:rules,storage --project daiichitravel-f49fd
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DAIICHITRAVEL_F49FD }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+
       - name: Deploy to Firebase Hosting (daiichitravel-f49fd.web.app)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
