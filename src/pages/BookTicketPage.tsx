@@ -1719,44 +1719,39 @@ export function BookTicketPage({
         </div>
         {/* Filter dropdowns: vehicle type + seat count — below the adults/children row */}
         {(availableVehicleTypes.length > 0 || availableSeatCounts.length > 0) && (
-          <div className="flex flex-wrap items-end gap-3 mt-3 sm:mt-4 pt-3 border-t border-gray-100">
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
             {availableVehicleTypes.length > 0 && (
-              <div className="flex-1 min-w-[150px]">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">{t.vehicle_type || 'Loại xe'}</label>
-                <select
-                  value={localVehicleTypeFilter}
-                  onChange={e => setLocalVehicleTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
-                >
-                  <option value="">{t.all_vehicle_types || 'Tất cả loại xe'}</option>
-                  {availableVehicleTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={localVehicleTypeFilter}
+                onChange={e => setLocalVehicleTypeFilter(e.target.value)}
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+              >
+                <option value="">{t.vehicle_type || 'Loại xe'}</option>
+                {availableVehicleTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
             )}
             {availableSeatCounts.length > 0 && (
-              <div className="flex-1 min-w-[130px]">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">{t.seats || 'Số ghế'}</label>
-                <select
-                  value={localSeatFilter === 0 ? '' : localSeatFilter}
-                  onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
-                >
-                  <option value="">{t.all_seat_counts || 'Tất cả số ghế'}</option>
-                  {availableSeatCounts.map(count => (
-                    <option key={count} value={count}>{count} {t.seat || 'ghế'}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={localSeatFilter === 0 ? '' : localSeatFilter}
+                onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+              >
+                <option value="">{t.seats || 'Số ghế'}</option>
+                {availableSeatCounts.map(count => (
+                  <option key={count} value={count}>{count} {t.seat || 'ghế'}</option>
+                ))}
+              </select>
             )}
             {(localVehicleTypeFilter || localSeatFilter > 0) && (
               <button
                 onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all whitespace-nowrap"
+                className="flex items-center px-2.5 py-2 rounded-xl text-xs font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
                 title={t.reset_filter || 'Xóa bộ lọc'}
+                aria-label={t.reset_filter || 'Xóa bộ lọc'}
               >
-                ✕ {t.reset_filter || 'Xóa bộ lọc'}
+                ✕
               </button>
             )}
           </div>
