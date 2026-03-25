@@ -728,6 +728,11 @@ export function BookTicketPage({
   // Used to filter out trips whose route has no fare configuration for the searched segment.
   const [segmentFaresLoaded, setSegmentFaresLoaded] = useState(false);
   const segmentFareFetchRef = useRef(0);
+  // Set to true in handleSearch when the notification should be shown after fares finish loading.
+  // Cleared once the notification has been displayed.
+  const pendingNotificationRef = useRef(false);
+  // Tracks the previous value of segmentFaresLoaded so we can detect the false→true transition.
+  const prevSegmentFaresLoadedRef = useRef(false);
   // Ref to the "To" StopSearchInput – used to auto-focus it when "From" is confirmed.
   const toStopRef = useRef<StopSearchInputHandle>(null);
 
@@ -893,6 +898,25 @@ export function BookTicketPage({
     fetchFares();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [committedParams, tripType, roundTripPhase, routes, stops, trips]);
+
+  // Show the search result notification after segment fares have finished loading for the current
+  // search. We track the false→true transition of segmentFaresLoaded so we don't accidentally fire
+  // on a stale `true` value that was left over from a previous search.
+  useEffect(() => {
+    const wasLoaded = prevSegmentFaresLoadedRef.current;
+    prevSegmentFaresLoadedRef.current = segmentFaresLoaded;
+
+    if (!wasLoaded && segmentFaresLoaded && pendingNotificationRef.current) {
+      pendingNotificationRef.current = false;
+      const count = trips.filter(trip => filterTrip(trip, true)).length;
+      if (count > 0) {
+        showToast(t.search_results_found.replace('{count}', String(count)), 'success');
+      } else {
+        showToast(t.no_trips_found, 'info');
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentFaresLoaded, trips]);
 
   const routeByName = new Map(routes.map(r => [r.name, r]));
 
@@ -1117,12 +1141,25 @@ export function BookTicketPage({
     };
     setCommittedParams(newParams);
     setHasSearched(true);
-    // Count using the new params directly (state update is async)
-    const count = trips.filter(trip => filterTrip(trip, true, newParams)).length;
-    if (count > 0) {
-      showToast(t.search_results_found.replace('{count}', String(count)), 'success');
+    // When the search includes from/to, segment fares need to be re-fetched asynchronously for the
+    // new route. Computing the count right now would use the stale segmentFares from the previous
+    // search (React state updates are async), which would incorrectly exclude trips whose route
+    // wasn't in the old fare map and show a false "no trips found" notification. Instead we set a
+    // flag and let the segmentFaresLoaded useEffect show the notification once fares are ready.
+    const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+    const effFrom = isReturnPhase ? (newParams.stationTo || newParams.to) : (newParams.stationFrom || newParams.from);
+    const effTo = isReturnPhase ? (newParams.stationFrom || newParams.from) : (newParams.stationTo || newParams.to);
+    if (effFrom && effTo) {
+      // Defer notification until segment fares finish loading (handled by the useEffect below).
+      pendingNotificationRef.current = true;
     } else {
-      showToast(t.no_trips_found, 'info');
+      // No segment fare filter will be applied (from/to not specified), so count now directly.
+      const count = trips.filter(trip => filterTrip(trip, true, newParams)).length;
+      if (count > 0) {
+        showToast(t.search_results_found.replace('{count}', String(count)), 'success');
+      } else {
+        showToast(t.no_trips_found, 'info');
+      }
     }
   };
 
