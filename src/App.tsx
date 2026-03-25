@@ -1910,13 +1910,17 @@ export default function App() {
     );
   }
 
+  const isStaffOrManager = currentUser?.role === UserRole.MANAGER || (currentUser?.role && currentUser.role !== UserRole.AGENT && currentUser.role !== UserRole.CUSTOMER && currentUser.role !== UserRole.GUEST);
+
   return (
     <div className="flex h-screen overflow-hidden bg-daiichi-accent">
       <PWAInstallPrompt />
-      <UrgencyNotification language={language} />
+      {isStaffOrManager && (
+        <UrgencyNotification language={language} />
+      )}
 
       {/* Staff Chat (visible to MANAGER and employees) */}
-      {(currentUser?.role === UserRole.MANAGER || (currentUser?.role && currentUser.role !== UserRole.AGENT && currentUser.role !== UserRole.CUSTOMER && currentUser.role !== UserRole.GUEST)) && (
+      {isStaffOrManager && (
         <Suspense fallback={null}>
           <StaffChat
             language={language}

@@ -1759,11 +1759,11 @@ export function BookTicketPage({
           </div>
           {/* Vehicle type + seat count filters — visible on all screen sizes */}
           <div className="flex items-center gap-2 sm:items-end sm:mt-4">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 shrink">
               <select
                 value={localVehicleTypeFilter}
                 onChange={e => setLocalVehicleTypeFilter(e.target.value)}
-                className="w-full px-3 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+                className="w-full px-2 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
               >
                 <option value="">{t.vehicle_type || 'Loại xe'}</option>
                 {availableVehicleTypes.map(type => (
@@ -1775,7 +1775,7 @@ export function BookTicketPage({
               <select
                 value={localSeatFilter === 0 ? '' : localSeatFilter}
                 onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
-                className="w-20 px-2 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
+                className="w-28 px-2 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
               >
                 <option value="">{t.seats || 'Số ghế'}</option>
                 {availableSeatCounts.map(count => (
