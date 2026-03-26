@@ -293,6 +293,7 @@ export default function App() {
   const [tripFilterVehicle, setTripFilterVehicle] = useState('');
   const [tripFilterDriver, setTripFilterDriver] = useState('');
   const [tripFilterSeatCount, setTripFilterSeatCount] = useState('');
+  const [tripFilterDaysOfWeek, setTripFilterDaysOfWeek] = useState<number[]>([]);
   const [completedTripDateQuickFilter, setCompletedTripDateQuickFilter] = useState<string>('');
   const [showCompletedTripAdvancedFilter, setShowCompletedTripAdvancedFilter] = useState(false);
   const [completedTripFilterRoute, setCompletedTripFilterRoute] = useState('');
@@ -477,6 +478,12 @@ export default function App() {
     batchTimeSlots,
     setBatchTimeSlots,
     batchTripLoading,
+    batchAddonServices,
+    setBatchAddonServices,
+    batchAddonForm,
+    setBatchAddonForm,
+    showBatchAddonForm,
+    setShowBatchAddonForm,
     isSavingTrip,
     tripSaveError,
     setTripSaveError,
@@ -1685,6 +1692,8 @@ export default function App() {
               setTripFilterDriver={setTripFilterDriver}
               tripFilterSeatCount={tripFilterSeatCount}
               setTripFilterSeatCount={setTripFilterSeatCount}
+              tripFilterDaysOfWeek={tripFilterDaysOfWeek}
+              setTripFilterDaysOfWeek={setTripFilterDaysOfWeek}
               showAddTrip={showAddTrip}
               setShowAddTrip={setShowAddTrip}
               editingTrip={editingTrip}
@@ -1700,6 +1709,12 @@ export default function App() {
               batchTimeSlots={batchTimeSlots}
               setBatchTimeSlots={setBatchTimeSlots}
               batchTripLoading={batchTripLoading}
+              batchAddonServices={batchAddonServices}
+              setBatchAddonServices={setBatchAddonServices}
+              batchAddonForm={batchAddonForm}
+              setBatchAddonForm={setBatchAddonForm}
+              showBatchAddonForm={showBatchAddonForm}
+              setShowBatchAddonForm={setShowBatchAddonForm}
               isSavingTrip={isSavingTrip}
               tripSaveError={tripSaveError}
               setTripSaveError={setTripSaveError}
