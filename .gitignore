@@ -7,3 +7,4 @@ coverage/
 .env*
 !.env.example
 dist/
+package-lock.json

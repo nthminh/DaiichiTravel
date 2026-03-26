@@ -222,19 +222,22 @@ export const StaffChat: React.FC<StaffChatProps> = ({
   const formatTime = (iso: string) => {
     try {
       const d = new Date(iso);
-      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
     } catch { return ''; }
   };
 
   const formatDate = (iso: string) => {
     try {
       const d = new Date(iso);
-      const today = new Date();
-      if (d.toDateString() === today.toDateString()) return language === 'vi' ? 'Hôm nay' : 'Today';
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-      if (d.toDateString() === yesterday.toDateString()) return language === 'vi' ? 'Hôm qua' : 'Yesterday';
-      return d.toLocaleDateString('vi-VN');
+      const getVNDate = (date: Date) => new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(date);
+      const todayStr = getVNDate(new Date());
+      const dStr = getVNDate(d);
+      if (dStr === todayStr) return language === 'vi' ? 'Hôm nay' : 'Today';
+      const yesterdayStr = getVNDate(new Date(Date.now() - 86400000));
+      if (dStr === yesterdayStr) return language === 'vi' ? 'Hôm qua' : 'Yesterday';
+      return d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch { return ''; }
   };
 

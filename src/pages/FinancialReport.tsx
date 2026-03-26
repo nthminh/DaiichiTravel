@@ -247,9 +247,9 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
       PARTIAL: '#b45309',
     };
     const createdDateStr = inv.createdAt?.toDate
-      ? inv.createdAt.toDate().toLocaleDateString('vi-VN')
+      ? inv.createdAt.toDate().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' })
       : inv.createdAt
-        ? new Date(inv.createdAt).toLocaleDateString('vi-VN')
+        ? new Date(inv.createdAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' })
         : getTodayVN();
 
     const itemsHtml = inv.items.map((item, i) => `

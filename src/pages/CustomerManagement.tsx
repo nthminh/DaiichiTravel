@@ -191,7 +191,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const formatDate = (iso?: string) => {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleDateString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      return new Date(iso).toLocaleDateString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
     } catch { return '—'; }
   };
 
