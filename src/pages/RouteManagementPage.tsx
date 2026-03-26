@@ -902,28 +902,6 @@ export function RouteManagementPage({
                           </label>
                           {routeForm.disablePickupAddress && (
                             <div className="ml-7 space-y-2">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <span className="text-xs text-gray-500">{language === 'vi' ? 'Loại điểm dừng:' : language === 'ja' ? '停留所タイプ:' : 'Stop type:'}</span>
-                                {(['ALL', 'STOP', 'FREE_STOP'] as const).map(stype => (
-                                  <label key={stype} className="flex items-center gap-1.5 cursor-pointer">
-                                    <input
-                                      type="radio"
-                                      name="disablePickupStopType"
-                                      value={stype}
-                                      checked={(routeForm.disablePickupAddressStopType || 'ALL') === stype}
-                                      onChange={() => setRouteForm(f => ({ ...f, disablePickupAddressStopType: stype }))}
-                                      className="accent-daiichi-red"
-                                    />
-                                    <span className="text-xs text-gray-600">
-                                      {stype === 'ALL'
-                                        ? (language === 'vi' ? 'Tất cả' : language === 'ja' ? 'すべて' : 'All')
-                                        : stype === 'STOP'
-                                          ? (language === 'vi' ? 'Điểm dừng' : language === 'ja' ? '停留所' : 'Stop')
-                                          : (language === 'vi' ? 'Miễn phí' : language === 'ja' ? '無料乗降' : 'Free')}
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
                                 <input
@@ -956,28 +934,6 @@ export function RouteManagementPage({
                           </label>
                           {routeForm.disableDropoffAddress && (
                             <div className="ml-7 space-y-2">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <span className="text-xs text-gray-500">{language === 'vi' ? 'Loại điểm dừng:' : language === 'ja' ? '停留所タイプ:' : 'Stop type:'}</span>
-                                {(['ALL', 'STOP', 'FREE_STOP'] as const).map(stype => (
-                                  <label key={stype} className="flex items-center gap-1.5 cursor-pointer">
-                                    <input
-                                      type="radio"
-                                      name="disableDropoffStopType"
-                                      value={stype}
-                                      checked={(routeForm.disableDropoffAddressStopType || 'ALL') === stype}
-                                      onChange={() => setRouteForm(f => ({ ...f, disableDropoffAddressStopType: stype }))}
-                                      className="accent-daiichi-red"
-                                    />
-                                    <span className="text-xs text-gray-600">
-                                      {stype === 'ALL'
-                                        ? (language === 'vi' ? 'Tất cả' : language === 'ja' ? 'すべて' : 'All')
-                                        : stype === 'STOP'
-                                          ? (language === 'vi' ? 'Điểm dừng' : language === 'ja' ? '停留所' : 'Stop')
-                                          : (language === 'vi' ? 'Miễn phí' : language === 'ja' ? '無料乗降' : 'Free')}
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
                                 <input
