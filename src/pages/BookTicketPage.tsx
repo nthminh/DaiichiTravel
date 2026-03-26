@@ -1,8 +1,8 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
-import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
+import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle, RouteSurcharge } from '../types'
 import { matchesSearch, matchScore } from '../lib/searchUtils'
 import { parseDurationToMinutes } from '../lib/routeUtils'
 import { motion } from 'motion/react'
@@ -548,6 +548,572 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
 }
 );
 
+// ---------------------------------------------------------------------------
+// StepIndicator – 4-step progress bar shown at the top of TripConfirmPanel
+// ---------------------------------------------------------------------------
+interface StepIndicatorProps {
+  currentStep: number; // 1=trip, 2=pickup/dropoff, 3=seat, 4=payment
+  labels: [string, string, string, string];
+}
+function StepIndicator({ currentStep, labels }: StepIndicatorProps) {
+  return (
+    <div className="flex items-center gap-0 w-full">
+      {labels.map((label, idx) => {
+        const step = idx + 1;
+        const isDone = step < currentStep;
+        const isActive = step === currentStep;
+        return (
+          <React.Fragment key={step}>
+            <div className="flex flex-col items-center flex-1 min-w-0">
+              <div className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all flex-shrink-0",
+                isDone ? "bg-green-500 border-green-500 text-white" :
+                isActive ? "bg-daiichi-red border-daiichi-red text-white" :
+                "bg-white border-gray-300 text-gray-400"
+              )}>
+                {isDone ? <CheckCircle2 size={14} /> : step}
+              </div>
+              <span className={cn(
+                "text-[9px] mt-0.5 text-center leading-tight font-semibold truncate w-full px-0.5",
+                isActive ? "text-daiichi-red" : isDone ? "text-green-600" : "text-gray-400"
+              )}>{label}</span>
+            </div>
+            {idx < 3 && (
+              <div className={cn(
+                "h-0.5 flex-1 mx-1 mt-[-10px] rounded-full transition-all",
+                isDone ? "bg-green-400" : "bg-gray-200"
+              )} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TripConfirmPanel – full-screen overlay that shows after a user picks a trip.
+// Displays: step indicator, trip details, route itinerary, pickup/dropoff
+// selector, price breakdown, and a "Confirm & Select Seat" button.
+// ---------------------------------------------------------------------------
+interface TripConfirmPanelProps {
+  trip: Trip;
+  route: Route | undefined;
+  stops: Stop[];
+  routes: Route[];
+  vehicles: Vehicle[];
+  language: Language;
+  segmentFares: Map<string, { price: number; agentPrice?: number }>;
+  searchStationFrom: string;
+  searchStationTo: string;
+  searchFrom: string;
+  searchTo: string;
+  roundTripPhase: 'outbound' | 'return';
+  tripType: 'ONE_WAY' | 'ROUND_TRIP';
+  currentUser: any | null;
+  searchAdults: number;
+  searchChildren: number;
+  onConfirm: (pickupStop: Stop | null, dropoffStop: Stop | null) => void;
+  onClose: () => void;
+}
+
+function TripConfirmPanel({
+  trip, route, stops, language, segmentFares,
+  searchStationFrom, searchStationTo, searchFrom, searchTo,
+  roundTripPhase, tripType, currentUser, searchAdults, searchChildren,
+  onConfirm, onClose,
+}: TripConfirmPanelProps) {
+  const t = TRANSLATIONS[language];
+  const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
+  const effectiveFrom = isReturnPhase ? (searchStationTo || searchTo) : (searchStationFrom || searchFrom);
+  const effectiveTo = isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo);
+
+  const [selectedPickup, setSelectedPickup] = useState<Stop | null>(null);
+  const [selectedDropoff, setSelectedDropoff] = useState<Stop | null>(null);
+
+  // ---- helpers ----
+  const isAddressDisabledByDate = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
+    if (!disableFlag) return false;
+    if (!fromDate && !toDate) return true;
+    const afterFrom = fromDate ? tripDate >= fromDate : true;
+    const beforeTo = toDate ? tripDate <= toDate : true;
+    return !!tripDate && afterFrom && beforeTo;
+  };
+
+  const getApplicableRouteSurcharges = (r: Route | undefined, tripDate: string): RouteSurcharge[] => {
+    if (!r?.surcharges) return [];
+    return r.surcharges.filter(sc => {
+      if (!sc.isActive) return false;
+      if (sc.startDate && sc.endDate) return !!tripDate && tripDate >= sc.startDate && tripDate <= sc.endDate;
+      return true;
+    });
+  };
+
+  const resolveTerminal = (selectedName: string | undefined, routeDefaultName: string | undefined): Stop | undefined => {
+    const name = selectedName || routeDefaultName;
+    if (!name) return undefined;
+    const direct = stops.find(s => s.type === 'TERMINAL' && s.name === name);
+    if (direct) return direct;
+    const parentId = stops.find(s => s.name === name)?.terminalId;
+    if (parentId) return stops.find(s => s.id === parentId);
+    return undefined;
+  };
+
+  const tripDate = trip.date || '';
+  const applicableSurcharges = getApplicableRouteSurcharges(route, tripDate);
+
+  // ---- Pickup stops ----
+  const departureTerminal = resolveTerminal(effectiveFrom, route?.departurePoint);
+  const isPickupDisabledByDate = isAddressDisabledByDate(route?.disablePickupAddress, route?.disablePickupAddressFrom, route?.disablePickupAddressTo, tripDate);
+  const pickupDisableStopType = route?.disablePickupAddressStopType || 'ALL';
+  const pickupSectionDisabled = isPickupDisabledByDate && pickupDisableStopType === 'ALL';
+  const disabledPickupCategories = route?.disabledPickupCategories ?? [];
+
+  const pickupStops = useMemo(() => {
+    const base = departureTerminal
+      ? stops.filter(s => s.terminalId === departureTerminal.id)
+      : stops.filter(s => s.type !== 'TERMINAL');
+    const afterType = isPickupDisabledByDate && pickupDisableStopType !== 'ALL'
+      ? base.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
+      : base;
+    return disabledPickupCategories.length > 0
+      ? afterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
+      : afterType;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories]);
+
+  // ---- Dropoff stops ----
+  const arrivalTerminal = resolveTerminal(effectiveTo, route?.arrivalPoint);
+  const isDropoffDisabledByDate = isAddressDisabledByDate(route?.disableDropoffAddress, route?.disableDropoffAddressFrom, route?.disableDropoffAddressTo, tripDate);
+  const dropoffDisableStopType = route?.disableDropoffAddressStopType || 'ALL';
+  const dropoffSectionDisabled = isDropoffDisabledByDate && dropoffDisableStopType === 'ALL';
+  const disabledDropoffCategories = route?.disabledDropoffCategories ?? [];
+
+  const dropoffStops = useMemo(() => {
+    const base = arrivalTerminal
+      ? stops.filter(s => s.terminalId === arrivalTerminal.id)
+      : stops.filter(s => s.type !== 'TERMINAL');
+    const afterType = isDropoffDisabledByDate && dropoffDisableStopType !== 'ALL'
+      ? base.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
+      : base;
+    return disabledDropoffCategories.length > 0
+      ? afterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
+      : afterType;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories]);
+
+  // ---- Time calculation ----
+  const calcTime = (base: string, offsetMins: number): string => {
+    const [h, m] = base.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return base;
+    const total = h * 60 + m + offsetMins;
+    return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  };
+
+  const depOffsetMins = (() => {
+    if (!trip.time) return 0;
+    const matchedStop = route?.routeStops?.find(s =>
+      effectiveFrom && (s.stopName === effectiveFrom || matchesSearch(s.stopName, effectiveFrom))
+    );
+    if (matchedStop) return matchedStop.offsetMinutes ?? 0;
+    return route?.departureOffsetMinutes ?? 0;
+  })();
+
+  const arrOffsetMins = (() => {
+    if (!trip.time) return null;
+    const arrPt = route?.arrivalPoint || '';
+    const isFinalDestination = Boolean(arrPt && effectiveTo && (
+      arrPt === effectiveTo || matchesSearch(arrPt, effectiveTo) || matchesSearch(effectiveTo, arrPt)
+    ));
+    if (!isFinalDestination) {
+      const matchedArrStop = route?.routeStops?.find(s =>
+        effectiveTo && (s.stopName === effectiveTo || matchesSearch(s.stopName, effectiveTo))
+      );
+      if (matchedArrStop && (matchedArrStop.offsetMinutes ?? 0) > 0) return matchedArrStop.offsetMinutes ?? 0;
+    }
+    const routeArrOffset = route?.arrivalOffsetMinutes ?? 0;
+    if (routeArrOffset > 0) return routeArrOffset;
+    if (route?.duration) {
+      const parsed = parseDurationToMinutes(route.duration);
+      if (parsed && parsed > 0) return parsed;
+    }
+    const matchedArrStop = route?.routeStops?.find(s =>
+      effectiveTo && (s.stopName === effectiveTo || matchesSearch(s.stopName, effectiveTo))
+    );
+    if (matchedArrStop && (matchedArrStop.offsetMinutes ?? 0) > 0) return matchedArrStop.offsetMinutes ?? 0;
+    return null;
+  })();
+
+  const depTime = trip.time ? calcTime(trip.time, depOffsetMins) : null;
+  const arrTime = trip.time && arrOffsetMins !== null ? calcTime(trip.time, arrOffsetMins) : null;
+
+  // ---- Ordered itinerary stops ----
+  const orderedItinerary = useMemo(() => {
+    const stops_list: { name: string; time: string | null; isEndpoint: boolean }[] = [];
+    const dep = route?.departurePoint || effectiveFrom || '';
+    const arr = route?.arrivalPoint || effectiveTo || '';
+    if (dep) stops_list.push({ name: dep, time: trip.time ? calcTime(trip.time, route?.departureOffsetMinutes ?? 0) : null, isEndpoint: true });
+    if (route?.routeStops && route.routeStops.length > 0) {
+      route.routeStops
+        .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .forEach(s => {
+          stops_list.push({
+            name: s.stopName,
+            time: trip.time && (s.offsetMinutes ?? 0) > 0 ? calcTime(trip.time, s.offsetMinutes ?? 0) : null,
+            isEndpoint: false,
+          });
+        });
+    }
+    if (arr && arr !== dep) stops_list.push({ name: arr, time: arrTime, isEndpoint: true });
+    return stops_list;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.id, trip.time, effectiveFrom, effectiveTo, arrTime]);
+
+  // ---- Fare calculation ----
+  const segFare = route ? segmentFares.get(route.id) : undefined;
+  const isAgent = currentUser?.role === UserRole.AGENT;
+  const retailBase = segFare ? segFare.price : (trip.price || 0);
+  const agentBase = isAgent ? (segFare?.agentPrice || trip.agentPrice || null) : null;
+  const baseFare = agentBase !== null ? agentBase : retailBase;
+  const discountPct = trip.discountPercent || 0;
+  const discountedFare = discountPct > 0 ? Math.round(baseFare * (1 - discountPct / 100)) : baseFare;
+  const pickupSurchargeAmt = selectedPickup?.surcharge || 0;
+  const dropoffSurchargeAmt = selectedDropoff?.surcharge || 0;
+  const routeSurchargeTotal = applicableSurcharges.reduce((sum, sc) => sum + sc.amount, 0);
+  const totalPerPerson = discountedFare + pickupSurchargeAmt + dropoffSurchargeAmt + routeSurchargeTotal;
+
+  const stepLabels: [string, string, string, string] = [
+    t.step_select_trip || 'Chọn chuyến',
+    t.step_pickup_dropoff || 'Điểm đón/trả',
+    t.step_select_seat || 'Chọn ghế',
+    t.step_payment || 'Thanh toán',
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[300] flex flex-col bg-white overflow-hidden">
+      {/* Top bar */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 pt-3 pb-3 shadow-sm">
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-daiichi-red transition-colors"
+          >
+            <X size={18} />
+            <span className="hidden sm:inline">{t.trip_confirm_back || 'Quay lại'}</span>
+          </button>
+          <div className="flex-1">
+            <StepIndicator currentStep={2} labels={stepLabels} />
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-4 py-4 space-y-4 pb-32">
+
+          {/* ── Trip info card ── */}
+          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-xs font-bold uppercase">{trip.route}</span>
+              {trip.date && (
+                <span className="px-2.5 py-1 bg-red-50 text-daiichi-red rounded-full text-xs font-bold flex-shrink-0">{trip.date}</span>
+              )}
+            </div>
+            {/* Departure → Arrival with times */}
+            <div className="flex items-stretch gap-3">
+              <div className="flex flex-col items-center flex-shrink-0 pt-1">
+                <div className="w-2 h-2 rounded-full bg-daiichi-red" />
+                <div className="w-px flex-1 bg-gray-300 my-1" />
+                <div className="w-2 h-2 rounded-full bg-blue-400" />
+              </div>
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    {depTime && <span className="text-lg font-bold text-daiichi-red leading-none">{depTime}</span>}
+                    <span className="text-sm font-semibold text-gray-800 truncate">{effectiveFrom || route?.departurePoint || '—'}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{t.trip_confirm_departure_time || 'Giờ xuất bến'}</p>
+                </div>
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    {arrTime && <span className="text-base font-bold text-blue-500 leading-none">{arrTime}</span>}
+                    <span className="text-sm font-medium text-gray-600 truncate">{effectiveTo || route?.arrivalPoint || '—'}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{t.trip_confirm_arrival_time || 'Giờ dự kiến đến'}</p>
+                </div>
+              </div>
+            </div>
+            {/* Meta row: driver, vehicle */}
+            <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-gray-200">
+              {trip.driverName && (
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Users size={12} className="flex-shrink-0" />
+                  <span>{trip.driverName}</span>
+                </div>
+              )}
+              {trip.licensePlate && (
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Bus size={12} className="flex-shrink-0" />
+                  <span>{trip.licensePlate}</span>
+                </div>
+              )}
+              {route?.duration && (
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Clock size={12} className="flex-shrink-0" />
+                  <span>{route.duration}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Route Itinerary ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+              <MapPin size={14} className="text-daiichi-red flex-shrink-0" />
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_route_title || 'Hành trình xe sẽ đi qua'}</h3>
+            </div>
+            <div className="p-4">
+              {orderedItinerary.length <= 2 ? (
+                <p className="text-xs text-gray-400 italic">{t.trip_confirm_no_intermediate || 'Chạy thẳng, không dừng trung gian'}</p>
+              ) : (
+                <div className="space-y-0">
+                  {orderedItinerary.map((stop, idx) => (
+                    <div key={idx} className="flex items-stretch gap-3 min-w-0">
+                      <div className="flex flex-col items-center flex-shrink-0 w-4">
+                        <div className={cn(
+                          "w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5",
+                          stop.isEndpoint ? (idx === 0 ? "bg-daiichi-red" : "bg-blue-400") : "bg-gray-300"
+                        )} />
+                        {idx < orderedItinerary.length - 1 && (
+                          <div className="w-px flex-1 bg-gray-200 my-0.5" />
+                        )}
+                      </div>
+                      <div className={cn("flex-1 min-w-0 pb-2", idx === orderedItinerary.length - 1 ? "pb-0" : "")}>
+                        <div className="flex items-center gap-2">
+                          {stop.time && (
+                            <span className={cn(
+                              "text-[10px] font-bold flex-shrink-0",
+                              idx === 0 ? "text-daiichi-red" : stop.isEndpoint ? "text-blue-500" : "text-gray-400"
+                            )}>{stop.time}</span>
+                          )}
+                          <span className={cn(
+                            "text-xs truncate",
+                            stop.isEndpoint ? "font-semibold text-gray-800" : "font-medium text-gray-600"
+                          )}>{stop.name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Pickup selection ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-daiichi-red flex-shrink-0" />
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_pickup_title || 'Chọn điểm đón'}</h3>
+              <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
+            </div>
+            <div className="p-3">
+              {pickupSectionDisabled ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-amber-600">
+                  <Info size={13} className="flex-shrink-0" />
+                  <span>{t.trip_confirm_pickup_disabled || 'Điểm đón bị tắt cho tuyến/ngày này'}</span>
+                </div>
+              ) : pickupStops.length === 0 ? (
+                <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_pickup_stops || 'Không có điểm đón tại bến này'}</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {/* None option */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPickup(null)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
+                      !selectedPickup
+                        ? "bg-daiichi-red/10 border-daiichi-red text-daiichi-red font-bold"
+                        : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300"
+                    )}
+                  >
+                    <X size={11} className="flex-shrink-0" />
+                    {t.not_selected_yet || 'Chưa chọn'}
+                  </button>
+                  {pickupStops.map(stop => (
+                    <button
+                      key={stop.id}
+                      type="button"
+                      onClick={() => setSelectedPickup(stop)}
+                      className={cn(
+                        "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
+                        selectedPickup?.id === stop.id
+                          ? "bg-daiichi-red text-white border-daiichi-red"
+                          : "bg-gray-50 border-gray-200 hover:border-daiichi-red/40 hover:bg-red-50"
+                      )}
+                    >
+                      <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold break-words">{stop.name}</p>
+                        {stop.address && <p className={cn("text-[10px] mt-0.5 break-words", selectedPickup?.id === stop.id ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
+                        {(stop.surcharge || 0) > 0 && (
+                          <p className={cn("text-[10px] font-bold mt-0.5", selectedPickup?.id === stop.id ? "text-yellow-200" : "text-green-600")}>
+                            +{(stop.surcharge || 0).toLocaleString()}đ
+                          </p>
+                        )}
+                      </div>
+                      {selectedPickup?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Dropoff selection ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_dropoff_title || 'Chọn điểm trả'}</h3>
+              <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
+            </div>
+            <div className="p-3">
+              {dropoffSectionDisabled ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-amber-600">
+                  <Info size={13} className="flex-shrink-0" />
+                  <span>{t.trip_confirm_dropoff_disabled || 'Điểm trả bị tắt cho tuyến/ngày này'}</span>
+                </div>
+              ) : dropoffStops.length === 0 ? (
+                <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_dropoff_stops || 'Không có điểm trả tại bến này'}</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {/* None option */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDropoff(null)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
+                      !selectedDropoff
+                        ? "bg-daiichi-red/10 border-daiichi-red text-daiichi-red font-bold"
+                        : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300"
+                    )}
+                  >
+                    <X size={11} className="flex-shrink-0" />
+                    {t.not_selected_yet || 'Chưa chọn'}
+                  </button>
+                  {dropoffStops.map(stop => (
+                    <button
+                      key={stop.id}
+                      type="button"
+                      onClick={() => setSelectedDropoff(stop)}
+                      className={cn(
+                        "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
+                        selectedDropoff?.id === stop.id
+                          ? "bg-blue-500 text-white border-blue-500"
+                          : "bg-gray-50 border-gray-200 hover:border-blue-400/40 hover:bg-blue-50"
+                      )}
+                    >
+                      <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold break-words">{stop.name}</p>
+                        {stop.address && <p className={cn("text-[10px] mt-0.5 break-words", selectedDropoff?.id === stop.id ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
+                        {(stop.surcharge || 0) > 0 && (
+                          <p className={cn("text-[10px] font-bold mt-0.5", selectedDropoff?.id === stop.id ? "text-yellow-200" : "text-green-600")}>
+                            +{(stop.surcharge || 0).toLocaleString()}đ
+                          </p>
+                        )}
+                      </div>
+                      {selectedDropoff?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Price breakdown ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+              <Info size={14} className="text-blue-500 flex-shrink-0" />
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_price_title || 'Chi tiết giá vé'}</h3>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">{t.trip_confirm_base_fare || 'Giá vé cơ bản'}</span>
+                <div className="flex items-center gap-2">
+                  {discountPct > 0 && <span className="text-[10px] text-gray-400 line-through">{baseFare.toLocaleString()}đ</span>}
+                  <span className="font-bold text-gray-800">{discountedFare.toLocaleString()}đ</span>
+                  {discountPct > 0 && <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 rounded-full">-{discountPct}%</span>}
+                </div>
+              </div>
+              {pickupSurchargeAmt > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{t.trip_confirm_pickup_surcharge || 'Phụ phí điểm đón'} ({selectedPickup?.name})</span>
+                  <span className="font-semibold text-orange-600">+{pickupSurchargeAmt.toLocaleString()}đ</span>
+                </div>
+              )}
+              {dropoffSurchargeAmt > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{t.trip_confirm_dropoff_surcharge || 'Phụ phí điểm trả'} ({selectedDropoff?.name})</span>
+                  <span className="font-semibold text-orange-600">+{dropoffSurchargeAmt.toLocaleString()}đ</span>
+                </div>
+              )}
+              {applicableSurcharges.map(sc => (
+                <div key={sc.id} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{t.trip_confirm_surcharges || 'Phụ phí tuyến'}: {sc.name}</span>
+                  <span className="font-semibold text-orange-600">+{sc.amount.toLocaleString()}đ</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <span className="text-sm font-bold text-gray-800">{t.trip_confirm_total || 'Tổng dự kiến / người'}</span>
+                <span className="text-base font-bold text-daiichi-red">{totalPerPerson.toLocaleString()}đ</span>
+              </div>
+              {(searchAdults > 1 || searchChildren > 0) && (
+                <p className="text-[10px] text-gray-400">
+                  × {searchAdults + searchChildren} {language === 'vi' ? 'hành khách' : language === 'ja' ? '名' : 'passengers'}
+                  {' ≈ '}<span className="font-semibold text-gray-600">{(totalPerPerson * (searchAdults + searchChildren)).toLocaleString()}đ</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Tip note */}
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
+            <Info size={13} className="text-blue-400 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-blue-700">{t.trip_confirm_note || 'Vui lòng xác nhận thông tin trước khi chọn ghế'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Fixed bottom action bar */}
+      <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] safe-area-inset-bottom">
+        <div className="max-w-2xl mx-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all"
+          >
+            <X size={15} />
+            <span className="hidden sm:inline">{t.trip_confirm_back || 'Quay lại'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(selectedPickup, selectedDropoff)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all"
+          >
+            <CheckCircle2 size={16} />
+            <span>{t.confirm_and_select_seat || 'Xác nhận & Chọn ghế'}</span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 interface BookTicketPageProps {
   trips: Trip[];
@@ -801,46 +1367,33 @@ export function BookTicketPage({
   // Ref to the "To" StopSearchInput – used to auto-focus it when "From" is confirmed.
   const toStopRef = useRef<StopSearchInputHandle>(null);
 
+  // Track which trip the user clicked "Select Seat" on – used to show the TripConfirmPanel
+  // before navigating to seat-mapping. null = no confirmation panel open.
+  const [pendingConfirmTrip, setPendingConfirmTrip] = useState<Trip | null>(null);
+
   // Handler for the "From" stop input: clears pre-selected pickup when terminal is cleared.
   const handleFromChange = (text: string, terminal: string) => {
     setSearchFrom(text);
     setSearchStationFrom(terminal);
-    if (!terminal) {
-      setPickupAddress('');
-      setPickupStopAddress('');
-      setPickupAddressSurcharge(0);
-    }
     // Do NOT reset hasSearched here – results remain visible until the search
     // button is clicked again (committed params drive the filter, not live inputs).
   };
 
-  // Handler for the "To" stop input: clears pre-selected dropoff when terminal is cleared.
+  // Handler for the "To" stop input.
   const handleToChange = (text: string, terminal: string) => {
     setSearchTo(text);
     setSearchStationTo(terminal);
-    if (!terminal) {
-      setDropoffAddress('');
-      setDropoffStopAddress('');
-      setDropoffAddressSurcharge(0);
-    }
     // Do NOT reset hasSearched – committed params drive the filter.
   };
 
-  // Swap origin and destination (and their respective sub-stop selections).
+  // Swap origin and destination.
   const handleSwap = () => {
     const prevFrom = searchFrom;
     const prevStationFrom = searchStationFrom;
-    const prevPickup = pickupAddress;
     setSearchFrom(searchTo);
     setSearchStationFrom(searchStationTo);
-    setPickupAddress(dropoffAddress);
-    setPickupStopAddress('');
-    setPickupAddressSurcharge(0);
     setSearchTo(prevFrom);
     setSearchStationTo(prevStationFrom);
-    setDropoffAddress(prevPickup);
-    setDropoffStopAddress('');
-    setDropoffAddressSurcharge(0);
     // Do NOT reset hasSearched – committed params drive the filter.
   };
 
@@ -1160,40 +1713,12 @@ export function BookTicketPage({
     return true;
   };
 
-  // Returns true when the given terminal has child (pickup/dropoff) sub-stops configured.
-  const terminalHasSubStops = (terminalName: string): boolean => {
-    if (!terminalName) return false;
-    const terminal = stops.find(s => s.name === terminalName && s.type === 'TERMINAL');
-    if (!terminal) return false;
-    return stops.some(s => s.terminalId === terminal.id);
-  };
-
-  // Returns true when the terminal is ready to search: either it has no sub-stops,
-  // or the user has already selected one.
-  const isTerminalReadyForSearch = (terminalName: string, selectedAddress: string): boolean =>
-    !terminalName || !terminalHasSubStops(terminalName) || !!selectedAddress;
-
-  // The search button is only enabled once all required stops are selected.
-  // If a terminal has sub-stops (pickup/dropoff points), one must be chosen before searching.
-  const isSearchReady =
-    isTerminalReadyForSearch(searchStationFrom, pickupAddress) &&
-    isTerminalReadyForSearch(searchStationTo, dropoffAddress);
-
   const handleSearch = () => {
     // Block search if the user typed text in a stop field but did not confirm a selection
     const fromUnconfirmed = searchFrom.trim() && !searchStationFrom;
     const toUnconfirmed = searchTo.trim() && !searchStationTo;
     if (fromUnconfirmed || toUnconfirmed) {
       showToast(t.stop_search_must_select, 'error');
-      return;
-    }
-    // Block search if a terminal has pickup/dropoff stops but none has been selected yet
-    if (!isTerminalReadyForSearch(searchStationFrom, pickupAddress)) {
-      showToast(t.select_pickup_point || 'Vui lòng chọn điểm đón', 'error');
-      return;
-    }
-    if (!isTerminalReadyForSearch(searchStationTo, dropoffAddress)) {
-      showToast(t.select_dropoff_point || 'Vui lòng chọn điểm trả', 'error');
       return;
     }
     // Snapshot the current input values as committed params so that filterTrip and
@@ -1553,7 +2078,7 @@ export function BookTicketPage({
                 </button>
               ) : (
                 <button
-                  onClick={() => { setSelectedTrip(trip); setPreviousTab('book-ticket'); setActiveTab('seat-mapping'); }}
+                  onClick={() => setPendingConfirmTrip(trip)}
                   className="w-full px-2 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
                 >
                   {t.select_seat}
@@ -1679,7 +2204,48 @@ export function BookTicketPage({
     );
   };
 
+  // Handler called when user confirms in TripConfirmPanel
+  const handleTripConfirm = (pickupStop: Stop | null, dropoffStop: Stop | null) => {
+    if (!pendingConfirmTrip) return;
+    // Set pickup/dropoff from the user's selection in the confirm panel
+    setPickupAddress(pickupStop ? pickupStop.name : '');
+    setPickupStopAddress(pickupStop ? (pickupStop.address || '') : '');
+    setPickupAddressSurcharge(pickupStop ? (pickupStop.surcharge || 0) : 0);
+    setDropoffAddress(dropoffStop ? dropoffStop.name : '');
+    setDropoffStopAddress(dropoffStop ? (dropoffStop.address || '') : '');
+    setDropoffAddressSurcharge(dropoffStop ? (dropoffStop.surcharge || 0) : 0);
+    // Navigate to seat mapping
+    setSelectedTrip(pendingConfirmTrip);
+    setPreviousTab('book-ticket');
+    setActiveTab('seat-mapping');
+    setPendingConfirmTrip(null);
+  };
+
   return (
+    <>
+    {/* TripConfirmPanel – full-screen overlay shown when user clicks a trip card */}
+    {pendingConfirmTrip && (
+      <TripConfirmPanel
+        trip={pendingConfirmTrip}
+        route={routes.find(r => r.name === pendingConfirmTrip.route)}
+        stops={stops}
+        routes={routes}
+        vehicles={vehicles}
+        language={language}
+        segmentFares={segmentFares}
+        searchStationFrom={searchStationFrom}
+        searchStationTo={searchStationTo}
+        searchFrom={searchFrom}
+        searchTo={searchTo}
+        roundTripPhase={roundTripPhase}
+        tripType={tripType}
+        currentUser={currentUser}
+        searchAdults={searchAdults}
+        searchChildren={searchChildren}
+        onConfirm={handleTripConfirm}
+        onClose={() => setPendingConfirmTrip(null)}
+      />
+    )}
     <div className="space-y-8">
       <div className="bg-white p-2 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center justify-between gap-2 mb-2 sm:mb-6">
@@ -1704,7 +2270,7 @@ export function BookTicketPage({
           <div className="lg:col-span-2">
             {/* FROM and TO – on mobile: two separate bordered pair cards; on sm+: side by side */}
             <div className="relative flex flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
-            {/* FROM + PICKUP pair card */}
+            {/* FROM input card */}
             <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-daiichi-red/30 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="sm:mt-1">
@@ -1718,10 +2284,6 @@ export function BookTicketPage({
                   mustSelectError={t.stop_search_must_select}
                   onChange={handleFromChange}
                   onConfirmed={() => toStopRef.current?.focus()}
-                  pickupSuggestionLabel={t.pickup_stop_suggestion}
-                  selectedStop={pickupAddress}
-                  onPickupStopSelect={(name, address, surcharge) => { setPickupAddress(name); setPickupStopAddress(address); setPickupAddressSurcharge(surcharge); }}
-                  selectStopPrompt={t.select_pickup_point}
                   stopPickerMatchingLabel={t.stop_picker_matching}
                   stopPickerAllLabel={t.stop_picker_all}
                   stopPickerCloseLabel={t.stop_picker_close}
@@ -1729,7 +2291,7 @@ export function BookTicketPage({
                 />
               </div>
             </div>
-            {/* TO + DROPOFF pair card */}
+            {/* TO input card */}
             <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-blue-300/60 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="sm:mt-1">
@@ -1743,10 +2305,6 @@ export function BookTicketPage({
                   nearestHint={t.stop_search_nearest_hint}
                   mustSelectError={t.stop_search_must_select}
                   onChange={handleToChange}
-                  pickupSuggestionLabel={t.dropoff_stop_suggestion}
-                  selectedStop={dropoffAddress}
-                  onPickupStopSelect={(name, address, surcharge) => { setDropoffAddress(name); setDropoffStopAddress(address); setDropoffAddressSurcharge(surcharge); }}
-                  selectStopPrompt={t.select_dropoff_point}
                   stopPickerMatchingLabel={t.stop_picker_matching}
                   stopPickerAllLabel={t.stop_picker_all}
                   stopPickerCloseLabel={t.stop_picker_close}
@@ -1898,13 +2456,7 @@ export function BookTicketPage({
           <div className="sm:shrink-0 sm:ml-auto sm:flex sm:mt-4">
             <button
               onClick={handleSearch}
-              disabled={!isSearchReady}
-              className={cn(
-                "w-full sm:w-auto px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap",
-                isSearchReady
-                  ? "bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]"
-                  : "bg-gray-300 shadow-gray-300/20 cursor-not-allowed"
-              )}
+              className="w-full sm:w-auto px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]"
             >
               <Search size={18} />
               <span>{t.search_btn}</span>
@@ -2166,5 +2718,6 @@ export function BookTicketPage({
       )}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
+    </>
   );
 }
