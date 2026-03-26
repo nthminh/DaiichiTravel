@@ -276,7 +276,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser, use
                     </span>
                     <h3 className="font-bold text-gray-800 text-sm leading-tight truncate">{guide.title}</h3>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      {t.guide_last_updated ?? 'Cập nhật'}: {new Date(guide.updatedAt).toLocaleDateString('vi-VN')}
+                      {t.guide_last_updated ?? 'Cập nhật'}: {new Date(guide.updatedAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </p>
                   </div>
                   {isManager && (
