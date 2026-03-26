@@ -1770,12 +1770,12 @@ export function BookTicketPage({
             >
               <ArrowUpDown size={15} strokeWidth={2.5} />
             </button>
-            {/* Swap button for desktop (sm+): absolutely positioned between FROM and TO */}
+            {/* Swap button for desktop (sm+): absolutely positioned between FROM and TO, rotated 90° */}
             <button
               type="button"
               onClick={handleSwap}
               title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
+              className="hidden sm:flex absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10 rotate-90"
             >
               <ArrowUpDown size={15} strokeWidth={2.5} />
             </button>
