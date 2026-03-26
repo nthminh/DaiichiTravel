@@ -437,7 +437,7 @@ export function SeatMappingPage({
           }
         }}
         className={cn(
-          "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative overflow-hidden",
+          "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative overflow-hidden",
           // Fully-booked seats (no segment info on a multi-stop route, or non-multi-stop)
           rawStatus === SeatStatus.PAID && !isSegmentFree && !isPartiallyBooked && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
           rawStatus === SeatStatus.BOOKED && !isSegmentFree && !isPartiallyBooked && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
@@ -695,19 +695,19 @@ export function SeatMappingPage({
           <span>← {language === 'vi' ? 'Đầu xe (Tài xế bên trái)' : 'Front (Driver on left)'}</span>
         </div>
 
-        <div className="overflow-y-auto max-h-[45vh] sm:max-h-[55vh] overflow-x-auto">
+        <div className="overflow-x-auto">
           {hasLayoutGrid && currentGrid ? (
             // Render proper bus layout grid
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {currentGrid.map((row, rowIdx) => (
-                <div key={rowIdx} className="flex gap-1.5 justify-center">
+                <div key={rowIdx} className="flex gap-1 justify-center">
                   {row.map((cell, colIdx) => {
                     if (!cell) {
                       // Aisle / empty cell
-                      return <div key={colIdx} className="w-10 h-10 flex-shrink-0" />;
+                      return <div key={colIdx} className="w-8 h-8 flex-shrink-0" />;
                     }
                     return (
-                      <div key={colIdx} className="w-10 flex-shrink-0">
+                      <div key={colIdx} className="w-8 flex-shrink-0">
                         {renderSeatButton(cell.label)}
                       </div>
                     );
@@ -727,18 +727,18 @@ export function SeatMappingPage({
           )}
         </div>
 
-        <div className="mt-6 flex justify-center flex-wrap gap-4 text-xs font-bold uppercase tracking-wider">
-          <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-red rounded" /> {t.paid}</div>
-          <div className="flex items-center gap-2"><div className="w-4 h-4 bg-daiichi-yellow rounded" /> {t.booked}</div>
-          <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white border border-gray-200 rounded" /> {t.empty}</div>
+        <div className="mt-3 flex justify-center flex-wrap gap-2 text-[10px] font-semibold">
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-daiichi-red rounded flex-shrink-0" /> {t.paid}</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-daiichi-yellow rounded flex-shrink-0" /> {t.booked}</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-gray-200 rounded flex-shrink-0" /> {t.empty}</div>
           {!!(tripRoute?.routeStops?.length) && (
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded border-2 border-daiichi-yellow overflow-hidden" style={{ background: 'linear-gradient(135deg, #FBBF24 50%, #ffffff 50%)' }} />
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded border-2 border-daiichi-yellow overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #FBBF24 50%, #ffffff 50%)' }} />
               {language === 'vi' ? 'Đặt một phần chặng' : language === 'ja' ? '区間の一部予約' : 'Partial segment'}
             </div>
           )}
           {hasSegmentSelection && (
-            <div className="flex items-center gap-2"><div className="w-4 h-4 bg-emerald-50 border-2 border-emerald-400 rounded" /> {language === 'vi' ? 'Trống chặng này' : language === 'ja' ? 'この区間は空き' : 'Free for segment'}</div>
+            <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-50 border-2 border-emerald-400 rounded flex-shrink-0" /> {language === 'vi' ? 'Trống chặng này' : language === 'ja' ? 'この区間は空き' : 'Free for segment'}</div>
           )}
         </div>
 
