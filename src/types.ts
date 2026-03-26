@@ -46,6 +46,8 @@ export interface Route {
   disableDropoffAddressFrom?: string; // YYYY-MM-DD, if set the disable only applies from this date
   disableDropoffAddressTo?: string;   // YYYY-MM-DD, if set the disable only applies until this date
   duration?: string;        // travel time from departure to arrival (e.g. "3 giờ 30 phút")
+  departureOffsetMinutes?: number; // minutes offset applied to the departure point (usually 0)
+  arrivalOffsetMinutes?: number;   // minutes offset from departure time to arrival at the final stop
   imageUrl?: string;        // scenic / destination photo shown to passengers on the booking page
   images?: string[];        // additional destination photos (multi-upload); imageUrl = images[0]
   vehicleImageUrl?: string; // photo of the typical vehicle used on this route
