@@ -34,7 +34,13 @@ export const DEFAULT_BATCH_TRIP_FORM = {
   price: 0,
   agentPrice: 0,
   seatCount: 11,
-  daysOfWeek: [0, 1, 2, 3, 4, 5, 6] as number[], // 0=Sun, 1=Mon, ..., 6=Sat (all days by default)
+};
+
+export const DEFAULT_BATCH_ADDON_FORM = {
+  name: '',
+  price: 0,
+  description: '',
+  type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER',
 };
 
 /**
@@ -55,6 +61,9 @@ export function useTrips(ctx: TripContext) {
   const [batchTripForm, setBatchTripForm] = useState({ ...DEFAULT_BATCH_TRIP_FORM });
   const [batchTimeSlots, setBatchTimeSlots] = useState<string[]>(['']);
   const [batchTripLoading, setBatchTripLoading] = useState(false);
+  const [batchAddonServices, setBatchAddonServices] = useState<TripAddon[]>([]);
+  const [batchAddonForm, setBatchAddonForm] = useState({ ...DEFAULT_BATCH_ADDON_FORM });
+  const [showBatchAddonForm, setShowBatchAddonForm] = useState(false);
 
   // Saving / error state for trip save operations
   const [isSavingTrip, setIsSavingTrip] = useState(false);
@@ -252,7 +261,6 @@ export function useTrips(ctx: TripContext) {
       price: firstTrip?.price || 0,
       agentPrice: firstTrip?.agentPrice || 0,
       seatCount: firstTrip?.seats?.length || 11,
-      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
     });
     setBatchTimeSlots(times.length > 0 ? times : ['']);
     setShowBatchAddTrip(true);
@@ -338,14 +346,11 @@ export function useTrips(ctx: TripContext) {
       const seats = buildSeatsForVehicle(batchTripForm.licensePlate, batchTripForm.seatCount);
       const batchVehicle = ctxRef.current.vehicles.find(v => v.licensePlate === batchTripForm.licensePlate);
       const seatType = batchVehicle?.seatType || 'assigned';
-      const selectedDays = batchTripForm.daysOfWeek.length > 0 ? new Set(batchTripForm.daysOfWeek) : new Set([0, 1, 2, 3, 4, 5, 6]);
       const dates: string[] = [];
       const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
       const end = new Date(batchTripForm.dateTo + 'T00:00:00');
       while (cur <= end) {
-        if (selectedDays.has(cur.getDay())) {
-          dates.push(cur.toISOString().split('T')[0]);
-        }
+        dates.push(cur.toISOString().split('T')[0]);
         cur.setDate(cur.getDate() + 1);
       }
       const tripsToCreate = dates.flatMap(date =>
@@ -359,7 +364,7 @@ export function useTrips(ctx: TripContext) {
           agentPrice: batchTripForm.agentPrice,
           status: TripStatus.WAITING,
           seats,
-          addons: [] as TripAddon[],
+          addons: [...batchAddonServices] as TripAddon[],
           seatType,
         })),
       );
@@ -367,6 +372,9 @@ export function useTrips(ctx: TripContext) {
       setShowBatchAddTrip(false);
       setBatchTripForm({ ...DEFAULT_BATCH_TRIP_FORM });
       setBatchTimeSlots(['']);
+      setBatchAddonServices([]);
+      setBatchAddonForm({ ...DEFAULT_BATCH_ADDON_FORM });
+      setShowBatchAddonForm(false);
     } catch (err) {
       console.error('Failed to batch create trips:', err);
     } finally {
@@ -390,6 +398,12 @@ export function useTrips(ctx: TripContext) {
     batchTimeSlots,
     setBatchTimeSlots,
     batchTripLoading,
+    batchAddonServices,
+    setBatchAddonServices,
+    batchAddonForm,
+    setBatchAddonForm,
+    showBatchAddonForm,
+    setShowBatchAddonForm,
     isSavingTrip,
     tripSaveError,
     setTripSaveError,

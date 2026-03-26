@@ -39,6 +39,8 @@ interface OperationsPageProps {
   setTripFilterDriver: (v: string) => void;
   tripFilterSeatCount: string;
   setTripFilterSeatCount: (v: string) => void;
+  tripFilterDaysOfWeek: number[];
+  setTripFilterDaysOfWeek: React.Dispatch<React.SetStateAction<number[]>>;
   showAddTrip: boolean;
   setShowAddTrip: (v: boolean) => void;
   editingTrip: Trip | null;
@@ -49,11 +51,17 @@ interface OperationsPageProps {
   setTripForm: React.Dispatch<React.SetStateAction<{ time: string; date: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; discountPercent: number; seatCount: number; status: TripStatus }>>;
   showBatchAddTrip: boolean;
   setShowBatchAddTrip: (v: boolean) => void;
-  batchTripForm: { dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number; daysOfWeek: number[] };
-  setBatchTripForm: React.Dispatch<React.SetStateAction<{ dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number; daysOfWeek: number[] }>>;
+  batchTripForm: { dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number };
+  setBatchTripForm: React.Dispatch<React.SetStateAction<{ dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number }>>;
   batchTimeSlots: string[];
   setBatchTimeSlots: React.Dispatch<React.SetStateAction<string[]>>;
   batchTripLoading: boolean;
+  batchAddonServices: import('../types').TripAddon[];
+  setBatchAddonServices: React.Dispatch<React.SetStateAction<import('../types').TripAddon[]>>;
+  batchAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' };
+  setBatchAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' }>>;
+  showBatchAddonForm: boolean;
+  setShowBatchAddonForm: (v: boolean) => void;
   isSavingTrip: boolean;
   tripSaveError: string | null;
   setTripSaveError: (v: string | null) => void;
@@ -146,6 +154,8 @@ export function OperationsPage({
   setTripFilterDriver,
   tripFilterSeatCount,
   setTripFilterSeatCount,
+  tripFilterDaysOfWeek,
+  setTripFilterDaysOfWeek,
   showAddTrip,
   setShowAddTrip,
   editingTrip,
@@ -161,6 +171,12 @@ export function OperationsPage({
   batchTimeSlots,
   setBatchTimeSlots,
   batchTripLoading,
+  batchAddonServices,
+  setBatchAddonServices,
+  batchAddonForm,
+  setBatchAddonForm,
+  showBatchAddonForm,
+  setShowBatchAddonForm,
   isSavingTrip,
   tripSaveError,
   setTripSaveError,
@@ -250,6 +266,11 @@ export function OperationsPage({
     // Advanced date-range filters
     if (tripFilterDateFrom && trip.date && trip.date < tripFilterDateFrom) return false;
     if (tripFilterDateTo && trip.date && trip.date > tripFilterDateTo) return false;
+    // Day-of-week filter
+    if (tripFilterDaysOfWeek.length > 0 && trip.date) {
+      const dow = new Date(trip.date + 'T00:00:00').getDay();
+      if (!tripFilterDaysOfWeek.includes(dow)) return false;
+    }
     if (!tripSearch) return true;
     const q = tripSearch.toLowerCase();
     return (
@@ -263,12 +284,12 @@ export function OperationsPage({
   // dependencies) defined without useCallback in App.tsx, so excluding it avoids
   // unnecessary memoization invalidations on every App render.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [trips, tripFilterStatus, tripFilterRoute, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripSearch]);
+  [trips, tripFilterStatus, tripFilterRoute, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripFilterDaysOfWeek, tripSearch]);
 
   // Reset to page 1 whenever active filters change
   React.useEffect(() => {
     setCurrentTripPage(1);
-  }, [tripSearch, tripFilterStatus, tripFilterRoute, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount]);
+  }, [tripSearch, tripFilterStatus, tripFilterRoute, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDaysOfWeek]);
 
   const totalTripPages = Math.max(1, Math.ceil(filteredTrips.length / TRIPS_PER_PAGE));
   const safeTripPage = Math.min(currentTripPage, totalTripPages);
@@ -304,7 +325,7 @@ export function OperationsPage({
             <Download size={16} />
             {language === 'vi' ? 'Xuất Excel tất cả' : 'Export All Excel'}
           </button>
-          <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, daysOfWeek: [0, 1, 2, 3, 4, 5, 6] }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
+          <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); setBatchAddonServices([]); setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); setShowBatchAddonForm(false); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
           <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, discountPercent: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
         </div>
       </div>
@@ -467,65 +488,70 @@ export function OperationsPage({
                 <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={batchTripForm.agentPrice} onChange={e => setBatchTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
               </div>
               <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={batchTripForm.seatCount} onChange={e => setBatchTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
-              {/* Day-of-week filter */}
-              <div className="col-span-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.batch_days_of_week}</label>
-                  <button
-                    type="button"
-                    onClick={() => setBatchTripForm(p => ({ ...p, daysOfWeek: p.daysOfWeek.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6] }))}
-                    className="text-[10px] font-bold text-blue-500 hover:text-blue-700"
-                  >
-                    {batchTripForm.daysOfWeek.length === 7 ? (language === 'vi' ? 'Bỏ chọn tất cả' : language === 'ja' ? '全解除' : 'Deselect All') : t.batch_days_all}
-                  </button>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {([
-                    { day: 1, label: t.day_mon },
-                    { day: 2, label: t.day_tue },
-                    { day: 3, label: t.day_wed },
-                    { day: 4, label: t.day_thu },
-                    { day: 5, label: t.day_fri },
-                    { day: 6, label: t.day_sat },
-                    { day: 0, label: t.day_sun },
-                  ] as { day: number; label: string }[]).map(({ day, label }) => {
-                    const isSelected = batchTripForm.daysOfWeek.includes(day);
-                    const isWeekend = day === 0 || day === 6;
-                    return (
+            </div>
+
+            {/* Batch Addon Services */}
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Dịch vụ kèm theo (áp dụng cho tất cả chuyến)' : 'Add-on Services (applied to all trips)'}</label>
+              </div>
+              <div className="space-y-2">
+                {batchAddonServices.map(addon => (
+                  <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm">{addon.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}</span>
+                      </div>
+                      {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                      <p className="text-sm font-bold text-daiichi-red mt-0.5">+{addon.price.toLocaleString()}đ</p>
+                    </div>
+                    <button onClick={() => setBatchAddonServices(prev => prev.filter(a => a.id !== addon.id))} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
+                  </div>
+                ))}
+                {showBatchAddonForm ? (
+                  <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={batchAddonForm.name} onChange={e => setBatchAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={batchAddonForm.price} onChange={e => setBatchAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
+                        <select value={batchAddonForm.type} onChange={e => setBatchAddonForm(p => ({ ...p, type: e.target.value as any }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                          <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
+                          <option value="TRANSPORT">{t.addon_type_transport}</option>
+                          <option value="FOOD">{t.addon_type_food}</option>
+                          <option value="OTHER">{t.addon_type_other}</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={batchAddonForm.description} onChange={e => setBatchAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setShowBatchAddonForm(false); setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
                       <button
-                        key={day}
-                        type="button"
-                        onClick={() => setBatchTripForm(p => ({
-                          ...p,
-                          daysOfWeek: isSelected
-                            ? p.daysOfWeek.filter(d => d !== day)
-                            : [...p.daysOfWeek, day],
-                        }))}
-                        className={cn(
-                          'px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
-                          isSelected
-                            ? isWeekend
-                              ? 'bg-red-500 text-white border-red-500'
-                              : 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-blue-300',
-                        )}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+                        onClick={() => {
+                          if (!batchAddonForm.name) return;
+                          setBatchAddonServices(prev => [...prev, { id: crypto.randomUUID(), ...batchAddonForm }]);
+                          setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER' });
+                          setShowBatchAddonForm(false);
+                        }}
+                        disabled={!batchAddonForm.name}
+                        className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50"
+                      >{t.save}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowBatchAddonForm(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
+                )}
               </div>
             </div>
+
             {(() => {
               const validSlots = batchTimeSlots.filter(s => s);
               let dayCount = 0;
               if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
-                const selectedDays = new Set(batchTripForm.daysOfWeek.length > 0 ? batchTripForm.daysOfWeek : [0, 1, 2, 3, 4, 5, 6]);
                 const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
                 const end = new Date(batchTripForm.dateTo + 'T00:00:00');
                 while (cur <= end) {
-                  if (selectedDays.has(cur.getDay())) dayCount++;
+                  dayCount++;
                   cur.setDate(cur.getDate() + 1);
                 }
               }
@@ -544,6 +570,9 @@ export function OperationsPage({
                   {dayCount > 0 && (
                     <p className="text-xs text-blue-500 mt-2">{batchTripForm.dateFrom} → {batchTripForm.dateTo}</p>
                   )}
+                  {batchAddonServices.length > 0 && (
+                    <p className="text-xs text-green-600 mt-1">✓ {batchAddonServices.length} {language === 'vi' ? 'dịch vụ kèm theo sẽ được áp dụng' : 'add-on service(s) will be applied'}</p>
+                  )}
                 </div>
               );
             })()}
@@ -553,16 +582,15 @@ export function OperationsPage({
                 const validSlots = batchTimeSlots.filter(s => s).length;
                 let dayCount = 0;
                 if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
-                  const selectedDays = new Set(batchTripForm.daysOfWeek.length > 0 ? batchTripForm.daysOfWeek : [0, 1, 2, 3, 4, 5, 6]);
                   const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
                   const end = new Date(batchTripForm.dateTo + 'T00:00:00');
                   while (cur <= end) {
-                    if (selectedDays.has(cur.getDay())) dayCount++;
+                    dayCount++;
                     cur.setDate(cur.getDate() + 1);
                   }
                 }
                 const totalTrips = dayCount * validSlots;
-                const isDisabled = batchTripLoading || !batchTripForm.dateFrom || !batchTripForm.dateTo || batchTripForm.dateTo < batchTripForm.dateFrom || !batchTripForm.route || validSlots === 0 || batchTripForm.daysOfWeek.length === 0;
+                const isDisabled = batchTripLoading || !batchTripForm.dateFrom || !batchTripForm.dateTo || batchTripForm.dateTo < batchTripForm.dateFrom || !batchTripForm.route || validSlots === 0;
                 return (
                   <button onClick={handleBatchAddTrips} disabled={isDisabled} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
                     {batchTripLoading && <span className="animate-spin">⚡</span>}
@@ -769,8 +797,56 @@ export function OperationsPage({
               <input type="date" value={tripFilterDateTo} onChange={e => setTripFilterDateTo(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none" />
             </div>
           </div>
+          {/* Day-of-week filter */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.batch_days_of_week}</label>
+              {tripFilterDaysOfWeek.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setTripFilterDaysOfWeek([])}
+                  className="text-[10px] font-bold text-blue-500 hover:text-blue-700"
+                >
+                  {language === 'vi' ? 'Bỏ chọn tất cả' : language === 'ja' ? '全解除' : 'Deselect All'}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {([
+                { day: 1, label: t.day_mon },
+                { day: 2, label: t.day_tue },
+                { day: 3, label: t.day_wed },
+                { day: 4, label: t.day_thu },
+                { day: 5, label: t.day_fri },
+                { day: 6, label: t.day_sat },
+                { day: 0, label: t.day_sun },
+              ] as { day: number; label: string }[]).map(({ day, label }) => {
+                const isSelected = tripFilterDaysOfWeek.includes(day);
+                const isWeekend = day === 0 || day === 6;
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setTripFilterDaysOfWeek(prev =>
+                      isSelected ? prev.filter(d => d !== day) : [...prev, day]
+                    )}
+                    className={cn(
+                      'px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                      isSelected
+                        ? isWeekend
+                          ? 'bg-red-500 text-white border-red-500'
+                          : 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-blue-300',
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="flex justify-end">
-            <button onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterSeatCount(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
+            <button onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterSeatCount(''); setTripFilterStatus('ALL'); setTripFilterDateFrom(''); setTripFilterDateTo(''); setTripFilterDaysOfWeek([]); }} className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
               {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
             </button>
           </div>
