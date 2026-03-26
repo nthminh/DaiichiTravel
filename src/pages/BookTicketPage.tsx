@@ -1091,8 +1091,8 @@ export function BookTicketPage({
     if (!p) return false;
 
     const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
-    const effectiveFrom = isReturnPhase ? p.to : p.from;
-    const effectiveTo = isReturnPhase ? p.from : p.to;
+    const effectiveFrom = isReturnPhase ? (p.stationTo || p.to) : (p.stationFrom || p.from);
+    const effectiveTo = isReturnPhase ? (p.stationFrom || p.from) : (p.stationTo || p.to);
     const effectiveDate = isReturnPhase ? p.returnDate : p.date;
 
     // Show WAITING and RUNNING trips. RUNNING trips are visible but not directly bookable.
