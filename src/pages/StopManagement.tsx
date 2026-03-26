@@ -23,6 +23,7 @@ const CATEGORY_LABELS: Record<NonNullable<Stop['category']>, Record<Language, st
   QUICK:      { vi: 'Dừng nhanh',        en: 'Quick Stop',    ja: '一時停止点' },
   TRANSIT:    { vi: 'Trung chuyển',      en: 'Transit Point', ja: '乗り換え地点' },
   OFFICE:     { vi: 'Phòng vé',          en: 'Ticket Office', ja: 'チケット売り場' },
+  FREE:       { vi: 'Miễn phí',          en: 'Free',          ja: '無料' },
 };
 
 const EMPTY_FORM: Omit<Stop, 'id'> = {

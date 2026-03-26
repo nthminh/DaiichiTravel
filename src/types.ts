@@ -49,6 +49,17 @@ export interface Route {
   disableDropoffAddressTo?: string;   // YYYY-MM-DD, if set the disable only applies until this date
   /** Stop type scope for the dropoff disable: 'ALL' (default) disables all; 'STOP' / 'FREE_STOP' disables only that type */
   disableDropoffAddressStopType?: string;
+  /**
+   * Stop categories that are disabled for pickup on this route.
+   * Stops whose `category` is in this list will be excluded from the pickup stop suggestions.
+   * e.g. ['TOLL', 'RESTAURANT'] to prevent passengers from being picked up at tolls / restaurants.
+   */
+  disabledPickupCategories?: string[];
+  /**
+   * Stop categories that are disabled for dropoff on this route.
+   * Stops whose `category` is in this list will be excluded from the dropoff stop suggestions.
+   */
+  disabledDropoffCategories?: string[];
   duration?: string;        // travel time from departure to arrival (e.g. "3 giờ 30 phút")
   departureOffsetMinutes?: number; // minutes offset applied to the departure point (usually 0)
   arrivalOffsetMinutes?: number;   // minutes offset from departure time to arrival at the final stop
@@ -363,7 +374,7 @@ export interface Stop {
   id: string;
   name: string;
   address: string;
-  category?: 'MAJOR' | 'MINOR' | 'TOLL' | 'RESTAURANT' | 'QUICK' | 'TRANSIT' | 'OFFICE';
+  category?: 'MAJOR' | 'MINOR' | 'TOLL' | 'RESTAURANT' | 'QUICK' | 'TRANSIT' | 'OFFICE' | 'FREE';
   surcharge: number;
   distanceKm?: number; // distance from the main route stop (km), used for pickup surcharge display
   note?: string;

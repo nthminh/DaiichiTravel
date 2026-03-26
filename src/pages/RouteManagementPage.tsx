@@ -210,7 +210,7 @@ export function RouteManagementPage({
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledDropoffCategories: [] }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -999,6 +999,68 @@ export function RouteManagementPage({
                           )}
                         </div>
                       </div>
+                    </div>
+
+                    {/* Per-category disable toggles */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Vô hiệu hóa theo loại điểm dừng' : language === 'ja' ? '停留所カテゴリーの無効化' : 'Disable by Stop Category'}</p>
+                        <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Chọn loại điểm dừng cần vô hiệu hóa cho điểm đón/điểm trả. Không chọn = khách vẫn có thể đón/trả tại loại đó.' : 'Check categories to disable for pickup/dropoff. Unchecked = passengers can still use those stops.'}</p>
+                      </div>
+                      {(() => {
+                        const CATS: Array<{ key: string; vi: string; en: string; ja: string }> = [
+                          { key: 'MAJOR',      vi: 'Điểm dừng lớn',   en: 'Major Stop',    ja: '主要停留所' },
+                          { key: 'MINOR',      vi: 'Điểm dừng nhỏ',   en: 'Minor Stop',    ja: '簡易停留所' },
+                          { key: 'TOLL',       vi: 'Trạm thu phí',     en: 'Toll Booth',    ja: '料金所' },
+                          { key: 'RESTAURANT', vi: 'Nhà hàng',          en: 'Restaurant',    ja: 'レストラン' },
+                          { key: 'QUICK',      vi: 'Dừng nhanh',        en: 'Quick Stop',    ja: '一時停止点' },
+                          { key: 'TRANSIT',    vi: 'Trung chuyển',      en: 'Transit Point', ja: '乗り換え地点' },
+                          { key: 'OFFICE',     vi: 'Phòng vé',          en: 'Ticket Office', ja: 'チケット売り場' },
+                          { key: 'FREE',       vi: 'Miễn phí',          en: 'Free',          ja: '無料' },
+                        ];
+                        const disabledPickup = routeForm.disabledPickupCategories ?? [];
+                        const disabledDropoff = routeForm.disabledDropoffCategories ?? [];
+                        return (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                              <span className="text-xs font-semibold text-gray-500 col-span-1">{language === 'vi' ? 'Điểm đón' : language === 'ja' ? '乗車' : 'Pickup'}</span>
+                              <span className="text-xs font-semibold text-gray-500 col-span-1">{language === 'vi' ? 'Điểm trả' : language === 'ja' ? '降車' : 'Dropoff'}</span>
+                              {CATS.map(cat => (
+                                <React.Fragment key={cat.key}>
+                                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={disabledPickup.includes(cat.key)}
+                                      onChange={e => {
+                                        const next = e.target.checked
+                                          ? [...disabledPickup, cat.key]
+                                          : disabledPickup.filter(c => c !== cat.key);
+                                        setRouteForm(f => ({ ...f, disabledPickupCategories: next }));
+                                      }}
+                                      className="w-3.5 h-3.5 accent-daiichi-red rounded"
+                                    />
+                                    <span className="text-xs text-gray-700">{language === 'vi' ? cat.vi : language === 'ja' ? cat.ja : cat.en}</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={disabledDropoff.includes(cat.key)}
+                                      onChange={e => {
+                                        const next = e.target.checked
+                                          ? [...disabledDropoff, cat.key]
+                                          : disabledDropoff.filter(c => c !== cat.key);
+                                        setRouteForm(f => ({ ...f, disabledDropoffCategories: next }));
+                                      }}
+                                      className="w-3.5 h-3.5 accent-daiichi-red rounded"
+                                    />
+                                    <span className="text-xs text-gray-700">{language === 'vi' ? cat.vi : language === 'ja' ? cat.ja : cat.en}</span>
+                                  </label>
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                   </div>
