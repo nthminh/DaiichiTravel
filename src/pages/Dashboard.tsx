@@ -4,7 +4,8 @@ import {
   Download, Filter, Calendar as CalendarIcon, Search,
   User,
   MapPin, Clock, CreditCard, Tag, Edit3, Trash2, X, Check,
-  Eye, Moon, Coffee, Hotel
+  Eye, Moon, Coffee, Hotel,
+  TrendingUp, CheckCircle2, Activity, BarChart2, Ticket, ArrowUpRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getTodayVN } from '../lib/utils';
@@ -311,6 +312,49 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     type: 'info' as 'info' | 'success' | 'error',
   }));
 
+  // ── Statistics computations ──────────────────────────────────────────────
+  const totalTrips = trips.length;
+  const completedTrips = trips.filter(tr => tr.status === TripStatus.COMPLETED).length;
+  const runningTrips = trips.filter(tr => tr.status === TripStatus.RUNNING).length;
+  const waitingTrips = trips.filter(tr => tr.status === TripStatus.WAITING).length;
+
+  const paidBookings = scopedBookings.filter(b => b.status === 'PAID');
+  const pendingBookings = scopedBookings.filter(b => b.status === 'BOOKED');
+  const totalRevenue = paidBookings.reduce((sum: number, b: any) => sum + (b.amount ?? 0), 0);
+
+  // Group trips by departure time slot
+  const timeSlotDefs = [
+    { key: 'night',     label: language === 'vi' ? 'Đêm'   : 'Night',     range: '00–06h', hours: [0,1,2,3,4,5],       bg: 'bg-indigo-50',  text: 'text-indigo-700',  bar: 'bg-indigo-500' },
+    { key: 'morning',   label: language === 'vi' ? 'Sáng'  : 'Morning',   range: '06–12h', hours: [6,7,8,9,10,11],      bg: 'bg-amber-50',   text: 'text-amber-700',   bar: 'bg-amber-400'  },
+    { key: 'afternoon', label: language === 'vi' ? 'Chiều' : 'Afternoon', range: '12–18h', hours: [12,13,14,15,16,17],  bg: 'bg-orange-50',  text: 'text-orange-700',  bar: 'bg-orange-400' },
+    { key: 'evening',   label: language === 'vi' ? 'Tối'   : 'Evening',   range: '18–24h', hours: [18,19,20,21,22,23],  bg: 'bg-purple-50',  text: 'text-purple-700',  bar: 'bg-purple-500' },
+  ];
+  const slotCounts = timeSlotDefs.map(slot => ({
+    ...slot,
+    count: trips.filter(tr => {
+      const h = parseInt((tr.time || '0').split(':')[0], 10);
+      return slot.hours.includes(h);
+    }).length,
+  }));
+  const maxSlotCount = Math.max(...slotCounts.map(s => s.count), 1);
+
+  // Build a sorted trip schedule list
+  const sortedTrips = [...trips].sort((a, b) => {
+    const ak = `${a.date || ''}T${a.time || ''}`;
+    const bk = `${b.date || ''}T${b.time || ''}`;
+    return ak.localeCompare(bk);
+  });
+
+  const fmtRevenue = (n: number) =>
+    n >= 1_000_000
+      ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+      : n >= 1_000
+      ? `${(n / 1_000).toFixed(0)}K`
+      : String(n);
+
+  /** Minimum bar height (%) so non-zero counts are always visible */
+  const MIN_BAR_HEIGHT_PCT = 8;
+
   return (
     <div className="space-y-8 pb-20">
       {/* Header with quick actions */}
@@ -336,7 +380,217 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         </div>
       </div>
 
-      {/* Stats Grid removed as per requirements */}
+      {/* ═══════════════════════════════════════════════
+           PROFESSIONAL STATISTICS PANEL
+      ════════════════════════════════════════════════ */}
+      <div className="space-y-5">
+        {/* ── Row 1: Trip KPI Cards ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Total trips */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div className="w-11 h-11 rounded-2xl bg-daiichi-red/10 flex items-center justify-center">
+                <Bus size={22} className="text-daiichi-red" />
+              </div>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{language === 'vi' ? 'Tổng chuyến' : 'Total Trips'}</span>
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-gray-800">{totalTrips}</p>
+              <p className="text-xs text-gray-400 mt-1">{language === 'vi' ? 'Tất cả các chuyến' : 'All trips in system'}</p>
+            </div>
+          </div>
+
+          {/* Completed / Departed */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div className="w-11 h-11 rounded-2xl bg-green-50 flex items-center justify-center">
+                <CheckCircle2 size={22} className="text-green-500" />
+              </div>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{language === 'vi' ? 'Đã xuất bến' : 'Completed'}</span>
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-gray-800">{completedTrips}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {totalTrips > 0
+                  ? `${Math.round((completedTrips / totalTrips) * 100)}% ${language === 'vi' ? 'tổng chuyến' : 'of total'}`
+                  : '—'}
+              </p>
+            </div>
+          </div>
+
+          {/* Running */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center">
+                <Activity size={22} className="text-blue-500" />
+              </div>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{language === 'vi' ? 'Đang chạy' : 'In Transit'}</span>
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-gray-800">{runningTrips}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {waitingTrips > 0
+                  ? `${waitingTrips} ${language === 'vi' ? 'chuyến chờ' : 'trips waiting'}`
+                  : language === 'vi' ? 'Không có chuyến chờ' : 'No pending trips'}
+              </p>
+            </div>
+          </div>
+
+          {/* Revenue */}
+          <div className="bg-gradient-to-br from-daiichi-red to-rose-600 rounded-3xl shadow-lg shadow-daiichi-red/20 p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+                <TrendingUp size={22} className="text-white" />
+              </div>
+              <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">{language === 'vi' ? 'Doanh thu' : 'Revenue'}</span>
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-white">{fmtRevenue(totalRevenue)}đ</p>
+              <p className="text-xs text-white/60 mt-1">
+                {paidBookings.length} {language === 'vi' ? 'vé đã thanh toán' : 'paid tickets'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Row 2: Booking KPIs ── */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
+              <Users size={22} className="text-violet-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-gray-800">{scopedBookings.length}</p>
+              <p className="text-xs text-gray-400">{language === 'vi' ? 'Tổng đặt chỗ' : 'Total Bookings'}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
+              <CreditCard size={22} className="text-green-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-gray-800">{paidBookings.length}</p>
+              <p className="text-xs text-gray-400">{language === 'vi' ? 'Vé đã thanh toán' : 'Paid Tickets'}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
+              <Ticket size={22} className="text-amber-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-gray-800">{pendingBookings.length}</p>
+              <p className="text-xs text-gray-400">{language === 'vi' ? 'Vé chờ thanh toán' : 'Pending Tickets'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Row 3: Charts ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+
+          {/* Left: Bar chart – trips by time slot (spans 3/5) */}
+          <div className="xl:col-span-3 bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <BarChart2 size={20} className="text-daiichi-red" />
+                  {language === 'vi' ? 'Phân bố chuyến theo khung giờ' : 'Trips by Time Slot'}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {language === 'vi' ? `${totalTrips} chuyến tổng cộng` : `${totalTrips} trips total`}
+                </p>
+              </div>
+            </div>
+            {/* Bar chart */}
+            <div className="flex items-end gap-4 h-36 px-2">
+              {slotCounts.map((slot) => (
+                <div key={slot.key} className="flex-1 flex flex-col items-center gap-1.5">
+                  <span className="text-sm font-bold text-gray-700">{slot.count}</span>
+                  <div className="w-full flex items-end justify-center" style={{ height: '80px' }}>
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${Math.max((slot.count / maxSlotCount) * 100, slot.count > 0 ? MIN_BAR_HEIGHT_PCT : 0)}%` }}
+                      transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+                      className={`w-full rounded-t-2xl ${slot.bar} shadow-sm`}
+                      style={{ maxHeight: '80px' }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-600">{slot.label}</span>
+                  <span className="text-[10px] text-gray-400">{slot.range}</span>
+                </div>
+              ))}
+            </div>
+            {/* Horizontal breakdown pills */}
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              {slotCounts.map(slot => (
+                <div key={slot.key} className={`flex items-center justify-between px-3 py-2 rounded-2xl ${slot.bg}`}>
+                  <span className={`text-xs font-semibold ${slot.text}`}>{slot.label} ({slot.range})</span>
+                  <span className={`text-xs font-bold ${slot.text}`}>
+                    {slot.count} {language === 'vi' ? 'chuyến' : 'trips'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Trip schedule list (spans 2/5) */}
+          <div className="xl:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">
+                {language === 'vi' ? 'Lịch các chuyến' : 'Trip Schedule'}
+              </h3>
+              <button
+                onClick={() => setActiveTab?.('operations')}
+                className="text-xs text-daiichi-red font-semibold flex items-center gap-1 hover:underline"
+              >
+                {language === 'vi' ? 'Xem tất cả' : 'See all'} <ArrowUpRight size={13} />
+              </button>
+            </div>
+            <div className="flex-1 space-y-2 overflow-y-auto max-h-72 pr-1">
+              {sortedTrips.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  {language === 'vi' ? 'Chưa có chuyến nào' : 'No trips available'}
+                </p>
+              ) : sortedTrips.slice(0, 10).map((trip, i) => {
+                const bookedSeats = Array.isArray(trip.seats) ? trip.seats.filter((s: any) => s.status !== 'EMPTY').length : 0;
+                const totalSeats = Array.isArray(trip.seats) ? trip.seats.length : 0;
+                const occupancy = totalSeats > 0 ? Math.round((bookedSeats / totalSeats) * 100) : 0;
+                const statusColors: Record<string, string> = {
+                  COMPLETED: 'bg-green-100 text-green-700',
+                  RUNNING:   'bg-blue-100 text-blue-700',
+                  WAITING:   'bg-amber-100 text-amber-700',
+                };
+                const statusLabels: Record<string, string> = {
+                  COMPLETED: language === 'vi' ? 'Đã xuất bến' : 'Done',
+                  RUNNING:   language === 'vi' ? 'Đang chạy'   : 'Running',
+                  WAITING:   language === 'vi' ? 'Chờ xuất bến': 'Waiting',
+                };
+                return (
+                  <div key={trip.id || i} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                    <div className="w-12 h-12 rounded-2xl bg-gray-50 flex flex-col items-center justify-center border border-gray-100 shrink-0">
+                      <Clock size={13} className="text-daiichi-red mb-0.5" />
+                      <span className="text-xs font-bold text-gray-700 leading-none">{trip.time || '—'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{trip.route || '—'}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColors[trip.status] || 'bg-gray-100 text-gray-500'}`}>
+                          {statusLabels[trip.status] || trip.status}
+                        </span>
+                        {totalSeats > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            {bookedSeats}/{totalSeats} {language === 'vi' ? 'ghế' : 'seats'} · {occupancy}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ═══════════════════════════════════════════════════════════════ */}
 
       {/* Global Quick Search Bar */}
       <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 p-6">
