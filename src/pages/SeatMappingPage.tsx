@@ -237,12 +237,27 @@ export function SeatMappingPage({
   const departureTerminal = resolveTerminal(pickupPoint, tripRoute?.departurePoint);
   const arrivalTerminal = resolveTerminal(dropoffPoint, tripRoute?.arrivalPoint);
   // Only include child STOP entries; when no terminal is resolved, show all non-TERMINAL stops
-  const pickupStops = departureTerminal
+  const isPickupDisabledByDate = isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate);
+  const pickupDisableStopType = tripRoute?.disablePickupAddressStopType || 'ALL';
+  const pickupSectionDisabled = isPickupDisabledByDate && pickupDisableStopType === 'ALL';
+
+  const isDropoffDisabledByDate = isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate);
+  const dropoffDisableStopType = tripRoute?.disableDropoffAddressStopType || 'ALL';
+  const dropoffSectionDisabled = isDropoffDisabledByDate && dropoffDisableStopType === 'ALL';
+
+  const basePickupStops = departureTerminal
     ? stops.filter(s => s.terminalId === departureTerminal.id)
     : stops.filter(s => s.type !== 'TERMINAL');
-  const dropoffStops = arrivalTerminal
+  const pickupStops = isPickupDisabledByDate && pickupDisableStopType !== 'ALL'
+    ? basePickupStops.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
+    : basePickupStops;
+
+  const baseDropoffStops = arrivalTerminal
     ? stops.filter(s => s.terminalId === arrivalTerminal.id)
     : stops.filter(s => s.type !== 'TERMINAL');
+  const dropoffStops = isDropoffDisabledByDate && dropoffDisableStopType !== 'ALL'
+    ? baseDropoffStops.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
+    : baseDropoffStops;
   const pickupStopNames = pickupStops.map(s => s.name);
   const dropoffStopNames = dropoffStops.map(s => s.name);
   // Secondary text (address) shown in the dropdown alongside the stop name
@@ -997,7 +1012,7 @@ export function SeatMappingPage({
                       placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
                       className="mt-0.5"
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
-                      disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
+                      disabled={pickupSectionDisabled}
                     />
                     <input
                       type="text"
@@ -1005,9 +1020,9 @@ export function SeatMappingPage({
                       onChange={e => setPickupAddressDetail(e.target.value)}
                       placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
                       className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      disabled={isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate)}
+                      disabled={pickupSectionDisabled}
                     />
-                    {isAddressDisabled(tripRoute?.disablePickupAddress, tripRoute?.disablePickupAddressFrom, tripRoute?.disablePickupAddressTo, tripDate) && (
+                    {pickupSectionDisabled && (
                       <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : 'Pickup address input is disabled for this route'}</p>
                     )}
                   </div>
@@ -1085,7 +1100,7 @@ export function SeatMappingPage({
                       placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
                       className="mt-0.5"
                       inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
-                      disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
+                      disabled={dropoffSectionDisabled}
                     />
                     <input
                       type="text"
@@ -1093,9 +1108,9 @@ export function SeatMappingPage({
                       onChange={e => setDropoffAddressDetail(e.target.value)}
                       placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
                       className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      disabled={isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate)}
+                      disabled={dropoffSectionDisabled}
                     />
-                    {isAddressDisabled(tripRoute?.disableDropoffAddress, tripRoute?.disableDropoffAddressFrom, tripRoute?.disableDropoffAddressTo, tripDate) && (
+                    {dropoffSectionDisabled && (
                       <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : 'Dropoff address input is disabled for this route'}</p>
                     )}
                   </div>

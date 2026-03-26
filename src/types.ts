@@ -42,9 +42,13 @@ export interface Route {
   disablePickupAddress?: boolean;  // when true, disables pickup address (điểm đón) input on booking page
   disablePickupAddressFrom?: string;  // YYYY-MM-DD, if set the disable only applies from this date
   disablePickupAddressTo?: string;    // YYYY-MM-DD, if set the disable only applies until this date
+  /** Stop type scope for the pickup disable: 'ALL' (default) disables all; 'STOP' / 'FREE_STOP' disables only that type */
+  disablePickupAddressStopType?: string;
   disableDropoffAddress?: boolean; // when true, disables dropoff address (điểm trả) input on booking page
   disableDropoffAddressFrom?: string; // YYYY-MM-DD, if set the disable only applies from this date
   disableDropoffAddressTo?: string;   // YYYY-MM-DD, if set the disable only applies until this date
+  /** Stop type scope for the dropoff disable: 'ALL' (default) disables all; 'STOP' / 'FREE_STOP' disables only that type */
+  disableDropoffAddressStopType?: string;
   duration?: string;        // travel time from departure to arrival (e.g. "3 giờ 30 phút")
   departureOffsetMinutes?: number; // minutes offset applied to the departure point (usually 0)
   arrivalOffsetMinutes?: number;   // minutes offset from departure time to arrival at the final stop
@@ -364,11 +368,12 @@ export interface Stop {
   distanceKm?: number; // distance from the main route stop (km), used for pickup surcharge display
   note?: string;
   /** Hierarchy level.
-   *  - 'TERMINAL': top-level city / station (điểm xuất phát / điểm đến).
-   *  - 'STOP'    : sub-stop belonging to a terminal (điểm đón / điểm trả).
+   *  - 'TERMINAL' : top-level city / station (điểm xuất phát / điểm đến).
+   *  - 'STOP'     : sub-stop belonging to a terminal (điểm đón / điểm trả).
+   *  - 'FREE_STOP': free pickup/dropoff stop (đón trả miễn phí), belongs to a terminal.
    *  Undefined means legacy stop (treated as 'STOP' for backwards-compat).
    */
-  type?: 'TERMINAL' | 'STOP';
+  type?: 'TERMINAL' | 'STOP' | 'FREE_STOP';
   /** For type='STOP': the `id` of the parent TERMINAL stop. */
   terminalId?: string;
   /**
