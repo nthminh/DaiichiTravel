@@ -210,7 +210,7 @@ export function RouteManagementPage({
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -901,22 +901,46 @@ export function RouteManagementPage({
                             <span className="text-sm text-gray-700">{language === 'vi' ? 'Vô hiệu hóa ô nhập điểm đón' : language === 'ja' ? '乗車地点の入力を無効化' : 'Disable pickup address input'}</span>
                           </label>
                           {routeForm.disablePickupAddress && (
-                            <div className="ml-7 flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disablePickupAddressFrom}
-                                onChange={e => setRouteForm(f => ({ ...f, disablePickupAddressFrom: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'đến ngày' : language === 'ja' ? '終了日' : 'to'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disablePickupAddressTo}
-                                onChange={e => setRouteForm(f => ({ ...f, disablePickupAddressTo: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-[10px] text-gray-400">{language === 'vi' ? '(để trống = luôn vô hiệu)' : '(leave empty = always disabled)'}</span>
+                            <div className="ml-7 space-y-2">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs text-gray-500">{language === 'vi' ? 'Loại điểm dừng:' : language === 'ja' ? '停留所タイプ:' : 'Stop type:'}</span>
+                                {(['ALL', 'STOP', 'FREE_STOP'] as const).map(stype => (
+                                  <label key={stype} className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="disablePickupStopType"
+                                      value={stype}
+                                      checked={(routeForm.disablePickupAddressStopType || 'ALL') === stype}
+                                      onChange={() => setRouteForm(f => ({ ...f, disablePickupAddressStopType: stype }))}
+                                      className="accent-daiichi-red"
+                                    />
+                                    <span className="text-xs text-gray-600">
+                                      {stype === 'ALL'
+                                        ? (language === 'vi' ? 'Tất cả' : language === 'ja' ? 'すべて' : 'All')
+                                        : stype === 'STOP'
+                                          ? (language === 'vi' ? 'Điểm dừng' : language === 'ja' ? '停留所' : 'Stop')
+                                          : (language === 'vi' ? 'Miễn phí' : language === 'ja' ? '無料乗降' : 'Free')}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
+                                <input
+                                  type="date"
+                                  value={routeForm.disablePickupAddressFrom}
+                                  onChange={e => setRouteForm(f => ({ ...f, disablePickupAddressFrom: e.target.value }))}
+                                  className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                                />
+                                <span className="text-xs text-gray-500">{language === 'vi' ? 'đến ngày' : language === 'ja' ? '終了日' : 'to'}</span>
+                                <input
+                                  type="date"
+                                  value={routeForm.disablePickupAddressTo}
+                                  onChange={e => setRouteForm(f => ({ ...f, disablePickupAddressTo: e.target.value }))}
+                                  className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                                />
+                                <span className="text-[10px] text-gray-400">{language === 'vi' ? '(để trống = luôn vô hiệu)' : '(leave empty = always disabled)'}</span>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -931,22 +955,46 @@ export function RouteManagementPage({
                             <span className="text-sm text-gray-700">{language === 'vi' ? 'Vô hiệu hóa ô nhập điểm trả' : language === 'ja' ? '降車地点の入力を無効化' : 'Disable dropoff address input'}</span>
                           </label>
                           {routeForm.disableDropoffAddress && (
-                            <div className="ml-7 flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disableDropoffAddressFrom}
-                                onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddressFrom: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-xs text-gray-500">{language === 'vi' ? 'đến ngày' : language === 'ja' ? '終了日' : 'to'}</span>
-                              <input
-                                type="date"
-                                value={routeForm.disableDropoffAddressTo}
-                                onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddressTo: e.target.value }))}
-                                className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                              />
-                              <span className="text-[10px] text-gray-400">{language === 'vi' ? '(để trống = luôn vô hiệu)' : '(leave empty = always disabled)'}</span>
+                            <div className="ml-7 space-y-2">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs text-gray-500">{language === 'vi' ? 'Loại điểm dừng:' : language === 'ja' ? '停留所タイプ:' : 'Stop type:'}</span>
+                                {(['ALL', 'STOP', 'FREE_STOP'] as const).map(stype => (
+                                  <label key={stype} className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="disableDropoffStopType"
+                                      value={stype}
+                                      checked={(routeForm.disableDropoffAddressStopType || 'ALL') === stype}
+                                      onChange={() => setRouteForm(f => ({ ...f, disableDropoffAddressStopType: stype }))}
+                                      className="accent-daiichi-red"
+                                    />
+                                    <span className="text-xs text-gray-600">
+                                      {stype === 'ALL'
+                                        ? (language === 'vi' ? 'Tất cả' : language === 'ja' ? 'すべて' : 'All')
+                                        : stype === 'STOP'
+                                          ? (language === 'vi' ? 'Điểm dừng' : language === 'ja' ? '停留所' : 'Stop')
+                                          : (language === 'vi' ? 'Miễn phí' : language === 'ja' ? '無料乗降' : 'Free')}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-gray-500">{language === 'vi' ? 'Từ ngày' : language === 'ja' ? '開始日' : 'From'}</span>
+                                <input
+                                  type="date"
+                                  value={routeForm.disableDropoffAddressFrom}
+                                  onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddressFrom: e.target.value }))}
+                                  className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                                />
+                                <span className="text-xs text-gray-500">{language === 'vi' ? 'đến ngày' : language === 'ja' ? '終了日' : 'to'}</span>
+                                <input
+                                  type="date"
+                                  value={routeForm.disableDropoffAddressTo}
+                                  onChange={e => setRouteForm(f => ({ ...f, disableDropoffAddressTo: e.target.value }))}
+                                  className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                                />
+                                <span className="text-[10px] text-gray-400">{language === 'vi' ? '(để trống = luôn vô hiệu)' : '(leave empty = always disabled)'}</span>
+                              </div>
                             </div>
                           )}
                         </div>

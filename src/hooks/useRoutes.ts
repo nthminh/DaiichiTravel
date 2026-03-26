@@ -33,9 +33,11 @@ export const DEFAULT_ROUTE_FORM = {
   disablePickupAddress: false,
   disablePickupAddressFrom: '',
   disablePickupAddressTo: '',
+  disablePickupAddressStopType: 'ALL',
   disableDropoffAddress: false,
   disableDropoffAddressFrom: '',
   disableDropoffAddressTo: '',
+  disableDropoffAddressStopType: 'ALL',
 };
 
 type RouteFareEntry = {
@@ -362,9 +364,11 @@ export function useRoutes(ctx: RouteContext) {
       disablePickupAddress: route.disablePickupAddress || false,
       disablePickupAddressFrom: route.disablePickupAddressFrom || '',
       disablePickupAddressTo: route.disablePickupAddressTo || '',
+      disablePickupAddressStopType: route.disablePickupAddressStopType || 'ALL',
       disableDropoffAddress: route.disableDropoffAddress || false,
       disableDropoffAddressFrom: route.disableDropoffAddressFrom || '',
       disableDropoffAddressTo: route.disableDropoffAddressTo || '',
+      disableDropoffAddressStopType: route.disableDropoffAddressStopType || 'ALL',
     });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
@@ -454,9 +458,11 @@ export function useRoutes(ctx: RouteContext) {
       disablePickupAddress: route.disablePickupAddress || false,
       disablePickupAddressFrom: route.disablePickupAddressFrom || '',
       disablePickupAddressTo: route.disablePickupAddressTo || '',
+      disablePickupAddressStopType: route.disablePickupAddressStopType || 'ALL',
       disableDropoffAddress: route.disableDropoffAddress || false,
       disableDropoffAddressFrom: route.disableDropoffAddressFrom || '',
       disableDropoffAddressTo: route.disableDropoffAddressTo || '',
+      disableDropoffAddressStopType: route.disableDropoffAddressStopType || 'ALL',
     });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));

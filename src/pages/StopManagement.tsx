@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit3, MapPin, Search, Save, X, Filter, Building2, Navigation, Copy, ChevronDown, ChevronRight, Gift } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../constants/translations';
 import { Stop, User, UserRole } from '../types';
 import { transportService } from '../services/transportService';
@@ -52,7 +52,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
   const [searchTerm, setSearchTerm] = useState('');
   const [showStopFilters, setShowStopFilters] = useState(false);
   const [stopCategoryFilter, setStopCategoryFilter] = useState<'ALL' | Stop['category']>('ALL');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'TERMINAL' | 'STOP'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'TERMINAL' | 'STOP' | 'FREE_STOP'>('ALL');
   const [copyModal, setCopyModal] = useState<CopyModal | null>(null);
 
   const [collapsedTerminals, setCollapsedTerminals] = useState<Set<string>>(new Set());
@@ -359,6 +359,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
 
   const stopTypeLabel = (type: Stop['type']) => {
     if (type === 'TERMINAL') return language === 'vi' ? 'Ga/Bến' : language === 'ja' ? 'ターミナル' : 'Terminal';
+    if (type === 'FREE_STOP') return language === 'vi' ? 'Miễn phí' : language === 'ja' ? '無料乗降' : 'Free';
     return language === 'vi' ? 'Điểm dừng' : language === 'ja' ? '停留所' : 'Stop';
   };
 
@@ -396,6 +397,10 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
         <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 rounded-xl text-xs font-semibold text-teal-700">
           <Navigation size={14} />
           {language === 'vi' ? 'Điểm dừng — điểm đón/trả thuộc ga/bến' : 'Stop — pickup/dropoff belonging to a terminal'}
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 rounded-xl text-xs font-semibold text-orange-700">
+          <Gift size={14} />
+          {language === 'vi' ? 'Miễn phí — đón/trả miễn phí thuộc ga/bến' : 'Free — free pickup/dropoff belonging to a terminal'}
         </div>
       </div>
 
@@ -436,13 +441,26 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                   onClick={() => setFormData(p => ({ ...p, type: 'STOP' }))}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all',
-                    formData.type !== 'TERMINAL'
+                    formData.type !== 'TERMINAL' && formData.type !== 'FREE_STOP'
                       ? 'bg-teal-600 text-white'
                       : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                   )}
                 >
                   <Navigation size={16} />
                   {language === 'vi' ? 'Điểm dừng' : 'Stop'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, type: 'FREE_STOP' }))}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all',
+                    formData.type === 'FREE_STOP'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                  )}
+                >
+                  <Gift size={16} />
+                  {language === 'vi' ? 'Miễn phí' : 'Free'}
                 </button>
               </div>
             </div>
@@ -639,7 +657,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                   {language === 'vi' ? 'Cấp điểm dừng' : 'Stop Level'}
                 </label>
                 <div className="flex gap-2 flex-wrap">
-                  {(['ALL', 'TERMINAL', 'STOP'] as const).map(tp => (
+                  {(['ALL', 'TERMINAL', 'STOP', 'FREE_STOP'] as const).map(tp => (
                     <button
                       key={tp}
                       onClick={() => setTypeFilter(tp)}
@@ -654,7 +672,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                         ? (language === 'vi' ? 'Tất cả' : 'All')
                         : tp === 'TERMINAL'
                           ? (language === 'vi' ? 'Ga/Bến' : 'Terminal')
-                          : (language === 'vi' ? 'Điểm dừng' : 'Stop')}
+                          : tp === 'FREE_STOP'
+                            ? (language === 'vi' ? 'Miễn phí' : 'Free')
+                            : (language === 'vi' ? 'Điểm dừng' : 'Stop')}
                     </button>
                   ))}
                 </div>
@@ -712,6 +732,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
             <tbody className="divide-y divide-gray-100">
               {sortedDisplay.map(({ stop, isChild, childCount }) => {
                 const isTerminal = stop.type === 'TERMINAL';
+                const isFreeStop = stop.type === 'FREE_STOP';
                 const isCollapsed = isTerminal && collapsedTerminals.has(stop.id);
                 const isEditing = editingId === stop.id;
                 return (
@@ -753,9 +774,9 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                           )}
                           <div className={cn(
                             'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
-                            isTerminal ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'
+                            isTerminal ? 'bg-indigo-100 text-indigo-600' : isFreeStop ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'
                           )}>
-                            {isTerminal ? <Building2 size={18} /> : <MapPin size={18} />}
+                            {isTerminal ? <Building2 size={18} /> : isFreeStop ? <Gift size={18} /> : <MapPin size={18} />}
                           </div>
                           <span className={cn('font-bold text-gray-800', isTerminal && 'text-indigo-800')}>{stop.name}</span>
                           {isTerminal && childCount > 0 && isCollapsed && (
@@ -770,7 +791,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                       <td className="px-4 py-5">
                         <span className={cn(
                           'text-xs font-bold px-2.5 py-1 rounded-lg',
-                          isTerminal ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'
+                          isTerminal ? 'bg-indigo-100 text-indigo-700' : isFreeStop ? 'bg-orange-100 text-orange-700' : 'bg-teal-100 text-teal-700'
                         )}>
                           {stopTypeLabel(stop.type)}
                         </span>
