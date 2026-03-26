@@ -887,7 +887,8 @@ export function BookTicketPage({
           );
           if (!hasIntermediateStops) {
             // Direct route (no intermediate stops): the full route is the only segment.
-            // Return the base route price so this route passes the segment-fare filter in filterTrip.
+            // Only include when a full-trip price has been configured (price > 0).
+            if (!route.price) return null;
             return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
           }
 
@@ -940,10 +941,11 @@ export function BookTicketPage({
           } catch (err) {
             // When no fare is explicitly configured for this exact segment but the
             // segment itself is valid (stops are in the correct order within the route),
-            // fall back to the route's base price so trips are still shown to the user.
-            // Only suppress the trip when the segment is genuinely invalid (reversed
-            // direction, unknown stops, etc.) or a database error occurred.
+            // fall back to the route's base price only when a full-trip price has been
+            // configured (price > 0).  If neither a segment fare nor a full-trip price
+            // is set, the trip must not appear in search results.
             if (err instanceof FareError && err.code === 'FARE_NOT_CONFIGURED') {
+              if (!route.price) return null;
               return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
             }
             return null;
