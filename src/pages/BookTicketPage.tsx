@@ -1677,10 +1677,11 @@ export function BookTicketPage({
             {/* FROM and TO – on mobile: two separate bordered pair cards; on sm+: side by side */}
             <div className="relative flex flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
             {/* FROM + PICKUP pair card */}
-            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-daiichi-red/30 sm:border-0 rounded-2xl sm:rounded-none p-2 sm:p-0">
+            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-daiichi-red/30 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="sm:mt-1">
                 <StopSearchInput
+                  grouped="top"
                   value={searchFrom}
                   terminalValue={searchStationFrom}
                   stops={filteredStops}
@@ -1700,23 +1701,13 @@ export function BookTicketPage({
                 />
               </div>
             </div>
-            {/* Mobile-only swap button between the pair cards */}
-            <div className="flex sm:hidden justify-end items-center -my-0.5">
-              <button
-                type="button"
-                onClick={handleSwap}
-                title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-                className="w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
-              >
-                <ArrowUpDown size={15} strokeWidth={2.5} />
-              </button>
-            </div>
             {/* TO + DROPOFF pair card */}
-            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-blue-300/60 sm:border-0 rounded-2xl sm:rounded-none p-2 sm:p-0">
+            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-blue-300/60 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="sm:mt-1">
                 <StopSearchInput
                   ref={toStopRef}
+                  grouped="top"
                   value={searchTo}
                   terminalValue={searchStationTo}
                   stops={filteredStops}
@@ -1735,6 +1726,15 @@ export function BookTicketPage({
                 />
               </div>
             </div>
+            {/* Mobile swap button: absolutely positioned to overlap FROM and TO, ~1cm from right */}
+            <button
+              type="button"
+              onClick={handleSwap}
+              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+              className="sm:hidden absolute right-10 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
+            >
+              <ArrowUpDown size={15} strokeWidth={2.5} />
+            </button>
             {/* Swap button for desktop (sm+): absolutely positioned between FROM and TO */}
             <button
               type="button"
