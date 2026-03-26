@@ -210,7 +210,7 @@ export function RouteManagementPage({
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -523,7 +523,7 @@ export function RouteManagementPage({
                           <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Điểm xuất phát và điểm đến được tạo tự động. Thêm điểm dừng trung gian nếu cần.' : 'Departure and arrival are auto-generated. Add intermediate stops as needed.'}</p>
                         </div>
                         {!showAddRouteStop && (
-                          <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
+                          <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
                             + {language === 'vi' ? 'Thêm điểm dừng' : 'Add stop'}
                           </button>
                         )}
@@ -536,6 +536,16 @@ export function RouteManagementPage({
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm text-gray-800 truncate">{routeForm.departurePoint}</p>
                             <p className="text-[10px] text-green-600">{language === 'vi' ? 'Điểm xuất phát (tự động)' : 'Departure (auto-generated)'}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <label className="text-[10px] text-gray-400">{language === 'vi' ? 'Lệch (phút):' : 'Offset (min):'}</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={routeForm.departureOffsetMinutes ?? 0}
+                                onChange={e => setRouteForm(p => ({ ...p, departureOffsetMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                                className="w-20 px-2 py-0.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-300"
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
@@ -607,6 +617,21 @@ export function RouteManagementPage({
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm text-gray-800 truncate">{routeForm.arrivalPoint}</p>
                             <p className="text-[10px] text-blue-600">{language === 'vi' ? 'Điểm đến (tự động)' : 'Destination (auto-generated)'}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <label className="text-[10px] text-gray-400">{language === 'vi' ? 'Lệch (phút):' : 'Offset (min):'}</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={routeForm.arrivalOffsetMinutes ?? 0}
+                                onChange={e => setRouteForm(p => ({ ...p, arrivalOffsetMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                                className="w-20 px-2 py-0.5 bg-white border border-blue-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-300"
+                              />
+                              {(routeForm.arrivalOffsetMinutes ?? 0) > 0 && (
+                                <span className="text-[10px] text-blue-500 font-bold">
+                                  {`= ${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60) > 0 ? `${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60)}h` : ''}${(routeForm.arrivalOffsetMinutes ?? 0) % 60 > 0 ? `${(routeForm.arrivalOffsetMinutes ?? 0) % 60}${language === 'vi' ? 'p' : 'm'}` : ''}`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}

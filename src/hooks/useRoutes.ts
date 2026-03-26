@@ -24,6 +24,8 @@ export const DEFAULT_ROUTE_FORM = {
   price: 0,
   agentPrice: 0,
   duration: '',
+  departureOffsetMinutes: 0,
+  arrivalOffsetMinutes: 0,
   details: '',
   imageUrl: '',
   images: [] as string[],
@@ -96,7 +98,12 @@ export function useRoutes(ctx: RouteContext) {
   const allRouteStops: RouteStop[] = useMemo(
     () => [
       ...(routeForm.departurePoint
-        ? [{ stopId: STOP_ID_DEPARTURE, stopName: routeForm.departurePoint, order: 0 }]
+        ? [{
+            stopId: STOP_ID_DEPARTURE,
+            stopName: routeForm.departurePoint,
+            order: 0,
+            ...(routeForm.departureOffsetMinutes > 0 ? { offsetMinutes: routeForm.departureOffsetMinutes } : {}),
+          }]
         : []),
       ...[...routeFormStops].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i + 1 })),
       ...(routeForm.arrivalPoint
@@ -105,11 +112,12 @@ export function useRoutes(ctx: RouteContext) {
               stopId: STOP_ID_ARRIVAL,
               stopName: routeForm.arrivalPoint,
               order: routeFormStops.length + 1,
+              ...(routeForm.arrivalOffsetMinutes > 0 ? { offsetMinutes: routeForm.arrivalOffsetMinutes } : {}),
             },
           ]
         : []),
     ],
-    [routeForm.departurePoint, routeForm.arrivalPoint, routeFormStops],
+    [routeForm.departurePoint, routeForm.arrivalPoint, routeForm.departureOffsetMinutes, routeForm.arrivalOffsetMinutes, routeFormStops],
   );
 
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
@@ -171,7 +179,12 @@ export function useRoutes(ctx: RouteContext) {
       const currentForm = routeFormRef.current;
       const fullRouteStops: RouteStop[] = [
         ...(currentForm.departurePoint
-          ? [{ stopId: '__departure__', stopName: currentForm.departurePoint, order: 0 }]
+          ? [{
+              stopId: '__departure__',
+              stopName: currentForm.departurePoint,
+              order: 0,
+              ...(currentForm.departureOffsetMinutes > 0 ? { offsetMinutes: currentForm.departureOffsetMinutes } : {}),
+            }]
           : []),
         ...intermediateStops,
         ...(currentForm.arrivalPoint
@@ -180,6 +193,7 @@ export function useRoutes(ctx: RouteContext) {
                 stopId: '__arrival__',
                 stopName: currentForm.arrivalPoint,
                 order: intermediateStops.length + 1,
+                ...(currentForm.arrivalOffsetMinutes > 0 ? { offsetMinutes: currentForm.arrivalOffsetMinutes } : {}),
               },
             ]
           : []),
@@ -339,6 +353,8 @@ export function useRoutes(ctx: RouteContext) {
       price: route.price,
       agentPrice: route.agentPrice || 0,
       duration: route.duration || '',
+      departureOffsetMinutes: route.departureOffsetMinutes ?? 0,
+      arrivalOffsetMinutes: route.arrivalOffsetMinutes ?? 0,
       details: route.details || '',
       imageUrl: route.imageUrl || '',
       images: route.images || [],
@@ -429,6 +445,8 @@ export function useRoutes(ctx: RouteContext) {
       price: route.price,
       agentPrice: route.agentPrice || 0,
       duration: route.duration || '',
+      departureOffsetMinutes: route.departureOffsetMinutes ?? 0,
+      arrivalOffsetMinutes: route.arrivalOffsetMinutes ?? 0,
       details: route.details || '',
       imageUrl: route.imageUrl || '',
       images: route.images || [],

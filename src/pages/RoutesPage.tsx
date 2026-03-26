@@ -116,7 +116,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
         <div className="flex gap-3">
-          <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+          <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
         </div>
       </div>
 
@@ -422,7 +422,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                     <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Điểm xuất phát và điểm đến được tạo tự động. Thêm điểm dừng trung gian nếu cần.' : 'Departure and arrival are auto-generated. Add intermediate stops as needed.'}</p>
                   </div>
                   {!showAddRouteStop && (
-                    <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
+                    <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
                       + {language === 'vi' ? 'Thêm điểm dừng' : 'Add stop'}
                     </button>
                   )}
@@ -484,7 +484,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                       <button
                         onClick={() => {
                           setEditingRouteStop(stop);
-                          setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order });
+                          setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order, offsetMinutes: stop.offsetMinutes ?? 0 });
                           setShowAddRouteStop(true);
                         }}
                         className="p-1 text-gray-400 hover:text-blue-600 rounded"
@@ -527,7 +527,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                       </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                      <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                       <button
                         disabled={!routeStopForm.stopId}
                         onClick={() => {
@@ -553,7 +553,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                           }
                           setShowAddRouteStop(false);
                           setEditingRouteStop(null);
-                          setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2 });
+                          setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2, offsetMinutes: 0 });
                         }}
                         className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
                       >

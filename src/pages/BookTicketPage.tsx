@@ -1562,6 +1562,42 @@ export function BookTicketPage({
           const effectiveFrom = (isReturnPhase ? (searchStationTo || searchTo) : (searchStationFrom || searchFrom)) || tripRoute?.departurePoint || '';
           const effectiveTo = (isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo)) || tripRoute?.arrivalPoint || '';
           if (!effectiveFrom && !effectiveTo) return null;
+
+          // Calculate departure time (base trip time + departure offset)
+          const depOffsetMins = ((): number => {
+            if (!trip.time) return 0;
+            // If the passenger is boarding at an intermediate stop, use that stop's offset
+            const matchedStop = tripRoute?.routeStops?.find(s =>
+              effectiveFrom && (s.stopName === effectiveFrom || matchesSearch(s.stopName, effectiveFrom))
+            );
+            if (matchedStop) return matchedStop.offsetMinutes ?? 0;
+            // Departure point: use route's departureOffsetMinutes
+            return tripRoute?.departureOffsetMinutes ?? 0;
+          })();
+
+          const calcTime = (base: string, offsetMins: number): string => {
+            const [h, m] = base.split(':').map(Number);
+            if (isNaN(h) || isNaN(m)) return base;
+            const total = h * 60 + m + offsetMins;
+            return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+          };
+
+          // Calculate arrival time using route's arrivalOffsetMinutes
+          const arrOffsetMins = ((): number | null => {
+            if (!trip.time) return null;
+            // If the passenger alights at an intermediate stop, use that stop's offset
+            const matchedArrStop = tripRoute?.routeStops?.find(s =>
+              effectiveTo && (s.stopName === effectiveTo || matchesSearch(s.stopName, effectiveTo))
+            );
+            if (matchedArrStop && (matchedArrStop.offsetMinutes ?? 0) > 0) return matchedArrStop.offsetMinutes ?? 0;
+            const routeArrOffset = tripRoute?.arrivalOffsetMinutes ?? 0;
+            if (routeArrOffset > 0) return routeArrOffset;
+            return null;
+          })();
+
+          const depTime = trip.time ? calcTime(trip.time, depOffsetMins) : null;
+          const arrTime = trip.time && arrOffsetMins !== null ? calcTime(trip.time, arrOffsetMins) : null;
+
           return (
             <div className="px-3 pb-2.5 border-t border-gray-100 pt-1.5 mt-0.5">
               <div className="flex items-stretch gap-2 min-w-0">
@@ -1571,18 +1607,28 @@ export function BookTicketPage({
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                 </div>
                 <div className="flex flex-col gap-1 min-w-0 flex-1">
-                  <span
-                    className="text-[10px] font-semibold text-gray-700 leading-tight line-clamp-1"
-                    aria-label={`${language === 'vi' ? 'Điểm đi' : language === 'ja' ? '出発地' : 'From'}: ${effectiveFrom || '—'}`}
-                  >
-                    {effectiveFrom || '—'}
-                  </span>
-                  <span
-                    className="text-[10px] font-medium text-gray-500 leading-tight line-clamp-1"
-                    aria-label={`${language === 'vi' ? 'Điểm đến' : language === 'ja' ? '目的地' : 'To'}: ${effectiveTo || '—'}`}
-                  >
-                    {effectiveTo || '—'}
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {depTime && (
+                      <span className="text-[10px] font-bold text-blue-600 flex-shrink-0">{depTime}</span>
+                    )}
+                    <span
+                      className="text-[10px] font-semibold text-gray-700 leading-tight line-clamp-1"
+                      aria-label={`${language === 'vi' ? 'Điểm đi' : language === 'ja' ? '出発地' : 'From'}: ${effectiveFrom || '—'}`}
+                    >
+                      {effectiveFrom || '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {arrTime && (
+                      <span className="text-[10px] font-bold text-blue-400 flex-shrink-0">{arrTime}</span>
+                    )}
+                    <span
+                      className="text-[10px] font-medium text-gray-500 leading-tight line-clamp-1"
+                      aria-label={`${language === 'vi' ? 'Điểm đến' : language === 'ja' ? '目的地' : 'To'}: ${effectiveTo || '—'}`}
+                    >
+                      {effectiveTo || '—'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

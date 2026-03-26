@@ -49,8 +49,8 @@ interface OperationsPageProps {
   setTripForm: React.Dispatch<React.SetStateAction<{ time: string; date: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; discountPercent: number; seatCount: number; status: TripStatus }>>;
   showBatchAddTrip: boolean;
   setShowBatchAddTrip: (v: boolean) => void;
-  batchTripForm: { dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number };
-  setBatchTripForm: React.Dispatch<React.SetStateAction<{ dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number }>>;
+  batchTripForm: { dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number; daysOfWeek: number[] };
+  setBatchTripForm: React.Dispatch<React.SetStateAction<{ dateFrom: string; dateTo: string; route: string; licensePlate: string; driverName: string; price: number; agentPrice: number; seatCount: number; daysOfWeek: number[] }>>;
   batchTimeSlots: string[];
   setBatchTimeSlots: React.Dispatch<React.SetStateAction<string[]>>;
   batchTripLoading: boolean;
@@ -304,7 +304,7 @@ export function OperationsPage({
             <Download size={16} />
             {language === 'vi' ? 'Xuất Excel tất cả' : 'Export All Excel'}
           </button>
-          <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
+          <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11, daysOfWeek: [0, 1, 2, 3, 4, 5, 6] }); setBatchTimeSlots(['']); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
           <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, discountPercent: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
         </div>
       </div>
@@ -467,14 +467,67 @@ export function OperationsPage({
                 <div><label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest ml-1">{t.agent_price} (đ)</label><input type="number" min="0" value={batchTripForm.agentPrice} onChange={e => setBatchTripForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-orange-50 border border-orange-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" /></div>
               </div>
               <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.seats}</label><input type="number" min="1" value={batchTripForm.seatCount} onChange={e => setBatchTripForm(p => ({ ...p, seatCount: parseInt(e.target.value) || 11 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+              {/* Day-of-week filter */}
+              <div className="col-span-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.batch_days_of_week}</label>
+                  <button
+                    type="button"
+                    onClick={() => setBatchTripForm(p => ({ ...p, daysOfWeek: p.daysOfWeek.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6] }))}
+                    className="text-[10px] font-bold text-blue-500 hover:text-blue-700"
+                  >
+                    {batchTripForm.daysOfWeek.length === 7 ? (language === 'vi' ? 'Bỏ chọn tất cả' : language === 'ja' ? '全解除' : 'Deselect All') : t.batch_days_all}
+                  </button>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {([
+                    { day: 1, label: t.day_mon },
+                    { day: 2, label: t.day_tue },
+                    { day: 3, label: t.day_wed },
+                    { day: 4, label: t.day_thu },
+                    { day: 5, label: t.day_fri },
+                    { day: 6, label: t.day_sat },
+                    { day: 0, label: t.day_sun },
+                  ] as { day: number; label: string }[]).map(({ day, label }) => {
+                    const isSelected = batchTripForm.daysOfWeek.includes(day);
+                    const isWeekend = day === 0 || day === 6;
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => setBatchTripForm(p => ({
+                          ...p,
+                          daysOfWeek: isSelected
+                            ? p.daysOfWeek.filter(d => d !== day)
+                            : [...p.daysOfWeek, day],
+                        }))}
+                        className={cn(
+                          'px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                          isSelected
+                            ? isWeekend
+                              ? 'bg-red-500 text-white border-red-500'
+                              : 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-blue-300',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             {(() => {
               const validSlots = batchTimeSlots.filter(s => s);
               let dayCount = 0;
               if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
-                const from = new Date(batchTripForm.dateFrom + 'T00:00:00');
-                const to = new Date(batchTripForm.dateTo + 'T00:00:00');
-                dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+                const selectedDays = new Set(batchTripForm.daysOfWeek.length > 0 ? batchTripForm.daysOfWeek : [0, 1, 2, 3, 4, 5, 6]);
+                const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
+                const end = new Date(batchTripForm.dateTo + 'T00:00:00');
+                while (cur <= end) {
+                  if (selectedDays.has(cur.getDay())) dayCount++;
+                  cur.setDate(cur.getDate() + 1);
+                }
               }
               const totalTrips = dayCount * validSlots.length;
               if (!batchTripForm.dateFrom || !batchTripForm.dateTo || validSlots.length === 0) return null;
@@ -500,12 +553,16 @@ export function OperationsPage({
                 const validSlots = batchTimeSlots.filter(s => s).length;
                 let dayCount = 0;
                 if (batchTripForm.dateFrom && batchTripForm.dateTo && batchTripForm.dateTo >= batchTripForm.dateFrom) {
-                  const from = new Date(batchTripForm.dateFrom + 'T00:00:00');
-                  const to = new Date(batchTripForm.dateTo + 'T00:00:00');
-                  dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+                  const selectedDays = new Set(batchTripForm.daysOfWeek.length > 0 ? batchTripForm.daysOfWeek : [0, 1, 2, 3, 4, 5, 6]);
+                  const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
+                  const end = new Date(batchTripForm.dateTo + 'T00:00:00');
+                  while (cur <= end) {
+                    if (selectedDays.has(cur.getDay())) dayCount++;
+                    cur.setDate(cur.getDate() + 1);
+                  }
                 }
                 const totalTrips = dayCount * validSlots;
-                const isDisabled = batchTripLoading || !batchTripForm.dateFrom || !batchTripForm.dateTo || batchTripForm.dateTo < batchTripForm.dateFrom || !batchTripForm.route || validSlots === 0;
+                const isDisabled = batchTripLoading || !batchTripForm.dateFrom || !batchTripForm.dateTo || batchTripForm.dateTo < batchTripForm.dateFrom || !batchTripForm.route || validSlots === 0 || batchTripForm.daysOfWeek.length === 0;
                 return (
                   <button onClick={handleBatchAddTrips} disabled={isDisabled} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center gap-2">
                     {batchTripLoading && <span className="animate-spin">⚡</span>}
