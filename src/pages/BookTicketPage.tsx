@@ -680,7 +680,7 @@ function TripConfirmPanel({
       ? afterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, disabledPickupCategories.join(',')]);
+  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories]);
 
   // ---- Dropoff stops ----
   const arrivalTerminal = resolveTerminal(effectiveTo, route?.arrivalPoint);
@@ -700,7 +700,7 @@ function TripConfirmPanel({
       ? afterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, disabledDropoffCategories.join(',')]);
+  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories]);
 
   // ---- Time calculation ----
   const calcTime = (base: string, offsetMins: number): string => {
@@ -1712,9 +1712,6 @@ export function BookTicketPage({
     }
     return true;
   };
-
-  // The search button is always enabled once terminal fields are confirmed.
-  const isSearchReady = true;
 
   const handleSearch = () => {
     // Block search if the user typed text in a stop field but did not confirm a selection
