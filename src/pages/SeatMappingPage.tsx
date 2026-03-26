@@ -248,16 +248,24 @@ export function SeatMappingPage({
   const basePickupStops = departureTerminal
     ? stops.filter(s => s.terminalId === departureTerminal.id)
     : stops.filter(s => s.type !== 'TERMINAL');
-  const pickupStops = isPickupDisabledByDate && pickupDisableStopType !== 'ALL'
+  const pickupStopsAfterType = isPickupDisabledByDate && pickupDisableStopType !== 'ALL'
     ? basePickupStops.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
     : basePickupStops;
+  const disabledPickupCategories = tripRoute?.disabledPickupCategories ?? [];
+  const pickupStops = disabledPickupCategories.length > 0
+    ? pickupStopsAfterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
+    : pickupStopsAfterType;
 
   const baseDropoffStops = arrivalTerminal
     ? stops.filter(s => s.terminalId === arrivalTerminal.id)
     : stops.filter(s => s.type !== 'TERMINAL');
-  const dropoffStops = isDropoffDisabledByDate && dropoffDisableStopType !== 'ALL'
+  const dropoffStopsAfterType = isDropoffDisabledByDate && dropoffDisableStopType !== 'ALL'
     ? baseDropoffStops.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
     : baseDropoffStops;
+  const disabledDropoffCategories = tripRoute?.disabledDropoffCategories ?? [];
+  const dropoffStops = disabledDropoffCategories.length > 0
+    ? dropoffStopsAfterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
+    : dropoffStopsAfterType;
   const pickupStopNames = pickupStops.map(s => s.name);
   const dropoffStopNames = dropoffStops.map(s => s.name);
   // Secondary text (address) shown in the dropdown alongside the stop name

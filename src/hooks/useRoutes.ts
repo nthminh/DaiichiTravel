@@ -38,6 +38,8 @@ export const DEFAULT_ROUTE_FORM = {
   disableDropoffAddressFrom: '',
   disableDropoffAddressTo: '',
   disableDropoffAddressStopType: 'ALL',
+  disabledPickupCategories: [] as string[],
+  disabledDropoffCategories: [] as string[],
 };
 
 type RouteFareEntry = {
@@ -369,6 +371,8 @@ export function useRoutes(ctx: RouteContext) {
       disableDropoffAddressFrom: route.disableDropoffAddressFrom || '',
       disableDropoffAddressTo: route.disableDropoffAddressTo || '',
       disableDropoffAddressStopType: route.disableDropoffAddressStopType || 'ALL',
+      disabledPickupCategories: route.disabledPickupCategories || [],
+      disabledDropoffCategories: route.disabledDropoffCategories || [],
     });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
@@ -463,6 +467,8 @@ export function useRoutes(ctx: RouteContext) {
       disableDropoffAddressFrom: route.disableDropoffAddressFrom || '',
       disableDropoffAddressTo: route.disableDropoffAddressTo || '',
       disableDropoffAddressStopType: route.disableDropoffAddressStopType || 'ALL',
+      disabledPickupCategories: route.disabledPickupCategories || [],
+      disabledDropoffCategories: route.disabledDropoffCategories || [],
     });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
