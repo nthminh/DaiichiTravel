@@ -4,6 +4,7 @@ import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
 import { matchesSearch, matchScore } from '../lib/searchUtils'
+import { parseDurationToMinutes } from '../lib/routeUtils'
 import { FareError } from '../services/fareService'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
@@ -1598,13 +1599,47 @@ export function BookTicketPage({
           // Calculate arrival time using route's arrivalOffsetMinutes
           const arrOffsetMins = ((): number | null => {
             if (!trip.time) return null;
-            // If the passenger alights at an intermediate stop, use that stop's offset
+            // Determine whether effectiveTo is the route's final arrival point.
+            // When it is, we should NOT use a routeStop offset (which is only for
+            // intermediate fare-pricing stops and may be stale/incorrect), and
+            // instead rely on the authoritative route-level arrivalOffsetMinutes or
+            // the human-readable duration string.
+            const arrPt = tripRoute?.arrivalPoint || '';
+            const isFinalDestination = Boolean(
+              arrPt && effectiveTo &&
+              // Check both directions because matchesSearch() normalises accents and
+              // whitespace, so "Cat Ba" should match "Cát Bà" regardless of which
+              // string is passed as the query vs. the candidate.
+              (arrPt === effectiveTo ||
+                matchesSearch(arrPt, effectiveTo) ||
+                matchesSearch(effectiveTo, arrPt))
+            );
+
+            if (!isFinalDestination) {
+              // Intermediate stop: use the stop's own time offset
+              const matchedArrStop = tripRoute?.routeStops?.find(s =>
+                effectiveTo && (s.stopName === effectiveTo || matchesSearch(s.stopName, effectiveTo))
+              );
+              if (matchedArrStop && (matchedArrStop.offsetMinutes ?? 0) > 0) return matchedArrStop.offsetMinutes ?? 0;
+            }
+
+            // For the final destination (or an intermediate stop not found in routeStops):
+            // 1. Prefer the explicit route-level arrival offset
+            const routeArrOffset = tripRoute?.arrivalOffsetMinutes ?? 0;
+            if (routeArrOffset > 0) return routeArrOffset;
+
+            // 2. Fall back to parsing the human-readable duration string
+            if (tripRoute?.duration) {
+              const parsed = parseDurationToMinutes(tripRoute.duration);
+              if (parsed && parsed > 0) return parsed;
+            }
+
+            // 3. Last resort: use a routeStop offset even for the final destination
             const matchedArrStop = tripRoute?.routeStops?.find(s =>
               effectiveTo && (s.stopName === effectiveTo || matchesSearch(s.stopName, effectiveTo))
             );
             if (matchedArrStop && (matchedArrStop.offsetMinutes ?? 0) > 0) return matchedArrStop.offsetMinutes ?? 0;
-            const routeArrOffset = tripRoute?.arrivalOffsetMinutes ?? 0;
-            if (routeArrOffset > 0) return routeArrOffset;
+
             return null;
           })();
 
