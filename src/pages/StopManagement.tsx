@@ -441,7 +441,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                   onClick={() => setFormData(p => ({ ...p, type: 'STOP' }))}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all',
-                    formData.type === 'STOP'
+                    formData.type !== 'TERMINAL' && formData.type !== 'FREE_STOP'
                       ? 'bg-teal-600 text-white'
                       : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                   )}
