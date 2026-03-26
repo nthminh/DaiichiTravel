@@ -628,7 +628,7 @@ export function RouteManagementPage({
                               />
                               {(routeForm.arrivalOffsetMinutes ?? 0) > 0 && (
                                 <span className="text-[10px] text-blue-500 font-bold">
-                                  = {Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60) > 0 ? `${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60)}${language === 'vi' ? 'h' : 'h'}` : ''}{(routeForm.arrivalOffsetMinutes ?? 0) % 60 > 0 ? `${(routeForm.arrivalOffsetMinutes ?? 0) % 60}${language === 'vi' ? 'p' : 'm'}` : ''}
+                                  {`= ${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60) > 0 ? `${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60)}h` : ''}${(routeForm.arrivalOffsetMinutes ?? 0) % 60 > 0 ? `${(routeForm.arrivalOffsetMinutes ?? 0) % 60}${language === 'vi' ? 'p' : 'm'}` : ''}`}
                                 </span>
                               )}
                             </div>
