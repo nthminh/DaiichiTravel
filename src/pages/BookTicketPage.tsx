@@ -5,7 +5,6 @@ import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle } from '../types'
 import { matchesSearch, matchScore } from '../lib/searchUtils'
 import { parseDurationToMinutes } from '../lib/routeUtils'
-import { FareError } from '../services/fareService'
 import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
@@ -938,16 +937,8 @@ export function BookTicketPage({
               stops,
             });
             return { routeId: route.id, price: fare.price, agentPrice: fare.agentPrice };
-          } catch (err) {
-            // When no fare is explicitly configured for this exact segment but the
-            // segment itself is valid (stops are in the correct order within the route),
-            // fall back to the route's base price only when a full-trip price has been
-            // configured (price > 0).  If neither a segment fare nor a full-trip price
-            // is set, the trip must not appear in search results.
-            if (err instanceof FareError && err.code === 'FARE_NOT_CONFIGURED') {
-              if (!route.price) return null;
-              return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
-            }
+          } catch (_err) {
+            // No explicitly configured fare for this segment → do not show the trip.
             return null;
           }
         })
