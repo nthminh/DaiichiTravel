@@ -174,7 +174,7 @@ export default function App() {
   const [searchTo, setSearchTo] = useState('');
   const [searchStationFrom, setSearchStationFrom] = useState('');
   const [searchStationTo, setSearchStationTo] = useState('');
-  const [searchDate, setSearchDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
+  const [searchDate, setSearchDate] = useState('');
   const [searchReturnDate, setSearchReturnDate] = useState('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
   const [bookTicketSearch, setBookTicketSearch] = useState('');

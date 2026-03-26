@@ -500,14 +500,14 @@ function StopSearchInput({ value, terminalValue, stops, placeholder, nearestHint
               groupedPickerButtonClass
             )}
           >
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 ml-10">
               <MapPin size={13} className={cn("flex-shrink-0", selectedStop ? "text-gray-500" : "text-gray-400")} />
               <span className="truncate text-left text-xs">
                 {selectedStop || selectStopPrompt || pickupSuggestionLabel}
               </span>
             </div>
             {selectedStop ? (
-              <CheckCircle2 size={13} className="flex-shrink-0 text-gray-500" />
+              <X size={13} className="flex-shrink-0 text-daiichi-red" />
             ) : (
               <ChevronDown size={13} className="flex-shrink-0" />
             )}
@@ -751,22 +751,35 @@ export function BookTicketPage({
     return () => { window.removeEventListener('resize', handleResize); clearTimeout(resizeTimer); };
   }, []);
 
-  // Local filter state for vehicle type and seat count (applied on top of search results)
-  const [localVehicleTypeFilter, setLocalVehicleTypeFilter] = useState('');
-  const [localSeatFilter, setLocalSeatFilter] = useState(0);
+  // Local filter state: combined vehicle type + seat count (e.g. "Limousine 11 ghế")
+  const [localVehicleCombo, setLocalVehicleCombo] = useState('');
 
-  // Compute unique vehicle types and seat counts from active trips for filter chips
-  const { availableVehicleTypes, availableSeatCounts } = useMemo(() => {
+  // Compute unique vehicle type+seat combinations from active trips for the combined filter
+  const availableCombinations = useMemo(() => {
     const activePlates = new Set(
       trips
         .filter(tr => tr.status === TripStatus.WAITING || tr.status === TripStatus.RUNNING)
         .map(tr => tr.licensePlate)
     );
-    const activeVehicles = vehicles.filter(v => activePlates.has(v.licensePlate));
-    const vehicleTypes = [...new Set(activeVehicles.map(v => v.type).filter(Boolean))].sort();
-    const seatCounts = [...new Set(activeVehicles.map(v => v.seats).filter(s => s > 0))].sort((a, b) => a - b);
-    return { availableVehicleTypes: vehicleTypes as string[], availableSeatCounts: seatCounts as number[] };
+    const seen = new Map<string, { type: string; seats: number; label: string }>();
+    vehicles.filter(v => activePlates.has(v.licensePlate)).forEach(v => {
+      if (v.type) {
+        const key = `${v.type}::${v.seats || 0}`;
+        if (!seen.has(key)) {
+          seen.set(key, {
+            type: v.type,
+            seats: v.seats || 0,
+            label: v.seats ? `${v.type} ${v.seats} ghế` : v.type,
+          });
+        }
+      }
+    });
+    return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [trips, vehicles]);
+
+  // Parse the combo value into type/seats for filter comparisons
+  const comboType = localVehicleCombo ? localVehicleCombo.split('::')[0] : '';
+  const comboSeats = localVehicleCombo ? parseInt(localVehicleCombo.split('::')[1]) || 0 : 0;
 
   // Committed search parameters: set when the user clicks the Search button.
   // filterTrip() and segmentFares use these values so that the list only updates
@@ -963,10 +976,10 @@ export function BookTicketPage({
       const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
       const count = trips.filter(trip => {
         if (!filterTrip(trip, true)) return false;
-        if (localVehicleTypeFilter || localSeatFilter) {
+        if (localVehicleCombo) {
           const v = vehicleMap.get(trip.licensePlate);
-          if (localVehicleTypeFilter && v?.type !== localVehicleTypeFilter) return false;
-          if (localSeatFilter && v?.seats !== localSeatFilter) return false;
+          if (comboType && v?.type !== comboType) return false;
+          if (comboSeats > 0 && v?.seats !== comboSeats) return false;
         }
         return true;
       }).length;
@@ -1218,10 +1231,10 @@ export function BookTicketPage({
       const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
       const count = trips.filter(trip => {
         if (!filterTrip(trip, true, newParams)) return false;
-        if (localVehicleTypeFilter || localSeatFilter) {
+        if (localVehicleCombo) {
           const v = vehicleMap.get(trip.licensePlate);
-          if (localVehicleTypeFilter && v?.type !== localVehicleTypeFilter) return false;
-          if (localSeatFilter && v?.seats !== localSeatFilter) return false;
+          if (comboType && v?.type !== comboType) return false;
+          if (comboSeats > 0 && v?.seats !== comboSeats) return false;
         }
         return true;
       }).length;
@@ -1661,9 +1674,10 @@ export function BookTicketPage({
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           {/* FROM + TO combined cell with swap button overlaid between inputs */}
           <div className="lg:col-span-2">
-            {/* FROM and TO – on mobile: grouped as a single card; on sm+: side by side */}
-            <div className="relative flex flex-col sm:flex-row gap-0 sm:gap-2 min-w-0 border border-gray-200 rounded-2xl sm:border-0 sm:rounded-none bg-gray-50 sm:bg-transparent">
-            <div className="flex-1 min-w-0">
+            {/* FROM and TO – on mobile: two separate bordered pair cards; on sm+: side by side */}
+            <div className="relative flex flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
+            {/* FROM + PICKUP pair card */}
+            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-daiichi-red/30 sm:border-0 rounded-2xl sm:rounded-none p-2 sm:p-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
               <div className="sm:mt-1">
                 <StopSearchInput
@@ -1683,23 +1697,22 @@ export function BookTicketPage({
                   stopPickerAllLabel={t.stop_picker_all}
                   stopPickerCloseLabel={t.stop_picker_close}
                   stopPickerNoStopsLabel={t.stop_picker_no_stops}
-                  grouped="top"
                 />
               </div>
             </div>
-            {/* Thin divider visible on mobile only, between FROM and TO – swap button overlaid on right */}
-            <div className="relative sm:hidden">
-              <div className="h-px bg-gray-200" />
+            {/* Mobile-only swap button between the pair cards */}
+            <div className="flex sm:hidden justify-end items-center -my-0.5">
               <button
                 type="button"
                 onClick={handleSwap}
                 title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-                className="absolute right-14 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
+                className="w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10"
               >
                 <ArrowUpDown size={15} strokeWidth={2.5} />
               </button>
             </div>
-            <div className="flex-1 min-w-0">
+            {/* TO + DROPOFF pair card */}
+            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-blue-300/60 sm:border-0 rounded-2xl sm:rounded-none p-2 sm:p-0">
               <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
               <div className="sm:mt-1">
                 <StopSearchInput
@@ -1719,7 +1732,6 @@ export function BookTicketPage({
                   stopPickerAllLabel={t.stop_picker_all}
                   stopPickerCloseLabel={t.stop_picker_close}
                   stopPickerNoStopsLabel={t.stop_picker_no_stops}
-                  grouped="bottom"
                 />
               </div>
             </div>
@@ -1734,19 +1746,30 @@ export function BookTicketPage({
             </button>
             </div>
           </div>
-          <div>
-            <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
-            <div className="relative sm:mt-1">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => { setSearchDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+          {/* Date fields: on mobile show as 2 equal columns when ROUND_TRIP */}
+          {tripType === 'ROUND_TRIP' ? (
+            <div className="grid grid-cols-2 gap-1.5 sm:contents">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
+                <div className="relative mt-1">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => { setSearchDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:outline-none focus:border-daiichi-red focus:ring-2 focus:ring-daiichi-red/20" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
+                <div className="relative mt-1">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => { setSearchReturnDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:outline-none focus:border-daiichi-red focus:ring-2 focus:ring-daiichi-red/20" />
+                </div>
+              </div>
             </div>
-          </div>
-          {tripType === 'ROUND_TRIP' && (
+          ) : (
             <div>
-              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.return_date}</label>
-              <div className="relative sm:mt-1">
+              <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.departure_date}</label>
+              <div className="relative mt-1">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="date" value={searchReturnDate} min={searchDate || getLocalDateString(0)} onChange={e => { setSearchReturnDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:ring-2 focus:ring-daiichi-red/10" />
+                <input type="date" value={searchDate} min={getLocalDateString(0)} onChange={e => { setSearchDate(e.target.value); }} className="w-full pl-12 pr-4 py-2.5 sm:py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:outline-none focus:border-daiichi-red focus:ring-2 focus:ring-daiichi-red/20" />
               </div>
             </div>
           )}
@@ -1813,35 +1836,25 @@ export function BookTicketPage({
               </div>
             </div>
           </div>
-          {/* Vehicle type + seat count filters — visible on all screen sizes */}
+          {/* Combined vehicle type + seat count filter */}
           <div className="flex items-center gap-2 sm:items-end sm:mt-4">
             <div className="flex-1 min-w-0 shrink">
               <select
-                value={localVehicleTypeFilter}
-                onChange={e => setLocalVehicleTypeFilter(e.target.value)}
+                value={localVehicleCombo}
+                onChange={e => setLocalVehicleCombo(e.target.value)}
                 className="w-full px-2 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
               >
-                <option value="">{t.vehicle_type || 'Loại xe'}</option>
-                {availableVehicleTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
+                <option value="">{language === 'vi' ? 'Loại xe & Số ghế' : language === 'ja' ? '車種・座席数' : 'Type & Seats'}</option>
+                {availableCombinations.map(combo => (
+                  <option key={`${combo.type}::${combo.seats}`} value={`${combo.type}::${combo.seats}`}>
+                    {combo.label}
+                  </option>
                 ))}
               </select>
             </div>
-            <div className="shrink-0">
-              <select
-                value={localSeatFilter === 0 ? '' : localSeatFilter}
-                onChange={e => setLocalSeatFilter(e.target.value ? parseInt(e.target.value) : 0)}
-                className="w-28 px-2 py-[13px] bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 transition-colors"
-              >
-                <option value="">{t.seats || 'Số ghế'}</option>
-                {availableSeatCounts.map(count => (
-                  <option key={count} value={count}>{count} {t.seat || 'ghế'}</option>
-                ))}
-              </select>
-            </div>
-            {(localVehicleTypeFilter || localSeatFilter > 0) && (
+            {localVehicleCombo && (
               <button
-                onClick={() => { setLocalVehicleTypeFilter(''); setLocalSeatFilter(0); }}
+                onClick={() => setLocalVehicleCombo('')}
                 className="flex items-center self-end px-2.5 py-[13px] rounded-2xl text-xs font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-all"
                 title={t.reset_filter || 'Xóa bộ lọc'}
                 aria-label={t.reset_filter || 'Xóa bộ lọc'}
@@ -1940,10 +1953,10 @@ export function BookTicketPage({
             const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
             return trips.filter(tr => {
               if (!filterTrip(tr, true)) return false;
-              if (localVehicleTypeFilter || localSeatFilter) {
+              if (localVehicleCombo) {
                 const v = vehicleMap.get(tr.licensePlate);
-                if (localVehicleTypeFilter && v?.type !== localVehicleTypeFilter) return false;
-                if (localSeatFilter && v?.seats !== localSeatFilter) return false;
+                if (comboType && v?.type !== comboType) return false;
+                if (comboSeats > 0 && v?.seats !== comboSeats) return false;
               }
               return true;
             }).sort((a, b) => compareTripDateTime(a, b));
