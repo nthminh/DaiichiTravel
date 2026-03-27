@@ -39,11 +39,11 @@ export const DEFAULT_ROUTE_FORM = {
   disableDropoffAddressTo: '',
   disableDropoffAddressStopType: 'ALL',
   disabledPickupCategories: [] as string[],
-  disabledPickupCategoriesFromTime: '',
-  disabledPickupCategoriesToTime: '',
+  disabledPickupCategoriesFromDate: '',
+  disabledPickupCategoriesToDate: '',
   disabledDropoffCategories: [] as string[],
-  disabledDropoffCategoriesFromTime: '',
-  disabledDropoffCategoriesToTime: '',
+  disabledDropoffCategoriesFromDate: '',
+  disabledDropoffCategoriesToDate: '',
 };
 
 type RouteFareEntry = {
@@ -376,11 +376,11 @@ export function useRoutes(ctx: RouteContext) {
       disableDropoffAddressTo: route.disableDropoffAddressTo || '',
       disableDropoffAddressStopType: route.disableDropoffAddressStopType || 'ALL',
       disabledPickupCategories: route.disabledPickupCategories || [],
-      disabledPickupCategoriesFromTime: route.disabledPickupCategoriesFromTime || '',
-      disabledPickupCategoriesToTime: route.disabledPickupCategoriesToTime || '',
+      disabledPickupCategoriesFromDate: route.disabledPickupCategoriesFromDate || '',
+      disabledPickupCategoriesToDate: route.disabledPickupCategoriesToDate || '',
       disabledDropoffCategories: route.disabledDropoffCategories || [],
-      disabledDropoffCategoriesFromTime: route.disabledDropoffCategoriesFromTime || '',
-      disabledDropoffCategoriesToTime: route.disabledDropoffCategoriesToTime || '',
+      disabledDropoffCategoriesFromDate: route.disabledDropoffCategoriesFromDate || '',
+      disabledDropoffCategoriesToDate: route.disabledDropoffCategoriesToDate || '',
     });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
@@ -476,11 +476,11 @@ export function useRoutes(ctx: RouteContext) {
       disableDropoffAddressTo: route.disableDropoffAddressTo || '',
       disableDropoffAddressStopType: route.disableDropoffAddressStopType || 'ALL',
       disabledPickupCategories: route.disabledPickupCategories || [],
-      disabledPickupCategoriesFromTime: route.disabledPickupCategoriesFromTime || '',
-      disabledPickupCategoriesToTime: route.disabledPickupCategoriesToTime || '',
+      disabledPickupCategoriesFromDate: route.disabledPickupCategoriesFromDate || '',
+      disabledPickupCategoriesToDate: route.disabledPickupCategoriesToDate || '',
       disabledDropoffCategories: route.disabledDropoffCategories || [],
-      disabledDropoffCategoriesFromTime: route.disabledDropoffCategoriesFromTime || '',
-      disabledDropoffCategoriesToTime: route.disabledDropoffCategoriesToTime || '',
+      disabledDropoffCategoriesFromDate: route.disabledDropoffCategoriesFromDate || '',
+      disabledDropoffCategoriesToDate: route.disabledDropoffCategoriesToDate || '',
     });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));

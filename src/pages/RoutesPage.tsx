@@ -116,7 +116,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
         <div className="flex gap-3">
-          <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromTime: '', disabledPickupCategoriesToTime: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromTime: '', disabledDropoffCategoriesToTime: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+          <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
         </div>
       </div>
 
@@ -816,37 +816,37 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                     <div className="space-y-2">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <span className="text-xs font-semibold text-gray-500">{language === 'vi' ? 'Khoảng giờ vô hiệu điểm đón' : language === 'ja' ? '乗車無効時間帯' : 'Pickup disable time range'}</span>
+                          <span className="text-xs font-semibold text-gray-500">{language === 'vi' ? 'Khoảng ngày vô hiệu điểm đón' : language === 'ja' ? '乗車無効期間' : 'Pickup disable date range'}</span>
                           <div className="flex items-center gap-2 flex-wrap">
                             <input
-                              type="time"
-                              value={routeForm.disabledPickupCategoriesFromTime || ''}
-                              onChange={e => setRouteForm(f => ({ ...f, disabledPickupCategoriesFromTime: e.target.value }))}
+                              type="date"
+                              value={routeForm.disabledPickupCategoriesFromDate || ''}
+                              onChange={e => setRouteForm(f => ({ ...f, disabledPickupCategoriesFromDate: e.target.value }))}
                               className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                             />
                             <span className="text-xs text-gray-400">{language === 'vi' ? 'đến' : language === 'ja' ? '〜' : 'to'}</span>
                             <input
-                              type="time"
-                              value={routeForm.disabledPickupCategoriesToTime || ''}
-                              onChange={e => setRouteForm(f => ({ ...f, disabledPickupCategoriesToTime: e.target.value }))}
+                              type="date"
+                              value={routeForm.disabledPickupCategoriesToDate || ''}
+                              onChange={e => setRouteForm(f => ({ ...f, disabledPickupCategoriesToDate: e.target.value }))}
                               className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                             />
                           </div>
                         </div>
                         <div className="space-y-1">
-                          <span className="text-xs font-semibold text-gray-500">{language === 'vi' ? 'Khoảng giờ vô hiệu điểm trả' : language === 'ja' ? '降車無効時間帯' : 'Dropoff disable time range'}</span>
+                          <span className="text-xs font-semibold text-gray-500">{language === 'vi' ? 'Khoảng ngày vô hiệu điểm trả' : language === 'ja' ? '降車無効期間' : 'Dropoff disable date range'}</span>
                           <div className="flex items-center gap-2 flex-wrap">
                             <input
-                              type="time"
-                              value={routeForm.disabledDropoffCategoriesFromTime || ''}
-                              onChange={e => setRouteForm(f => ({ ...f, disabledDropoffCategoriesFromTime: e.target.value }))}
+                              type="date"
+                              value={routeForm.disabledDropoffCategoriesFromDate || ''}
+                              onChange={e => setRouteForm(f => ({ ...f, disabledDropoffCategoriesFromDate: e.target.value }))}
                               className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                             />
                             <span className="text-xs text-gray-400">{language === 'vi' ? 'đến' : language === 'ja' ? '〜' : 'to'}</span>
                             <input
-                              type="time"
-                              value={routeForm.disabledDropoffCategoriesToTime || ''}
-                              onChange={e => setRouteForm(f => ({ ...f, disabledDropoffCategoriesToTime: e.target.value }))}
+                              type="date"
+                              value={routeForm.disabledDropoffCategoriesToDate || ''}
+                              onChange={e => setRouteForm(f => ({ ...f, disabledDropoffCategoriesToDate: e.target.value }))}
                               className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                             />
                           </div>
@@ -854,8 +854,8 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
                       </div>
                       <p className="text-[10px] text-gray-400">
                         {language === 'vi'
-                          ? 'Để trống = áp dụng cả ngày. Nếu giờ bắt đầu lớn hơn giờ kết thúc, hệ thống sẽ hiểu là khoảng qua đêm.'
-                          : 'Leave empty to apply all day. If start time is later than end time, the range is treated as overnight.'}
+                          ? 'Để trống = áp dụng mọi ngày. Nếu chỉ có ngày bắt đầu, áp dụng từ ngày đó trở đi. Nếu chỉ có ngày kết thúc, áp dụng đến ngày đó.'
+                          : 'Leave empty to apply on all dates. If only start date is set, applies from that date onwards. If only end date is set, applies up to that date.'}
                       </p>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                         <span className="text-xs font-semibold text-gray-500 col-span-1">{language === 'vi' ? 'Điểm đón' : language === 'ja' ? '乗車' : 'Pickup'}</span>

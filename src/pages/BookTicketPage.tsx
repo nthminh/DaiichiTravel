@@ -774,26 +774,12 @@ function TripConfirmPanel({
     return !!tripDate && afterFrom && beforeTo;
   };
 
-  const parseTimeToMinutes = (timeValue?: string): number | null => {
-    if (!timeValue) return null;
-    const [hours, minutes] = timeValue.split(':').map(Number);
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-    return (hours * 60) + minutes;
-  };
-
-  const isTripTimeWithinRange = (tripTimeValue: string | undefined, fromTime: string | undefined, toTime: string | undefined): boolean => {
-    if (!fromTime && !toTime) return true;
-    const tripMinutes = parseTimeToMinutes(tripTimeValue);
-    if (tripMinutes === null) return false;
-    const fromMinutes = parseTimeToMinutes(fromTime);
-    const toMinutes = parseTimeToMinutes(toTime);
-    if (fromMinutes !== null && toMinutes !== null) {
-      return fromMinutes <= toMinutes
-        ? tripMinutes >= fromMinutes && tripMinutes <= toMinutes
-        : tripMinutes >= fromMinutes || tripMinutes <= toMinutes;
-    }
-    if (fromMinutes !== null) return tripMinutes >= fromMinutes;
-    if (toMinutes !== null) return tripMinutes <= toMinutes;
+  /** Returns true if tripDate (YYYY-MM-DD) falls within the optional [fromDate, toDate] range. Empty bounds are open-ended. */
+  const isTripDateWithinRange = (tripDate: string, fromDate: string | undefined, toDate: string | undefined): boolean => {
+    if (!fromDate && !toDate) return true;
+    if (!tripDate) return false;
+    if (fromDate && tripDate < fromDate) return false;
+    if (toDate && tripDate > toDate) return false;
     return true;
   };
 
@@ -825,7 +811,7 @@ function TripConfirmPanel({
   const pickupDisableStopType = route?.disablePickupAddressStopType || 'ALL';
   const pickupSectionDisabled = isPickupDisabledByDate && pickupDisableStopType === 'ALL';
   const disabledPickupCategories = route?.disabledPickupCategories ?? [];
-  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripTimeWithinRange(trip.time, route?.disabledPickupCategoriesFromTime, route?.disabledPickupCategoriesToTime);
+  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripDateWithinRange(tripDate, route?.disabledPickupCategoriesFromDate, route?.disabledPickupCategoriesToDate);
 
   const pickupStops = useMemo(() => {
     const base = departureTerminal
@@ -838,7 +824,7 @@ function TripConfirmPanel({
       ? afterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories, route?.disabledPickupCategoriesFromTime, route?.disabledPickupCategoriesToTime, trip.time]);
+  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories, route?.disabledPickupCategoriesFromDate, route?.disabledPickupCategoriesToDate, tripDate]);
 
   // ---- Dropoff stops ----
   const arrivalTerminal = resolveTerminal(effectiveTo, route?.arrivalPoint);
@@ -846,7 +832,7 @@ function TripConfirmPanel({
   const dropoffDisableStopType = route?.disableDropoffAddressStopType || 'ALL';
   const dropoffSectionDisabled = isDropoffDisabledByDate && dropoffDisableStopType === 'ALL';
   const disabledDropoffCategories = route?.disabledDropoffCategories ?? [];
-  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripTimeWithinRange(trip.time, route?.disabledDropoffCategoriesFromTime, route?.disabledDropoffCategoriesToTime);
+  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripDateWithinRange(tripDate, route?.disabledDropoffCategoriesFromDate, route?.disabledDropoffCategoriesToDate);
 
   const dropoffStops = useMemo(() => {
     const base = arrivalTerminal
@@ -859,7 +845,7 @@ function TripConfirmPanel({
       ? afterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories, route?.disabledDropoffCategoriesFromTime, route?.disabledDropoffCategoriesToTime, trip.time]);
+  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories, route?.disabledDropoffCategoriesFromDate, route?.disabledDropoffCategoriesToDate, tripDate]);
 
   // ---- Time calculation ----
   const calcTime = (base: string, offsetMins: number): string => {
