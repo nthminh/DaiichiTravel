@@ -630,6 +630,8 @@ function TripConfirmPanel({
 
   const [selectedPickup, setSelectedPickup] = useState<Stop | null>(null);
   const [selectedDropoff, setSelectedDropoff] = useState<Stop | null>(null);
+  const [pickupFilter, setPickupFilter] = useState('');
+  const [dropoffFilter, setDropoffFilter] = useState('');
 
   // ---- helpers ----
   const isAddressDisabledByDate = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
@@ -766,7 +768,29 @@ function TripConfirmPanel({
           });
         });
     }
-    if (arr && arr !== dep) stops_list.push({ name: arr, time: arrTime, isEndpoint: true });
+    if (arr && arr !== dep) {
+      // Compute the route's actual arrival time from authoritative route-level data so
+      // that the final stop always shows the correct time even when the user searched
+      // a sub-segment (where arrTime reflects the sub-segment destination, not the
+      // route's true endpoint).
+      const finalArrTime = (() => {
+        if (!trip.time) return null;
+        const o = route?.arrivalOffsetMinutes ?? 0;
+        if (o > 0) return calcTime(trip.time, o);
+        if (route?.duration) {
+          const parsed = parseDurationToMinutes(route.duration);
+          if (parsed && parsed > 0) return calcTime(trip.time, parsed);
+        }
+        // Check if the arrivalPoint itself appears as a routeStop with an offset
+        const matchedStop = route?.routeStops?.find(s =>
+          s.stopId !== '__departure__' && s.stopId !== '__arrival__' &&
+          (s.stopName === arr || matchesSearch(s.stopName, arr) || matchesSearch(arr, s.stopName))
+        );
+        if (matchedStop && (matchedStop.offsetMinutes ?? 0) > 0) return calcTime(trip.time, matchedStop.offsetMinutes ?? 0);
+        return arrTime;
+      })();
+      stops_list.push({ name: arr, time: finalArrTime, isEndpoint: true });
+    }
     return stops_list;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.id, trip.time, effectiveFrom, effectiveTo, arrTime]);
@@ -928,11 +952,28 @@ function TripConfirmPanel({
               ) : pickupStops.length === 0 ? (
                 <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_pickup_stops || 'Không có điểm đón tại bến này'}</p>
               ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                <div className="space-y-1.5">
+                  {/* Search/filter input */}
+                  <div className="relative">
+                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={pickupFilter}
+                      onChange={e => setPickupFilter(e.target.value)}
+                      placeholder={language === 'vi' ? 'Gõ để tìm điểm đón...' : language === 'ja' ? '乗車地を検索...' : 'Search pickup point...'}
+                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-daiichi-red focus:bg-white transition-all"
+                    />
+                    {pickupFilter && (
+                      <button type="button" onClick={() => setPickupFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {/* None option */}
                   <button
                     type="button"
-                    onClick={() => setSelectedPickup(null)}
+                    onClick={() => { setSelectedPickup(null); setPickupFilter(''); }}
                     className={cn(
                       "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
                       !selectedPickup
@@ -943,11 +984,11 @@ function TripConfirmPanel({
                     <X size={11} className="flex-shrink-0" />
                     {t.not_selected_yet || 'Chưa chọn'}
                   </button>
-                  {pickupStops.map(stop => (
+                  {pickupStops.filter(s => !pickupFilter || matchesSearch(s.name, pickupFilter) || (s.address && matchesSearch(s.address, pickupFilter))).map(stop => (
                     <button
                       key={stop.id}
                       type="button"
-                      onClick={() => setSelectedPickup(stop)}
+                      onClick={() => { setSelectedPickup(stop); setPickupFilter(''); }}
                       className={cn(
                         "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
                         selectedPickup?.id === stop.id
@@ -968,6 +1009,7 @@ function TripConfirmPanel({
                       {selectedPickup?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
                     </button>
                   ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -989,11 +1031,28 @@ function TripConfirmPanel({
               ) : dropoffStops.length === 0 ? (
                 <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_dropoff_stops || 'Không có điểm trả tại bến này'}</p>
               ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                <div className="space-y-1.5">
+                  {/* Search/filter input */}
+                  <div className="relative">
+                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={dropoffFilter}
+                      onChange={e => setDropoffFilter(e.target.value)}
+                      placeholder={language === 'vi' ? 'Gõ để tìm điểm trả...' : language === 'ja' ? '降車地を検索...' : 'Search dropoff point...'}
+                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+                    />
+                    {dropoffFilter && (
+                      <button type="button" onClick={() => setDropoffFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {/* None option */}
                   <button
                     type="button"
-                    onClick={() => setSelectedDropoff(null)}
+                    onClick={() => { setSelectedDropoff(null); setDropoffFilter(''); }}
                     className={cn(
                       "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
                       !selectedDropoff
@@ -1004,11 +1063,11 @@ function TripConfirmPanel({
                     <X size={11} className="flex-shrink-0" />
                     {t.not_selected_yet || 'Chưa chọn'}
                   </button>
-                  {dropoffStops.map(stop => (
+                  {dropoffStops.filter(s => !dropoffFilter || matchesSearch(s.name, dropoffFilter) || (s.address && matchesSearch(s.address, dropoffFilter))).map(stop => (
                     <button
                       key={stop.id}
                       type="button"
-                      onClick={() => setSelectedDropoff(stop)}
+                      onClick={() => { setSelectedDropoff(stop); setDropoffFilter(''); }}
                       className={cn(
                         "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
                         selectedDropoff?.id === stop.id
@@ -1029,6 +1088,7 @@ function TripConfirmPanel({
                       {selectedDropoff?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
                     </button>
                   ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1437,9 +1497,18 @@ export function BookTicketPage({
           const hasIntermediateStops = (route.routeStops || []).some(
             s => s.stopId !== '__departure__' && s.stopId !== '__arrival__',
           );
-          if (!hasIntermediateStops) {
-            // Direct route (no intermediate stops): the full route is the only segment.
-            // Only include when a full-trip price has been configured (price > 0).
+
+          // Use route.price directly when:
+          // (a) the route is direct (no intermediate stops) – the full route is the only segment, or
+          // (b) the search is for the full route (effectiveFrom = departurePoint AND
+          //     effectiveTo = arrivalPoint) – the explicit per-segment fare table may not
+          //     include a __departure__ → __arrival__ entry even though route.price is set.
+          const isFullRouteSearch = !hasIntermediateStops || (
+            route.departurePoint && route.arrivalPoint &&
+            (effectiveFrom === route.departurePoint || matchesSearch(route.departurePoint, effectiveFrom) || matchesSearch(effectiveFrom, route.departurePoint)) &&
+            (effectiveTo === route.arrivalPoint || matchesSearch(route.arrivalPoint, effectiveTo) || matchesSearch(effectiveTo, route.arrivalPoint))
+          );
+          if (isFullRouteSearch) {
             if (!route.price) return null;
             return { routeId: route.id, price: route.price, agentPrice: route.agentPrice };
           }
