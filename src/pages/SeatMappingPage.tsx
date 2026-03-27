@@ -184,26 +184,12 @@ export function SeatMappingPage({
     return !!tripDate && afterFrom && beforeTo;
   };
 
-  const parseTimeToMinutes = (timeValue?: string): number | null => {
-    if (!timeValue) return null;
-    const [hours, minutes] = timeValue.split(':').map(Number);
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-    return (hours * 60) + minutes;
-  };
-
-  const isTripTimeWithinRange = (tripTimeValue: string | undefined, fromTime: string | undefined, toTime: string | undefined): boolean => {
-    if (!fromTime && !toTime) return true;
-    const tripMinutes = parseTimeToMinutes(tripTimeValue);
-    if (tripMinutes === null) return false;
-    const fromMinutes = parseTimeToMinutes(fromTime);
-    const toMinutes = parseTimeToMinutes(toTime);
-    if (fromMinutes !== null && toMinutes !== null) {
-      return fromMinutes <= toMinutes
-        ? tripMinutes >= fromMinutes && tripMinutes <= toMinutes
-        : tripMinutes >= fromMinutes || tripMinutes <= toMinutes;
-    }
-    if (fromMinutes !== null) return tripMinutes >= fromMinutes;
-    if (toMinutes !== null) return tripMinutes <= toMinutes;
+  /** Returns true if tripDate (YYYY-MM-DD) falls within the optional [fromDate, toDate] range. Empty bounds are open-ended. */
+  const isTripDateWithinRange = (tripDate: string, fromDate: string | undefined, toDate: string | undefined): boolean => {
+    if (!fromDate && !toDate) return true;
+    if (!tripDate) return false;
+    if (fromDate && tripDate < fromDate) return false;
+    if (toDate && tripDate > toDate) return false;
     return true;
   };
 
@@ -275,7 +261,7 @@ export function SeatMappingPage({
     ? basePickupStops.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
     : basePickupStops;
   const disabledPickupCategories = tripRoute?.disabledPickupCategories ?? [];
-  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripTimeWithinRange(selectedTrip.time, tripRoute?.disabledPickupCategoriesFromTime, tripRoute?.disabledPickupCategoriesToTime);
+  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripDateWithinRange(tripDate, tripRoute?.disabledPickupCategoriesFromDate, tripRoute?.disabledPickupCategoriesToDate);
   const pickupStops = isPickupCategoryDisableActive
     ? pickupStopsAfterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
     : pickupStopsAfterType;
@@ -287,7 +273,7 @@ export function SeatMappingPage({
     ? baseDropoffStops.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
     : baseDropoffStops;
   const disabledDropoffCategories = tripRoute?.disabledDropoffCategories ?? [];
-  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripTimeWithinRange(selectedTrip.time, tripRoute?.disabledDropoffCategoriesFromTime, tripRoute?.disabledDropoffCategoriesToTime);
+  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripDateWithinRange(tripDate, tripRoute?.disabledDropoffCategoriesFromDate, tripRoute?.disabledDropoffCategoriesToDate);
   const dropoffStops = isDropoffCategoryDisableActive
     ? dropoffStopsAfterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
     : dropoffStopsAfterType;
