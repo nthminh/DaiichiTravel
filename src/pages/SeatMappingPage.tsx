@@ -184,6 +184,29 @@ export function SeatMappingPage({
     return !!tripDate && afterFrom && beforeTo;
   };
 
+  const parseTimeToMinutes = (timeValue?: string): number | null => {
+    if (!timeValue) return null;
+    const [hours, minutes] = timeValue.split(':').map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    return (hours * 60) + minutes;
+  };
+
+  const isTripTimeWithinRange = (tripTimeValue: string | undefined, fromTime: string | undefined, toTime: string | undefined): boolean => {
+    if (!fromTime && !toTime) return true;
+    const tripMinutes = parseTimeToMinutes(tripTimeValue);
+    if (tripMinutes === null) return false;
+    const fromMinutes = parseTimeToMinutes(fromTime);
+    const toMinutes = parseTimeToMinutes(toTime);
+    if (fromMinutes !== null && toMinutes !== null) {
+      return fromMinutes <= toMinutes
+        ? tripMinutes >= fromMinutes && tripMinutes <= toMinutes
+        : tripMinutes >= fromMinutes || tripMinutes <= toMinutes;
+    }
+    if (fromMinutes !== null) return tripMinutes >= fromMinutes;
+    if (toMinutes !== null) return tripMinutes <= toMinutes;
+    return true;
+  };
+
   /** Route-level surcharges applicable for the given date. */
   const getApplicableRouteSurcharges = (route: Route | undefined, tripDate: string): RouteSurcharge[] => {
     if (!route?.surcharges) return [];
@@ -252,7 +275,8 @@ export function SeatMappingPage({
     ? basePickupStops.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
     : basePickupStops;
   const disabledPickupCategories = tripRoute?.disabledPickupCategories ?? [];
-  const pickupStops = disabledPickupCategories.length > 0
+  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripTimeWithinRange(selectedTrip.time, tripRoute?.disabledPickupCategoriesFromTime, tripRoute?.disabledPickupCategoriesToTime);
+  const pickupStops = isPickupCategoryDisableActive
     ? pickupStopsAfterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
     : pickupStopsAfterType;
 
@@ -263,7 +287,8 @@ export function SeatMappingPage({
     ? baseDropoffStops.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
     : baseDropoffStops;
   const disabledDropoffCategories = tripRoute?.disabledDropoffCategories ?? [];
-  const dropoffStops = disabledDropoffCategories.length > 0
+  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripTimeWithinRange(selectedTrip.time, tripRoute?.disabledDropoffCategoriesFromTime, tripRoute?.disabledDropoffCategoriesToTime);
+  const dropoffStops = isDropoffCategoryDisableActive
     ? dropoffStopsAfterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
     : dropoffStopsAfterType;
   const pickupStopNames = pickupStops.map(s => s.name);

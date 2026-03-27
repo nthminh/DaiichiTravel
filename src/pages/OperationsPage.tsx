@@ -1192,7 +1192,7 @@ export function OperationsPage({
                       />
                     )}
                   </td>
-                  {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>
+                  {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap text-red-600" onClick={openPassengerList}>
                     <div className="flex flex-col gap-0.5">
                       <span>{formatTripDisplayTime(trip)}</span>
                       {trip.isMerged && (
