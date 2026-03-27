@@ -4,6 +4,8 @@ import { motion } from 'motion/react';
 import { TRANSLATIONS } from '../constants/translations';
 import { UserRole } from '../constants/translations';
 import { Footer } from '../components/Footer';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/ToastContainer';
 import type { Language } from '../constants/translations';
 import type { User } from '../types';
 import type { Agent } from '../types';
@@ -25,6 +27,7 @@ const CAROUSEL_GAP = 16; // px – matches gap-4
 export function HomePage({ language, currentUser, agents, setActiveTab, setAgentTopUpModal }: HomePageProps) {
   const t = TRANSLATIONS[language];
   const [searchQuery, setSearchQuery] = useState('');
+  const { toasts, showToast, dismissToast } = useToast();
 
   // ── Carousel state ──
   const [slideIdx, setSlideIdx] = useState(0);
@@ -124,7 +127,16 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
     ? 'ツアー、バス、お得なプランが揃っています'
     : 'Tours, buses & many great deals';
 
-  const categories = [
+  type Category = {
+    label: string;
+    icon: React.ElementType;
+    tab: string;
+    comingSoon?: boolean;
+    color: string;
+    bg: string;
+  };
+
+  const categories: Category[] = [
     {
       label: isVi ? 'Vé bus' : isJa ? 'バス券' : 'Bus Tickets',
       icon: Bus,
@@ -149,7 +161,8 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
     {
       label: isVi ? 'Khách sạn' : isJa ? 'ホテル' : 'Hotel',
       icon: Building2,
-      tab: 'book-ticket',
+      tab: '',
+      comingSoon: true,
       color: 'text-orange-600',
       bg: 'bg-orange-50',
     },
@@ -232,7 +245,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
             </div>
           </div>
 
-          {/* Hero title + CTA buttons */}
+          {/* Hero title */}
           <div>
             <motion.h2
               initial={{ opacity: 0, y: 10 }}
@@ -241,20 +254,6 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
             >
               {t.hero_title}
             </motion.h2>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setActiveTab('book-ticket')}
-                className="px-4 py-2 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/30 hover:scale-105 transition-all text-sm"
-              >
-                {t.book_now}
-              </button>
-              <button
-                onClick={() => setActiveTab('tours')}
-                className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white border border-white/40 rounded-xl font-bold hover:bg-white/30 transition-all text-sm"
-              >
-                {t.view_hot_tours}
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -283,7 +282,13 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
           {categories.map((cat) => (
             <button
               key={cat.label}
-              onClick={() => setActiveTab(cat.tab)}
+              onClick={() => {
+                if (cat.comingSoon) {
+                  showToast(isVi ? 'Sắp triển khai' : isJa ? '近日公開' : 'Coming soon', 'info');
+                } else {
+                  setActiveTab(cat.tab);
+                }
+              }}
               className="flex flex-col items-center gap-2 py-2 px-1 rounded-2xl hover:bg-gray-50 active:scale-95 transition-all group"
             >
               <div className={`w-12 h-12 ${cat.bg} ${cat.color} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm`}>
@@ -496,6 +501,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
       )}
 
       <Footer language={language} />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
