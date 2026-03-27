@@ -725,7 +725,7 @@ function TripConfirmPanel({
     if (!trip.time) return null;
     const arrPt = route?.arrivalPoint || '';
     const isFinalDestination = Boolean(arrPt && effectiveTo && (
-      arrPt === effectiveTo || matchesSearch(arrPt, effectiveTo) || matchesSearch(effectiveTo, arrPt)
+      arrPt === effectiveTo || matchesSearch(arrPt, effectiveTo)
     ));
     if (!isFinalDestination) {
       const matchedArrStop = route?.routeStops?.find(s =>
