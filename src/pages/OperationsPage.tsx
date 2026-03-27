@@ -1192,9 +1192,12 @@ export function OperationsPage({
                       />
                     )}
                   </td>
-                  {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap text-red-600" onClick={openPassengerList}>
+                  {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>
                     <div className="flex flex-col gap-0.5">
-                      <span>{formatTripDisplayTime(trip)}</span>
+                      <span>
+                        {trip.date && <><span className="text-gray-900">{trip.date}</span>{' '}</>}
+                        <span className="text-red-600">{trip.time}</span>
+                      </span>
                       {trip.isMerged && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold w-fit">
                           <GitMerge size={10} />
