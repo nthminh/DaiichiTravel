@@ -118,16 +118,19 @@
 .grecaptcha-badge { visibility: hidden; }
 
 @media print {
-  body > * {
-    display: none !important;
+  /* Use visibility:hidden so descendants can override with visibility:visible */
+  body * {
+    visibility: hidden !important;
   }
   .ticket-modal-root {
     display: flex !important;
-    position: static !important;
+    position: fixed !important;
+    inset: 0 !important;
     background: white !important;
     align-items: flex-start !important;
     justify-content: center !important;
     padding: 20px !important;
+    visibility: visible !important;
   }
   .ticket-modal-root * {
     visibility: visible !important;
@@ -145,8 +148,10 @@
   }
   .ticket-actions-print {
     display: none !important;
+    visibility: hidden !important;
   }
   .ticket-no-print {
     display: none !important;
+    visibility: hidden !important;
   }
 }

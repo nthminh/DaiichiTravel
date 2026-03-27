@@ -5,6 +5,7 @@ import { Language, TRANSLATIONS, UserRole } from '../App';
 import { Route } from '../types';
 import { cn } from '../lib/utils';
 import { getJourneyStops } from '../lib/routeUtils';
+import { formatBookingDate } from '../lib/vnDate';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
 
@@ -196,7 +197,7 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
             <Calendar size={14} className="text-gray-400 mt-0.5 shrink-0" />
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.date || 'Ngày đi'}</p>
-              <p className="font-bold text-gray-700 text-sm">{booking.date}</p>
+              <p className="font-bold text-gray-700 text-sm">{formatBookingDate(booking.date)}</p>
             </div>
           </div>
 

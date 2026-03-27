@@ -14,6 +14,7 @@ import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App
 import { transportService } from '../services/transportService';
 import { ResizableTh } from '../components/ResizableTh';
 import { exportRowsToExcel } from '../utils/exportUtils';
+import { formatBookingDate } from '../lib/vnDate';
 
 interface DashboardProps {
   language: Language;
@@ -856,7 +857,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       </td>
                       <td className="py-5">
                         <p className="text-sm font-medium text-gray-700 truncate">{booking.route}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{booking.date}{booking.time ? ` · ${booking.time}` : ''}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{formatBookingDate(booking.date)}{booking.time ? ` · ${booking.time}` : ''}</p>
                       </td>
                       <td className="py-5">
                         {booking.agentId ? (
@@ -1270,7 +1271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <CalendarIcon size={14} />
                         <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Ngày' : 'Date'}</span>
                       </div>
-                      <p className="font-bold text-gray-800">{viewingBooking.date}</p>
+                      <p className="font-bold text-gray-800">{formatBookingDate(viewingBooking.date)}</p>
                     </div>
                     {viewingBooking.type !== 'TOUR' && viewingBooking.time && (
                       <div className="p-4 bg-gray-50 rounded-2xl">
@@ -1508,7 +1509,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                           </p>
                           {editSelectedTrip ? (
                             <div>
-                              <p className="font-bold text-daiichi-red text-sm">{editSelectedTrip.route} · {editSelectedTrip.date} · {editSelectedTrip.time}</p>
+                              <p className="font-bold text-daiichi-red text-sm">{editSelectedTrip.route} · {formatBookingDate(editSelectedTrip.date)} · {editSelectedTrip.time}</p>
                               <p className="text-xs text-gray-500">{editSelectedTrip.licensePlate}</p>
                               {editSelectedSeats.length > 0 && (
                                 <p className="text-xs font-bold text-blue-600 mt-0.5">
@@ -1518,7 +1519,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                             </div>
                           ) : (
                             <div>
-                              <p className="font-bold text-gray-700 text-sm">{editingBooking.route} · {editingBooking.date} · {editingBooking.time}</p>
+                              <p className="font-bold text-gray-700 text-sm">{editingBooking.route} · {formatBookingDate(editingBooking.date)} · {editingBooking.time}</p>
                               <p className="text-xs text-gray-500">
                                 {language === 'vi' ? 'Ghế' : 'Seat'}: {editingBooking.seatIds?.join(', ') || editingBooking.seatId || '—'}
                               </p>
@@ -1608,7 +1609,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                                       <div className="flex items-center justify-between">
                                         <div>
                                           <p className="font-bold text-gray-800 text-sm">{tr.route}</p>
-                                          <p className="text-xs text-gray-500">{tr.date} · {tr.time} · {tr.licensePlate}</p>
+                                          <p className="text-xs text-gray-500">{formatBookingDate(tr.date)} · {tr.time} · {tr.licensePlate}</p>
                                         </div>
                                         <div className="text-right">
                                           <p className="text-xs font-bold text-green-600">{emptyCount} {language === 'vi' ? 'ghế trống' : 'seats left'}</p>

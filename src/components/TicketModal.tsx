@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../App';
 import { Route } from '../types';
 import { getJourneyStops } from '../lib/routeUtils';
+import { formatBookingDate } from '../lib/vnDate';
 
 interface TicketModalProps {
   isOpen: boolean;
@@ -59,7 +60,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `📋 ${language === 'vi' ? 'Mã đặt tour' : 'Booking ID'}: ${booking.ticketCode || '#' + booking.id}`,
         `🗺️ ${booking.route}`,
         booking.duration ? `⏱️ ${language === 'vi' ? 'Thời gian' : 'Duration'}: ${booking.duration}` : '',
-        `📅 ${language === 'vi' ? 'Ngày khởi hành' : 'Departure'}: ${booking.date}`,
+        `📅 ${language === 'vi' ? 'Ngày khởi hành' : 'Departure'}: ${formatBookingDate(booking.date)}`,
         `👤 ${booking.customerName} - ${booking.phone}`,
         `👥 ${booking.adults} ${language === 'vi' ? 'người lớn' : 'adults'}${booking.children > 0 ? `, ${booking.children} ${language === 'vi' ? 'trẻ em' : 'children'}` : ''}`,
         `💰 ${(booking.amount || 0).toLocaleString()}đ`,
@@ -69,8 +70,8 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
       text = [
         `🎫 ${language === 'vi' ? 'Vé khứ hồi Daiichi Travel' : 'Daiichi Travel Round-Trip Ticket'}`,
         `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: ${ob?.ticketCode || '#' + (ob?.id || '')} / ${booking.ticketCode || '#' + booking.id}`,
-        `🚌 ${language === 'vi' ? 'Chiều đi' : 'Outbound'}: ${ob?.route} – ${ob?.date} ${ob?.time}`,
-        `🚌 ${language === 'vi' ? 'Chiều về' : 'Return'}: ${booking.route} – ${booking.date} ${booking.time}`,
+        `🚌 ${language === 'vi' ? 'Chiều đi' : 'Outbound'}: ${ob?.route} – ${formatBookingDate(ob?.date)} ${ob?.time}`,
+        `🚌 ${language === 'vi' ? 'Chiều về' : 'Return'}: ${booking.route} – ${formatBookingDate(booking.date)} ${booking.time}`,
         `👤 ${booking.customerName} - ${booking.phone}`,
         `💰 ${(booking.amount || 0).toLocaleString()}đ`,
       ].join('\n');
@@ -79,7 +80,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `🎫 ${language === 'vi' ? 'Vé xe Daiichi Travel' : 'Daiichi Travel Ticket'}`,
         `📋 ${language === 'vi' ? 'Mã vé' : 'Ticket'}: ${booking.ticketCode || '#' + booking.id}`,
         `🚌 ${booking.route}`,
-        `📅 ${booking.date} ${booking.time}`,
+        `📅 ${formatBookingDate(booking.date)} ${booking.time}`,
         ...(!booking.freeSeating ? [`💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`] : []),
         `👤 ${booking.customerName} - ${booking.phone}`,
         `💰 ${(booking.amount || 0).toLocaleString()}đ`,
@@ -215,7 +216,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                           <Calendar size={14} />
                           <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Ngày khởi hành' : 'Departure'}</span>
                         </div>
-                        <p className="font-bold text-gray-800">{booking.date}</p>
+                        <p className="font-bold text-gray-800">{formatBookingDate(booking.date)}</p>
                       </div>
                       {/* Overnight stays */}
                       {(booking.nights ?? 0) > 0 && (
@@ -284,7 +285,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                             <Calendar size={12} />
                             <span className="text-[9px] font-bold uppercase tracking-widest">{t.departure}</span>
                           </div>
-                          <p className="text-sm font-bold text-gray-800">{leg?.date}</p>
+                          <p className="text-sm font-bold text-gray-800">{formatBookingDate(leg?.date)}</p>
                           <div className="flex items-center gap-1 mt-0.5">
                             <Clock size={11} className="text-gray-400" />
                             <span className="text-[9px] text-gray-400 font-medium">{language === 'vi' ? 'Thời gian' : language === 'ja' ? '時刻' : 'Time'}:</span>
@@ -431,7 +432,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                         <p className="font-bold text-gray-800">{booking.route}</p>
                         <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                           <Calendar size={12} />
-                          <span>{booking.date}</span>
+                          <span>{formatBookingDate(booking.date)}</span>
                         </div>
                       </div>
                       {booking.pickupPoint && (

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getYoutubeEmbedUrl, getLocalDateString, getOffsetDayLabel } from './lib/utils';
+import { formatBookingDate } from './lib/vnDate';
 
 // Import Constants & Types
 import { 
@@ -887,7 +888,7 @@ export default function App() {
 
   // --- Trip CRUD handlers ---
   const formatTripDisplayTime = (trip: { time: string; date?: string }) =>
-    trip.date ? `${trip.date} ${trip.time}` : trip.time;
+    trip.date ? `${formatBookingDate(trip.date)} ${trip.time}` : trip.time;
 
   const getDayOfWeekStr = (dateStr: string): string => {
     const [y, m, day] = dateStr.split('-').map(Number);

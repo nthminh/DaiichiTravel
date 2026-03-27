@@ -8,6 +8,7 @@ import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { ResizableTh } from '../components/ResizableTh';
 import { StatusBadge } from '../components/StatusBadge';
+import { formatBookingDate } from '../lib/vnDate';
 
 type TranslationRecord = typeof TRANSLATIONS['vi'];
 
@@ -1195,7 +1196,7 @@ export function OperationsPage({
                   {tripColVisibility.time && <td className="px-6 py-4 font-bold whitespace-nowrap" onClick={openPassengerList}>
                     <div className="flex flex-col gap-0.5">
                       <span>
-                        {trip.date && <><span className="text-gray-900">{trip.date}</span>{' '}</>}
+                        {trip.date && <><span className="text-gray-900">{formatBookingDate(trip.date)}</span>{' '}</>}
                         <span className="text-red-600">{trip.time}</span>
                       </span>
                       {trip.isMerged && (
