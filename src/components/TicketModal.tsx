@@ -31,6 +31,22 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
   const getStops = (routeName: string, fromStop?: string, toStop?: string) =>
     getJourneyStops(routes, routeName, fromStop, toStop);
 
+  /** Find the route object for a given route name */
+  const findRoute = (routeName: string) => routes.find(r => r.name === routeName);
+
+  /** Compute estimated arrival time given departure time string (HH:mm) and offset in minutes */
+  const calcArrivalTime = (depTime: string, offsetMinutes?: number): string | null => {
+    if (!depTime || !offsetMinutes) return null;
+    const [hStr, mStr] = depTime.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    const total = h * 60 + m + offsetMinutes;
+    const ah = Math.floor(total / 60) % 24;
+    const am = total % 60;
+    return `${String(ah).padStart(2, '0')}:${String(am).padStart(2, '0')}`;
+  };
+
   const handleDownload = () => {
     window.print();
   };
@@ -445,6 +461,26 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                           <span className="text-[10px] font-normal text-gray-400 mr-1">{language === 'vi' ? 'Thời gian' : language === 'ja' ? '時刻' : 'Time'}:</span>
                           {booking.time}
                         </p>
+                        {(() => {
+                          const r = findRoute(booking.route);
+                          const arrTime = calcArrivalTime(booking.time, r?.arrivalOffsetMinutes);
+                          return (
+                            <>
+                              {arrTime && (
+                                <p className="text-[10px] text-gray-500 mt-0.5">
+                                  <span className="text-gray-400 mr-1">{language === 'vi' ? 'Dự kiến đến:' : language === 'ja' ? '到着予定:' : 'Est. arrival:'}</span>
+                                  <span className="font-bold text-blue-600">{arrTime}</span>
+                                </p>
+                              )}
+                              {r?.duration && (
+                                <p className="text-[10px] text-gray-500 mt-0.5">
+                                  <span className="text-gray-400 mr-1">{language === 'vi' ? 'Thời gian đi:' : language === 'ja' ? '所要時間:' : 'Duration:'}</span>
+                                  <span className="font-bold text-gray-700">{r.duration}</span>
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -469,20 +505,39 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                     </div>
                   </div>
 
-                  {/* Selected add-on services */}
-                  {booking.selectedAddons && booking.selectedAddons.length > 0 && (
-                    <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-100">
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">{t.select_addons}</p>
-                      <div className="space-y-1">
-                        {booking.selectedAddons.map((a: { id: string; name: string; price: number; quantity?: number }) => (
-                          <div key={a.id} className="flex justify-between items-center text-sm">
-                            <span className="font-medium text-gray-700">
-                              {a.name}{(a.quantity && a.quantity > 1) ? ` × ${a.quantity}` : ''}
-                            </span>
-                            <span className="font-bold text-emerald-700">+{((a.price || 0) * (a.quantity || 1)).toLocaleString()}đ</span>
-                          </div>
-                        ))}
-                      </div>
+                  {/* Surcharge & add-on breakdown */}
+                  {((booking.routeSurcharges && booking.routeSurcharges.length > 0) ||
+                    booking.pickupSurchargeAmount > 0 ||
+                    booking.dropoffSurchargeAmount > 0 ||
+                    (booking.selectedAddons && booking.selectedAddons.length > 0)) && (
+                    <div className="p-4 bg-amber-50 rounded-3xl border border-amber-100 space-y-1.5">
+                      <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">
+                        {language === 'vi' ? 'Chi tiết phụ phí & dịch vụ' : language === 'ja' ? '追加料金・サービス' : 'Surcharges & Services'}
+                      </p>
+                      {booking.pickupSurchargeAmount > 0 && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-700">{language === 'vi' ? 'Phụ phí điểm đón' : 'Pickup surcharge'}{booking.pickupPoint ? ` (${booking.pickupPoint})` : ''}</span>
+                          <span className="font-bold text-amber-700">+{(booking.pickupSurchargeAmount).toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</span>
+                        </div>
+                      )}
+                      {booking.dropoffSurchargeAmount > 0 && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-700">{language === 'vi' ? 'Phụ phí điểm trả' : 'Dropoff surcharge'}{booking.dropoffPoint ? ` (${booking.dropoffPoint})` : ''}</span>
+                          <span className="font-bold text-amber-700">+{(booking.dropoffSurchargeAmount).toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</span>
+                        </div>
+                      )}
+                      {(booking.routeSurcharges || []).map((sc: { name: string; amount: number }, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-xs">
+                          <span className="text-gray-700">{language === 'vi' ? 'Phụ thu tuyến' : 'Route surcharge'}: {sc.name}</span>
+                          <span className="font-bold text-amber-700">+{sc.amount.toLocaleString()}đ/{language === 'vi' ? 'người' : 'person'}</span>
+                        </div>
+                      ))}
+                      {(booking.selectedAddons || []).map((a: { id: string; name: string; price: number; quantity?: number }) => (
+                        <div key={a.id} className="flex justify-between items-center text-xs">
+                          <span className="text-gray-700">{a.name}{(a.quantity && a.quantity > 1) ? ` × ${a.quantity}` : ''}</span>
+                          <span className="font-bold text-emerald-700">+{((a.price || 0) * (a.quantity || 1)).toLocaleString()}đ</span>
+                        </div>
+                      ))}
                     </div>
                   )}
 

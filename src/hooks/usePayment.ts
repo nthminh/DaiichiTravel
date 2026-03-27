@@ -379,6 +379,12 @@ export function usePayment(ctx: BookingContext) {
       ...(c.bookingNote.trim() ? { bookingNote: c.bookingNote.trim() } : {}),
       selectedAddons: selectedAddons.map((a: TripAddon) => ({ id: a.id, name: a.name, price: a.price, quantity: c.addonQuantities[a.id] || 1 })),
       ...(isFreeSeating ? { freeSeating: true } : {}),
+      // Surcharge breakdown for ticket display
+      ...(appliedRouteSurcharges.length > 0 ? {
+        routeSurcharges: appliedRouteSurcharges.map((sc: any) => ({ name: sc.name, amount: sc.amount })),
+      } : {}),
+      ...((c.pickupSurcharge > 0 || c.pickupAddressSurcharge > 0) ? { pickupSurchargeAmount: c.pickupSurcharge + c.pickupAddressSurcharge } : {}),
+      ...((c.dropoffSurcharge > 0 || c.dropoffAddressSurcharge > 0) ? { dropoffSurchargeAmount: c.dropoffSurcharge + c.dropoffAddressSurcharge } : {}),
       // Fare-table fields – present only when a fare was resolved
       ...(effectiveFareAmount !== null && c.fromStopId && c.toStopId ? {
         fromStopId: c.fromStopId,
