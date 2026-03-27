@@ -906,7 +906,7 @@ export function RoutesPage({ routes, language, storage, stops }: RoutesPageProps
             )}
             <div className="flex justify-end gap-4 pt-2">
               <button onClick={() => { setShowAddRoute(false); setEditingRoute(null); setIsCopyingRoute(false); setRouteSaveError(null); }} disabled={isSavingRoute} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
-              <button onClick={() => { void handleSaveRoute(); }} disabled={!routeForm.name || isSavingRoute} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={() => handleSaveRoute()} disabled={!routeForm.name || isSavingRoute} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 flex items-center gap-2">
                 {isSavingRoute && <Loader2 size={16} className="animate-spin" />}
                 {editingRoute ? t.save : isCopyingRoute ? t.create_copy : t.add_route}
               </button>
