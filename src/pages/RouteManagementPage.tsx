@@ -11,6 +11,7 @@ import { exportRouteToPDF } from '../utils/exportUtils';
 import { DEFAULT_ROUTE_FORM } from '../hooks/useRoutes';
 import { transportService } from '../services/transportService';
 import { matchesSearch } from '../lib/searchUtils';
+import { formatDateVN } from '../lib/vnDate';
 
 const STOP_ID_DEPARTURE = '__departure__';
 const STOP_ID_ARRIVAL = '__arrival__';
@@ -336,7 +337,7 @@ export function RouteManagementPage({
                         <div key={period.id} className="flex items-center gap-3 bg-blue-50 rounded-xl p-3">
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm text-gray-800 truncate">{period.name || (language === 'vi' ? 'Kỳ giá' : 'Period')}</p>
-                            <p className="text-xs text-gray-500">{period.startDate} → {period.endDate}</p>
+                            <p className="text-xs text-gray-500">{formatDateVN(period.startDate)} → {formatDateVN(period.endDate)}</p>
                             <div className="flex gap-3 mt-1">
                               <span className="text-xs font-bold text-daiichi-red">{period.price.toLocaleString()}đ</span>
                               <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {period.agentPrice.toLocaleString()}đ</span>
@@ -437,7 +438,7 @@ export function RouteManagementPage({
                               </span>
                               {!sc.isActive && <span className="text-[10px] text-gray-400 font-bold">{language === 'vi' ? '(Tạm dừng)' : '(Paused)'}</span>}
                             </div>
-                            {sc.startDate && sc.endDate && <p className="text-xs text-gray-500">{sc.startDate} → {sc.endDate}</p>}
+                            {sc.startDate && sc.endDate && <p className="text-xs text-gray-500">{formatDateVN(sc.startDate)} → {formatDateVN(sc.endDate)}</p>}
                             <p className="text-xs font-bold text-amber-600">+{sc.amount.toLocaleString()}đ/{language === 'vi' ? 'người' : language === 'ja' ? '人' : 'person'}</p>
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
@@ -741,7 +742,7 @@ export function RouteManagementPage({
                                 {fare.agentPrice > 0 && <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {fare.agentPrice.toLocaleString()}đ</span>}
                                 {(fare.startDate || fare.endDate) && (
                                   <span className="text-xs text-gray-400">
-                                    {fare.startDate && fare.endDate ? `${fare.startDate} → ${fare.endDate}` : fare.startDate ? `${language === 'vi' ? 'Từ' : 'From'} ${fare.startDate}` : `${language === 'vi' ? 'Đến' : 'To'} ${fare.endDate}`}
+                                    {fare.startDate && fare.endDate ? `${formatDateVN(fare.startDate)} → ${formatDateVN(fare.endDate)}` : fare.startDate ? `${language === 'vi' ? 'Từ' : 'From'} ${formatDateVN(fare.startDate)}` : `${language === 'vi' ? 'Đến' : 'To'} ${formatDateVN(fare.endDate)}`}
                                   </span>
                                 )}
                               </div>

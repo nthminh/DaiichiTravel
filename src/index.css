@@ -119,18 +119,15 @@
 
 @media print {
   body > * {
-    visibility: hidden !important;
+    display: none !important;
   }
   .ticket-modal-root {
-    visibility: visible !important;
     display: flex !important;
-    position: fixed !important;
-    inset: 0 !important;
+    position: static !important;
     background: white !important;
-    align-items: center !important;
+    align-items: flex-start !important;
     justify-content: center !important;
     padding: 20px !important;
-    z-index: 9999 !important;
   }
   .ticket-modal-root * {
     visibility: visible !important;
