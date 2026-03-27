@@ -29,6 +29,15 @@ interface SubStopPickerModalProps {
   onClose: () => void;
 }
 
+interface CompactStopSelectorProps {
+  stops: Stop[];
+  selectedStop: Stop | null;
+  onSelect: (stop: Stop | null) => void;
+  placeholder: string;
+  emptyLabel: string;
+  theme: 'pickup' | 'dropoff';
+}
+
 function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchingLabel, parentStation, allLabel, closeLabel, noStopsLabel, onSelect, onClose }: SubStopPickerModalProps) {
   // Deduplicate the "all stops" list so matching stops are not shown twice.
   const matchingIds = useMemo(() => new Set(matchingStops.map(s => s.id)), [matchingStops]);
@@ -131,6 +140,132 @@ function SubStopPickerModal({ stops, matchingStops, title, selectedStop, matchin
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CompactStopSelector({ stops, selectedStop, onSelect, placeholder, emptyLabel, theme }: CompactStopSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+
+  const isPickup = theme === 'pickup';
+  const filteredStops = useMemo(
+    () => stops.filter(
+      stop => !filter || matchesSearch(stop.name, filter) || (stop.address && matchesSearch(stop.address, filter)),
+    ),
+    [filter, stops],
+  );
+
+  const resetAndClose = () => {
+    setFilter('');
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all",
+          selectedStop
+            ? isPickup
+              ? "bg-red-50 border-daiichi-red/30"
+              : "bg-blue-50 border-blue-300/40"
+            : "bg-gray-50 border-gray-200 hover:border-gray-300",
+        )}
+      >
+        <MapPin size={14} className={cn("flex-shrink-0", selectedStop ? (isPickup ? "text-daiichi-red" : "text-blue-500") : "text-gray-400")} />
+        <div className="flex-1 min-w-0">
+          {selectedStop ? (
+            <>
+              <p className={cn("text-xs font-semibold break-words", isPickup ? "text-daiichi-red" : "text-blue-600")}>{selectedStop.name}</p>
+              {selectedStop.address && <p className="text-[10px] text-gray-500 mt-0.5 break-words">{selectedStop.address}</p>}
+              {(selectedStop.surcharge || 0) > 0 && (
+                <p className="text-[10px] font-bold text-green-600 mt-0.5">+{(selectedStop.surcharge || 0).toLocaleString()}đ</p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs font-semibold text-gray-500">{emptyLabel}</p>
+          )}
+        </div>
+        <ChevronDown size={16} className={cn("flex-shrink-0 text-gray-400 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-2 space-y-2">
+          <div className="relative">
+            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder={placeholder}
+              className={cn(
+                "w-full pl-8 pr-8 py-2 text-xs border rounded-xl bg-gray-50 focus:outline-none focus:bg-white transition-all",
+                isPickup ? "border-gray-200 focus:border-daiichi-red" : "border-gray-200 focus:border-blue-400",
+              )}
+            />
+            {filter && (
+              <button type="button" onClick={() => setFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => { onSelect(null); resetAndClose(); }}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
+                !selectedStop
+                  ? isPickup
+                    ? "bg-daiichi-red/10 border-daiichi-red text-daiichi-red font-bold"
+                    : "bg-blue-50 border-blue-400 text-blue-600 font-bold"
+                  : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300",
+              )}
+            >
+              <X size={11} className="flex-shrink-0" />
+              {emptyLabel}
+            </button>
+
+            {filteredStops.map(stop => (
+              <button
+                key={stop.id}
+                type="button"
+                onClick={() => { onSelect(stop); resetAndClose(); }}
+                className={cn(
+                  "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
+                  selectedStop?.id === stop.id
+                    ? isPickup
+                      ? "bg-daiichi-red text-white border-daiichi-red"
+                      : "bg-blue-500 text-white border-blue-500"
+                    : isPickup
+                      ? "bg-gray-50 border-gray-200 hover:border-daiichi-red/40 hover:bg-red-50"
+                      : "bg-gray-50 border-gray-200 hover:border-blue-400/40 hover:bg-blue-50",
+                )}
+              >
+                <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold break-words">{stop.name}</p>
+                  {stop.address && <p className={cn("text-[10px] mt-0.5 break-words", selectedStop?.id === stop.id ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
+                  {(stop.surcharge || 0) > 0 && (
+                    <p className={cn("text-[10px] font-bold mt-0.5", selectedStop?.id === stop.id ? "text-yellow-200" : "text-green-600")}>
+                      +{(stop.surcharge || 0).toLocaleString()}đ
+                    </p>
+                  )}
+                </div>
+                {selectedStop?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
+              </button>
+            ))}
+
+            {filteredStops.length === 0 && (
+              <p className="px-3 py-2 text-[11px] text-gray-400 italic">{placeholder}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -630,9 +765,6 @@ function TripConfirmPanel({
 
   const [selectedPickup, setSelectedPickup] = useState<Stop | null>(null);
   const [selectedDropoff, setSelectedDropoff] = useState<Stop | null>(null);
-  const [pickupFilter, setPickupFilter] = useState('');
-  const [dropoffFilter, setDropoffFilter] = useState('');
-
   // ---- helpers ----
   const isAddressDisabledByDate = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
     if (!disableFlag) return false;
@@ -640,6 +772,29 @@ function TripConfirmPanel({
     const afterFrom = fromDate ? tripDate >= fromDate : true;
     const beforeTo = toDate ? tripDate <= toDate : true;
     return !!tripDate && afterFrom && beforeTo;
+  };
+
+  const parseTimeToMinutes = (timeValue?: string): number | null => {
+    if (!timeValue) return null;
+    const [hours, minutes] = timeValue.split(':').map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    return (hours * 60) + minutes;
+  };
+
+  const isTripTimeWithinRange = (tripTimeValue: string | undefined, fromTime: string | undefined, toTime: string | undefined): boolean => {
+    if (!fromTime && !toTime) return true;
+    const tripMinutes = parseTimeToMinutes(tripTimeValue);
+    if (tripMinutes === null) return false;
+    const fromMinutes = parseTimeToMinutes(fromTime);
+    const toMinutes = parseTimeToMinutes(toTime);
+    if (fromMinutes !== null && toMinutes !== null) {
+      return fromMinutes <= toMinutes
+        ? tripMinutes >= fromMinutes && tripMinutes <= toMinutes
+        : tripMinutes >= fromMinutes || tripMinutes <= toMinutes;
+    }
+    if (fromMinutes !== null) return tripMinutes >= fromMinutes;
+    if (toMinutes !== null) return tripMinutes <= toMinutes;
+    return true;
   };
 
   const getApplicableRouteSurcharges = (r: Route | undefined, tripDate: string): RouteSurcharge[] => {
@@ -670,6 +825,7 @@ function TripConfirmPanel({
   const pickupDisableStopType = route?.disablePickupAddressStopType || 'ALL';
   const pickupSectionDisabled = isPickupDisabledByDate && pickupDisableStopType === 'ALL';
   const disabledPickupCategories = route?.disabledPickupCategories ?? [];
+  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripTimeWithinRange(trip.time, route?.disabledPickupCategoriesFromTime, route?.disabledPickupCategoriesToTime);
 
   const pickupStops = useMemo(() => {
     const base = departureTerminal
@@ -678,11 +834,11 @@ function TripConfirmPanel({
     const afterType = isPickupDisabledByDate && pickupDisableStopType !== 'ALL'
       ? base.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
       : base;
-    return disabledPickupCategories.length > 0
+    return isPickupCategoryDisableActive
       ? afterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories]);
+  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories, route?.disabledPickupCategoriesFromTime, route?.disabledPickupCategoriesToTime, trip.time]);
 
   // ---- Dropoff stops ----
   const arrivalTerminal = resolveTerminal(effectiveTo, route?.arrivalPoint);
@@ -690,6 +846,7 @@ function TripConfirmPanel({
   const dropoffDisableStopType = route?.disableDropoffAddressStopType || 'ALL';
   const dropoffSectionDisabled = isDropoffDisabledByDate && dropoffDisableStopType === 'ALL';
   const disabledDropoffCategories = route?.disabledDropoffCategories ?? [];
+  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripTimeWithinRange(trip.time, route?.disabledDropoffCategoriesFromTime, route?.disabledDropoffCategoriesToTime);
 
   const dropoffStops = useMemo(() => {
     const base = arrivalTerminal
@@ -698,11 +855,11 @@ function TripConfirmPanel({
     const afterType = isDropoffDisabledByDate && dropoffDisableStopType !== 'ALL'
       ? base.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
       : base;
-    return disabledDropoffCategories.length > 0
+    return isDropoffCategoryDisableActive
       ? afterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories]);
+  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories, route?.disabledDropoffCategoriesFromTime, route?.disabledDropoffCategoriesToTime, trip.time]);
 
   // ---- Time calculation ----
   const calcTime = (base: string, offsetMins: number): string => {
@@ -795,6 +952,18 @@ function TripConfirmPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.id, trip.time, effectiveFrom, effectiveTo, arrTime]);
 
+  const displayArrivalStop = useMemo(() => {
+    const preferredName = effectiveTo || route?.arrivalPoint || '';
+    const matchedStop = preferredName
+      ? orderedItinerary.find(stop =>
+          stop.name === preferredName || matchesSearch(stop.name, preferredName) || matchesSearch(preferredName, stop.name),
+        )
+      : null;
+    if (matchedStop) return matchedStop;
+    const lastStop = orderedItinerary[orderedItinerary.length - 1];
+    return lastStop ?? { name: preferredName || '—', time: arrTime, isEndpoint: true };
+  }, [orderedItinerary, effectiveTo, route?.arrivalPoint, arrTime]);
+
   // ---- Fare calculation ----
   const segFare = route ? segmentFares.get(route.id) : undefined;
   const isAgent = currentUser?.role === UserRole.AGENT;
@@ -863,8 +1032,8 @@ function TripConfirmPanel({
                 </div>
                 <div>
                   <div className="flex items-baseline gap-2">
-                    {arrTime && <span className="text-base font-bold text-blue-500 leading-none">{arrTime}</span>}
-                    <span className="text-sm font-medium text-gray-600 truncate">{effectiveTo || route?.arrivalPoint || '—'}</span>
+                    {displayArrivalStop.time && <span className="text-base font-bold text-blue-500 leading-none">{displayArrivalStop.time}</span>}
+                    <span className="text-sm font-medium text-gray-600 truncate">{displayArrivalStop.name}</span>
                   </div>
                   <p className="text-[10px] text-gray-400 mt-0.5">{t.trip_confirm_arrival_time || 'Giờ dự kiến đến'}</p>
                 </div>
@@ -952,65 +1121,14 @@ function TripConfirmPanel({
               ) : pickupStops.length === 0 ? (
                 <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_pickup_stops || 'Không có điểm đón tại bến này'}</p>
               ) : (
-                <div className="space-y-1.5">
-                  {/* Search/filter input */}
-                  <div className="relative">
-                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={pickupFilter}
-                      onChange={e => setPickupFilter(e.target.value)}
-                      placeholder={language === 'vi' ? 'Gõ để tìm điểm đón...' : language === 'ja' ? '乗車地を検索...' : 'Search pickup point...'}
-                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-daiichi-red focus:bg-white transition-all"
-                    />
-                    {pickupFilter && (
-                      <button type="button" onClick={() => setPickupFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <X size={11} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {/* None option */}
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedPickup(null); setPickupFilter(''); }}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
-                      !selectedPickup
-                        ? "bg-daiichi-red/10 border-daiichi-red text-daiichi-red font-bold"
-                        : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300"
-                    )}
-                  >
-                    <X size={11} className="flex-shrink-0" />
-                    {t.not_selected_yet || 'Chưa chọn'}
-                  </button>
-                  {pickupStops.filter(s => !pickupFilter || matchesSearch(s.name, pickupFilter) || (s.address && matchesSearch(s.address, pickupFilter))).map(stop => (
-                    <button
-                      key={stop.id}
-                      type="button"
-                      onClick={() => { setSelectedPickup(stop); setPickupFilter(''); }}
-                      className={cn(
-                        "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
-                        selectedPickup?.id === stop.id
-                          ? "bg-daiichi-red text-white border-daiichi-red"
-                          : "bg-gray-50 border-gray-200 hover:border-daiichi-red/40 hover:bg-red-50"
-                      )}
-                    >
-                      <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold break-words">{stop.name}</p>
-                        {stop.address && <p className={cn("text-[10px] mt-0.5 break-words", selectedPickup?.id === stop.id ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
-                        {(stop.surcharge || 0) > 0 && (
-                          <p className={cn("text-[10px] font-bold mt-0.5", selectedPickup?.id === stop.id ? "text-yellow-200" : "text-green-600")}>
-                            +{(stop.surcharge || 0).toLocaleString()}đ
-                          </p>
-                        )}
-                      </div>
-                      {selectedPickup?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
-                    </button>
-                  ))}
-                  </div>
-                </div>
+                <CompactStopSelector
+                  stops={pickupStops}
+                  selectedStop={selectedPickup}
+                  onSelect={setSelectedPickup}
+                  placeholder={language === 'vi' ? 'Gõ để tìm điểm đón...' : language === 'ja' ? '乗車地を検索...' : 'Search pickup point...'}
+                  emptyLabel={t.not_selected_yet || 'Chưa chọn'}
+                  theme="pickup"
+                />
               )}
             </div>
           </div>
@@ -1031,65 +1149,14 @@ function TripConfirmPanel({
               ) : dropoffStops.length === 0 ? (
                 <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_dropoff_stops || 'Không có điểm trả tại bến này'}</p>
               ) : (
-                <div className="space-y-1.5">
-                  {/* Search/filter input */}
-                  <div className="relative">
-                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={dropoffFilter}
-                      onChange={e => setDropoffFilter(e.target.value)}
-                      placeholder={language === 'vi' ? 'Gõ để tìm điểm trả...' : language === 'ja' ? '降車地を検索...' : 'Search dropoff point...'}
-                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
-                    />
-                    {dropoffFilter && (
-                      <button type="button" onClick={() => setDropoffFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <X size={11} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {/* None option */}
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedDropoff(null); setDropoffFilter(''); }}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left border text-xs transition-all",
-                      !selectedDropoff
-                        ? "bg-daiichi-red/10 border-daiichi-red text-daiichi-red font-bold"
-                        : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300"
-                    )}
-                  >
-                    <X size={11} className="flex-shrink-0" />
-                    {t.not_selected_yet || 'Chưa chọn'}
-                  </button>
-                  {dropoffStops.filter(s => !dropoffFilter || matchesSearch(s.name, dropoffFilter) || (s.address && matchesSearch(s.address, dropoffFilter))).map(stop => (
-                    <button
-                      key={stop.id}
-                      type="button"
-                      onClick={() => { setSelectedDropoff(stop); setDropoffFilter(''); }}
-                      className={cn(
-                        "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left border transition-all",
-                        selectedDropoff?.id === stop.id
-                          ? "bg-blue-500 text-white border-blue-500"
-                          : "bg-gray-50 border-gray-200 hover:border-blue-400/40 hover:bg-blue-50"
-                      )}
-                    >
-                      <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold break-words">{stop.name}</p>
-                        {stop.address && <p className={cn("text-[10px] mt-0.5 break-words", selectedDropoff?.id === stop.id ? "text-white/80" : "text-gray-400")}>{stop.address}</p>}
-                        {(stop.surcharge || 0) > 0 && (
-                          <p className={cn("text-[10px] font-bold mt-0.5", selectedDropoff?.id === stop.id ? "text-yellow-200" : "text-green-600")}>
-                            +{(stop.surcharge || 0).toLocaleString()}đ
-                          </p>
-                        )}
-                      </div>
-                      {selectedDropoff?.id === stop.id && <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
-                    </button>
-                  ))}
-                  </div>
-                </div>
+                <CompactStopSelector
+                  stops={dropoffStops}
+                  selectedStop={selectedDropoff}
+                  onSelect={setSelectedDropoff}
+                  placeholder={language === 'vi' ? 'Gõ để tìm điểm trả...' : language === 'ja' ? '降車地を検索...' : 'Search dropoff point...'}
+                  emptyLabel={t.not_selected_yet || 'Chưa chọn'}
+                  theme="dropoff"
+                />
               )}
             </div>
           </div>

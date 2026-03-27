@@ -55,11 +55,19 @@ export interface Route {
    * e.g. ['TOLL', 'RESTAURANT'] to prevent passengers from being picked up at tolls / restaurants.
    */
   disabledPickupCategories?: string[];
+  /** Optional HH:mm time window for pickup category disable. Empty = applies all day. */
+  disabledPickupCategoriesFromTime?: string;
+  /** Optional HH:mm time window for pickup category disable. Empty = applies all day. */
+  disabledPickupCategoriesToTime?: string;
   /**
    * Stop categories that are disabled for dropoff on this route.
    * Stops whose `category` is in this list will be excluded from the dropoff stop suggestions.
    */
   disabledDropoffCategories?: string[];
+  /** Optional HH:mm time window for dropoff category disable. Empty = applies all day. */
+  disabledDropoffCategoriesFromTime?: string;
+  /** Optional HH:mm time window for dropoff category disable. Empty = applies all day. */
+  disabledDropoffCategoriesToTime?: string;
   duration?: string;        // travel time from departure to arrival (e.g. "3 giờ 30 phút")
   departureOffsetMinutes?: number; // minutes offset applied to the departure point (usually 0)
   arrivalOffsetMinutes?: number;   // minutes offset from departure time to arrival at the final stop
