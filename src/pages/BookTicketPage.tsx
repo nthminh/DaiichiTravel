@@ -9,6 +9,7 @@ import { motion } from 'motion/react'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/ToastContainer'
 import { transportService } from '../services/transportService'
+import { formatBookingDate } from '../lib/vnDate'
 
 // ---------------------------------------------------------------------------
 // SubStopPickerModal – a clean popup dialog for picking a specific sub-stop
@@ -998,7 +999,7 @@ function TripConfirmPanel({
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="px-3 py-1 bg-daiichi-accent text-daiichi-red rounded-full text-xs font-bold uppercase">{trip.route}</span>
               {trip.date && (
-                <span className="px-2.5 py-1 bg-red-50 text-daiichi-red rounded-full text-xs font-bold flex-shrink-0">{trip.date}</span>
+                <span className="px-2.5 py-1 bg-red-50 text-daiichi-red rounded-full text-xs font-bold flex-shrink-0">{formatBookingDate(trip.date)}</span>
               )}
             </div>
             {/* Departure → Arrival with times */}

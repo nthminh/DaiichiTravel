@@ -67,6 +67,18 @@ export function formatDateTimeVN(value: string | Date | null | undefined, locale
 }
 
 /**
+ * Converts a stored YYYY-MM-DD booking/trip date string to Vietnamese DD/MM/YYYY display format.
+ * This is timezone-safe because the source date is already in Vietnam local time.
+ * e.g. "2025-03-18" → "18/03/2025"
+ */
+export function formatBookingDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+/**
  * Formats an ISO/Firestore timestamp string as a date only in Vietnam timezone.
  * Returns e.g. "18/03/2025" in vi locale.
  */

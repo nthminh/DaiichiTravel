@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { Language, TRANSLATIONS, UserRole } from '../App';
 import { transportService } from '../services/transportService';
 import { SeatStatus } from '../types';
+import { formatBookingDate } from '../lib/vnDate';
 
 interface AgentBookingsProps {
   language: Language;
@@ -365,7 +366,7 @@ const BookingCardBody: React.FC<{ booking: any; language: Language }> = ({ booki
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-[9px]">{t.date || 'Ngày'}</p>
-          <p className="font-bold text-gray-700">{booking.date}</p>
+          <p className="font-bold text-gray-700">{formatBookingDate(booking.date)}</p>
         </div>
         <div>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-[9px]">{t.departure || 'Giờ'}</p>
