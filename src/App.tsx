@@ -212,6 +212,7 @@ export default function App() {
   });
   const [searchAdults, setSearchAdults] = useState(1);
   const [searchChildren, setSearchChildren] = useState(0);
+  const [searchChildrenAges, setSearchChildrenAges] = useState<(number | undefined)[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -592,6 +593,7 @@ export default function App() {
   // Ticket Modal State
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
+  const [ticketAutoDownload, setTicketAutoDownload] = useState(false);
 
   const t = TRANSLATIONS[language];
 
@@ -793,7 +795,10 @@ export default function App() {
     // Auto-populate passenger counts from the search form values
     setAdults(searchAdults);
     setChildren(searchChildren);
-    setChildrenAges(new Array(searchChildren).fill(undefined));
+    // Use ages collected from the search form; pad/trim to match count
+    setChildrenAges(
+      Array.from({ length: searchChildren }, (_, i) => searchChildrenAges[i])
+    );
 
     const tripRoute = routes.find((r) => r.name === selectedTrip.route);
     const isReturnPhaseNow = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
@@ -1362,6 +1367,8 @@ export default function App() {
               clearedTripCards={clearedTripCards}
               searchAdults={searchAdults}
               searchChildren={searchChildren}
+              searchChildrenAges={searchChildrenAges}
+              setSearchChildrenAges={setSearchChildrenAges}
               roundTripPhase={roundTripPhase}
               outboundBookingData={outboundBookingData}
               tripType={tripType}
@@ -1533,6 +1540,8 @@ export default function App() {
               clearedTripCards={clearedTripCards}
               searchAdults={searchAdults}
               searchChildren={searchChildren}
+              searchChildrenAges={searchChildrenAges}
+              setSearchChildrenAges={setSearchChildrenAges}
               roundTripPhase={roundTripPhase}
               outboundBookingData={outboundBookingData}
               tripType={tripType}
@@ -2157,6 +2166,7 @@ export default function App() {
             language={language}
             bookingLabel={pendingQrBooking.label}
             onConfirm={async () => {
+              setTicketAutoDownload(true);
               await pendingQrBooking.execute();
               setPendingQrBooking(null);
             }}
@@ -2189,6 +2199,7 @@ export default function App() {
           isOpen={isTicketOpen}
           onClose={() => {
             setIsTicketOpen(false);
+            setTicketAutoDownload(false);
             // Combined round-trip ticket: reset round-trip state and go to book-ticket
             if (lastBooking?.isRoundTrip && previousTab === 'book-ticket') {
               setRoundTripPhase('outbound');
@@ -2206,6 +2217,7 @@ export default function App() {
           language={language}
           routes={routes}
           onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
+          autoDownload={ticketAutoDownload}
         />
       </Suspense>
 

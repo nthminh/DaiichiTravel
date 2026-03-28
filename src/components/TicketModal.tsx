@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Download, Share2, CheckCircle2, ArrowLeftRight,
   MapPin, Calendar, Clock, User, Users,
@@ -11,6 +11,8 @@ import { Route } from '../types';
 import { getJourneyStops } from '../lib/routeUtils';
 import { formatBookingDate } from '../lib/vnDate';
 
+const AUTO_PRINT_DELAY_MS = 800;
+
 interface TicketModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,11 +20,22 @@ interface TicketModalProps {
   language: Language;
   routes?: Route[];
   onRegisterMember?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
+  /** When true, automatically triggers window.print() when the modal opens (e.g. after payment) */
+  autoDownload?: boolean;
 }
 
-export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, routes = [] }) => {
+export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, routes = [], autoDownload }) => {
   const t = TRANSLATIONS[language];
   const [copied, setCopied] = useState(false);
+
+  // Auto-trigger download when modal opens after payment
+  useEffect(() => {
+    if (isOpen && autoDownload && booking) {
+      const timer = setTimeout(() => window.print(), AUTO_PRINT_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, autoDownload, booking]);
+
   if (!booking) return null;
 
   const isTour = booking.type === 'TOUR';
@@ -590,19 +603,33 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
 
 
             </div>
-            <div className="ticket-actions-print p-6 bg-gray-50 flex gap-3 shrink-0">
-              <button onClick={onClose} className="flex items-center justify-center gap-2 px-5 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
-                <X size={18} />
-                {t.close_ticket}
-              </button>
-              <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
-                <Download size={20} />
-                {language === 'vi' ? 'Tải xuống' : 'Download'}
-              </button>
-              <button onClick={handleShare} className={cn("flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold shadow-lg transition-all", copied ? "bg-green-500 text-white shadow-green-500/20" : "bg-daiichi-red text-white shadow-daiichi-red/20 hover:scale-[1.02]")}>
-                {copied ? <Copy size={20} /> : <Share2 size={20} />}
-                {copied ? (language === 'vi' ? 'Đã sao chép!' : 'Copied!') : (language === 'vi' ? 'Chia sẻ' : 'Share')}
-              </button>
+            <div className="ticket-actions-print p-6 bg-gray-50 flex flex-col gap-3 shrink-0">
+              {autoDownload && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-2xl">
+                  <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+                  <p className="text-xs font-bold text-green-700">
+                    {language === 'vi'
+                      ? 'Thanh toán thành công! Vé của bạn đang được tải xuống...'
+                      : language === 'ja'
+                      ? 'お支払い完了！チケットをダウンロード中...'
+                      : 'Payment successful! Downloading your ticket...'}
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={onClose} className="flex items-center justify-center gap-2 px-5 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
+                  <X size={18} />
+                  {t.close_ticket}
+                </button>
+                <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 py-4 bg-white border border-gray-200 rounded-2xl font-bold text-gray-700 hover:bg-gray-100 transition-all">
+                  <Download size={20} />
+                  {language === 'vi' ? 'Tải xuống' : 'Download'}
+                </button>
+                <button onClick={handleShare} className={cn("flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold shadow-lg transition-all", copied ? "bg-green-500 text-white shadow-green-500/20" : "bg-daiichi-red text-white shadow-daiichi-red/20 hover:scale-[1.02]")}>
+                  {copied ? <Copy size={20} /> : <Share2 size={20} />}
+                  {copied ? (language === 'vi' ? 'Đã sao chép!' : 'Copied!') : (language === 'vi' ? 'Chia sẻ' : 'Share')}
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>

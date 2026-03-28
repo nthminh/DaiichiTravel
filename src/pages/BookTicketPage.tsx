@@ -856,6 +856,22 @@ function TripConfirmPanel({
     return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
   };
 
+  /** Returns "DD/MM" for a stop, incrementing date if the stop time wraps past midnight. */
+  const getStopDatePrefix = (stopTimeStr: string | null): string | null => {
+    if (!stopTimeStr || !trip.date || !trip.time) return null;
+    const parts = trip.date.split('-');
+    if (parts.length !== 3) return null;
+    const [depH, depM] = trip.time.split(':').map(Number);
+    const [stopH, stopM] = stopTimeStr.split(':').map(Number);
+    const depTotalMins = depH * 60 + depM;
+    const stopTotalMins = stopH * 60 + stopM;
+    // If stop is earlier in the day than departure, it has crossed midnight
+    const dayOffset = stopTotalMins < depTotalMins ? 1 : 0;
+    // Use explicit constructor parameters for consistent cross-browser behavior
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10) + dayOffset);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
   const depOffsetMins = (() => {
     if (!trip.time) return 0;
     const matchedStop = route?.routeStops?.find(s =>
@@ -1081,7 +1097,12 @@ function TripConfirmPanel({
                             <span className={cn(
                               "text-[10px] font-bold flex-shrink-0",
                               idx === 0 ? "text-daiichi-red" : stop.isEndpoint ? "text-blue-500" : "text-gray-400"
-                            )}>{stop.time}</span>
+                            )}>
+                              {getStopDatePrefix(stop.time) && (
+                                <span className="opacity-70 mr-0.5">{getStopDatePrefix(stop.time)} </span>
+                              )}
+                              {stop.time}
+                            </span>
                           )}
                           <span className={cn(
                             "text-xs truncate",
@@ -1223,7 +1244,11 @@ function TripConfirmPanel({
             className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all"
           >
             <CheckCircle2 size={16} />
-            <span>{t.confirm_and_select_seat || 'Xác nhận & Chọn ghế'}</span>
+            <span>
+              {trip.seatType === 'free'
+                ? (language === 'vi' ? 'Xác nhận & Đặt vé' : language === 'ja' ? '確認・予約' : 'Confirm & Book')
+                : (t.confirm_and_select_seat || 'Xác nhận & Chọn ghế')}
+            </span>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -1255,6 +1280,7 @@ interface BookTicketPageProps {
   clearedTripCards: Set<string>;
   searchAdults: number;
   searchChildren: number;
+  searchChildrenAges: (number | undefined)[];
   roundTripPhase: 'outbound' | 'return';
   outboundBookingData: any;
   tripType: 'ONE_WAY' | 'ROUND_TRIP';
@@ -1287,6 +1313,7 @@ interface BookTicketPageProps {
   setClearedTripCards: React.Dispatch<React.SetStateAction<Set<string>>>;
   setSearchAdults: React.Dispatch<React.SetStateAction<number>>;
   setSearchChildren: React.Dispatch<React.SetStateAction<number>>;
+  setSearchChildrenAges: React.Dispatch<React.SetStateAction<(number | undefined)[]>>;
   setTripType: (v: 'ONE_WAY' | 'ROUND_TRIP') => void;
   setShowInquiryForm: (v: boolean) => void;
   setInquiryName: (v: string) => void;
@@ -1367,6 +1394,8 @@ export function BookTicketPage({
   clearedTripCards,
   searchAdults,
   searchChildren,
+  searchChildrenAges,
+  setSearchChildrenAges,
   roundTripPhase,
   outboundBookingData,
   tripType,
@@ -2644,7 +2673,10 @@ export function BookTicketPage({
               <div className="relative sm:mt-1 flex items-center bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl overflow-hidden transition-colors">
                 <button
                   type="button"
-                  onClick={() => setSearchChildren(v => Math.max(0, v - 1))}
+                  onClick={() => {
+                    setSearchChildren(v => Math.max(0, v - 1));
+                    setSearchChildrenAges(prev => prev.slice(0, Math.max(0, prev.length - 1)));
+                  }}
                   className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
                 >−</button>
                 <div className="w-full flex flex-col items-center px-8 sm:px-10 py-2 sm:py-3">
@@ -2653,19 +2685,63 @@ export function BookTicketPage({
                     type="number"
                     min="0"
                     value={searchChildren === 0 ? '' : searchChildren}
-                    onChange={e => setSearchChildren(Math.max(0, parseInt(e.target.value) || 0))}
+                    onChange={e => {
+                      const n = Math.max(0, parseInt(e.target.value) || 0);
+                      setSearchChildren(n);
+                      setSearchChildrenAges(prev => Array.from({ length: n }, (_, i) => prev[i]));
+                    }}
                     placeholder="0"
                     className="w-full text-center bg-transparent focus:outline-none font-bold text-gray-700 text-sm leading-none"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSearchChildren(v => v + 1)}
+                  onClick={() => {
+                    setSearchChildren(v => v + 1);
+                    setSearchChildrenAges(prev => [...prev, undefined]);
+                  }}
                   className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-daiichi-red hover:text-white text-gray-600 font-bold text-sm transition-colors z-10"
                 >+</button>
               </div>
             </div>
           </div>
+          {/* Children age inputs – shown when at least one child is selected */}
+          {searchChildren > 0 && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                {language === 'vi' ? 'Tuổi trẻ em (năm)' : language === 'ja' ? 'お子様の年齢（歳）' : 'Children ages (years)'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: searchChildren }, (_, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+                      {language === 'vi' ? `Bé ${i + 1}:` : language === 'ja' ? `子${i + 1}:` : `Child ${i + 1}:`}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="17"
+                      placeholder={language === 'vi' ? 'tuổi' : language === 'ja' ? '歳' : 'age'}
+                      value={searchChildrenAges[i] === undefined ? '' : searchChildrenAges[i]}
+                      onChange={e => {
+                        const parsed = parseInt(e.target.value, 10);
+                        const age = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.max(0, Math.min(17, parsed)));
+                        setSearchChildrenAges(prev => {
+                          const updated = [...prev];
+                          updated[i] = age;
+                          return updated;
+                        });
+                      }}
+                      className="w-16 px-2 py-1 text-center text-sm font-bold bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-amber-600">
+                {language === 'vi' ? '• Trẻ dưới 5 tuổi: miễn phí (không cần ghế). Trẻ từ 5 tuổi trở lên: tính giá người lớn.' : language === 'ja' ? '• 5歳未満：無料（座席不要）。5歳以上：大人料金。' : '• Under 5: free (no seat needed). Age 5+: adult fare.'}
+              </p>
+            </div>
+          )}
           {/* Combined vehicle type + seat count filter */}
           <div className="flex items-center gap-2 sm:items-end sm:mt-4">
             <div className="flex-1 min-w-0 shrink">
