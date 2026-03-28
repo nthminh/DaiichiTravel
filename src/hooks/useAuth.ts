@@ -1,5 +1,5 @@
 import { UserRole } from '../constants/translations';
-import { CustomerProfile } from '../types';
+import { CustomerProfile, User } from '../types';
 import { transportService } from '../services/transportService';
 import type { Language } from '../constants/translations';
 
@@ -52,7 +52,7 @@ export function useAuth({ language, customers }: UseAuthOptions) {
     email?: string;
     uid?: string;
     loginMethod: string;
-  }): Promise<{ id: string; username: string; role: UserRole; name: string; phone?: string; email?: string } | null> => {
+  }): Promise<User | null> => {
     // Normalise phone for storage/lookup:
     // - Vietnamese E.164 (+84xxx) → local 0xxx format (consistent with traditional registration)
     // - International E.164 (+CCxxx) → kept as-is (e.g. +61412345678 for Australia)
@@ -101,6 +101,9 @@ export function useAuth({ language, customers }: UseAuthOptions) {
         name: customer.name || data.name || defaultName,
         phone: customer.phone || normalizedPhone,
         email: customer.email || effectiveEmail,
+        categoryId: customer.categoryId,
+        categoryName: customer.categoryName,
+        categoryVerificationStatus: customer.categoryVerificationStatus,
       };
     }
 

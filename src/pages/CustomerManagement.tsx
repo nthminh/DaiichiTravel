@@ -229,7 +229,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       return;
     }
     setCategorySaving(true);
-    const clean = Object.fromEntries(Object.entries(categoryForm).filter(([, v]) => v !== undefined && v !== '')) as Omit<CustomerCategory, 'id'>;
+    const clean = Object.fromEntries(Object.entries(categoryForm).filter(([, v]) => v !== undefined)) as Omit<CustomerCategory, 'id'>;
     try {
       if (editingCategoryId) {
         await transportService.updateCustomerCategory(editingCategoryId, clean);

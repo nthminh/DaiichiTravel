@@ -218,10 +218,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 {/* Customer category badge */}
                 {currentUser?.role === UserRole.CUSTOMER && (() => {
-                  const custAny = currentUser as any;
-                  const catId = custAny?.categoryId as string | undefined;
-                  const catName = custAny?.categoryName as string | undefined;
-                  const verStatus = custAny?.categoryVerificationStatus as string | undefined;
+                  const catId = currentUser?.categoryId;
+                  const catName = currentUser?.categoryName;
+                  const verStatus = currentUser?.categoryVerificationStatus;
                   if (!catId && !verStatus) return null;
                   if (verStatus === 'PENDING') {
                     return <p className="text-[9px] text-yellow-600 font-bold mt-0.5">⏳ {TRANSLATIONS[language].cat_verify_badge_pending || 'Đang chờ xác nhận'}</p>;

@@ -138,6 +138,10 @@ export interface User {
   agentCode?: string;
   balance?: number;
   password?: string;
+  // Customer category (populated when role === CUSTOMER)
+  categoryId?: string;
+  categoryName?: string;
+  categoryVerificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'NONE';
 }
 
 export interface Agent {
