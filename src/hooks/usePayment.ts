@@ -478,6 +478,9 @@ export function usePayment(ctx: BookingContext) {
         // Auto-update agent balance: amount is the net amount (after commission) the agent owes
         await updateAgentBalance(bd.amount);
         const savedBooking = { ...bd, id: result.id, ticketCode: result.ticketCode };
+        // Fire-and-forget customer activity update (does not affect booking outcome on failure)
+        transportService.updateCustomerOnBooking(bd.phone, bd.route, bd.amount, bd.pickupPoint, bd.dropoffPoint)
+          .catch(err => console.error('Failed to update customer activity for', bd.phone, ':', err));
         // Optimistic local state update (only needed when seats weren't pre-reserved)
         if (!skipBookSeats) {
           ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
@@ -836,6 +839,9 @@ export function usePayment(ctx: BookingContext) {
         await updateAgentBalance(bookingData.amount);
         const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
         ctx2.setLastBooking(savedBooking);
+        // Fire-and-forget customer activity update (does not affect booking outcome on failure)
+        transportService.updateCustomerOnBooking(bookingData.phone, bookingData.route, bookingData.amount, bookingData.pickupPoint, bookingData.dropoffPoint)
+          .catch(err => console.error('Failed to update customer activity for', bookingData.phone, ':', err));
         // Persist ticket to localStorage for CUSTOMER and GUEST so they can view it later
         if (ctx2.currentUser?.role === UserRole.CUSTOMER || ctx2.currentUser?.role === 'GUEST') {
           saveTicketToLocalStorage(savedBooking);
@@ -970,6 +976,9 @@ export function usePayment(ctx: BookingContext) {
           const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID' });
           const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
           ctx2.setLastBooking(savedBooking);
+          // Fire-and-forget customer activity update (does not affect booking outcome on failure)
+          transportService.updateCustomerOnBooking(bookingData.phone, bookingData.route, bookingData.amount, bookingData.pickupPoint, bookingData.dropoffPoint)
+            .catch(err => console.error('Failed to update customer activity for', bookingData.phone, ':', err));
           // Persist ticket to localStorage for CUSTOMER and GUEST so they can view it later
           if (ctx2.currentUser?.role === UserRole.CUSTOMER || ctx2.currentUser?.role === 'GUEST') {
             saveTicketToLocalStorage(savedBooking);

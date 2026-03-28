@@ -181,16 +181,36 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       return;
     }
     setSaving(true);
-    // Filter out undefined values so Firestore updateDoc does not reject them
-    const cleanForm = Object.fromEntries(
-      Object.entries(form).filter(([, v]) => v !== undefined)
-    ) as Omit<CustomerProfile, 'id'>;
     try {
       if (editingId) {
-        await transportService.updateCustomer(editingId, cleanForm);
+        // Only update fields shown in the edit form; never overwrite activity/stats data
+        // (bookedRoutes, totalBookings, totalSpent, lastActivityAt, preferences are managed by
+        //  the booking system via updateCustomerOnBooking, not the admin edit form)
+        const updates: Record<string, unknown> = {
+          name: form.name,
+          phone: form.phone,
+          email: form.email ?? '',
+          username: form.username ?? '',
+          note: form.note ?? '',
+          status: form.status,
+        };
+        // Only update password if the admin explicitly enters a new one
+        if ((form.password || '').trim()) {
+          updates.password = form.password;
+        }
+        // Handle category: only include if set (clearing requires separate UI)
+        if (form.categoryId) {
+          updates.categoryId = form.categoryId;
+          updates.categoryName = form.categoryName || '';
+        }
+        await transportService.updateCustomer(editingId, updates as Partial<Omit<CustomerProfile, 'id'>>);
         showSuccess(language === 'vi' ? 'Đã cập nhật khách hàng' : 'Customer updated');
         setEditingId(null);
       } else {
+        // Filter out undefined values so Firestore addDoc does not reject them
+        const cleanForm = Object.fromEntries(
+          Object.entries(form).filter(([, v]) => v !== undefined)
+        ) as Omit<CustomerProfile, 'id'>;
         await transportService.addCustomer({ ...cleanForm, registeredAt: new Date().toISOString() });
         showSuccess(language === 'vi' ? 'Đã thêm khách hàng' : 'Customer added');
         setShowForm(false);

@@ -13,6 +13,8 @@ import {
   query, 
   orderBy,
   limit,
+  where,
+  increment,
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1070,6 +1072,50 @@ export const transportService = {
     }
 
     await updateDoc(ref, updates as Record<string, unknown>);
+  },
+
+  // Update customer activity and stats when a booking is confirmed.
+  // Looks up the customer by phone number and atomically increments counters.
+  updateCustomerOnBooking: async (
+    phone: string,
+    route: string,
+    amount: number,
+    departurePoint?: string,
+    arrivalPoint?: string,
+  ) => {
+    if (!db || !phone?.trim()) return;
+    const MAX_TRACKED_ITEMS = 20;
+    const q = query(collection(db, 'customers'), where('phone', '==', phone.trim()));
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+
+    const customerDoc = snap.docs[0];
+    const data = customerDoc.data() as CustomerProfile;
+    const now = new Date().toISOString();
+
+    const booked = new Set(data.bookedRoutes || []);
+    booked.add(route);
+
+    const prefs = data.preferences || {};
+    const prefUpdates: { vehicleTypes?: string[]; departurePoints?: string[]; arrivalPoints?: string[] } = { ...prefs };
+    if (departurePoint) {
+      const depts = new Set(prefs.departurePoints || []);
+      depts.add(departurePoint);
+      prefUpdates.departurePoints = Array.from(depts);
+    }
+    if (arrivalPoint) {
+      const arrs = new Set(prefs.arrivalPoints || []);
+      arrs.add(arrivalPoint);
+      prefUpdates.arrivalPoints = Array.from(arrs);
+    }
+
+    await updateDoc(customerDoc.ref, {
+      bookedRoutes: Array.from(booked).slice(-MAX_TRACKED_ITEMS),
+      lastActivityAt: now,
+      totalBookings: increment(1),
+      totalSpent: increment(amount),
+      preferences: prefUpdates,
+    });
   },
 
   // ─── Driver Assignments ────────────────────────────────────────────────────
