@@ -82,7 +82,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return result;
-  }, [customers, search, statusFilter, categoryFilter, sortBy, sortDir]);
+  }, [customers, search, statusFilter, sortBy, sortDir]);
 
   // Reset to first page whenever filters or sort change
   useEffect(() => { setCurrentPage(1); }, [search, statusFilter, sortBy, sortDir]);
