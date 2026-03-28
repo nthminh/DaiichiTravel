@@ -2409,20 +2409,22 @@ export function BookTicketPage({
       <div className="bg-white p-2 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center justify-between gap-2 mb-2 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
-          <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
-            {(['ONE_WAY', 'ROUND_TRIP'] as const).map((type) => (
-              <button 
-                key={type}
-                onClick={() => setTripType(type)}
-                className={cn(
-                  "px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all whitespace-nowrap",
-                  tripType === type ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500"
-                )}
-              >
-                {type === 'ONE_WAY' ? t.trip_one_way : t.trip_round_trip}
-              </button>
-            ))}
-          </div>
+          {effectiveCategoryFilter !== 'TOUR_SHORT' && (
+            <div className="flex-shrink-0 flex bg-gray-100 p-0.5 sm:p-1 rounded-xl">
+              {(['ONE_WAY', 'ROUND_TRIP'] as const).map((type) => (
+                <button 
+                  key={type}
+                  onClick={() => setTripType(type)}
+                  className={cn(
+                    "px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all whitespace-nowrap",
+                    tripType === type ? "bg-white text-daiichi-red shadow-sm" : "text-gray-500"
+                  )}
+                >
+                  {type === 'ONE_WAY' ? t.trip_one_way : t.trip_round_trip}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           {/* FROM + TO combined cell with swap button overlaid between inputs */}

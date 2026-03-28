@@ -1,8 +1,8 @@
 import React from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Trash2 } from 'lucide-react';
 import { getLocalDateString } from '../lib/utils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
-import { Trip, Route, Vehicle, PricePeriod } from '../types';
+import { Trip, Route, Vehicle, PricePeriod, TripAddon } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { ConflictWarningBanner } from './ConflictWarningBanner';
 
@@ -55,6 +55,12 @@ export interface TripFormModalProps {
   getRouteActivePeriod: (route: Route, date: string) => PricePeriod | null;
   isRouteValidForDate: (route: Route, date: string) => boolean;
   formatRouteOption: (route: Route, period: PricePeriod | null, lang: Language) => string;
+  tripAddonServices: TripAddon[];
+  setTripAddonServices: React.Dispatch<React.SetStateAction<TripAddon[]>>;
+  tripAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' };
+  setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' }>>;
+  showTripAddonForm: boolean;
+  setShowTripAddonForm: (v: boolean) => void;
 }
 
 export function TripFormModal({
@@ -82,6 +88,12 @@ export function TripFormModal({
   getRouteActivePeriod,
   isRouteValidForDate,
   formatRouteOption,
+  tripAddonServices,
+  setTripAddonServices,
+  tripAddonForm,
+  setTripAddonForm,
+  showTripAddonForm,
+  setShowTripAddonForm,
 }: TripFormModalProps) {
   if (!showAddTrip) return null;
 
@@ -225,6 +237,62 @@ export function TripFormModal({
             </select>
           </div>
         </div>
+        {!editingTrip && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                {language === 'vi' ? 'Dịch vụ kèm theo' : 'Add-on Services'}
+              </label>
+            </div>
+            <div className="space-y-2">
+              {tripAddonServices.map(addon => (
+                <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm">{addon.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}</span>
+                    </div>
+                    {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                    <p className="text-sm font-bold text-daiichi-red mt-0.5">+{addon.price.toLocaleString()}đ</p>
+                  </div>
+                  <button onClick={() => setTripAddonServices(prev => prev.filter(a => a.id !== addon.id))} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
+                </div>
+              ))}
+              {showTripAddonForm ? (
+                <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={tripAddonForm.name} onChange={e => setTripAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={tripAddonForm.price} onChange={e => setTripAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
+                      <select value={tripAddonForm.type} onChange={e => setTripAddonForm(p => ({ ...p, type: e.target.value as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                        <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
+                        <option value="TRANSPORT">{t.addon_type_transport}</option>
+                        <option value="FOOD">{t.addon_type_food}</option>
+                        <option value="OTHER">{t.addon_type_other}</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => { setShowTripAddonForm(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button
+                      onClick={() => {
+                        if (!tripAddonForm.name) return;
+                        setTripAddonServices(prev => [...prev, { id: crypto.randomUUID(), ...tripAddonForm }]);
+                        setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' });
+                        setShowTripAddonForm(false);
+                      }}
+                      disabled={!tripAddonForm.name}
+                      className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50"
+                    >{t.save}</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowTripAddonForm(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
+              )}
+            </div>
+          </div>
+        )}
         {tripSaveError && (
           <div className="mx-1 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
             {tripSaveError}
@@ -239,7 +307,7 @@ export function TripFormModal({
           />
         )}
         <div className="flex justify-end gap-4 pt-2">
-          <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); setTripSaveError(null); }} disabled={isSavingTrip} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
+          <button onClick={() => { setShowAddTrip(false); setEditingTrip(null); setIsCopyingTrip(false); setTripSaveError(null); setTripAddonServices([]); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); setShowTripAddonForm(false); }} disabled={isSavingTrip} className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">{t.cancel}</button>
           <button onClick={handleSaveTrip} disabled={!tripForm.time || !tripForm.route || isSavingTrip} className="px-8 py-3 bg-daiichi-red text-white rounded-xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 flex items-center gap-2">
             {isSavingTrip && <Loader2 size={16} className="animate-spin" />}
             {editingTrip ? t.save : isCopyingTrip ? t.create_copy : (language === 'vi' ? 'Thêm chuyến' : 'Add Trip')}

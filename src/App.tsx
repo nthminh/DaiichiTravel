@@ -474,6 +474,12 @@ export default function App() {
     setIsCopyingTrip,
     tripForm,
     setTripForm,
+    tripAddonServices,
+    setTripAddonServices,
+    tripAddonForm: tripCreationAddonForm,
+    setTripAddonForm: setTripCreationAddonForm,
+    showTripAddonForm: showTripCreationAddonForm,
+    setShowTripAddonForm: setShowTripCreationAddonForm,
     showBatchAddTrip,
     setShowBatchAddTrip,
     batchTripForm,
@@ -2133,6 +2139,12 @@ export default function App() {
         getRouteActivePeriod={getRouteActivePeriod}
         isRouteValidForDate={isRouteValidForDate}
         formatRouteOption={formatRouteOption}
+        tripAddonServices={tripAddonServices}
+        setTripAddonServices={setTripAddonServices}
+        tripAddonForm={tripCreationAddonForm}
+        setTripAddonForm={setTripCreationAddonForm}
+        showTripAddonForm={showTripCreationAddonForm}
+        setShowTripAddonForm={setShowTripCreationAddonForm}
       />
       <Sidebar 
         activeTab={activeTab} 
