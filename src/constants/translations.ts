@@ -1767,7 +1767,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Sidebar/Menu
     home: 'ホーム',
     book_ticket: 'チケット予約',
-    tours: 'Tour ngày',
+    tours: '日帰りツアー',
     consignments: '荷物発送',
     agents: '代理店',
     routes: 'ルート',

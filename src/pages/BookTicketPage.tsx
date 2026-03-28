@@ -2392,7 +2392,7 @@ export function BookTicketPage({
             {language === 'vi' ? 'Đang lọc:' : 'Filtering:'}
             {' '}
             {effectiveCategoryFilter === 'BUS' ? (language === 'vi' ? '🚌 Xe bus' : '🚌 Bus') :
-             effectiveCategoryFilter === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour ngày' : '🗺️ Day Tours') :
+             effectiveCategoryFilter === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour ngày' : language === 'ja' ? '🗺️ 日帰りツアー' : '🗺️ Day Tours') :
              effectiveCategoryFilter === 'CRUISE' ? (language === 'vi' ? '⚓ Du thuyền' : '⚓ Cruise') :
              effectiveCategoryFilter === 'HOTEL' ? (language === 'vi' ? '🏨 Khách sạn' : '🏨 Hotel') : effectiveCategoryFilter}
           </span>
