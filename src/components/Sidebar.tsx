@@ -7,7 +7,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Language, User, UserRole, TRANSLATIONS } from '../App';
-import type { CustomerCategory } from '../types';
 
 interface SidebarProps {
   activeTab: string;
@@ -19,12 +18,11 @@ interface SidebarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
   permissions?: Record<string, Record<string, boolean>> | null;
-  customerCategories?: CustomerCategory[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   activeTab, setActiveTab, currentUser, onLogout, 
-  language, setLanguage, isSidebarOpen, setIsSidebarOpen, permissions, customerCategories
+  language, setLanguage, isSidebarOpen, setIsSidebarOpen, permissions
 }) => {
   const t = TRANSLATIONS[language];
   const [isDaiichiOpen, setIsDaiichiOpen] = useState(false);
@@ -37,7 +35,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'employees', label: TRANSLATIONS[language].employees || 'Nhân viên', icon: Users },
     { id: 'vehicles', label: t.vehicles, icon: Truck },
     { id: 'customers', label: TRANSLATIONS[language].customers || 'Khách hàng', icon: Users },
-    { id: 'customer-verification', label: TRANSLATIONS[language].customer_verification || 'Xác nhận Loại khách', icon: CheckCircle },
     { id: 'audit-log', label: TRANSLATIONS[language].audit_log || 'Nhật ký hoạt động', icon: BookOpen },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', icon: CheckCircle },
     { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star },
@@ -216,32 +213,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {currentUser?.role === UserRole.AGENT && currentUser.address && (
                   <p className="text-[10px] text-gray-500 truncate">{currentUser.address}</p>
                 )}
-                {/* Customer category badge */}
-                {currentUser?.role === UserRole.CUSTOMER && (() => {
-                  const catId = currentUser?.categoryId;
-                  const catName = currentUser?.categoryName;
-                  const verStatus = currentUser?.categoryVerificationStatus;
-                  if (!catId && !verStatus) return null;
-                  if (verStatus === 'PENDING') {
-                    return <p className="text-[9px] text-yellow-600 font-bold mt-0.5">⏳ {TRANSLATIONS[language].cat_verify_badge_pending || 'Đang chờ xác nhận'}</p>;
-                  }
-                  if (verStatus === 'REJECTED') {
-                    return <p className="text-[9px] text-red-500 font-bold mt-0.5">✕ {TRANSLATIONS[language].cat_verify_status_rejected || 'Bị từ chối'}</p>;
-                  }
-                  if (catName || (catId && customerCategories)) {
-                    const catObj = customerCategories?.find(c => c.id === catId);
-                    const displayName = catName || catObj?.name;
-                    const color = catObj?.color || '#6B7280';
-                    if (displayName) {
-                      return (
-                        <p className="text-[9px] font-bold mt-0.5" style={{ color }}>
-                          🏷 {displayName}
-                        </p>
-                      );
-                    }
-                  }
-                  return null;
-                })()}
               </div>
             </div>
             {currentUser?.role === UserRole.AGENT && (

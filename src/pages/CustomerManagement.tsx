@@ -1,20 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users, Plus, Search, X, Save, Trash2, ChevronDown, ChevronUp,
-  Phone, Mail, User, Calendar, Activity, Star, Eye, CheckCircle2, AlertCircle, Pencil,
-  ShieldCheck, ShieldOff, TrendingUp, Award, MapPin, Filter, ArrowUpDown, Tag
+  Phone, Mail, User, Calendar, Star, Eye, CheckCircle2, AlertCircle, Pencil,
+  ShieldCheck, ShieldOff, TrendingUp, Award, MapPin, Filter, ArrowUpDown, Ticket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language } from '../App';
-import { CustomerProfile, User as AppUser, UserRole, CustomerCategory } from '../types';
+import { CustomerProfile, User as AppUser, UserRole } from '../types';
 import { transportService } from '../services/transportService';
 
 interface CustomerManagementProps {
   language: Language;
   customers: CustomerProfile[];
-  categories: CustomerCategory[];
   currentUser?: AppUser | null;
 }
 
@@ -31,38 +30,23 @@ const EMPTY_FORM: Omit<CustomerProfile, 'id'> = {
   registeredAt: new Date().toISOString(),
 };
 
-const EMPTY_CATEGORY_FORM: Omit<CustomerCategory, 'id'> = {
-  name: '',
-  description: '',
-  color: '#6B7280',
-  sortOrder: 0,
-};
-
-export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language, customers, categories, currentUser }) => {
+export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language, customers, currentUser }) => {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<'name' | 'registeredAt' | 'totalBookings' | 'totalSpent'>('registeredAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  // Category management
-  const [showCategoryPanel, setShowCategoryPanel] = useState(false);
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [categoryForm, setCategoryForm] = useState<Omit<CustomerCategory, 'id'>>({ ...EMPTY_CATEGORY_FORM });
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [categorySaving, setCategorySaving] = useState(false);
 
   const sortOptions = useMemo(() => [
     { key: 'registeredAt' as const, label: language === 'vi' ? 'Ngày đăng ký' : 'Registered' },
     { key: 'name' as const, label: language === 'vi' ? 'Tên' : 'Name' },
     { key: 'totalBookings' as const, label: language === 'vi' ? 'Số đơn' : 'Bookings' },
     { key: 'totalSpent' as const, label: language === 'vi' ? 'Tổng chi' : 'Total Spent' },
-  ], [language]);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  ], [language]);  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<CustomerProfile, 'id'>>({ ...EMPTY_FORM });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
@@ -82,9 +66,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
         matchesSearch(c.username || '', search) ||
         matchesSearch(c.note || '', search);
       const statusMatch = statusFilter === 'ALL' || c.status === statusFilter;
-      const catMatch = categoryFilter === 'ALL' ||
-        (categoryFilter === 'NONE' ? !c.categoryId : c.categoryId === categoryFilter);
-      return searchMatch && statusMatch && catMatch;
+      return searchMatch && statusMatch;
     });
     result = [...result].sort((a, b) => {
       let cmp = 0;
@@ -103,7 +85,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   }, [customers, search, statusFilter, categoryFilter, sortBy, sortDir]);
 
   // Reset to first page whenever filters or sort change
-  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, categoryFilter, sortBy, sortDir]);
+  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, sortBy, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = useMemo(() => {
@@ -166,9 +148,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       preferences: c.preferences,
       totalBookings: c.totalBookings,
       totalSpent: c.totalSpent,
-      categoryId: c.categoryId,
-      categoryName: c.categoryName,
-      categoryVerificationStatus: c.categoryVerificationStatus,
     });
     setShowForm(false);
     setExpandedId(null);
@@ -197,11 +176,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
         // Only update password if the admin explicitly enters a new one
         if ((form.password || '').trim()) {
           updates.password = form.password;
-        }
-        // Handle category: only include if set (clearing requires separate UI)
-        if (form.categoryId) {
-          updates.categoryId = form.categoryId;
-          updates.categoryName = form.categoryName || '';
         }
         await transportService.updateCustomer(editingId, updates as Partial<Omit<CustomerProfile, 'id'>>);
         showSuccess(language === 'vi' ? 'Đã cập nhật khách hàng' : 'Customer updated');
@@ -241,60 +215,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
     }
   };
 
-  // ── Category management ────────────────────────────────────────────────────
-
-  const openAddCategory = () => {
-    setEditingCategoryId(null);
-    setCategoryForm({ ...EMPTY_CATEGORY_FORM, sortOrder: categories.length });
-    setShowCategoryForm(true);
-  };
-
-  const openEditCategory = (cat: CustomerCategory) => {
-    setEditingCategoryId(cat.id);
-    setCategoryForm({ name: cat.name, description: cat.description || '', color: cat.color || '#6B7280', sortOrder: cat.sortOrder ?? 0 });
-    setShowCategoryForm(true);
-  };
-
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!categoryForm.name.trim()) {
-      showError(language === 'vi' ? 'Tên loại khách là bắt buộc' : 'Category name is required');
-      return;
-    }
-    setCategorySaving(true);
-    const clean = Object.fromEntries(Object.entries(categoryForm).filter(([, v]) => v !== undefined)) as Omit<CustomerCategory, 'id'>;
-    try {
-      if (editingCategoryId) {
-        await transportService.updateCustomerCategory(editingCategoryId, clean);
-      } else {
-        await transportService.addCustomerCategory(clean);
-      }
-      showSuccess(t.category_saved || 'Đã lưu loại khách.');
-      setShowCategoryForm(false);
-      setEditingCategoryId(null);
-    } catch {
-      showError(language === 'vi' ? 'Lưu thất bại' : 'Save failed');
-    } finally {
-      setCategorySaving(false);
-    }
-  };
-
-  const handleDeleteCategory = async (cat: CustomerCategory) => {
-    if (!window.confirm(t.confirm_delete_category || 'Xóa loại khách này?')) return;
-    try {
-      await transportService.deleteCustomerCategory(cat.id);
-      showSuccess(t.category_deleted || 'Đã xóa.');
-    } catch {
-      showError(language === 'vi' ? 'Xóa thất bại' : 'Delete failed');
-    }
-  };
-
-  const categoryById = useMemo(() => {
-    const m: Record<string, CustomerCategory> = {};
-    categories.forEach(c => { m[c.id] = c; });
-    return m;
-  }, [categories]);
-
   const formatDate = (iso?: string) => {
     if (!iso) return '—';
     try {
@@ -311,18 +231,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
           <p className="text-gray-500 mt-1">{t.customer_management_desc || 'Hồ sơ thành viên và lịch sử hoạt động'}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-          {isAdmin && (
-            <button
-              onClick={() => setShowCategoryPanel(v => !v)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border transition-all",
-                showCategoryPanel ? "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-              )}
-            >
-              <Tag size={15} />
-              {t.customer_category_management || 'Loại khách'}
-            </button>
-          )}
           <button
             onClick={openAdd}
             className="flex items-center gap-2 px-5 py-2.5 bg-daiichi-red text-white rounded-xl font-bold text-sm shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all"
@@ -345,118 +253,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             className="flex items-center gap-2 text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
             <AlertCircle size={18} /><span className="font-bold text-sm">{errorMsg}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Category Management Panel ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {showCategoryPanel && (
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                  <Tag size={16} className="text-daiichi-red" />
-                  {t.customer_category_management || 'Quản lý Loại khách'}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">{t.customer_category_desc}</p>
-              </div>
-              <button
-                onClick={openAddCategory}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold hover:scale-[1.02] transition-all shadow-sm shadow-daiichi-red/20"
-              >
-                <Plus size={13} />
-                {t.add_customer_category || 'Thêm loại'}
-              </button>
-            </div>
-
-            {/* Category form */}
-            <AnimatePresence>
-              {showCategoryForm && (
-                <motion.form
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  onSubmit={handleSaveCategory}
-                  className="overflow-hidden mb-4 border border-gray-100 rounded-2xl bg-gray-50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
-                >
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t.category_name_label || 'Tên loại khách'} *</label>
-                    <input
-                      type="text"
-                      value={categoryForm.name}
-                      onChange={e => setCategoryForm(p => ({ ...p, name: e.target.value }))}
-                      className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                      placeholder={language === 'vi' ? 'VD: Sinh viên' : 'e.g. Student'}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t.category_color_label || 'Màu hiển thị'}</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="color"
-                        value={categoryForm.color || '#6B7280'}
-                        onChange={e => setCategoryForm(p => ({ ...p, color: e.target.value }))}
-                        className="w-10 h-9 rounded-lg border border-gray-200 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={categoryForm.color || ''}
-                        onChange={e => setCategoryForm(p => ({ ...p, color: e.target.value }))}
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                        placeholder="#3B82F6"
-                      />
-                    </div>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t.category_desc_label || 'Mô tả'}</label>
-                    <input
-                      type="text"
-                      value={categoryForm.description}
-                      onChange={e => setCategoryForm(p => ({ ...p, description: e.target.value }))}
-                      className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                      placeholder={language === 'vi' ? 'Mô tả ngắn...' : 'Short description...'}
-                    />
-                  </div>
-                  <div className="sm:col-span-2 flex justify-end gap-2 pt-1">
-                    <button type="button" onClick={() => setShowCategoryForm(false)}
-                      className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-100 transition-all">
-                      {language === 'vi' ? 'Hủy' : 'Cancel'}
-                    </button>
-                    <button type="submit" disabled={categorySaving}
-                      className="px-5 py-2 bg-daiichi-red text-white rounded-xl text-sm font-bold hover:scale-[1.02] disabled:opacity-50 transition-all">
-                      {categorySaving ? '...' : (language === 'vi' ? 'Lưu' : 'Save')}
-                    </button>
-                  </div>
-                </motion.form>
-              )}
-            </AnimatePresence>
-
-            {/* Category list */}
-            {categories.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">{t.no_categories}</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {categories.map(cat => (
-                  <div key={cat.id}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 group"
-                  >
-                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#6B7280' }} />
-                    <span className="text-sm font-bold text-gray-700">{cat.name}</span>
-                    {cat.description && <span className="text-xs text-gray-400">{cat.description}</span>}
-                    <div className="hidden group-hover:flex items-center gap-1 ml-1">
-                      <button onClick={() => openEditCategory(cat)} className="p-1 text-gray-400 hover:text-blue-500 rounded-lg transition-all"><Pencil size={12} /></button>
-                      {isAdmin && <button onClick={() => handleDeleteCategory(cat)} className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-all"><Trash2 size={12} /></button>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -615,30 +411,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                 </select>
               </div>
 
-              {/* Customer Category */}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">
-                  {t.customer_category || 'Loại khách hàng'}
-                </label>
-                <select
-                  value={form.categoryId || ''}
-                  onChange={e => {
-                    const cat = categories.find(c => c.id === e.target.value);
-                    setForm(p => ({ ...p, categoryId: e.target.value || undefined, categoryName: cat?.name || undefined }));
-                  }}
-                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                >
-                  <option value="">
-                    {categories.length === 0
-                      ? (language === 'vi' ? 'Chưa có loại khách — hãy tạo tại "Loại khách"' : 'No categories yet — create one in "Loại khách"')
-                      : (t.customer_no_category || 'Chưa phân loại')}
-                  </option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Username */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">
@@ -737,21 +509,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
             ))}
           </div>
 
-          {/* Category filter */}
-          {categories.length > 0 && (
-            <select
-              value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value)}
-              className="border border-gray-200 rounded-xl text-xs font-bold px-3 py-2 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-            >
-              <option value="ALL">{t.customer_category || 'Loại khách'} – {language === 'vi' ? 'Tất cả' : 'All'}</option>
-              <option value="NONE">{t.customer_no_category || 'Chưa phân loại'}</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          )}
-
           {/* Advanced filter toggle */}
           <button
             onClick={() => setShowAdvancedFilter(v => !v)}
@@ -848,30 +605,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                     )}>
                       {c.status === 'ACTIVE' ? (t.customer_active || 'Hoạt động') : (t.customer_inactive || 'Ngừng')}
                     </span>
-                    {/* Category badge */}
-                    {c.categoryId && categoryById[c.categoryId] && (
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                        style={{
-                          color: categoryById[c.categoryId].color || '#6B7280',
-                          backgroundColor: (categoryById[c.categoryId].color || '#6B7280') + '18',
-                          borderColor: (categoryById[c.categoryId].color || '#6B7280') + '40',
-                        }}
-                      >
-                        {categoryById[c.categoryId].name}
-                      </span>
-                    )}
-                    {/* Verification status badge */}
-                    {c.categoryVerificationStatus === 'PENDING' && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-600 border border-yellow-200">
-                        ⏳ {t.cat_verify_status_pending || 'Chờ xác nhận'}
-                      </span>
-                    )}
-                    {c.categoryVerificationStatus === 'REJECTED' && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
-                        ✕ {t.cat_verify_status_rejected || 'Bị từ chối'}
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                     <span className="text-xs text-gray-500 flex items-center gap-1"><Phone size={11} />{c.phone}</span>
@@ -1005,25 +738,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                             <option value="INACTIVE">{t.customer_inactive || 'Không hoạt động'}</option>
                           </select>
                         </div>
-                        {/* Customer Category */}
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
-                            {t.customer_category || 'Loại khách hàng'}
-                          </label>
-                          <select
-                            value={form.categoryId || ''}
-                            onChange={e => {
-                              const cat = categories.find(cat2 => cat2.id === e.target.value);
-                              setForm(p => ({ ...p, categoryId: e.target.value || undefined, categoryName: cat?.name || undefined }));
-                            }}
-                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                          >
-                            <option value="">{t.customer_no_category || 'Chưa phân loại'}</option>
-                            {categories.map(cat => (
-                              <option key={cat.id} value={cat.id}>{cat.name}</option>
-                            ))}
-                          </select>
-                        </div>
                         {/* Username */}
                         <div>
                           <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
@@ -1100,17 +814,37 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   >
                     <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 bg-gray-50/60">
 
-                      {/* Last activity */}
+                      {/* Ticket summary */}
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                          <Activity size={11} />{t.customer_last_activity || 'Hoạt động gần đây'}
+                          <Ticket size={11} className="text-daiichi-red" />{language === 'vi' ? 'Tổng kết vé đã đặt' : 'Ticket Summary'}
                         </p>
-                        <p className="text-sm text-gray-700">{c.lastActivityAt ? formatDate(c.lastActivityAt) : '—'}</p>
-                        {c.totalSpent != null && c.totalSpent > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {t.customer_total_spent || 'Tổng chi'}: <span className="font-bold text-daiichi-red">{c.totalSpent.toLocaleString()}đ</span>
+                        <div className="space-y-1.5">
+                          <p className="text-sm font-bold text-gray-700">
+                            {c.totalBookings ?? 0}
+                            <span className="text-xs font-normal text-gray-500 ml-1">{language === 'vi' ? 'vé' : 'tickets'}</span>
                           </p>
-                        )}
+                          {c.totalSpent != null && c.totalSpent > 0 && (
+                            <p className="text-xs text-gray-500">
+                              {t.customer_total_spent || 'Tổng chi'}: <span className="font-bold text-daiichi-red">{c.totalSpent.toLocaleString()}đ</span>
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400">{c.lastActivityAt ? formatDate(c.lastActivityAt) : '—'}</p>
+                        </div>
+                      </div>
+
+                      {/* Booked routes */}
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                          <Calendar size={11} />{t.customer_booked_routes || 'Tuyến đã đặt'}
+                        </p>
+                        {(c.bookedRoutes || []).length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {(c.bookedRoutes || []).slice(0, 8).map((r, i) => (
+                              <span key={i} className="text-[11px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-medium">{r}</span>
+                            ))}
+                          </div>
+                        ) : <p className="text-xs text-gray-400">—</p>}
                       </div>
 
                       {/* Viewed routes */}
@@ -1122,20 +856,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                           <div className="flex flex-wrap gap-1">
                             {(c.viewedRoutes || []).slice(0, 6).map((r, i) => (
                               <span key={i} className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{r}</span>
-                            ))}
-                          </div>
-                        ) : <p className="text-xs text-gray-400">—</p>}
-                      </div>
-
-                      {/* Booked routes */}
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                          <Calendar size={11} />{t.customer_booked_routes || 'Tuyến đã đặt'}
-                        </p>
-                        {(c.bookedRoutes || []).length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {(c.bookedRoutes || []).slice(0, 6).map((r, i) => (
-                              <span key={i} className="text-[11px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-medium">{r}</span>
                             ))}
                           </div>
                         ) : <p className="text-xs text-gray-400">—</p>}
