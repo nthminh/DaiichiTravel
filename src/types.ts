@@ -138,6 +138,10 @@ export interface User {
   agentCode?: string;
   balance?: number;
   password?: string;
+  // Customer category (populated when role === CUSTOMER)
+  categoryId?: string;
+  categoryName?: string;
+  categoryVerificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'NONE';
 }
 
 export interface Agent {
@@ -503,6 +507,46 @@ export interface StaffMessage {
   messageType?: 'text' | 'voice';  // optional – defaults to 'text'
 }
 
+// Customer category – admin-managed list (e.g. "Khách bình thường", "Sinh viên", "Người địa phương")
+export interface CustomerCategory {
+  id: string;
+  name: string;        // e.g. "Sinh viên"
+  description?: string;
+  color?: string;      // hex color for badge, e.g. "#3B82F6"
+  sortOrder?: number;
+}
+
+// Category verification request submitted by a customer during registration
+export interface CategoryVerificationRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  categoryId: string;
+  categoryName: string;
+  proofImageUrl: string;      // Firebase Storage URL of uploaded proof image
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: string;        // ISO timestamp
+  reviewedAt?: string;        // ISO timestamp
+  reviewedBy?: string;        // staff user id who reviewed
+  reviewNote?: string;        // optional note from staff
+}
+
+// Audit log entry – records every significant user action for accountability
+export interface AuditLog {
+  id: string;
+  actorId: string;            // user id (customer, agent, employee, manager)
+  actorName: string;          // display name
+  actorRole: string;          // role at time of action
+  action: string;             // e.g. 'LOGIN', 'BOOK_TICKET', 'CANCEL_BOOKING', 'EDIT_TRIP', 'APPROVE_CATEGORY'
+  targetType?: string;        // e.g. 'trip', 'booking', 'customer', 'route'
+  targetId?: string;          // id of the affected entity
+  targetLabel?: string;       // human-readable description of the target
+  detail?: string;            // extra context (e.g. seat numbers, changes made)
+  createdAt: string;          // ISO timestamp
+  ipAddress?: string;         // optional
+}
+
 // Customer profile stored in Firestore customers collection
 export interface CustomerProfile {
   id: string;
@@ -517,6 +561,11 @@ export interface CustomerProfile {
   status: 'ACTIVE' | 'INACTIVE';
   registeredAt: string;      // ISO timestamp
   lastActivityAt?: string;   // ISO timestamp of last known activity
+  // Customer classification
+  categoryId?: string;                  // id of CustomerCategory
+  categoryName?: string;                // denormalised name for fast display
+  categoryVerificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'NONE';
+  categoryProofImageUrl?: string;       // uploaded proof image URL
   // Behavior tracking for personalised suggestions
   viewedRoutes?: string[];   // route names the customer has searched/viewed
   viewedTours?: string[];    // tour ids the customer has viewed
