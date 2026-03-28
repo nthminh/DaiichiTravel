@@ -71,7 +71,6 @@ const MyTickets = lazy(() => import('./pages/MyTickets').then(m => ({ default: m
 const AgentBookings = lazy(() => import('./pages/AgentBookings').then(m => ({ default: m.AgentBookings })));
 const TourBookingForm = lazy(() => import('./components/TourBookingForm').then(m => ({ default: m.TourBookingForm })));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
-const ToursPage = lazy(() => import('./pages/ToursPage').then(m => ({ default: m.ToursPage })));
 const CompletedTripsPage = lazy(() => import('./pages/CompletedTripsPage').then(m => ({ default: m.CompletedTripsPage })));
 const RouteManagementPage = lazy(() => import('./pages/RouteManagementPage').then(m => ({ default: m.RouteManagementPage })));
 const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
@@ -1369,6 +1368,7 @@ export default function App() {
               toggleLikedTrip={toggleLikedTrip}
               routeCategoryFilter={routeCategoryFilter}
               setRouteCategoryFilter={setRouteCategoryFilter}
+              lockedCategoryFilter='BUS'
             />
           </Suspense>
         );
@@ -1458,43 +1458,86 @@ export default function App() {
       case 'tours':
         return (
           <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
-            <ToursPage
-              tours={tours}
-              tourHasSearched={tourHasSearched}
-              clearedTourCards={clearedTourCards}
-              tourPriceMin={tourPriceMin}
-              tourPriceMax={tourPriceMax}
-              tourDurationFilter={tourDurationFilter}
-              expandedVideoTourId={expandedVideoTourId}
-              likedTours={likedTours}
+            <BookTicketPage
+              trips={trips}
+              routes={routes}
+              vehicles={vehicles}
+              stops={stops}
               language={language}
-              setTourHasSearched={setTourHasSearched}
-              setClearedTourCards={setClearedTourCards}
-              setTourPriceMin={setTourPriceMin}
-              setTourPriceMax={setTourPriceMax}
-              setTourDurationFilter={setTourDurationFilter}
-              setExpandedVideoTourId={setExpandedVideoTourId}
-              toggleLike={toggleLike}
-              onSelectTour={(tour) => {
-                setSelectedTour(tour);
-                setTourBookingName('');
-                setTourBookingPhone('');
-                setTourBookingEmail('');
-                setTourBookingDate('');
-                setTourBookingAdults(tour.numAdults ?? 1);
-                setTourBookingChildren(tour.numChildren ?? 0);
-                setTourBookingNights(tour.nights ?? 0);
-                setTourBookingBreakfasts(tour.breakfastCount ?? 0);
-                setTourAccommodation('none');
-                setTourMealPlan('none');
-                setTourSelectedAddons(new Set());
-                setTourNotes('');
-                setTourPaymentMethod(DEFAULT_PAYMENT_METHOD);
-                setTourBookingSuccess(false);
-                setTourBookingError('');
-                setTourBookingStatus('PENDING');
-                setActiveTab('book-tour');
-              }}
+              searchFrom={searchFrom}
+              searchTo={searchTo}
+              searchStationFrom={searchStationFrom}
+              searchStationTo={searchStationTo}
+              searchDate={searchDate}
+              searchReturnDate={searchReturnDate}
+              vehicleTypeFilter={vehicleTypeFilter}
+              bookTicketSearch={bookTicketSearch}
+              priceMin={priceMin}
+              priceMax={priceMax}
+              searchTimeFrom={searchTimeFrom}
+              searchTimeTo={searchTimeTo}
+              hasSearched={hasSearched}
+              clearedTripCards={clearedTripCards}
+              searchAdults={searchAdults}
+              searchChildren={searchChildren}
+              roundTripPhase={roundTripPhase}
+              outboundBookingData={outboundBookingData}
+              tripType={tripType}
+              showInquiryForm={showInquiryForm}
+              inquiryName={inquiryName}
+              inquiryPhone={inquiryPhone}
+              inquiryEmail={inquiryEmail}
+              inquiryNotes={inquiryNotes}
+              inquiryLoading={inquiryLoading}
+              inquirySuccess={inquirySuccess}
+              inquiryError={inquiryError}
+              currentUser={currentUser}
+              tripCardImgIdx={tripCardImgIdx}
+              paymentConfig={paymentConfig}
+              showAddonDetailTrip={showAddonDetailTrip}
+              setSearchFrom={setSearchFrom}
+              setSearchTo={setSearchTo}
+              setSearchStationFrom={setSearchStationFrom}
+              setSearchStationTo={setSearchStationTo}
+              setSearchDate={setSearchDate}
+              setSearchReturnDate={setSearchReturnDate}
+              setBookTicketSearch={setBookTicketSearch}
+              setPriceMin={setPriceMin}
+              setPriceMax={setPriceMax}
+              setSearchTimeFrom={setSearchTimeFrom}
+              setSearchTimeTo={setSearchTimeTo}
+              setVehicleTypeFilter={setVehicleTypeFilter}
+              setHasSearched={setHasSearched}
+              setClearedTripCards={setClearedTripCards}
+              setSearchAdults={setSearchAdults}
+              setSearchChildren={setSearchChildren}
+              setTripType={setTripType}
+              setShowInquiryForm={setShowInquiryForm}
+              setInquiryName={setInquiryName}
+              setInquiryPhone={setInquiryPhone}
+              setInquiryEmail={setInquiryEmail}
+              setInquiryNotes={setInquiryNotes}
+              setInquirySuccess={setInquirySuccess}
+              handleInquirySubmit={handleInquirySubmit}
+              setSelectedTrip={setSelectedTrip}
+              setPreviousTab={setPreviousTab}
+              setActiveTab={setActiveTab}
+              setRoundTripPhase={setRoundTripPhase}
+              setTripCardImgIdx={setTripCardImgIdx}
+              setShowAddonDetailTrip={setShowAddonDetailTrip}
+              compareTripDateTime={compareTripDateTime}
+              formatTripDateDisplay={formatTripDateDisplay}
+              pickupAddress={pickupAddress}
+              dropoffAddress={dropoffAddress}
+              setPickupAddress={setPickupAddress}
+              setDropoffAddress={setDropoffAddress}
+              setPickupAddressSurcharge={setPickupAddressSurcharge}
+              setDropoffAddressSurcharge={setDropoffAddressSurcharge}
+              setPickupStopAddress={setPickupStopAddress}
+              setDropoffStopAddress={setDropoffStopAddress}
+              likedTrips={likedTrips}
+              toggleLikedTrip={toggleLikedTrip}
+              lockedCategoryFilter='TOUR_SHORT'
             />
           </Suspense>
         );
