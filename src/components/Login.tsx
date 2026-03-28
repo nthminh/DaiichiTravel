@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2, User as UserIcon } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2, User as UserIcon, Tag, Upload, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
 import { app, auth } from '../lib/firebase';
+import type { CustomerCategory, CustomerProfile } from '../types';
 import {
   signInWithPhoneNumber,
   signInAnonymously,
@@ -17,7 +18,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 type MemberLoginMethod = 'phone' | 'gmail' | 'facebook' | 'whatsapp' | 'email';
-type MemberAuthStep = 'method' | 'phone-entry' | 'otp' | 'social-loading' | 'name-entry' | 'email-entry' | 'email-sent';
+type MemberAuthStep = 'method' | 'phone-entry' | 'otp' | 'social-loading' | 'name-entry' | 'email-entry' | 'email-sent' | 'category-claim';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -26,11 +27,13 @@ interface LoginProps {
   adminCredentials: any;
   agents: any[];
   employees?: any[];
-  customers?: any[];
+  customers?: CustomerProfile[];
   agentsLoading?: boolean;
   securityConfig?: { phoneVerificationEnabled: boolean; phoneNumbers: string[] };
   onRegister?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
   onOtpMemberLogin?: (data: { name?: string; phone?: string; email?: string; uid?: string; loginMethod: string }) => Promise<User | null>;
+  categories?: CustomerCategory[];
+  onCategoryRequest?: (data: { customerId: string; categoryId: string; categoryName: string; proofFile: File }) => Promise<void>;
 }
 
 const RECAPTCHA_SITE_KEY =
@@ -107,7 +110,7 @@ const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   animationDuration: `${PARTICLE_MIN_DURATION + (i % PARTICLE_SIZE_VARIANTS) * PARTICLE_DURATION_STEP}s`,
 }));
 
-export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, customers, agentsLoading, securityConfig, onRegister, onOtpMemberLogin }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, adminCredentials, agents, employees, customers, agentsLoading, securityConfig, onRegister, onOtpMemberLogin, categories, onCategoryRequest }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -158,6 +161,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   // Holds verified info from phone OTP or social OAuth before profile completion
   const [pendingAuthData, setPendingAuthData] = useState<{ uid?: string; phone?: string; email?: string; name?: string } | null>(null);
   const memberConfirmationResultRef = useRef<ConfirmationResult | null>(null);
+
+  // ── Category claim state (shown after login for new customers) ──
+  const [pendingLoginUser, setPendingLoginUser] = useState<User | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [categoryProofFile, setCategoryProofFile] = useState<File | null>(null);
+  const [categoryProofPreview, setCategoryProofPreview] = useState<string | null>(null);
+  const [categoryClaimLoading, setCategoryClaimLoading] = useState(false);
+  const [categoryClaimError, setCategoryClaimError] = useState('');
 
   // Holds the RecaptchaVerifier instance for Firebase phone auth (invisible mode).
   // Kept in a ref so it persists across renders without triggering re-renders.
@@ -479,12 +490,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberOtpError('');
     setMemberNameInput('');
     setPendingAuthData(null);
+    setPendingLoginUser(null);
+    setSelectedCategoryId('');
+    setCategoryProofFile(null);
+    setCategoryProofPreview(null);
+    setCategoryClaimError('');
     memberConfirmationResultRef.current = null;
   };
 
   /**
    * After Firebase auth (phone or social), find or create the customer and log in.
    * If the customer is new and has no name yet, moves to the name-entry step.
+   * If the customer has no category and categories are available, moves to category-claim step.
    */
   const completeMemberLogin = async (authData: { uid?: string; phone?: string; email?: string; name?: string }, method: MemberLoginMethod) => {
     if (!onOtpMemberLogin) return;
@@ -499,7 +516,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           setMemberNameInput(authData.name || '');
           setMemberAuthStep('name-entry');
         } else {
-          onLogin(user);
+          // Check if we should ask about category
+          const customerProfile = customers?.find(c => c.id === user.id);
+          const needsCategory = categories && categories.length > 0 &&
+            (!customerProfile?.categoryId && !customerProfile?.categoryVerificationStatus || customerProfile?.categoryVerificationStatus === 'NONE');
+          if (needsCategory) {
+            setPendingLoginUser(user);
+            setMemberAuthStep('category-claim');
+          } else {
+            onLogin(user);
+          }
         }
       }
     } catch (err) {
@@ -717,7 +743,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     try {
       const user = await onOtpMemberLogin({ ...pendingAuthData, name, loginMethod: selectedMethod });
       if (user) {
-        onLogin({ ...user, name });
+        const userWithName = { ...user, name };
+        // Check if we should ask about category
+        const customerProfile = customers?.find(c => c.id === userWithName.id);
+        const needsCategory = categories && categories.length > 0 &&
+          (!customerProfile?.categoryId && !customerProfile?.categoryVerificationStatus || customerProfile?.categoryVerificationStatus === 'NONE');
+        if (needsCategory) {
+          setPendingLoginUser(userWithName);
+          setMemberAuthStep('category-claim');
+        } else {
+          onLogin(userWithName);
+        }
       }
     } catch {
       setMemberOtpError(language === 'vi' ? 'Không thể lưu thông tin. Vui lòng thử lại.' : 'Could not save profile. Please try again.');
@@ -1170,6 +1206,143 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                 >
                   {t.otp_email_resend || 'Gửi lại email'}
                 </button>
+              </motion.div>
+            )}
+
+            {/* ── Step: Category claim ── */}
+            {memberAuthStep === 'category-claim' && (
+              <motion.div
+                key="category-claim"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3"
+              >
+                <div className="flex flex-col items-center gap-1.5 mb-2">
+                  <Tag size={24} className="text-daiichi-yellow" />
+                  <p className="text-white font-bold text-sm text-center">
+                    {t.cat_verify_title || 'Xác nhận loại khách hàng'}
+                  </p>
+                  <p className="text-white/60 text-xs text-center">
+                    {t.cat_verify_desc || 'Bạn có thuộc nhóm khách hàng đặc biệt không? Khai báo để hưởng chính sách ưu đãi riêng.'}
+                  </p>
+                </div>
+
+                {/* Category selection */}
+                <div>
+                  <p className="text-white/60 text-xs font-bold mb-2">{t.cat_verify_select_label || 'Chọn loại của bạn'}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(categories || []).map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCategoryId(cat.id)}
+                        className={cn(
+                          'px-3 py-2 rounded-xl text-xs font-bold border transition-all',
+                          selectedCategoryId === cat.id
+                            ? 'bg-white/90 text-daiichi-red border-white/90 scale-[1.02]'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                        )}
+                        style={selectedCategoryId === cat.id ? {} : { borderColor: (cat.color || '#6B7280') + '60' }}
+                      >
+                        <span style={{ color: selectedCategoryId === cat.id ? undefined : (cat.color || '#fff') }}>
+                          {cat.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Image upload (only if category selected) */}
+                {selectedCategoryId && (
+                  <div>
+                    <p className="text-white/60 text-xs font-bold mb-2">{t.cat_verify_upload_label || 'Tải ảnh minh chứng'}</p>
+                    <p className="text-white/40 text-[11px] mb-2">{t.cat_verify_upload_hint || 'Ảnh thẻ sinh viên, CCCD hoặc giấy tờ liên quan'}</p>
+                    {categoryProofPreview ? (
+                      <div className="relative">
+                        <img src={categoryProofPreview} alt="proof" className="w-full h-28 object-cover rounded-xl" />
+                        <button
+                          type="button"
+                          onClick={() => { setCategoryProofFile(null); setCategoryProofPreview(null); }}
+                          className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-white/30 rounded-xl cursor-pointer hover:border-white/60 hover:bg-white/5 transition-all">
+                        <Upload size={20} className="text-white/50 mb-1" />
+                        <span className="text-white/50 text-xs">{language === 'vi' ? 'Nhấn để chọn ảnh' : 'Tap to choose image'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setCategoryProofFile(file);
+                              const reader = new FileReader();
+                              reader.onload = ev => setCategoryProofPreview(ev.target?.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {categoryClaimError && (
+                  <p className="text-red-200 bg-red-900/30 rounded-xl px-3 py-2 text-xs font-medium border border-red-400/20">
+                    {categoryClaimError}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  {/* Skip */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (pendingLoginUser) onLogin(pendingLoginUser);
+                    }}
+                    className="flex-1 py-2.5 border border-white/20 text-white/60 rounded-xl text-xs font-bold hover:bg-white/10 transition-all"
+                  >
+                    {t.cat_verify_skip || 'Bỏ qua'}
+                  </button>
+
+                  {/* Submit */}
+                  <button
+                    type="button"
+                    disabled={categoryClaimLoading || !selectedCategoryId || !categoryProofFile}
+                    onClick={async () => {
+                      if (!selectedCategoryId || !categoryProofFile || !pendingLoginUser) return;
+                      const cat = (categories || []).find(c => c.id === selectedCategoryId);
+                      if (!cat) return;
+                      setCategoryClaimLoading(true);
+                      setCategoryClaimError('');
+                      try {
+                        if (onCategoryRequest) {
+                          await onCategoryRequest({
+                            customerId: pendingLoginUser.id,
+                            categoryId: selectedCategoryId,
+                            categoryName: cat.name,
+                            proofFile: categoryProofFile,
+                          });
+                        }
+                        onLogin(pendingLoginUser);
+                      } catch {
+                        setCategoryClaimError(t.cat_verify_error || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
+                      } finally {
+                        setCategoryClaimLoading(false);
+                      }
+                    }}
+                    className="flex-2 flex-1 flex items-center justify-center gap-2 py-2.5 bg-white text-daiichi-red rounded-xl text-xs font-bold hover:scale-[1.02] transition-all disabled:opacity-50 shadow-lg"
+                  >
+                    {categoryClaimLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    {categoryClaimLoading ? (t.cat_verify_submitting || 'Đang gửi...') : (t.cat_verify_submit || 'Gửi yêu cầu xác nhận')}
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

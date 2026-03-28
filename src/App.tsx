@@ -77,6 +77,8 @@ const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ 
 const BookTicketPage = lazy(() => import('./pages/BookTicketPage').then(m => ({ default: m.BookTicketPage })));
 const SeatMappingPage = lazy(() => import('./pages/SeatMappingPage').then(m => ({ default: m.SeatMappingPage })));
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
+const CustomerVerificationPage = lazy(() => import('./pages/CustomerVerificationPage').then(m => ({ default: m.CustomerVerificationPage })));
+const AuditLogPage = lazy(() => import('./pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
 import { DriverAssignment, StaffMessage } from './types';
 import type { TourItem } from './components/TourBookingForm';
 import { TripFormModal } from './components/TripFormModal';
@@ -259,6 +261,12 @@ export default function App() {
 
   // Customer profiles state
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+  // Customer categories state
+  const [customerCategories, setCustomerCategories] = useState<import('./types').CustomerCategory[]>([]);
+  // Category verification requests state (admin/staff)
+  const [categoryRequests, setCategoryRequests] = useState<import('./types').CategoryVerificationRequest[]>([]);
+  // Audit logs (admin only)
+  const [auditLogs, setAuditLogs] = useState<import('./types').AuditLog[]>([]);
 
   // Pending email-link sign-in data (set when the app is opened via a magic link)
   const [emailLinkPending, setEmailLinkPending] = useState<{ uid: string; email: string } | null>(null);
@@ -604,6 +612,9 @@ export default function App() {
     const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
+    const unsubscribeCategories = transportService.subscribeToCustomerCategories(setCustomerCategories);
+    const unsubscribeCategoryRequests = transportService.subscribeToCategoryRequests(setCategoryRequests);
+    const unsubscribeAuditLogs = transportService.subscribeToAuditLogs(setAuditLogs);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -616,6 +627,9 @@ export default function App() {
       unsubscribeBookings();
       unsubscribeUserGuides();
       unsubscribeCustomers();
+      unsubscribeCategories();
+      unsubscribeCategoryRequests();
+      unsubscribeAuditLogs();
     };
   }, []);
 
@@ -701,6 +715,16 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         setEmailLinkPending(null);
+        transportService.logAudit({
+          actorId: user.id,
+          actorName: user.name,
+          actorRole: user.role,
+          action: 'LOGIN',
+          targetType: 'session',
+          targetLabel: user.username || user.name,
+          detail: 'Đăng nhập qua email link',
+          createdAt: new Date().toISOString(),
+        });
       }
       emailLinkProcessingRef.current = false;
     }).catch(err => {
@@ -1252,7 +1276,30 @@ export default function App() {
         );
 
       case 'customers':
-        return <CustomerManagement language={language} customers={customers} currentUser={currentUser} />;
+        return <CustomerManagement language={language} customers={customers} categories={customerCategories} currentUser={currentUser} />;
+
+      case 'customer-verification':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading...</div>}>
+            <CustomerVerificationPage
+              language={language}
+              requests={categoryRequests}
+              categories={customerCategories}
+              currentUser={currentUser}
+            />
+          </Suspense>
+        );
+
+      case 'audit-log':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading...</div>}>
+            <AuditLogPage
+              language={language}
+              logs={auditLogs}
+              currentUser={currentUser}
+            />
+          </Suspense>
+        );
 
       case 'my-tickets':
         return (
@@ -1949,6 +1996,53 @@ export default function App() {
   };
 
   if (!currentUser) {
+    const handleLoginWithAudit = (user: User) => {
+      setCurrentUser(user);
+      // Log login event
+      transportService.logAudit({
+        actorId: user.id,
+        actorName: user.name,
+        actorRole: user.role,
+        action: 'LOGIN',
+        targetType: 'session',
+        targetLabel: user.username || user.name,
+        detail: `Đăng nhập thành công`,
+        createdAt: new Date().toISOString(),
+      });
+    };
+
+    /** Upload a proof image and create a category verification request */
+    const handleCategoryRequest = async (data: { customerId: string; categoryId: string; categoryName: string; proofFile: File }) => {
+      // Upload image to Firebase Storage
+      const compressed = await compressImage(data.proofFile);
+      const path = `categoryProofs/${data.customerId}_${Date.now()}.webp`;
+      const fileRef = storageRef(storage, path);
+      await new Promise<void>((resolve, reject) => {
+        const task = uploadBytesResumable(fileRef, compressed);
+        task.on('state_changed', undefined, reject, resolve);
+      });
+      const proofImageUrl = await getDownloadURL(fileRef);
+      // Find the customer
+      const customer = customers.find(c => c.id === data.customerId);
+      // Create the request document
+      await transportService.addCategoryRequest({
+        customerId: data.customerId,
+        customerName: customer?.name || '',
+        customerPhone: customer?.phone || '',
+        categoryId: data.categoryId,
+        categoryName: data.categoryName,
+        proofImageUrl,
+        status: 'PENDING',
+        submittedAt: new Date().toISOString(),
+      });
+      // Mark the customer profile as PENDING
+      await transportService.updateCustomer(data.customerId, {
+        categoryVerificationStatus: 'PENDING',
+        categoryId: data.categoryId,
+        categoryName: data.categoryName,
+        categoryProofImageUrl: proofImageUrl,
+      });
+    };
     return (
       <>
         <PWAInstallPrompt />
@@ -1974,7 +2068,7 @@ export default function App() {
           />
         )}
         <Login 
-          onLogin={setCurrentUser} 
+          onLogin={handleLoginWithAudit} 
           language={language} 
           setLanguage={setLanguage} 
           adminCredentials={adminCredentials}
@@ -1985,6 +2079,8 @@ export default function App() {
           securityConfig={securityConfig}
           onRegister={handleRegisterMember}
           onOtpMemberLogin={handleOtpMemberLogin}
+          categories={customerCategories}
+          onCategoryRequest={handleCategoryRequest}
         />
       </>
     );
@@ -2151,6 +2247,18 @@ export default function App() {
         setActiveTab={setActiveTab} 
         currentUser={currentUser} 
         onLogout={() => {
+          if (currentUser) {
+            transportService.logAudit({
+              actorId: currentUser.id,
+              actorName: currentUser.name,
+              actorRole: currentUser.role,
+              action: 'LOGOUT',
+              targetType: 'session',
+              targetLabel: currentUser.username || currentUser.name,
+              detail: 'Đăng xuất',
+              createdAt: new Date().toISOString(),
+            });
+          }
           setCurrentUser(null);
           if (auth) firebaseSignOut(auth).catch((err) => console.warn('[Auth] Sign-out failed:', err));
         }} 
@@ -2159,6 +2267,7 @@ export default function App() {
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen}
         permissions={permissions}
+        customerCategories={customerCategories}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">

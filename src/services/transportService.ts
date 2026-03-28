@@ -12,10 +12,11 @@ import {
   runTransaction,
   query, 
   orderBy,
+  limit,
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType } from '../types';
+import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -1109,5 +1110,69 @@ export const transportService = {
   addStaffMessage: async (message: Omit<StaffMessage, 'id'>) => {
     if (!db) throw new Error('Firebase not configured');
     return await addDoc(collection(db, 'staffMessages'), message);
+  },
+
+  // ─── Customer Categories ──────────────────────────────────────────────────
+
+  subscribeToCustomerCategories: (callback: (categories: CustomerCategory[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'customerCategories'), orderBy('sortOrder', 'asc'));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as CustomerCategory[]);
+    }, (err) => { console.error('[customerCategories] subscription error:', err); callback([]); });
+  },
+
+  addCustomerCategory: async (category: Omit<CustomerCategory, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'customerCategories'), category);
+  },
+
+  updateCustomerCategory: async (id: string, updates: Partial<Omit<CustomerCategory, 'id'>>) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'customerCategories', id), updates as Record<string, unknown>);
+  },
+
+  deleteCustomerCategory: async (id: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'customerCategories', id));
+  },
+
+  // ─── Category Verification Requests ──────────────────────────────────────
+
+  subscribeToCategoryRequests: (callback: (requests: CategoryVerificationRequest[]) => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'categoryRequests'), orderBy('submittedAt', 'desc'));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as CategoryVerificationRequest[]);
+    }, (err) => { console.error('[categoryRequests] subscription error:', err); callback([]); });
+  },
+
+  addCategoryRequest: async (request: Omit<CategoryVerificationRequest, 'id'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    return await addDoc(collection(db, 'categoryRequests'), request);
+  },
+
+  updateCategoryRequest: async (id: string, updates: Partial<Omit<CategoryVerificationRequest, 'id'>>) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'categoryRequests', id), updates as Record<string, unknown>);
+  },
+
+  // ─── Audit Logs ────────────────────────────────────────────────────────────
+
+  logAudit: async (entry: Omit<AuditLog, 'id'>) => {
+    if (!db) return;
+    try {
+      await addDoc(collection(db, 'auditLogs'), entry);
+    } catch (err) {
+      console.error('[auditLog] write error:', err);
+    }
+  },
+
+  subscribeToAuditLogs: (callback: (logs: AuditLog[]) => void, limitCount = 200) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc'), limit(limitCount));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as AuditLog[]);
+    }, (err) => { console.error('[auditLogs] subscription error:', err); callback([]); });
   },
 };
