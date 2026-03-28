@@ -32,7 +32,7 @@ export const Settings: React.FC<SettingsProps> = ({
     { id: 'book-ticket', label: language === 'vi' ? 'Đặt vé xe' : 'Book Ticket' },
     { id: 'my-tickets', label: language === 'vi' ? 'Vé đã mua' : 'My Tickets' },
     { id: 'agent-bookings', label: language === 'vi' ? 'Vé của tôi (Đại lý)' : 'My Bookings (Agent)' },
-    { id: 'tours', label: language === 'vi' ? 'Tour du lịch' : 'Tours' },
+    { id: 'tours', label: language === 'vi' ? 'Tour ngày' : 'Day Tours' },
     { id: 'consignments', label: language === 'vi' ? 'Gửi hàng' : 'Consignments' },
     { id: 'user-guide', label: language === 'vi' ? 'Hướng dẫn sử dụng' : 'User Guide' },
     { id: 'dashboard', label: 'Dashboard', adminOnly: true },

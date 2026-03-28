@@ -91,7 +91,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Sidebar/Menu
     home: 'Trang chủ',
     book_ticket: 'Đặt vé xe',
-    tours: 'Tour du lịch',
+    tours: 'Tour ngày',
     consignments: 'Gửi hàng',
     agents: 'Đại lý',
     routes: 'Tuyến đường',
@@ -929,7 +929,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Sidebar/Menu
     home: 'Home',
     book_ticket: 'Book Ticket',
-    tours: 'Tours',
+    tours: 'Day Tours',
     consignments: 'Consignments',
     agents: 'Agents',
     routes: 'Routes',
@@ -1767,7 +1767,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Sidebar/Menu
     home: 'ホーム',
     book_ticket: 'チケット予約',
-    tours: 'ツアー',
+    tours: 'Tour ngày',
     consignments: '荷物発送',
     agents: '代理店',
     routes: 'ルート',
