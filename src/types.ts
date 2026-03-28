@@ -228,7 +228,8 @@ export interface Booking {
 export enum SeatStatus {
   EMPTY = 'EMPTY',
   BOOKED = 'BOOKED',
-  PAID = 'PAID'
+  PAID = 'PAID',
+  LOCKED = 'LOCKED'
 }
 
 /** One passenger's booking occupying a seat for a specific sub-segment of the route. */

@@ -181,6 +181,33 @@ export const transportService = {
     });
   },
 
+  /**
+   * Admin utility: lock or unlock specific seats on a trip.
+   * Lock: EMPTY → LOCKED (prevents customers from booking the seat).
+   * Unlock: LOCKED → EMPTY (makes the seat available again).
+   * Seats that are already BOOKED or PAID are not affected.
+   */
+  toggleSeatLock: async (tripId: string, seatIds: string[], lock: boolean) => {
+    if (!db) return;
+    const tripRef = doc(db, 'trips', tripId);
+    await runTransaction(db, async (transaction) => {
+      const tripSnap = await transaction.get(tripRef);
+      if (!tripSnap.exists()) return;
+      const seats = (tripSnap.data().seats || []) as Seat[];
+      const updatedSeats = seats.map((seat: Seat) => {
+        if (!seatIds.includes(seat.id)) return seat;
+        if (lock) {
+          if (seat.status !== SeatStatus.EMPTY) return seat;
+          return { ...seat, status: SeatStatus.LOCKED };
+        } else {
+          if (seat.status !== SeatStatus.LOCKED) return seat;
+          return { ...seat, status: SeatStatus.EMPTY };
+        }
+      });
+      transaction.update(tripRef, { seats: updatedSeats });
+    });
+  },
+
   subscribeToConsignments: (callback: (consignments: Consignment[]) => void) => {
     if (!db) return () => {};
     const q = query(collection(db, 'consignments'), orderBy('createdAt', 'desc'));
