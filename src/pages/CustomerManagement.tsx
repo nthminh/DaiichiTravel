@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users, Plus, Search, X, Save, Trash2, ChevronDown, ChevronUp,
   Phone, Mail, User, Calendar, Activity, Star, Eye, CheckCircle2, AlertCircle, Pencil,
@@ -17,6 +17,8 @@ interface CustomerManagementProps {
   categories: CustomerCategory[];
   currentUser?: AppUser | null;
 }
+
+const PAGE_SIZE = 50;
 
 const EMPTY_FORM: Omit<CustomerProfile, 'id'> = {
   name: '',
@@ -66,6 +68,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [saving, setSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 3000); };
   const showError = (msg: string) => { setErrorMsg(msg); setTimeout(() => setErrorMsg(''), 4000); };
@@ -98,6 +101,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
     });
     return result;
   }, [customers, search, statusFilter, categoryFilter, sortBy, sortDir]);
+
+  // Reset to first page whenever filters or sort change
+  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, categoryFilter, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
 
   // Compute insights for the summary panel
   const insights = useMemo(() => {
@@ -158,7 +170,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       categoryName: c.categoryName,
       categoryVerificationStatus: c.categoryVerificationStatus,
     });
-    setShowForm(true);
+    setShowForm(false);
+    setExpandedId(null);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -176,12 +189,12 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       if (editingId) {
         await transportService.updateCustomer(editingId, cleanForm);
         showSuccess(language === 'vi' ? 'Đã cập nhật khách hàng' : 'Customer updated');
+        setEditingId(null);
       } else {
         await transportService.addCustomer({ ...cleanForm, registeredAt: new Date().toISOString() });
         showSuccess(language === 'vi' ? 'Đã thêm khách hàng' : 'Customer added');
+        setShowForm(false);
       }
-      setShowForm(false);
-      setEditingId(null);
     } catch {
       showError(language === 'vi' ? 'Lưu thất bại' : 'Save failed');
     } finally {
@@ -506,7 +519,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
         </div>
       </div>
 
-      {/* Add/Edit Form */}
+      {/* Add Form (new customer only) */}
       <AnimatePresence>
         {showForm && (
           <motion.div
@@ -517,9 +530,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gray-800">
-                {editingId
-                  ? (language === 'vi' ? 'Chỉnh sửa khách hàng' : 'Edit Customer')
-                  : (t.add_customer || 'Thêm khách hàng')}
+                {t.add_customer || 'Thêm khách hàng'}
               </h3>
               <button onClick={() => setShowForm(false)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                 <X size={20} />
@@ -794,7 +805,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(c => (
+          {paginated.map(c => (
             <motion.div
               key={c.id}
               layout
@@ -871,8 +882,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                     {c.status === 'ACTIVE' ? <ShieldCheck size={16} /> : <ShieldOff size={16} />}
                   </button>
                   <button
-                    onClick={() => openEdit(c)}
-                    className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                    onClick={() => editingId === c.id ? setEditingId(null) : openEdit(c)}
+                    className={cn("p-2 rounded-xl transition-all", editingId === c.id ? "text-blue-500 bg-blue-50" : "text-gray-400 hover:text-blue-500 hover:bg-blue-50")}
                     title={t.edit_customer || 'Chỉnh sửa'}
                   >
                     <Pencil size={16} />
@@ -895,6 +906,167 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   </button>
                 </div>
               </div>
+
+              {/* Inline Edit Form */}
+              <AnimatePresence initial={false}>
+                {editingId === c.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: 'easeInOut' }}
+                    className="overflow-hidden border-t border-blue-100"
+                  >
+                    <div className="px-6 py-5 bg-blue-50/40">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                          <Pencil size={14} className="text-blue-500" />
+                          {language === 'vi' ? 'Chỉnh sửa khách hàng' : 'Edit Customer'}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                      <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Name */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_name || 'Tên khách hàng'} *
+                          </label>
+                          <input
+                            type="text"
+                            value={form.name}
+                            onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder={language === 'vi' ? 'Nguyễn Văn A' : 'Full name'}
+                          />
+                        </div>
+                        {/* Phone */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_phone || 'Số điện thoại'} *
+                          </label>
+                          <input
+                            type="tel"
+                            value={form.phone}
+                            onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder="0912 345 678"
+                          />
+                        </div>
+                        {/* Email */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_email || 'Email'}
+                          </label>
+                          <input
+                            type="text"
+                            value={form.email}
+                            onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                        {/* Status */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_status || 'Trạng thái'}
+                          </label>
+                          <select
+                            value={form.status}
+                            onChange={e => setForm(p => ({ ...p, status: e.target.value as 'ACTIVE' | 'INACTIVE' }))}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                          >
+                            <option value="ACTIVE">{t.customer_active || 'Đang hoạt động'}</option>
+                            <option value="INACTIVE">{t.customer_inactive || 'Không hoạt động'}</option>
+                          </select>
+                        </div>
+                        {/* Customer Category */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_category || 'Loại khách hàng'}
+                          </label>
+                          <select
+                            value={form.categoryId || ''}
+                            onChange={e => {
+                              const cat = categories.find(cat2 => cat2.id === e.target.value);
+                              setForm(p => ({ ...p, categoryId: e.target.value || undefined, categoryName: cat?.name || undefined }));
+                            }}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                          >
+                            <option value="">{t.customer_no_category || 'Chưa phân loại'}</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {/* Username */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_username || 'Tên đăng nhập'}
+                          </label>
+                          <input
+                            type="text"
+                            value={form.username}
+                            onChange={e => setForm(p => ({ ...p, username: e.target.value }))}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder={language === 'vi' ? 'Để trống nếu dùng SĐT' : 'Leave blank to use phone'}
+                          />
+                        </div>
+                        {/* Password */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {t.customer_password || 'Mật khẩu'}
+                          </label>
+                          <input
+                            type="password"
+                            value={form.password}
+                            onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                            placeholder={language === 'vi' ? 'Mật khẩu đăng nhập' : 'Login password'}
+                            autoComplete="new-password"
+                          />
+                        </div>
+                        {/* Note – full width */}
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+                            {language === 'vi' ? 'Ghi chú' : 'Note'}
+                          </label>
+                          <textarea
+                            value={form.note}
+                            onChange={e => setForm(p => ({ ...p, note: e.target.value }))}
+                            rows={2}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 resize-none"
+                            placeholder={language === 'vi' ? 'Ghi chú nội bộ...' : 'Internal note...'}
+                          />
+                        </div>
+                        {/* Actions */}
+                        <div className="md:col-span-2 flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            className="px-5 py-2 border border-gray-200 rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-100 transition-all"
+                          >
+                            {language === 'vi' ? 'Hủy' : 'Cancel'}
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={saving}
+                            className="flex items-center gap-2 px-6 py-2 bg-daiichi-red text-white rounded-xl font-bold text-sm shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all disabled:opacity-50"
+                          >
+                            <Save size={15} />
+                            {saving ? (language === 'vi' ? 'Đang lưu...' : 'Saving...') : (language === 'vi' ? 'Lưu' : 'Save')}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Expanded – activity & preferences */}
               <AnimatePresence initial={false}>
@@ -993,6 +1165,61 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
               </AnimatePresence>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            ‹ {language === 'vi' ? 'Trước' : 'Prev'}
+          </button>
+          {(() => {
+            const items: (number | 'ellipsis-start' | 'ellipsis-end')[] = [];
+            if (totalPages <= 7) {
+              for (let i = 1; i <= totalPages; i++) items.push(i);
+            } else {
+              items.push(1);
+              if (currentPage > 3) items.push('ellipsis-start');
+              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                items.push(i);
+              }
+              if (currentPage < totalPages - 2) items.push('ellipsis-end');
+              items.push(totalPages);
+            }
+            return items.map((item, idx) =>
+              typeof item === 'string' ? (
+                <span key={item + idx} className="text-gray-400 text-sm px-1">…</span>
+              ) : (
+                <button
+                  key={item}
+                  onClick={() => setCurrentPage(item)}
+                  className={cn(
+                    "w-9 h-9 rounded-xl text-sm font-bold transition-all",
+                    item === currentPage
+                      ? "bg-daiichi-red text-white shadow-lg shadow-daiichi-red/20"
+                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  {item}
+                </button>
+              )
+            );
+          })()}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            {language === 'vi' ? 'Sau' : 'Next'} ›
+          </button>
+          <span className="text-xs text-gray-400 ml-2">
+            {language === 'vi' ? `Trang ${currentPage}/${totalPages}` : `Page ${currentPage}/${totalPages}`}
+          </span>
         </div>
       )}
     </div>
