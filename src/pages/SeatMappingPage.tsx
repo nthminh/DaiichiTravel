@@ -1105,42 +1105,6 @@ export function SeatMappingPage({
                     {!dropoffPoint && defaultArrival && (
                       <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultArrival}` : `Default: ${defaultArrival}`}</p>
                     )}
-                    {/* Fare lookup feedback */}
-                    {fareLoading && (
-                      <p className="mt-1 text-xs text-blue-500 animate-pulse">{t.fare_loading || 'Looking up fare...'}</p>
-                    )}
-                    {!fareLoading && fareError && (
-                      <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
-                    )}
-                    {!fareLoading && fareAmount !== null && (
-                      <div className="mt-1 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-xs text-emerald-600 font-bold">
-                            {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setShowPriceDetail(true)}
-                            className="text-[10px] text-blue-600 font-bold px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
-                          >
-                            <Info size={10} />
-                            {t.view_details || 'Chi tiết'}
-                          </button>
-                        </div>
-                        {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
-                          <p className="text-xs text-orange-600 font-bold">
-                            {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
-                          </p>
-                        )}
-                        <div className="flex items-center justify-between px-3 py-2 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
-                          <span className="text-xs font-bold text-gray-700">
-                            {t.total_payment || 'Tổng thanh toán'}
-                            {' '}({priceBillablePassengers} {language === 'vi' ? 'khách' : language === 'ja' ? '名' : 'pax'})
-                          </span>
-                          <span className="text-sm font-bold text-daiichi-red">{priceGrandTotal.toLocaleString()}đ</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                   <div className="pl-3 border-l-2 border-gray-200">
                     <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
@@ -1183,6 +1147,40 @@ export function SeatMappingPage({
             {/* Child ages required warning */}
             {children > 0 && !childAgesComplete && (
               <p className="text-xs text-red-500 font-medium">{t.child_ages_required || 'Please enter the age for all children before proceeding.'}</p>
+            )}
+
+            {/* Fare info: price per person + total – shown right above the action button */}
+            {fareLoading && (
+              <p className="text-xs text-blue-500 animate-pulse">{t.fare_loading || 'Looking up fare...'}</p>
+            )}
+            {!fareLoading && fareAmount !== null && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-emerald-600 font-bold">
+                    {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowPriceDetail(true)}
+                    className="text-[10px] text-blue-600 font-bold px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                  >
+                    <Info size={10} />
+                    {t.view_details || 'Chi tiết'}
+                  </button>
+                </div>
+                {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
+                  <p className="text-xs text-orange-600 font-bold">
+                    {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                  </p>
+                )}
+                <div className="flex items-center justify-between px-3 py-2 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
+                  <span className="text-xs font-bold text-gray-700">
+                    {t.total_payment || 'Tổng thanh toán'}
+                    {' '}({priceBillablePassengers} {language === 'vi' ? 'khách' : language === 'ja' ? '名' : 'pax'})
+                  </span>
+                  <span className="text-sm font-bold text-daiichi-red">{priceGrandTotal.toLocaleString()}đ</span>
+                </div>
+              </div>
             )}
 
             {/* Next: Select Seat button */}
