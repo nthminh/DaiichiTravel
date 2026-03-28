@@ -56,6 +56,11 @@ export function useTrips(ctx: TripContext) {
   const [isCopyingTrip, setIsCopyingTrip] = useState(false);
   const [tripForm, setTripForm] = useState({ ...DEFAULT_TRIP_FORM });
 
+  // Single trip addon services state
+  const [tripAddonServices, setTripAddonServices] = useState<TripAddon[]>([]);
+  const [tripAddonForm, setTripAddonForm] = useState({ ...DEFAULT_BATCH_ADDON_FORM });
+  const [showTripAddonForm, setShowTripAddonForm] = useState(false);
+
   // Batch trip creation state
   const [showBatchAddTrip, setShowBatchAddTrip] = useState(false);
   const [batchTripForm, setBatchTripForm] = useState({ ...DEFAULT_BATCH_TRIP_FORM });
@@ -189,7 +194,7 @@ export function useTrips(ctx: TripContext) {
           discountPercent: tripForm.discountPercent,
           status: tripForm.status,
           seats,
-          addons: [],
+          addons: [...tripAddonServices] as TripAddon[],
           seatType,
         });
       }
@@ -197,6 +202,9 @@ export function useTrips(ctx: TripContext) {
       setEditingTrip(null);
       setIsCopyingTrip(false);
       setTripForm({ ...DEFAULT_TRIP_FORM });
+      setTripAddonServices([]);
+      setTripAddonForm({ ...DEFAULT_BATCH_ADDON_FORM });
+      setShowTripAddonForm(false);
     } catch (err: any) {
       console.error('Failed to save trip:', err);
       const lang = ctxRef.current.language;
@@ -391,6 +399,12 @@ export function useTrips(ctx: TripContext) {
     setIsCopyingTrip,
     tripForm,
     setTripForm,
+    tripAddonServices,
+    setTripAddonServices,
+    tripAddonForm,
+    setTripAddonForm,
+    showTripAddonForm,
+    setShowTripAddonForm,
     showBatchAddTrip,
     setShowBatchAddTrip,
     batchTripForm,
