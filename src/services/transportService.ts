@@ -1007,7 +1007,7 @@ export const transportService = {
   },
 
   updateCustomer: async (customerId: string, updates: Partial<Omit<CustomerProfile, 'id'>>) => {
-    if (!db) return;
+    if (!db) throw new Error('Firebase not configured');
     await updateDoc(doc(db, 'customers', customerId), updates as Record<string, unknown>);
   },
 

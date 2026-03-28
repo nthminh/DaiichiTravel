@@ -139,8 +139,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
   const openEdit = (c: CustomerProfile) => {
     setEditingId(c.id);
     setForm({
-      name: c.name,
-      phone: c.phone,
+      name: c.name || '',
+      phone: c.phone || '',
       email: c.email || '',
       username: c.username || '',
       password: c.password || '',
@@ -163,7 +163,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.phone.trim()) {
+    if (!(form.name || '').trim() || !(form.phone || '').trim()) {
       showError(language === 'vi' ? 'Tên và số điện thoại là bắt buộc' : 'Name and phone are required');
       return;
     }
