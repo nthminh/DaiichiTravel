@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, CheckCircle2, Gift, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, CheckCircle2, Gift, ChevronDown, ChevronUp, Info } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole, SeatStatus } from '../constants/translations'
 import { PAYMENT_METHODS, type PaymentMethod, PAYMENT_METHOD_TRANSLATION_KEYS } from '../constants/paymentMethods'
@@ -170,6 +170,7 @@ export function SeatMappingPage({
   const [segmentConflictSeat, setSegmentConflictSeat] = useState<string | null>(null);
   const [takenSeatNotice, setTakenSeatNotice] = useState<string | null>(null);
   const [showRouteDetails, setShowRouteDetails] = useState(false);
+  const [showPriceDetail, setShowPriceDetail] = useState(false);
   const segmentConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const takenSeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -226,6 +227,26 @@ export function SeatMappingPage({
   // Route-level surcharges
   const tripDate = selectedTrip.date || '';
   const applicableRouteSurcharges = getApplicableRouteSurcharges(tripRoute, tripDate);
+
+  // Price breakdown variables used in the price detail modal
+  const priceBaseFare = fareAmount !== null ? fareAmount : (selectedTrip.price || 0);
+  const isAgentRole = currentUser?.role === UserRole.AGENT;
+  const priceAgentFare = isAgentRole
+    ? (fareAgentAmount !== null ? fareAgentAmount : (selectedTrip.agentPrice || null))
+    : null;
+  const priceEffectiveBase = priceAgentFare !== null ? priceAgentFare : priceBaseFare;
+  const priceDiscountPct = selectedTrip.discountPercent || 0;
+  const priceDiscounted = priceDiscountPct > 0
+    ? Math.round(priceEffectiveBase * (1 - priceDiscountPct / 100))
+    : priceEffectiveBase;
+  const pricePickupSurchargeTotal = (pickupSurcharge || 0) + (pickupAddressSurcharge || 0);
+  const priceDropoffSurchargeTotal = (dropoffSurcharge || 0) + (dropoffAddressSurcharge || 0);
+  const priceRouteSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount, 0);
+  const priceTotalPerPerson = priceDiscounted + pricePickupSurchargeTotal + priceDropoffSurchargeTotal + priceRouteSurchargeTotal;
+  const priceChildrenOver5 = childrenAges.filter(age => (age ?? 0) >= 5).length;
+  const priceFreeChildren = children - priceChildrenOver5;
+  const priceBillablePassengers = adults + priceChildrenOver5;
+  const priceGrandTotal = priceTotalPerPerson * priceBillablePassengers;
   // Pre-compute stop name lists for pickup/dropoff address selects.
   // Only show STOP-type (điểm dừng) entries – never major TERMINAL stations (ga lớn).
   // Use the user-selected departure/arrival (pickupPoint/dropoffPoint) as the effective
@@ -1092,15 +1113,32 @@ export function SeatMappingPage({
                       <p className="mt-1 text-xs text-red-500 font-medium">{fareError}</p>
                     )}
                     {!fareLoading && fareAmount !== null && (
-                      <div className="mt-1 space-y-0.5">
-                        <p className="text-xs text-emerald-600 font-bold">
-                          {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
-                        </p>
+                      <div className="mt-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs text-emerald-600 font-bold">
+                            {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowPriceDetail(true)}
+                            className="text-[10px] text-blue-600 font-bold px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                          >
+                            <Info size={10} />
+                            {t.view_details || 'Chi tiết'}
+                          </button>
+                        </div>
                         {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
                           <p className="text-xs text-orange-600 font-bold">
                             {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
                           </p>
                         )}
+                        <div className="flex items-center justify-between px-3 py-2 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
+                          <span className="text-xs font-bold text-gray-700">
+                            {t.total_payment || 'Tổng thanh toán'}
+                            {' '}({priceBillablePassengers} {language === 'vi' ? 'khách' : language === 'ja' ? '名' : 'pax'})
+                          </span>
+                          <span className="text-sm font-bold text-daiichi-red">{priceGrandTotal.toLocaleString()}đ</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1565,6 +1603,126 @@ export function SeatMappingPage({
       )}
     </div>
   </div>
+  {/* Price Detail Modal */}
+  {showPriceDetail && (
+    <div
+      className="fixed inset-0 z-[350] flex items-center justify-center bg-black/50 p-4"
+      onClick={() => setShowPriceDetail(false)}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Info size={16} className="text-blue-500" />
+            <h3 className="font-bold text-gray-800">{t.trip_confirm_price_title || 'Chi tiết giá vé'}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPriceDetail(false)}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 space-y-2.5">
+          {/* Base fare */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">{t.trip_confirm_base_fare || 'Giá vé cơ bản'}</span>
+            <div className="flex items-center gap-2">
+              {priceDiscountPct > 0 && (
+                <span className="text-[10px] text-gray-400 line-through">{priceEffectiveBase.toLocaleString()}đ</span>
+              )}
+              <span className="font-bold text-gray-800">{priceDiscounted.toLocaleString()}đ</span>
+              {priceDiscountPct > 0 && (
+                <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 rounded-full">
+                  -{priceDiscountPct}%
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Pickup surcharge */}
+          {pricePickupSurchargeTotal > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                {t.trip_confirm_pickup_surcharge || 'Phụ phí điểm đón'}
+                {pickupPoint ? ` (${pickupPoint})` : ''}
+              </span>
+              <span className="font-semibold text-orange-600">+{pricePickupSurchargeTotal.toLocaleString()}đ</span>
+            </div>
+          )}
+          {/* Dropoff surcharge */}
+          {priceDropoffSurchargeTotal > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                {t.trip_confirm_dropoff_surcharge || 'Phụ phí điểm trả'}
+                {dropoffPoint ? ` (${dropoffPoint})` : ''}
+              </span>
+              <span className="font-semibold text-orange-600">+{priceDropoffSurchargeTotal.toLocaleString()}đ</span>
+            </div>
+          )}
+          {/* Route surcharges */}
+          {applicableRouteSurcharges.map(sc => (
+            <div key={sc.id} className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">{t.trip_confirm_surcharges || 'Phụ phí tuyến'}: {sc.name}</span>
+              <span className="font-semibold text-orange-600">+{sc.amount.toLocaleString()}đ</span>
+            </div>
+          ))}
+          {/* Total per person */}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <span className="text-sm font-bold text-gray-800">
+              {t.trip_confirm_total || 'Tổng dự kiến / người'}
+            </span>
+            <span className="font-bold text-daiichi-red">{priceTotalPerPerson.toLocaleString()}đ</span>
+          </div>
+          {/* Passenger breakdown */}
+          <div className="p-3 bg-gray-50 rounded-xl space-y-1.5 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">
+                {adults} {t.adults} × {priceTotalPerPerson.toLocaleString()}đ
+              </span>
+              <span className="font-semibold text-gray-800">{(adults * priceTotalPerPerson).toLocaleString()}đ</span>
+            </div>
+            {priceChildrenOver5 > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">
+                  {priceChildrenOver5}{' '}
+                  {language === 'vi' ? 'trẻ em (≥5 tuổi)' : language === 'ja' ? '子ども（5歳以上）' : 'child(ren) (≥5 yrs)'}
+                  {' '}× {priceTotalPerPerson.toLocaleString()}đ
+                </span>
+                <span className="font-semibold text-gray-800">{(priceChildrenOver5 * priceTotalPerPerson).toLocaleString()}đ</span>
+              </div>
+            )}
+            {priceFreeChildren > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">
+                  {priceFreeChildren}{' '}
+                  {language === 'vi' ? 'trẻ em (<5 tuổi, miễn phí)' : language === 'ja' ? '子ども（5歳未満、無料）' : 'child(ren) (<5 yrs, free)'}
+                </span>
+                <span className="text-gray-400">0đ</span>
+              </div>
+            )}
+          </div>
+          {/* Grand total — most important */}
+          <div className="flex items-center justify-between px-4 py-3 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
+            <span className="font-bold text-gray-800">{t.total_payment || 'Tổng thanh toán'}</span>
+            <span className="text-xl font-bold text-daiichi-red">{priceGrandTotal.toLocaleString()}đ</span>
+          </div>
+          {/* Warning if child ages incomplete */}
+          {children > 0 && !childAgesComplete && (
+            <p className="text-[10px] text-orange-500 text-center">
+              {language === 'vi'
+                ? '* Nhập tuổi trẻ em để tính tổng chính xác hơn'
+                : language === 'ja'
+                  ? '* 正確な合計のため子どもの年齢を入力してください'
+                  : '* Enter child ages for a more accurate total'}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )}
   </>
   );
 }
