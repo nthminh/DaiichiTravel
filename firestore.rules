@@ -230,6 +230,37 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // Customer categories: public read (used in booking & registration forms), authenticated write
+    match /customerCategories/{category} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Category verification requests: authenticated read/write
+    // Customers submit requests; staff/managers review and update them.
+    // Deletion is not permitted – requests are retained for audit purposes.
+    match /categoryRequests/{request} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 20
+                    && isShortString(request.resource.data.customerName)
+                    && isShortString(request.resource.data.status);
+      allow update: if isSignedIn()
+                    && request.resource.data.keys().size() <= 20
+                    && isShortString(request.resource.data.customerName)
+                    && isShortString(request.resource.data.status);
+    }
+
+    // Audit logs: authenticated read, authenticated create-only (immutable audit trail)
+    match /auditLogs/{log} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().size() <= 20
+                    && isShortString(request.resource.data.actorName)
+                    && isShortString(request.resource.data.action);
+      allow update, delete: if false;
+    }
+
     // Block all other paths not explicitly listed above (recursive wildcard)
     match /{path=**} {
       allow read, write: if false;
