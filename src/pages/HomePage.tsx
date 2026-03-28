@@ -16,6 +16,7 @@ interface HomePageProps {
   agents: Agent[];
   setActiveTab: (tab: string) => void;
   setAgentTopUpModal: (open: boolean) => void;
+  onCategoryFilter?: (category: string) => void;
 }
 
 const HERO_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/hinhnenhome.png?alt=media&token=4be06677-5484-4225-a48f-2a7f92dc99f4';
@@ -24,7 +25,7 @@ const CRUISE_IMAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/daiichitra
 const YOUTUBE_VIDEO_ID = 'Uqhsq1MYIZk';
 const CAROUSEL_GAP = 16; // px – matches gap-4
 
-export function HomePage({ language, currentUser, agents, setActiveTab, setAgentTopUpModal }: HomePageProps) {
+export function HomePage({ language, currentUser, agents, setActiveTab, setAgentTopUpModal, onCategoryFilter }: HomePageProps) {
   const t = TRANSLATIONS[language];
   const [searchQuery, setSearchQuery] = useState('');
   const { toasts, showToast, dismissToast } = useToast();
@@ -134,6 +135,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
     comingSoon?: boolean;
     color: string;
     bg: string;
+    categoryKey?: string;
   };
 
   const categories: Category[] = [
@@ -143,6 +145,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
       tab: 'book-ticket',
       color: 'text-blue-600',
       bg: 'bg-blue-50',
+      categoryKey: 'BUS',
     },
     {
       label: isVi ? 'Du thuyền' : isJa ? 'クルーズ' : 'Cruise',
@@ -150,6 +153,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
       tab: 'book-ticket',
       color: 'text-cyan-600',
       bg: 'bg-cyan-50',
+      categoryKey: 'CRUISE',
     },
     {
       label: isVi ? 'Tour' : isJa ? 'ツアー' : 'Tour',
@@ -161,10 +165,10 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
     {
       label: isVi ? 'Khách sạn' : isJa ? 'ホテル' : 'Hotel',
       icon: Building2,
-      tab: '',
-      comingSoon: true,
+      tab: 'book-ticket',
       color: 'text-orange-600',
       bg: 'bg-orange-50',
+      categoryKey: 'HOTEL',
     },
     {
       label: isVi ? 'Gửi hàng' : isJa ? '貨物' : 'Cargo',
@@ -179,6 +183,7 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
       tab: 'book-ticket',
       color: 'text-gray-600',
       bg: 'bg-gray-100',
+      categoryKey: undefined,
     },
   ];
 
@@ -283,8 +288,9 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
             <button
               key={cat.label}
               onClick={() => {
-                if (cat.comingSoon) {
-                  showToast(isVi ? 'Sắp triển khai' : isJa ? '近日公開' : 'Coming soon', 'info');
+                if (cat.tab === 'book-ticket' && onCategoryFilter) {
+                  // categoryKey undefined = "All" → clear filter; otherwise apply specific category
+                  onCategoryFilter(cat.categoryKey ?? '');
                 } else {
                   setActiveTab(cat.tab);
                 }

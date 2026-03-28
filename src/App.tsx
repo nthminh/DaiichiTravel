@@ -104,6 +104,7 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState('home');
   const [previousTab, setPreviousTab] = useState('book-ticket'); // Track tab before seat-mapping navigation
+  const [routeCategoryFilter, setRouteCategoryFilter] = useState<string>('');
   const [language, setLanguage] = useState<Language>('vi');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>> | null>(() => {
@@ -1279,6 +1280,7 @@ export default function App() {
               agents={agents}
               setActiveTab={setActiveTab}
               setAgentTopUpModal={setAgentTopUpModal}
+              onCategoryFilter={(cat) => { setRouteCategoryFilter(cat); setActiveTab('book-ticket'); }}
             />
           </Suspense>
         );
@@ -1365,6 +1367,8 @@ export default function App() {
               setDropoffStopAddress={setDropoffStopAddress}
               likedTrips={likedTrips}
               toggleLikedTrip={toggleLikedTrip}
+              routeCategoryFilter={routeCategoryFilter}
+              setRouteCategoryFilter={setRouteCategoryFilter}
             />
           </Suspense>
         );

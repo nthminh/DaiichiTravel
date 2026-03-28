@@ -215,7 +215,7 @@ export function RouteManagementPage({
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                        <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, departureDescription: '', arrivalDescription: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); setChildPricingRules([]); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                        <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, departureDescription: '', arrivalDescription: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '', routeCategory: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); setChildPricingRules([]); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -237,6 +237,20 @@ export function RouteManagementPage({
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">STT</label><input type="number" value={routeForm.stt} onChange={e => setRouteForm(p => ({ ...p, stt: parseInt(e.target.value) || 1 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.route_name}</label><input type="text" value={routeForm.name} onChange={e => setRouteForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" placeholder={language === 'vi' ? 'VD: Hà Nội - Cát Bà' : 'e.g. Hanoi - Cat Ba'} /></div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'LOẠI TUYẾN' : language === 'ja' ? 'ルートカテゴリ' : 'ROUTE CATEGORY'}</label>
+                      <select
+                        value={routeForm.routeCategory ?? ''}
+                        onChange={e => setRouteForm(p => ({ ...p, routeCategory: e.target.value as typeof p.routeCategory }))}
+                        className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                      >
+                        <option value="">{language === 'vi' ? '-- Chọn loại tuyến --' : '-- Select category --'}</option>
+                        <option value="BUS">{language === 'vi' ? '🚌 Xe bus' : language === 'ja' ? '🚌 バス' : '🚌 Bus'}</option>
+                        <option value="TOUR_SHORT">{language === 'vi' ? '🗺️ Tour ngắn' : language === 'ja' ? '🗺️ ショートツアー' : '🗺️ Short Tour'}</option>
+                        <option value="CRUISE">{language === 'vi' ? '⚓ Du thuyền' : language === 'ja' ? '⚓ クルーズ' : '⚓ Cruise'}</option>
+                        <option value="HOTEL">{language === 'vi' ? '🏨 Khách sạn' : language === 'ja' ? '🏨 ホテル' : '🏨 Hotel'}</option>
+                      </select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.ticket_price} (đ)</label><input type="number" min="0" value={routeForm.price} onChange={e => setRouteForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
@@ -1299,6 +1313,19 @@ export function RouteManagementPage({
                       <td className="px-6 py-6 text-sm text-gray-500">{route.stt}</td>
                       <td className="px-6 py-6">
                         <p className="font-bold text-gray-800">{route.name}</p>
+                        {route.routeCategory && (
+                          <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            route.routeCategory === 'BUS' ? 'bg-blue-50 text-blue-600' :
+                            route.routeCategory === 'TOUR_SHORT' ? 'bg-green-50 text-green-600' :
+                            route.routeCategory === 'CRUISE' ? 'bg-cyan-50 text-cyan-600' :
+                            route.routeCategory === 'HOTEL' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500'
+                          }`}>
+                            {route.routeCategory === 'BUS' ? (language === 'vi' ? '🚌 Xe bus' : '🚌 Bus') :
+                             route.routeCategory === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour ngắn' : '🗺️ Short Tour') :
+                             route.routeCategory === 'CRUISE' ? (language === 'vi' ? '⚓ Du thuyền' : '⚓ Cruise') :
+                             route.routeCategory === 'HOTEL' ? (language === 'vi' ? '🏨 Khách sạn' : '🏨 Hotel') : route.routeCategory}
+                          </span>
+                        )}
                         {(route.pricePeriods || []).length > 0 && (
                           <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
                             <Calendar size={10} /> {(route.pricePeriods || []).length} {language === 'vi' ? 'kỳ giá' : 'periods'}

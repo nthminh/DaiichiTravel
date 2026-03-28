@@ -46,6 +46,7 @@ export const DEFAULT_ROUTE_FORM = {
   disabledDropoffCategories: [] as string[],
   disabledDropoffCategoriesFromDate: '',
   disabledDropoffCategoriesToDate: '',
+  routeCategory: '' as Route['routeCategory'] | '',
 };
 
 type RouteFareEntry = {
@@ -219,6 +220,8 @@ export function useRoutes(ctx: RouteContext) {
         surcharges: routeSurcharges,
         routeStops: fullRouteStops,
         childPricingRules,
+        // Strip empty string so Firestore stores undefined instead of ''.
+        routeCategory: (currentForm.routeCategory as Route['routeCategory']) || undefined,
       };
       let routeId = editingRoute?.id;
       if (editingRoute) {
@@ -393,6 +396,7 @@ export function useRoutes(ctx: RouteContext) {
       disabledDropoffCategories: route.disabledDropoffCategories || [],
       disabledDropoffCategoriesFromDate: route.disabledDropoffCategoriesFromDate || '',
       disabledDropoffCategoriesToDate: route.disabledDropoffCategoriesToDate || '',
+      routeCategory: route.routeCategory ?? '',
     });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
@@ -498,6 +502,7 @@ export function useRoutes(ctx: RouteContext) {
       disabledDropoffCategories: route.disabledDropoffCategories || [],
       disabledDropoffCategoriesFromDate: route.disabledDropoffCategoriesFromDate || '',
       disabledDropoffCategoriesToDate: route.disabledDropoffCategoriesToDate || '',
+      routeCategory: route.routeCategory ?? '',
     });
     const now = Date.now();
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));

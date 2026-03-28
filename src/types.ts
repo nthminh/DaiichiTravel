@@ -90,6 +90,8 @@ export interface Route {
   updatedAt?: string;       // ISO timestamp of last modification – used for conflict detection
   /** Age-based child pricing rules for this route. */
   childPricingRules?: ChildPricingRule[];
+  /** Route service category – used to filter routes by the home-page category icons. */
+  routeCategory?: 'BUS' | 'TOUR_SHORT' | 'CRUISE' | 'HOTEL';
 }
 
 // A single fare entry in the routeFares subcollection
