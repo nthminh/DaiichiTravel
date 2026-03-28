@@ -941,10 +941,14 @@ function TripConfirmPanel({
 
   const displayArrivalStop = useMemo(() => {
     const preferredName = effectiveTo || route?.arrivalPoint || '';
+    // Prefer exact name match first to avoid matching a stop whose name merely
+    // contains the searched destination as a substring (e.g. "Bến Viềng Cát Bà"
+    // matching when the user searched for "Cát Bà").
     const matchedStop = preferredName
-      ? orderedItinerary.find(stop =>
-          stop.name === preferredName || matchesSearch(stop.name, preferredName) || matchesSearch(preferredName, stop.name),
-        )
+      ? (orderedItinerary.find(stop => stop.name === preferredName)
+          ?? orderedItinerary.find(stop =>
+              matchesSearch(stop.name, preferredName) || matchesSearch(preferredName, stop.name),
+            ))
       : null;
     if (matchedStop) return matchedStop;
     const lastStop = orderedItinerary[orderedItinerary.length - 1];
@@ -1702,10 +1706,13 @@ export function BookTicketPage({
         ...(r.routeStops || []).slice().sort((a, b) => a.order - b.order).map(s => s.stopName),
         r.arrivalPoint,
       ].filter(Boolean);
-      const fromIdx = orderedStops.findIndex(name =>
+      // Prefer exact name match first; fall back to substring/accent-folded match.
+      let fromIdx = orderedStops.findIndex(name => name === effectiveFrom);
+      if (fromIdx === -1) fromIdx = orderedStops.findIndex(name =>
         matchesSearch(name as string, effectiveFrom) || matchesSearch(effectiveFrom, name as string));
       if (fromIdx === -1) return false;
-      const toIdx = orderedStops.findIndex(name =>
+      let toIdx = orderedStops.findIndex(name => name === effectiveTo);
+      if (toIdx === -1) toIdx = orderedStops.findIndex(name =>
         matchesSearch(name as string, effectiveTo) || matchesSearch(effectiveTo, name as string));
       return toIdx !== -1 && fromIdx < toIdx;
     });
@@ -1820,16 +1827,22 @@ export function BookTicketPage({
           tripRoute.arrivalPoint,
         ].filter(Boolean);
         if (effectiveFrom) {
-          const fromIdx = orderedStops.findIndex(name =>
+          // Prefer exact name match; fall back to substring/accent-folded match.
+          // This prevents "Bến Viềng Cát Bà" from matching a search for "Cát Bà"
+          // (substring match) when an exact stop named "Cát Bà" exists later in the route.
+          let fromIdx = orderedStops.findIndex(name => name === effectiveFrom);
+          if (fromIdx === -1) fromIdx = orderedStops.findIndex(name =>
             matchesSearch(name, effectiveFrom) || matchesSearch(effectiveFrom, name));
           if (fromIdx === -1) return false;
           if (effectiveTo) {
-            const toIdx = orderedStops.findIndex(name =>
+            let toIdx = orderedStops.findIndex(name => name === effectiveTo);
+            if (toIdx === -1) toIdx = orderedStops.findIndex(name =>
               matchesSearch(name, effectiveTo) || matchesSearch(effectiveTo, name));
             if (toIdx === -1 || fromIdx >= toIdx) return false;
           }
         } else {
-          const toIdx = orderedStops.findIndex(name =>
+          let toIdx = orderedStops.findIndex(name => name === effectiveTo);
+          if (toIdx === -1) toIdx = orderedStops.findIndex(name =>
             matchesSearch(name, effectiveTo) || matchesSearch(effectiveTo, name));
           if (toIdx === -1) return false;
         }
