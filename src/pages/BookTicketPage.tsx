@@ -867,8 +867,8 @@ function TripConfirmPanel({
     const stopTotalMins = stopH * 60 + stopM;
     // If stop is earlier in the day than departure, it has crossed midnight
     const dayOffset = stopTotalMins < depTotalMins ? 1 : 0;
-    const d = new Date(`${trip.date}T00:00:00`);
-    d.setDate(d.getDate() + dayOffset);
+    // Use explicit constructor parameters for consistent cross-browser behavior
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10) + dayOffset);
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
   };
 
@@ -2724,7 +2724,8 @@ export function BookTicketPage({
                       placeholder={language === 'vi' ? 'tuổi' : language === 'ja' ? '歳' : 'age'}
                       value={searchChildrenAges[i] === undefined ? '' : searchChildrenAges[i]}
                       onChange={e => {
-                        const age = e.target.value === '' ? undefined : Math.max(0, Math.min(17, parseInt(e.target.value) || 0));
+                        const parsed = parseInt(e.target.value, 10);
+                        const age = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.max(0, Math.min(17, parsed)));
                         setSearchChildrenAges(prev => {
                           const updated = [...prev];
                           updated[i] = age;

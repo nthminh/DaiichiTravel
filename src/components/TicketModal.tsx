@@ -11,6 +11,8 @@ import { Route } from '../types';
 import { getJourneyStops } from '../lib/routeUtils';
 import { formatBookingDate } from '../lib/vnDate';
 
+const AUTO_PRINT_DELAY_MS = 800;
+
 interface TicketModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -29,7 +31,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
   // Auto-trigger download when modal opens after payment
   useEffect(() => {
     if (isOpen && autoDownload && booking) {
-      const timer = setTimeout(() => window.print(), 800);
+      const timer = setTimeout(() => window.print(), AUTO_PRINT_DELAY_MS);
       return () => clearTimeout(timer);
     }
   }, [isOpen, autoDownload, booking]);

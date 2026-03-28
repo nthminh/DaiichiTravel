@@ -2171,7 +2171,6 @@ export default function App() {
               setPendingQrBooking(null);
             }}
             onCancel={async () => {
-              setTicketAutoDownload(false);
               await pendingQrBooking.cancel();
               setPendingQrBooking(null);
             }}
