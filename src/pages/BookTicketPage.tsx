@@ -1312,6 +1312,9 @@ interface BookTicketPageProps {
   // Favorites
   likedTrips: Set<string>;
   toggleLikedTrip: (tripId: string) => void;
+  // Category filter from home page icons
+  routeCategoryFilter?: string;
+  setRouteCategoryFilter?: (v: string) => void;
 }
 
 // Snapshot of search parameters committed when the Search button is clicked.
@@ -1415,6 +1418,8 @@ export function BookTicketPage({
   setDropoffStopAddress,
   likedTrips,
   toggleLikedTrip,
+  routeCategoryFilter,
+  setRouteCategoryFilter,
 }: BookTicketPageProps) {
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
@@ -1780,6 +1785,10 @@ export function BookTicketPage({
       if (!matchesSearch(searchable, p.freeSearch)) return false;
     }
     const tripRoute = routeByName.get(trip.route);
+    // Category filter: only show trips whose route matches the selected category.
+    if (routeCategoryFilter) {
+      if (!tripRoute || tripRoute.routeCategory !== routeCategoryFilter) return false;
+    }
     if (effectiveFrom || effectiveTo) {
       if (tripRoute) {
         const orderedStops = [
@@ -2370,6 +2379,27 @@ export function BookTicketPage({
       />
     )}
     <div className="space-y-8">
+      {/* Category filter banner */}
+      {routeCategoryFilter && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+          <span className="text-sm font-semibold text-blue-700">
+            {language === 'vi' ? 'Đang lọc:' : 'Filtering:'}
+            {' '}
+            {routeCategoryFilter === 'BUS' ? (language === 'vi' ? '🚌 Xe bus' : '🚌 Bus') :
+             routeCategoryFilter === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour ngắn' : '🗺️ Short Tour') :
+             routeCategoryFilter === 'CRUISE' ? (language === 'vi' ? '⚓ Du thuyền' : '⚓ Cruise') :
+             routeCategoryFilter === 'HOTEL' ? (language === 'vi' ? '🏨 Khách sạn' : '🏨 Hotel') : routeCategoryFilter}
+          </span>
+          {setRouteCategoryFilter && (
+            <button
+              onClick={() => setRouteCategoryFilter('')}
+              className="ml-auto text-xs text-blue-500 hover:text-blue-700 font-semibold underline"
+            >
+              {language === 'vi' ? 'Xóa lọc' : 'Clear filter'}
+            </button>
+          )}
+        </div>
+      )}
       <div className="bg-white p-2 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center justify-between gap-2 mb-2 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
@@ -2618,11 +2648,17 @@ export function BookTicketPage({
         {/* Suggestions section: shown before the first search (liked trips + discounted trips) */}
         {!hasSearched && (() => {
           const eligibleStatuses = [TripStatus.WAITING, TripStatus.RUNNING];
-          const likedSuggestions = trips.filter(tr => likedTrips.has(tr.id) && eligibleStatuses.includes(tr.status));
+          const matchesCategory = (tr: Trip) => {
+            if (!routeCategoryFilter) return true;
+            const route = routeByName.get(tr.route);
+            return !!route && route.routeCategory === routeCategoryFilter;
+          };
+          const likedSuggestions = trips.filter(tr => likedTrips.has(tr.id) && eligibleStatuses.includes(tr.status) && matchesCategory(tr));
           const discountedSuggestions = trips.filter(tr =>
             !likedTrips.has(tr.id) &&
             (tr.discountPercent || 0) > 0 &&
-            eligibleStatuses.includes(tr.status)
+            eligibleStatuses.includes(tr.status) &&
+            matchesCategory(tr)
           );
           const allSuggestions = [...likedSuggestions, ...discountedSuggestions];
           if (allSuggestions.length === 0) return null;
