@@ -1276,7 +1276,7 @@ export default function App() {
         );
 
       case 'customers':
-        return <CustomerManagement language={language} customers={customers} categories={customerCategories} currentUser={currentUser} />;
+        return <CustomerManagement language={language} customers={customers} currentUser={currentUser} />;
 
       case 'customer-verification':
         return (
@@ -2267,7 +2267,6 @@ export default function App() {
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen}
         permissions={permissions}
-        customerCategories={customerCategories}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-daiichi-accent/30 relative">
