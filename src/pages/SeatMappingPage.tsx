@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, CheckCircle2, Gift, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { X, CheckCircle2, Gift, ChevronDown, ChevronUp, Info, Lock } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole, SeatStatus } from '../constants/translations'
 import { PAYMENT_METHODS, type PaymentMethod, PAYMENT_METHOD_TRANSLATION_KEYS } from '../constants/paymentMethods'
@@ -369,6 +369,8 @@ export function SeatMappingPage({
 
   const getEffectiveStatus = (seatId: string): SeatStatus => {
     const rawStatus = seatStatusMap[seatId] ?? SeatStatus.EMPTY;
+    // LOCKED seats always stay locked regardless of segment selection
+    if (rawStatus === SeatStatus.LOCKED) return SeatStatus.LOCKED;
     if (!hasSegmentSelection || rawStatus === SeatStatus.EMPTY) return rawStatus;
     if (currentFromOrder < 0 || currentToOrder < 0) return rawStatus;
     // Look up the seat's stop orders from the trip seat data
@@ -433,13 +435,16 @@ export function SeatMappingPage({
 
     // Segment-conflict tooltip/warning badge
     const hasConflictWarning = segmentConflictSeat === seatId;
+    const isLocked = rawStatus === SeatStatus.LOCKED;
 
     return (
       <motion.button
         key={seatId}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: isLocked ? 1 : 1.05 }}
+        whileTap={{ scale: isLocked ? 1 : 0.95 }}
         onClick={() => {
+          // Locked seats cannot be selected
+          if (isLocked) return;
           if (status !== SeatStatus.EMPTY) {
             // Partially-booked seat on a multi-stop route
             if (isPartiallyBooked) {
@@ -493,6 +498,8 @@ export function SeatMappingPage({
         }}
         className={cn(
           "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold border-2 transition-all flex-shrink-0 relative overflow-hidden",
+          // Locked seat (disabled by admin)
+          isLocked && "bg-gray-200 border-gray-400 text-gray-400 cursor-not-allowed",
           // Fully-booked seats (no segment info on a multi-stop route, or non-multi-stop)
           rawStatus === SeatStatus.PAID && !isSegmentFree && !isPartiallyBooked && "bg-daiichi-red text-white border-daiichi-red shadow-lg shadow-daiichi-red/20",
           rawStatus === SeatStatus.BOOKED && !isSegmentFree && !isPartiallyBooked && "bg-daiichi-yellow text-white border-daiichi-yellow shadow-lg shadow-daiichi-yellow/20",
@@ -511,14 +518,17 @@ export function SeatMappingPage({
             : 'linear-gradient(135deg, #FBBF24 50%, #ffffff 50%)',
         } : undefined}
         title={
-          isPartiallyBooked
-            ? (language === 'vi' ? 'Ghế đã đặt một phần chặng — chọn ghế này để chọn chặng khác' : 'Partially booked — click to book a different segment')
-            : isSegmentFree
-              ? (language === 'vi' ? 'Trống cho chặng này' : 'Free for this segment')
-              : undefined
+          isLocked
+            ? (language === 'vi' ? 'Ghế đang bị khóa' : language === 'ja' ? '座席がロックされています' : 'Seat is locked')
+            : isPartiallyBooked
+              ? (language === 'vi' ? 'Ghế đã đặt một phần chặng — chọn ghế này để chọn chặng khác' : 'Partially booked — click to book a different segment')
+              : isSegmentFree
+                ? (language === 'vi' ? 'Trống cho chặng này' : 'Free for this segment')
+                : undefined
         }
       >
         {seatId}
+        {isLocked && <Lock size={8} className="absolute top-0.5 right-0.5 text-gray-500" />}
         {rawStatus === SeatStatus.PAID && !isSegmentFree && !isPartiallyBooked && <CheckCircle2 size={10} className="absolute top-0.5 right-0.5" />}
         {isExtraSeat && <span className="absolute top-0 right-0.5 text-[7px] font-bold text-blue-600">+</span>}
         {isSegmentFree && <span className="absolute top-0 right-0 text-[7px] font-bold text-emerald-600">✓</span>}
@@ -719,8 +729,8 @@ export function SeatMappingPage({
             </span>
             <span className="text-xs text-gray-400">
               {language === 'vi'
-                ? `Tổng: ${selectedTrip.seats.length} chỗ • Đã đặt: ${selectedTrip.seats.filter((s: any) => s.status !== SeatStatus.EMPTY).length} chỗ`
-                : `Total: ${selectedTrip.seats.length} • Booked: ${selectedTrip.seats.filter((s: any) => s.status !== SeatStatus.EMPTY).length}`}
+                ? `Tổng: ${selectedTrip.seats.length} chỗ • Đã đặt: ${selectedTrip.seats.filter((s: any) => s.status !== SeatStatus.EMPTY && s.status !== SeatStatus.LOCKED).length} chỗ`
+                : `Total: ${selectedTrip.seats.length} • Booked: ${selectedTrip.seats.filter((s: any) => s.status !== SeatStatus.EMPTY && s.status !== SeatStatus.LOCKED).length}`}
             </span>
           </div>
           <div className="px-4 py-2 bg-blue-50 rounded-2xl border border-blue-100 inline-block mx-auto">
@@ -786,6 +796,7 @@ export function SeatMappingPage({
           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-daiichi-red rounded flex-shrink-0" /> {t.paid}</div>
           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-daiichi-yellow rounded flex-shrink-0" /> {t.booked}</div>
           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-gray-200 rounded flex-shrink-0" /> {t.empty}</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-gray-200 border border-gray-400 rounded flex-shrink-0" /> {language === 'vi' ? 'Đã khóa' : language === 'ja' ? 'ロック済み' : 'Locked'}</div>
           {!!(tripRoute?.routeStops?.length) && (
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded border-2 border-daiichi-yellow overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #FBBF24 50%, #ffffff 50%)' }} />

@@ -14,7 +14,8 @@ export enum TripStatus {
 export enum SeatStatus {
   EMPTY = 'EMPTY',
   BOOKED = 'BOOKED',
-  PAID = 'PAID'
+  PAID = 'PAID',
+  LOCKED = 'LOCKED'
 }
 
 export type Language = 'vi' | 'en' | 'ja';

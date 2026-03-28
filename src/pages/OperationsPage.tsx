@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check } from 'lucide-react';
+import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check, Lock, Unlock } from 'lucide-react';
 import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
@@ -9,6 +9,7 @@ import { SearchableSelect } from '../components/SearchableSelect';
 import { ResizableTh } from '../components/ResizableTh';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatBookingDate } from '../lib/vnDate';
+import { transportService } from '../services/transportService';
 
 type TranslationRecord = typeof TRANSLATIONS['vi'];
 
@@ -246,6 +247,10 @@ export function OperationsPage({
   const [currentTripPage, setCurrentTripPage] = React.useState(1);
   const TRIPS_PER_PAGE = 50;
 
+  // Seat lock modal state
+  const [lockSeatsTrip, setLockSeatsTrip] = React.useState<Trip | null>(null);
+  const [lockSeatLoading, setLockSeatLoading] = React.useState(false);
+
   // Pre-compute active employee names (drivers first) for driver select
   const activeEmployeeNames = [
     ...employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
@@ -298,6 +303,107 @@ export function OperationsPage({
 
   return (
     <div className="space-y-6">
+      {/* Seat Lock Modal */}
+      {lockSeatsTrip && isAdmin && (() => {
+        const trip = trips.find(t => t.id === lockSeatsTrip.id) ?? lockSeatsTrip;
+        const handleToggle = async (seatId: string) => {
+          const seat = trip.seats.find(s => s.id === seatId);
+          if (!seat) return;
+          if (seat.status !== SeatStatus.EMPTY && seat.status !== SeatStatus.LOCKED) return;
+          setLockSeatLoading(true);
+          try {
+            await transportService.toggleSeatLock(trip.id, [seatId], seat.status === SeatStatus.EMPTY);
+          } finally {
+            setLockSeatLoading(false);
+          }
+        };
+        const lockedCount = trip.seats.filter(s => s.status === SeatStatus.LOCKED).length;
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="p-6 pb-4 border-b border-gray-100">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                      <Lock size={20} className="text-gray-600" />
+                      {language === 'vi' ? 'Khóa / Mở khóa ghế' : language === 'ja' ? '座席のロック/解除' : 'Lock / Unlock Seats'}
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {trip.route} • {trip.date && formatBookingDate(trip.date)} {trip.time}
+                    </p>
+                    {lockedCount > 0 && (
+                      <p className="text-xs text-orange-600 font-bold mt-1">
+                        {language === 'vi' ? `${lockedCount} ghế đang bị khóa` : `${lockedCount} seat(s) locked`}
+                      </p>
+                    )}
+                  </div>
+                  <button onClick={() => setLockSeatsTrip(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                    <X size={22} />
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">
+                  {language === 'vi'
+                    ? 'Nhấn vào ghế trắng để khóa, nhấn ghế xám để mở khóa. Ghế đã đặt/thanh toán không thể khóa.'
+                    : 'Click an empty seat to lock it, click a locked seat to unlock. Booked/paid seats cannot be locked.'}
+                </p>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {lockSeatLoading && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 size={20} className="animate-spin text-gray-400" />
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {trip.seats.map(seat => {
+                    const isLocked = seat.status === SeatStatus.LOCKED;
+                    const isBooked = seat.status === SeatStatus.BOOKED;
+                    const isPaid = seat.status === SeatStatus.PAID;
+                    const isEmpty = seat.status === SeatStatus.EMPTY;
+                    return (
+                      <button
+                        key={seat.id}
+                        disabled={lockSeatLoading || isBooked || isPaid}
+                        onClick={() => handleToggle(seat.id)}
+                        title={
+                          isLocked
+                            ? (language === 'vi' ? 'Nhấn để mở khóa' : 'Click to unlock')
+                            : isBooked || isPaid
+                              ? (language === 'vi' ? 'Ghế đã có khách, không thể khóa' : 'Seat occupied, cannot lock')
+                              : (language === 'vi' ? 'Nhấn để khóa ghế' : 'Click to lock seat')
+                        }
+                        className={cn(
+                          'w-10 h-10 rounded-xl border-2 flex items-center justify-center text-[11px] font-bold transition-all relative',
+                          isEmpty && 'bg-white border-gray-200 text-gray-600 hover:border-gray-500 hover:bg-gray-100 cursor-pointer',
+                          isLocked && 'bg-gray-200 border-gray-400 text-gray-500 hover:bg-gray-300 cursor-pointer',
+                          isBooked && 'bg-yellow-400 border-yellow-400 text-white cursor-not-allowed',
+                          isPaid && 'bg-daiichi-red border-daiichi-red text-white cursor-not-allowed',
+                        )}
+                      >
+                        {seat.id}
+                        {isLocked && <Lock size={8} className="absolute top-0.5 right-0.5 text-gray-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3 justify-center text-[10px] font-semibold">
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border-2 border-gray-300 rounded" /> {language === 'vi' ? 'Trống' : 'Empty'}</div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 bg-gray-200 border-2 border-gray-400 rounded" /> {language === 'vi' ? 'Đã khóa' : 'Locked'}</div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-400 rounded" /> {language === 'vi' ? 'Đã đặt' : 'Booked'}</div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 bg-daiichi-red rounded" /> {language === 'vi' ? 'Đã thanh toán' : 'Paid'}</div>
+                </div>
+              </div>
+              <div className="p-4 border-t border-gray-100">
+                <button
+                  onClick={() => setLockSeatsTrip(null)}
+                  className="w-full py-3 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  {language === 'vi' ? 'Đóng' : 'Close'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">{t.operation_management}</h2>
         <div className="flex gap-2">
@@ -867,7 +973,7 @@ export function OperationsPage({
       {showTripPassengers && (() => {
         // Pre-compute ticketCode map and group seats by booking
         const seatTicketCodeMap = buildSeatTicketCodeMap(showTripPassengers.id);
-        const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY);
+        const bookedSeats = (showTripPassengers.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY && s.status !== SeatStatus.LOCKED);
         const passengerGroups = buildPassengerGroups(showTripPassengers.id, bookedSeats);
         // Segment detection: find matched route to get total stop count
         const matchedRoute = routes.find(r => r.name === showTripPassengers.route);
@@ -926,9 +1032,10 @@ export function OperationsPage({
             {/* Seat stats + export buttons */}
             {(() => {
               const allSeats = showTripPassengers.seats || [];
-              const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY);
+              const booked = allSeats.filter((s: any) => s.status !== SeatStatus.EMPTY && s.status !== SeatStatus.LOCKED);
               const paid = allSeats.filter((s: any) => s.status === SeatStatus.PAID);
               const empty = allSeats.filter((s: any) => s.status === SeatStatus.EMPTY);
+              const locked = allSeats.filter((s: any) => s.status === SeatStatus.LOCKED);
               const partialCount = booked.filter((s: any) => getSegmentInfo(s).type !== 'full').length;
               return (
                 <div className="px-6 py-3 bg-gray-50 flex flex-wrap gap-3 items-center flex-shrink-0 border-b border-gray-100">
@@ -936,6 +1043,7 @@ export function OperationsPage({
                   <span className="text-sm font-bold text-green-600">✓ {language === 'vi' ? 'Đã thanh toán' : 'Paid'}: {paid.length}</span>
                   <span className="text-sm font-bold text-blue-600">◉ {language === 'vi' ? 'Đã đặt' : 'Booked'}: {booked.length - paid.length}</span>
                   <span className="text-sm font-bold text-gray-400">○ {language === 'vi' ? 'Còn trống' : 'Empty'}: {empty.length}</span>
+                  {locked.length > 0 && <span className="text-sm font-bold text-gray-500 flex items-center gap-1"><Lock size={12} /> {language === 'vi' ? 'Đã khóa' : 'Locked'}: {locked.length}</span>}
                   {partialCount > 0 && <span className="text-sm font-bold text-orange-500">◈ {language === 'vi' ? 'Nửa chặng' : 'Partial'}: {partialCount}</span>}
                   <div className="ml-auto flex gap-2">
                     <button onClick={() => exportTripToExcelHandler(showTripPassengers)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"><Download size={12} /> Excel</button>
@@ -1160,7 +1268,8 @@ export function OperationsPage({
           <tbody className="divide-y divide-gray-100">
             {paginatedTrips.map((trip) => {
               const emptySeats = (trip.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
-              const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY).length;
+              const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY && s.status !== SeatStatus.LOCKED).length;
+              const lockedCount = (trip.seats || []).filter((s: any) => s.status === SeatStatus.LOCKED).length;
               const totalSeats = (trip.seats || []).length;
               const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
               const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
@@ -1230,6 +1339,7 @@ export function OperationsPage({
                     <div className="flex flex-col gap-0.5">
                       <span className={cn('text-sm font-bold', emptySeats === 0 ? 'text-red-500' : emptySeats <= 3 ? 'text-orange-500' : 'text-green-600')}>{emptySeats}</span>
                       <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
+                      {lockedCount > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-0.5"><Lock size={8} />{lockedCount}</span>}
                     </div>
                   </td>}
                   {tripColVisibility.passengers && <td className="px-6 py-4">
@@ -1247,7 +1357,7 @@ export function OperationsPage({
                       <span>{t.manage_addons}</span>
                     </button>
                   </td>}
-                  <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>{isAdmin && <button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}<NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={goToSeatMap} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
+                  <td className="px-6 py-4"><div className="flex gap-3 items-center"><button onClick={() => exportTripToExcelHandler(trip)} title={language === 'vi' ? 'Xuất Excel' : 'Export Excel'} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"><Download size={16} /></button><button onClick={() => exportTripToPDFHandler(trip)} title={language === 'vi' ? 'Xuất PDF' : 'Export PDF'} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 rounded"><FileText size={16} /></button><button onClick={() => handleCopyTrip(trip)} title={t.copy_trip} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1 rounded"><Copy size={16} /></button><button onClick={() => handleStartEditTrip(trip)} className="text-gray-600 hover:text-daiichi-red"><Edit3 size={18} /></button>{isAdmin && <button onClick={() => handleDeleteTrip(trip.id)} className="text-gray-600 hover:text-red-600"><Trash2 size={18} /></button>}{isAdmin && <button onClick={() => setLockSeatsTrip(trip)} title={language === 'vi' ? 'Khóa / Mở khóa ghế' : 'Lock / Unlock Seats'} className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 p-1 rounded"><Lock size={16} /></button>}<NotePopover note={trip.note} onSave={(note) => handleSaveTripNote(trip.id, note)} language={language} /><button onClick={goToSeatMap} className="text-daiichi-red hover:underline font-bold text-sm">{t.view_seats}</button></div></td>
                 </tr>
               );
             })}
