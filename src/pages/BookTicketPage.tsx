@@ -766,6 +766,10 @@ function TripConfirmPanel({
 
   const [selectedPickup, setSelectedPickup] = useState<Stop | null>(null);
   const [selectedDropoff, setSelectedDropoff] = useState<Stop | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  const handlePickupSelect = (stop: Stop | null) => { setSelectedPickup(stop); if (stop) setConfirmError(null); };
+  const handleDropoffSelect = (stop: Stop | null) => { setSelectedDropoff(stop); if (stop) setConfirmError(null); };
   // ---- helpers ----
   const isAddressDisabledByDate = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
     if (!disableFlag) return false;
@@ -847,6 +851,10 @@ function TripConfirmPanel({
       : afterType;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories, route?.disabledDropoffCategoriesFromDate, route?.disabledDropoffCategoriesToDate, tripDate]);
+
+  // Pickup/dropoff are required when stops exist and the section is not fully disabled
+  const pickupRequired = !pickupSectionDisabled && pickupStops.length > 0;
+  const dropoffRequired = !dropoffSectionDisabled && dropoffStops.length > 0;
 
   // ---- Time calculation ----
   const calcTime = (base: string, offsetMins: number): string => {
@@ -1122,7 +1130,10 @@ function TripConfirmPanel({
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-daiichi-red flex-shrink-0" />
               <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_pickup_title || 'Chọn điểm đón'}</h3>
-              <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
+              {pickupRequired
+                ? <span className="text-[10px] text-daiichi-red ml-auto font-semibold">{t.trip_confirm_required || '(Bắt buộc)'}</span>
+                : <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
+              }
             </div>
             <div className="p-3">
               {pickupSectionDisabled ? (
@@ -1136,7 +1147,7 @@ function TripConfirmPanel({
                 <CompactStopSelector
                   stops={pickupStops}
                   selectedStop={selectedPickup}
-                  onSelect={setSelectedPickup}
+                  onSelect={handlePickupSelect}
                   placeholder={language === 'vi' ? 'Gõ để tìm điểm đón...' : language === 'ja' ? '乗車地を検索...' : 'Search pickup point...'}
                   emptyLabel={t.not_selected_yet || 'Chưa chọn'}
                   theme="pickup"
@@ -1150,7 +1161,10 @@ function TripConfirmPanel({
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
               <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_dropoff_title || 'Chọn điểm trả'}</h3>
-              <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
+              {dropoffRequired
+                ? <span className="text-[10px] text-daiichi-red ml-auto font-semibold">{t.trip_confirm_required || '(Bắt buộc)'}</span>
+                : <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
+              }
             </div>
             <div className="p-3">
               {dropoffSectionDisabled ? (
@@ -1164,7 +1178,7 @@ function TripConfirmPanel({
                 <CompactStopSelector
                   stops={dropoffStops}
                   selectedStop={selectedDropoff}
-                  onSelect={setSelectedDropoff}
+                  onSelect={handleDropoffSelect}
                   placeholder={language === 'vi' ? 'Gõ để tìm điểm trả...' : language === 'ja' ? '降車地を検索...' : 'Search dropoff point...'}
                   emptyLabel={t.not_selected_yet || 'Chưa chọn'}
                   theme="dropoff"
@@ -1210,12 +1224,6 @@ function TripConfirmPanel({
                 <span className="text-sm font-bold text-gray-800">{t.trip_confirm_total || 'Tổng dự kiến / người'}</span>
                 <span className="text-base font-bold text-daiichi-red">{totalPerPerson.toLocaleString()}đ</span>
               </div>
-              {(searchAdults > 1 || searchChildren > 0) && (
-                <p className="text-[10px] text-gray-400">
-                  × {searchAdults + searchChildren} {language === 'vi' ? 'hành khách' : language === 'ja' ? '名' : 'passengers'}
-                  {' ≈ '}<span className="font-semibold text-gray-600">{(totalPerPerson * (searchAdults + searchChildren)).toLocaleString()}đ</span>
-                </p>
-              )}
             </div>
           </div>
 
@@ -1229,28 +1237,47 @@ function TripConfirmPanel({
 
       {/* Fixed bottom action bar */}
       <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] safe-area-inset-bottom">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all"
-          >
-            <X size={15} />
-            <span className="hidden sm:inline">{t.trip_confirm_back || 'Quay lại'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(selectedPickup, selectedDropoff)}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all"
-          >
-            <CheckCircle2 size={16} />
-            <span>
-              {trip.seatType === 'free'
-                ? (language === 'vi' ? 'Xác nhận & Đặt vé' : language === 'ja' ? '確認・予約' : 'Confirm & Book')
-                : (t.confirm_and_select_seat || 'Xác nhận & Chọn ghế')}
-            </span>
-            <ChevronRight size={16} />
-          </button>
+        <div className="max-w-2xl mx-auto space-y-2">
+          {confirmError && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+              <Info size={13} className="text-red-500 flex-shrink-0" />
+              <p className="text-[11px] text-red-600 font-medium">{confirmError}</p>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all"
+            >
+              <X size={15} />
+              <span className="hidden sm:inline">{t.trip_confirm_back || 'Quay lại'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (pickupRequired && !selectedPickup) {
+                  setConfirmError(t.trip_confirm_pickup_required_error || 'Vui lòng chọn điểm đón trước khi tiếp tục');
+                  return;
+                }
+                if (dropoffRequired && !selectedDropoff) {
+                  setConfirmError(t.trip_confirm_dropoff_required_error || 'Vui lòng chọn điểm trả trước khi tiếp tục');
+                  return;
+                }
+                setConfirmError(null);
+                onConfirm(selectedPickup, selectedDropoff);
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all"
+            >
+              <CheckCircle2 size={16} />
+              <span>
+                {trip.seatType === 'free'
+                  ? (language === 'vi' ? 'Xác nhận & Đặt vé' : language === 'ja' ? '確認・予約' : 'Confirm & Book')
+                  : (t.confirm_and_select_seat || 'Xác nhận & Chọn ghế')}
+              </span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
