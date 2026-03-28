@@ -3,7 +3,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { FirebaseStorage } from 'firebase/storage';
 import { transportService } from '../services/transportService';
 import { buildFareDocId } from '../services/fareService';
-import { Route, RouteStop, PricePeriod, RouteSurcharge } from '../types';
+import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
 /** External dependencies that useRoutes needs from App.tsx */
@@ -26,6 +26,8 @@ export const DEFAULT_ROUTE_FORM = {
   duration: '',
   departureOffsetMinutes: 0,
   arrivalOffsetMinutes: 0,
+  departureDescription: '',
+  arrivalDescription: '',
   details: '',
   imageUrl: '',
   images: [] as string[],
@@ -130,7 +132,7 @@ export function useRoutes(ctx: RouteContext) {
 
   const [showAddRouteStop, setShowAddRouteStop] = useState(false);
   const [editingRouteStop, setEditingRouteStop] = useState<RouteStop | null>(null);
-  const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1, offsetMinutes: 0 });
+  const [routeStopForm, setRouteStopForm] = useState({ stopId: '', stopName: '', order: 1, offsetMinutes: 0, description: '' });
 
   // Undo history for route stop list and fare list
   const [routeFormStopsHistory, setRouteFormStopsHistory] = useState<RouteStop[][]>([]);
@@ -152,6 +154,9 @@ export function useRoutes(ctx: RouteContext) {
   });
 
   const [routeImageUploading, setRouteImageUploading] = useState(false);
+
+  // Child pricing rules
+  const [childPricingRules, setChildPricingRules] = useState<ChildPricingRule[]>([]);
 
   // Saving / error state for route save operations
   const [isSavingRoute, setIsSavingRoute] = useState(false);
@@ -192,6 +197,7 @@ export function useRoutes(ctx: RouteContext) {
               stopName: currentForm.departurePoint,
               order: 0,
               ...(currentForm.departureOffsetMinutes > 0 ? { offsetMinutes: currentForm.departureOffsetMinutes } : {}),
+              ...(currentForm.departureDescription ? { description: currentForm.departureDescription } : {}),
             }]
           : []),
         ...intermediateStops,
@@ -202,6 +208,7 @@ export function useRoutes(ctx: RouteContext) {
                 stopName: currentForm.arrivalPoint,
                 order: intermediateStops.length + 1,
                 ...(currentForm.arrivalOffsetMinutes > 0 ? { offsetMinutes: currentForm.arrivalOffsetMinutes } : {}),
+                ...(currentForm.arrivalDescription ? { description: currentForm.arrivalDescription } : {}),
               },
             ]
           : []),
@@ -211,6 +218,7 @@ export function useRoutes(ctx: RouteContext) {
         pricePeriods: routePricePeriods,
         surcharges: routeSurcharges,
         routeStops: fullRouteStops,
+        childPricingRules,
       };
       let routeId = editingRoute?.id;
       if (editingRoute) {
@@ -353,6 +361,8 @@ export function useRoutes(ctx: RouteContext) {
       .slice()
       .sort((a, b) => a.order - b.order)
       .map((s, i) => ({ ...s, order: i + 1 }));
+    const departureStopData = (route.routeStops || []).find(s => s.stopId === '__departure__');
+    const arrivalStopData = (route.routeStops || []).find(s => s.stopId === '__arrival__');
     setRouteForm({
       stt: route.stt,
       name: route.name,
@@ -363,6 +373,8 @@ export function useRoutes(ctx: RouteContext) {
       duration: route.duration || '',
       departureOffsetMinutes: route.departureOffsetMinutes ?? 0,
       arrivalOffsetMinutes: route.arrivalOffsetMinutes ?? 0,
+      departureDescription: departureStopData?.description || '',
+      arrivalDescription: arrivalStopData?.description || '',
       details: route.details || '',
       imageUrl: route.imageUrl || '',
       images: route.images || [],
@@ -384,6 +396,7 @@ export function useRoutes(ctx: RouteContext) {
     });
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
+    setChildPricingRules(route.childPricingRules || []);
     setShowAddPricePeriod(false);
     setEditingPricePeriodId(null);
     setShowAddRouteSurcharge(false);
@@ -453,6 +466,8 @@ export function useRoutes(ctx: RouteContext) {
     const copySuffix =
       language === 'vi' ? ' (bản sao)' : language === 'ja' ? '（コピー）' : ' (copy)';
     const copiedName = `${route.name}${copySuffix}`;
+    const departureCopyStop = (route.routeStops || []).find(s => s.stopId === '__departure__');
+    const arrivalCopyStop = (route.routeStops || []).find(s => s.stopId === '__arrival__');
     setRouteForm({
       stt: routes.length + 1,
       name: copiedName,
@@ -463,6 +478,8 @@ export function useRoutes(ctx: RouteContext) {
       duration: route.duration || '',
       departureOffsetMinutes: route.departureOffsetMinutes ?? 0,
       arrivalOffsetMinutes: route.arrivalOffsetMinutes ?? 0,
+      departureDescription: departureCopyStop?.description || '',
+      arrivalDescription: arrivalCopyStop?.description || '',
       details: route.details || '',
       imageUrl: route.imageUrl || '',
       images: route.images || [],
@@ -486,6 +503,9 @@ export function useRoutes(ctx: RouteContext) {
     setRoutePricePeriods((route.pricePeriods || []).map((p, i) => ({ ...p, id: `pp_${now}_${i}` })));
     setRouteSurcharges(
       (route.surcharges || []).map((s, i) => ({ ...s, id: `sc_${now}_${i}` })),
+    );
+    setChildPricingRules(
+      (route.childPricingRules || []).map((r, i) => ({ ...r, id: `cpr_${now}_${i}` })),
     );
     const loadedStops = (route.routeStops || [])
       .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
@@ -605,6 +625,8 @@ export function useRoutes(ctx: RouteContext) {
     setRouteSaveError,
     routeConflictWarning,
     setRouteConflictWarning,
+    childPricingRules,
+    setChildPricingRules,
     handleSaveRoute,
     handleForceSaveRoute,
     handleRouteImageUpload,

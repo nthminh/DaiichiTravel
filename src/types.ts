@@ -24,6 +24,19 @@ export interface RouteStop {
   order: number; // 1-based, determines boarding/alighting direction
   /** Minutes offset from the main departure time to the scheduled arrival at this stop. */
   offsetMinutes?: number;
+  /** Optional description of services/amenities available at this stop. */
+  description?: string;
+}
+
+/** A single child pricing rule: passengers aged [fromAge, toAge] pay `percent` % of the adult fare. */
+export interface ChildPricingRule {
+  id: string;
+  /** Minimum age (inclusive), e.g. 1 */
+  fromAge: number;
+  /** Maximum age (inclusive), e.g. 5. Use 99 or a large number to mean "and above". */
+  toAge: number;
+  /** Percentage of adult fare, e.g. 50 means 50% of adult price */
+  percent: number;
 }
 
 export interface Route {
@@ -75,6 +88,8 @@ export interface Route {
   images?: string[];        // additional destination photos (multi-upload); imageUrl = images[0]
   vehicleImageUrl?: string; // photo of the typical vehicle used on this route
   updatedAt?: string;       // ISO timestamp of last modification – used for conflict detection
+  /** Age-based child pricing rules for this route. */
+  childPricingRules?: ChildPricingRule[];
 }
 
 // A single fare entry in the routeFares subcollection
