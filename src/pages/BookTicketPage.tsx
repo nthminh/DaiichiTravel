@@ -2283,7 +2283,7 @@ export function BookTicketPage({
                   onClick={() => setPendingConfirmTrip(trip)}
                   className="w-full px-2 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
                 >
-                  {t.select_seat}
+                  {t.view_details || 'Xem chi tiết'}
                 </button>
               );
             })()}
@@ -2494,27 +2494,6 @@ export function BookTicketPage({
       />
     )}
     <div className="space-y-8">
-      {/* Category filter banner */}
-      {effectiveCategoryFilter && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
-          <span className="text-sm font-semibold text-blue-700">
-            {language === 'vi' ? 'Đang lọc:' : 'Filtering:'}
-            {' '}
-            {effectiveCategoryFilter === 'BUS' ? (language === 'vi' ? '🚌 Xe bus' : '🚌 Bus') :
-             effectiveCategoryFilter === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour ngày' : language === 'ja' ? '🗺️ 日帰りツアー' : '🗺️ Day Tours') :
-             effectiveCategoryFilter === 'CRUISE' ? (language === 'vi' ? '⚓ Du thuyền' : '⚓ Cruise') :
-             effectiveCategoryFilter === 'HOTEL' ? (language === 'vi' ? '🏨 Khách sạn' : '🏨 Hotel') : effectiveCategoryFilter}
-          </span>
-          {!lockedCategoryFilter && setRouteCategoryFilter && (
-            <button
-              onClick={() => setRouteCategoryFilter('')}
-              className="ml-auto text-xs text-blue-500 hover:text-blue-700 font-semibold underline"
-            >
-              {language === 'vi' ? 'Xóa lọc' : 'Clear filter'}
-            </button>
-          )}
-        </div>
-      )}
       <div className="bg-white p-2 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center justify-between gap-2 mb-2 sm:mb-6">
           <h2 className="text-base sm:text-2xl font-bold truncate">{t.search_title}</h2>
