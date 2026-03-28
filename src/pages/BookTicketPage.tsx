@@ -2145,12 +2145,12 @@ export function BookTicketPage({
                 const basePrice = agentBase !== null ? agentBase : retailBase;
                 const discountedPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100)) : basePrice;
                 // For TOUR_SHORT: add the total price of selected add-ons to the displayed price
-                const totalPrice = discountedPrice + selectedAddonTotal;
+                const displayedPrice = discountedPrice + selectedAddonTotal;
 
                 if (isAgent && agentBase !== null) {
                   return (
                     <div>
-                      <p className="text-sm font-bold text-daiichi-red leading-tight">{totalPrice.toLocaleString()}đ</p>
+                      <p className="text-sm font-bold text-daiichi-red leading-tight">{displayedPrice.toLocaleString()}đ</p>
                       {discountPct > 0
                         ? <p className="text-[9px] text-gray-400 line-through">{basePrice.toLocaleString()}đ</p>
                         : <p className="text-[9px] text-gray-400 line-through">{retailBase.toLocaleString()}đ</p>}
@@ -2162,14 +2162,14 @@ export function BookTicketPage({
                 }
                 return discountPct > 0 ? (
                   <div>
-                    <p className="text-sm font-bold text-daiichi-red leading-tight">{totalPrice.toLocaleString()}đ</p>
+                    <p className="text-sm font-bold text-daiichi-red leading-tight">{displayedPrice.toLocaleString()}đ</p>
                     <p className="text-[9px] text-gray-400 line-through">{retailBase.toLocaleString()}đ</p>
                     <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
                       🏷️ -{discountPct}%
                     </span>
                   </div>
                 ) : (
-                  <p className="text-sm font-bold text-daiichi-red leading-tight">{totalPrice.toLocaleString()}đ</p>
+                  <p className="text-sm font-bold text-daiichi-red leading-tight">{displayedPrice.toLocaleString()}đ</p>
                 );
               })()}
             </div>
