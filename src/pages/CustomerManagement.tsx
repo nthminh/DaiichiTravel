@@ -97,7 +97,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return result;
-  }, [customers, search, statusFilter, sortBy, sortDir]);
+  }, [customers, search, statusFilter, categoryFilter, sortBy, sortDir]);
 
   // Compute insights for the summary panel
   const insights = useMemo(() => {
@@ -585,26 +585,28 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
               </div>
 
               {/* Customer Category */}
-              {categories.length > 0 && (
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">
-                    {t.customer_category || 'Loại khách hàng'}
-                  </label>
-                  <select
-                    value={form.categoryId || ''}
-                    onChange={e => {
-                      const cat = categories.find(c => c.id === e.target.value);
-                      setForm(p => ({ ...p, categoryId: e.target.value || undefined, categoryName: cat?.name || undefined }));
-                    }}
-                    className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-                  >
-                    <option value="">{t.customer_no_category || 'Chưa phân loại'}</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">
+                  {t.customer_category || 'Loại khách hàng'}
+                </label>
+                <select
+                  value={form.categoryId || ''}
+                  onChange={e => {
+                    const cat = categories.find(c => c.id === e.target.value);
+                    setForm(p => ({ ...p, categoryId: e.target.value || undefined, categoryName: cat?.name || undefined }));
+                  }}
+                  className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                >
+                  <option value="">
+                    {categories.length === 0
+                      ? (language === 'vi' ? 'Chưa có loại khách — hãy tạo tại "Loại khách"' : 'No categories yet — create one in "Loại khách"')
+                      : (t.customer_no_category || 'Chưa phân loại')}
+                  </option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
 
               {/* Username */}
               <div>
