@@ -453,6 +453,8 @@ export default function App() {
     setRouteSaveError,
     routeConflictWarning,
     setRouteConflictWarning,
+    childPricingRules,
+    setChildPricingRules,
     handleSaveRoute,
     handleForceSaveRoute,
     handleRouteImageUpload,
@@ -1646,6 +1648,8 @@ export default function App() {
               setRouteSaveError={setRouteSaveError}
               routeConflictWarning={routeConflictWarning}
               setRouteConflictWarning={setRouteConflictWarning}
+              childPricingRules={childPricingRules}
+              setChildPricingRules={setChildPricingRules}
               handleSaveRoute={handleSaveRoute}
               handleForceSaveRoute={handleForceSaveRoute}
               handleRouteImageUpload={handleRouteImageUpload}

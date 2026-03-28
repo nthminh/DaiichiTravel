@@ -3,7 +3,7 @@ import { X, Loader2, Edit3, Trash2, Search, Filter, Calendar, FileText, Copy } f
 import { cn } from '../lib/utils';
 import type { Language } from '../constants/translations';
 import { TRANSLATIONS } from '../constants/translations';
-import { Route, Stop, PricePeriod, RouteSurcharge, RouteStop, User, UserRole } from '../types';
+import { Route, Stop, PricePeriod, RouteSurcharge, RouteStop, ChildPricingRule, User, UserRole } from '../types';
 import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
@@ -79,8 +79,8 @@ interface RouteManagementPageProps {
   setShowAddRouteStop: (v: boolean) => void;
   editingRouteStop: RouteStop | null;
   setEditingRouteStop: (v: RouteStop | null) => void;
-  routeStopForm: { stopId: string; stopName: string; order: number; offsetMinutes: number };
-  setRouteStopForm: React.Dispatch<React.SetStateAction<{ stopId: string; stopName: string; order: number; offsetMinutes: number }>>;
+  routeStopForm: { stopId: string; stopName: string; order: number; offsetMinutes: number; description: string };
+  setRouteStopForm: React.Dispatch<React.SetStateAction<{ stopId: string; stopName: string; order: number; offsetMinutes: number; description: string }>>;
   routeFormStopsHistory: RouteStop[][];
   setRouteFormStopsHistory: React.Dispatch<React.SetStateAction<RouteStop[][]>>;
   routeFormFaresHistory: RouteFareEntry[][];
@@ -99,6 +99,8 @@ interface RouteManagementPageProps {
   setRouteSaveError: (v: string | null) => void;
   routeConflictWarning: boolean;
   setRouteConflictWarning: (v: boolean) => void;
+  childPricingRules: ChildPricingRule[];
+  setChildPricingRules: React.Dispatch<React.SetStateAction<ChildPricingRule[]>>;
   handleSaveRoute: () => Promise<void>;
   handleForceSaveRoute: () => void;
   handleRouteImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
@@ -175,6 +177,8 @@ export function RouteManagementPage({
   setRouteSaveError,
   routeConflictWarning,
   setRouteConflictWarning,
+  childPricingRules,
+  setChildPricingRules,
   handleSaveRoute,
   handleForceSaveRoute,
   handleRouteImageUpload,
@@ -211,7 +215,7 @@ export function RouteManagementPage({
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                        <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                        <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, departureDescription: '', arrivalDescription: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); setChildPricingRules([]); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -524,7 +528,7 @@ export function RouteManagementPage({
                           <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Điểm xuất phát và điểm đến được tạo tự động. Thêm điểm dừng trung gian nếu cần.' : 'Departure and arrival are auto-generated. Add intermediate stops as needed.'}</p>
                         </div>
                         {!showAddRouteStop && (
-                          <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0 }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
+                          <button onClick={() => { setShowAddRouteStop(true); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0, description: '' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100">
                             + {language === 'vi' ? 'Thêm điểm dừng' : 'Add stop'}
                           </button>
                         )}
@@ -547,6 +551,16 @@ export function RouteManagementPage({
                                 className="w-20 px-2 py-0.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-300"
                               />
                             </div>
+                            <div className="mt-1.5">
+                              <label className="text-[10px] text-gray-400">{language === 'vi' ? 'Dịch vụ tại điểm này:' : 'Services at this stop:'}</label>
+                              <input
+                                type="text"
+                                value={routeForm.departureDescription || ''}
+                                onChange={e => setRouteForm(p => ({ ...p, departureDescription: e.target.value }))}
+                                className="w-full mt-0.5 px-2 py-0.5 bg-white border border-green-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-300"
+                                placeholder={language === 'vi' ? 'VD: Phòng chờ, Wifi, Nước uống...' : 'E.g. Waiting room, WiFi, Drinks...'}
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
@@ -566,6 +580,9 @@ export function RouteManagementPage({
                                 <span className="ml-2 text-purple-500">+{stop.offsetMinutes} {language === 'vi' ? 'phút' : 'min'}</span>
                               )}
                             </p>
+                            {stop.description && (
+                              <p className="text-[10px] text-purple-600 mt-0.5 italic">{stop.description}</p>
+                            )}
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
                             <button
@@ -601,7 +618,7 @@ export function RouteManagementPage({
                             <button
                               onClick={() => {
                                 setEditingRouteStop(stop);
-                                setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order, offsetMinutes: stop.offsetMinutes ?? 0 });
+                                setRouteStopForm({ stopId: stop.stopId, stopName: stop.stopName, order: stop.order, offsetMinutes: stop.offsetMinutes ?? 0, description: stop.description || '' });
                                 setShowAddRouteStop(true);
                               }}
                               className="p-1 text-gray-400 hover:text-blue-600 rounded"
@@ -632,6 +649,16 @@ export function RouteManagementPage({
                                   {`= ${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60) > 0 ? `${Math.floor((routeForm.arrivalOffsetMinutes ?? 0) / 60)}h` : ''}${(routeForm.arrivalOffsetMinutes ?? 0) % 60 > 0 ? `${(routeForm.arrivalOffsetMinutes ?? 0) % 60}${language === 'vi' ? 'p' : 'm'}` : ''}`}
                                 </span>
                               )}
+                            </div>
+                            <div className="mt-1.5">
+                              <label className="text-[10px] text-gray-400">{language === 'vi' ? 'Dịch vụ tại điểm này:' : 'Services at this stop:'}</label>
+                              <input
+                                type="text"
+                                value={routeForm.arrivalDescription || ''}
+                                onChange={e => setRouteForm(p => ({ ...p, arrivalDescription: e.target.value }))}
+                                className="w-full mt-0.5 px-2 py-0.5 bg-white border border-blue-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                placeholder={language === 'vi' ? 'VD: Nhà hàng, Massage chân, Đạp vịt...' : 'E.g. Restaurant, Foot massage, Duck boats...'}
+                              />
                             </div>
                           </div>
                         </div>
@@ -675,13 +702,25 @@ export function RouteManagementPage({
                                   : 'Passenger departure time at this stop = trip time + offset'}
                               </p>
                             </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                {language === 'vi' ? 'Dịch vụ / mô tả tại điểm dừng' : 'Services / description at this stop'}
+                              </label>
+                              <input
+                                type="text"
+                                value={routeStopForm.description}
+                                onChange={e => setRouteStopForm(p => ({ ...p, description: e.target.value }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                placeholder={language === 'vi' ? 'VD: Massage chân, Nhà hàng hải sản, Đạp vịt...' : 'E.g. Foot massage, Seafood restaurant, Duck boats...'}
+                              />
+                            </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0 }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button onClick={() => { setShowAddRouteStop(false); setEditingRouteStop(null); setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 1, offsetMinutes: 0, description: '' }); }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">{t.cancel}</button>
                             <button
                               disabled={!routeStopForm.stopId}
                               onClick={() => {
-                                const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order, ...(routeStopForm.offsetMinutes > 0 ? { offsetMinutes: routeStopForm.offsetMinutes } : {}) };
+                                const newStop: RouteStop = { stopId: routeStopForm.stopId, stopName: routeStopForm.stopName || stops.find(s => s.id === routeStopForm.stopId)?.name || '', order: routeStopForm.order, ...(routeStopForm.offsetMinutes > 0 ? { offsetMinutes: routeStopForm.offsetMinutes } : {}), ...(routeStopForm.description ? { description: routeStopForm.description } : {}) };
                                 setRouteFormStopsHistory(prev => [...prev, routeFormStops]);
                                 setRouteFormFaresHistory(prev => [...prev, routeFormFares]);
                                 if (editingRouteStop) {
@@ -703,7 +742,7 @@ export function RouteManagementPage({
                                 }
                                 setShowAddRouteStop(false);
                                 setEditingRouteStop(null);
-                                setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2, offsetMinutes: 0 });
+                                setRouteStopForm({ stopId: '', stopName: '', order: routeFormStops.length + 2, offsetMinutes: 0, description: '' });
                               }}
                               className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
                             >
@@ -1061,6 +1100,66 @@ export function RouteManagementPage({
                           </div>
                         );
                       })()}
+                    </div>
+
+                    {/* Child Pricing Rules */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Giá trẻ em theo độ tuổi' : language === 'ja' ? '年齢別子供料金' : 'Child Pricing by Age'}</p>
+                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Thiết lập % giá người lớn cho từng độ tuổi trẻ em. Khi khách khai trẻ em đi cùng, hệ thống sẽ tự tính giá theo độ tuổi.' : 'Set the % of adult fare for each child age range. When passengers declare children, price is calculated by age.'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = Date.now();
+                            setChildPricingRules(prev => [...prev, { id: `cpr_${now}`, fromAge: 0, toAge: 5, percent: 50 }]);
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-xs font-bold hover:bg-orange-100 flex-shrink-0"
+                        >
+                          + {language === 'vi' ? 'Thêm quy tắc' : 'Add rule'}
+                        </button>
+                      </div>
+                      {childPricingRules.length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-1">{language === 'vi' ? 'Chưa có quy tắc giá trẻ em – nhấn "Thêm quy tắc" để thêm' : 'No child pricing rules – click "Add rule" to add one'}</p>
+                      )}
+                      {childPricingRules.map((rule, idx) => (
+                        <div key={rule.id} className="flex items-center gap-2 bg-orange-50 rounded-xl p-3 flex-wrap">
+                          <span className="text-xs font-semibold text-orange-700 flex-shrink-0">{language === 'vi' ? 'Tuổi' : 'Age'}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={99}
+                            value={rule.fromAge}
+                            onChange={e => setChildPricingRules(prev => prev.map((r, i) => i === idx ? { ...r, fromAge: Math.max(0, parseInt(e.target.value, 10) || 0) } : r))}
+                            className="w-16 px-2 py-1 bg-white border border-orange-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-300"
+                          />
+                          <span className="text-xs text-gray-400">–</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={99}
+                            value={rule.toAge}
+                            onChange={e => setChildPricingRules(prev => prev.map((r, i) => i === idx ? { ...r, toAge: Math.max(0, parseInt(e.target.value, 10) || 0) } : r))}
+                            className="w-16 px-2 py-1 bg-white border border-orange-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-300"
+                          />
+                          <span className="text-xs text-gray-400">{language === 'vi' ? 'tuổi' : 'yrs'}:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={rule.percent}
+                            onChange={e => setChildPricingRules(prev => prev.map((r, i) => i === idx ? { ...r, percent: Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0)) } : r))}
+                            className="w-16 px-2 py-1 bg-white border border-orange-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-300"
+                          />
+                          <span className="text-xs text-orange-700 font-semibold">% {language === 'vi' ? 'giá người lớn' : 'of adult fare'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setChildPricingRules(prev => prev.filter((_, i) => i !== idx))}
+                            className="ml-auto p-1 text-gray-400 hover:text-red-600 rounded"
+                          ><Trash2 size={12} /></button>
+                        </div>
+                      ))}
                     </div>
 
                   </div>
