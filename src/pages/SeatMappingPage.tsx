@@ -1124,7 +1124,7 @@ export function SeatMappingPage({
                             className="text-[10px] text-blue-600 font-bold px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
                           >
                             <Info size={10} />
-                            {language === 'vi' ? 'Chi tiết' : language === 'ja' ? '詳細' : 'Details'}
+                            {t.view_details || 'Chi tiết'}
                           </button>
                         </div>
                         {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
