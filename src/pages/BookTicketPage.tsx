@@ -1496,6 +1496,20 @@ export function BookTicketPage({
   // before navigating to seat-mapping. null = no confirmation panel open.
   const [pendingConfirmTrip, setPendingConfirmTrip] = useState<Trip | null>(null);
 
+  // For TOUR_SHORT trips: track which addons are selected per trip (tripId → addonId[])
+  const [selectedAddonsByTrip, setSelectedAddonsByTrip] = useState<Record<string, string[]>>({});
+
+  const toggleAddon = (tripId: string, addonId: string) => {
+    setSelectedAddonsByTrip(prev => {
+      const current = prev[tripId] || [];
+      const idx = current.indexOf(addonId);
+      return {
+        ...prev,
+        [tripId]: idx === -1 ? [...current, addonId] : current.filter(id => id !== addonId),
+      };
+    });
+  };
+
   // Handler for the "From" stop input: clears pre-selected pickup when terminal is cleared.
   const handleFromChange = (text: string, terminal: string) => {
     setSearchFrom(text);
@@ -1933,6 +1947,12 @@ export function BookTicketPage({
     const cardBg = getRouteCardBg(trip.route || '');
     const isRunning = trip.status === TripStatus.RUNNING;
     const isLiked = likedTrips.has(trip.id);
+    // TOUR_SHORT: addons are shown inline on the card with checkboxes
+    const isTourShort = tripRoute?.routeCategory === 'TOUR_SHORT';
+    const tripSelectedAddons = isTourShort ? (selectedAddonsByTrip[trip.id] || []) : [];
+    const selectedAddonTotal = (trip.addons || [])
+      .filter(a => tripSelectedAddons.includes(a.id))
+      .reduce((sum, a) => sum + a.price, 0);
     return (
       <div key={trip.id} className={cn(cardBg, "rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col", isSuggestion ? "border-amber-200 opacity-95" : isRunning ? "border-blue-200" : "border-gray-100")}>
         {/* Route name + favourite button – full-width header row */}
@@ -2091,8 +2111,8 @@ export function BookTicketPage({
               <Bus size={10} className="flex-shrink-0" />
               <span className="truncate">{emptySeats} {t.seats_left}</span>
             </div>
-            {/* Add-ons badge – clickable to show service details */}
-            {(trip.addons || []).length > 0 && (
+            {/* Add-ons badge – clickable to show service details (non-TOUR_SHORT only) */}
+            {!isTourShort && (trip.addons || []).length > 0 && (
               <button
                 onClick={() => setShowAddonDetailTrip(trip)}
                 aria-label={language === 'vi' ? 'Xem chi tiết dịch vụ kèm theo' : language === 'ja' ? '付帯サービスの詳細を見る' : 'View add-on services details'}
@@ -2124,11 +2144,13 @@ export function BookTicketPage({
 
                 const basePrice = agentBase !== null ? agentBase : retailBase;
                 const discountedPrice = discountPct > 0 ? Math.round(basePrice * (1 - discountPct / 100)) : basePrice;
+                // For TOUR_SHORT: add the total price of selected add-ons to the displayed price
+                const displayedPrice = discountedPrice + selectedAddonTotal;
 
                 if (isAgent && agentBase !== null) {
                   return (
                     <div>
-                      <p className="text-sm font-bold text-daiichi-red leading-tight">{discountedPrice.toLocaleString()}đ</p>
+                      <p className="text-sm font-bold text-daiichi-red leading-tight">{displayedPrice.toLocaleString()}đ</p>
                       {discountPct > 0
                         ? <p className="text-[9px] text-gray-400 line-through">{basePrice.toLocaleString()}đ</p>
                         : <p className="text-[9px] text-gray-400 line-through">{retailBase.toLocaleString()}đ</p>}
@@ -2140,14 +2162,14 @@ export function BookTicketPage({
                 }
                 return discountPct > 0 ? (
                   <div>
-                    <p className="text-sm font-bold text-daiichi-red leading-tight">{discountedPrice.toLocaleString()}đ</p>
+                    <p className="text-sm font-bold text-daiichi-red leading-tight">{displayedPrice.toLocaleString()}đ</p>
                     <p className="text-[9px] text-gray-400 line-through">{retailBase.toLocaleString()}đ</p>
                     <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
                       🏷️ -{discountPct}%
                     </span>
                   </div>
                 ) : (
-                  <p className="text-sm font-bold text-daiichi-red leading-tight">{retailBase.toLocaleString()}đ</p>
+                  <p className="text-sm font-bold text-daiichi-red leading-tight">{displayedPrice.toLocaleString()}đ</p>
                 );
               })()}
             </div>
@@ -2225,6 +2247,51 @@ export function BookTicketPage({
             })()}
           </div>
         </div>
+        {/* TOUR_SHORT: inline add-on selector – shown directly on the card */}
+        {isTourShort && (trip.addons || []).length > 0 && (
+          <div className="px-3 pb-2 pt-1 border-t border-emerald-100">
+            <p className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 mb-1.5">
+              <Gift size={9} />
+              {language === 'vi' ? 'Dịch vụ kèm theo' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}
+            </p>
+            <div className="space-y-1">
+              {(trip.addons || []).map((addon) => {
+                const isAddonSelected = tripSelectedAddons.includes(addon.id);
+                return (
+                  <label
+                    key={addon.id}
+                    className={cn(
+                      'flex items-center gap-2 px-2 py-1.5 rounded-xl border cursor-pointer transition-colors select-none',
+                      isAddonSelected
+                        ? 'bg-emerald-50 border-emerald-300'
+                        : 'bg-gray-50 border-gray-100 hover:bg-emerald-50/50 hover:border-emerald-200'
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isAddonSelected}
+                      onChange={() => toggleAddon(trip.id, addon.id)}
+                      className="accent-emerald-600 w-3.5 h-3.5 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[11px] font-semibold text-gray-800 truncate">{addon.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold whitespace-nowrap">
+                          {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing :
+                           addon.type === 'TRANSPORT' ? t.addon_type_transport :
+                           addon.type === 'FOOD' ? t.addon_type_food :
+                           t.addon_type_other}
+                        </span>
+                      </div>
+                      {addon.description && <p className="text-[9px] text-gray-400 truncate">{addon.description}</p>}
+                    </div>
+                    <span className="text-[11px] font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {/* Footer: departure → destination */}
         {(() => {
           const isReturnPhase = tripType === 'ROUND_TRIP' && roundTripPhase === 'return';
