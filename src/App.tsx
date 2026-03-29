@@ -22,7 +22,7 @@ import { useTrips } from './hooks/useTrips';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAuth } from './hooks/useAuth';
 import { usePassengerManagement } from './hooks/usePassengerManagement';
-import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat, User, VehicleType } from './types';
+import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat, User, VehicleType, RouteSeatFare } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { auth, db, storage } from './lib/firebase';
@@ -148,6 +148,9 @@ export default function App() {
   const [fareLoading, setFareLoading] = useState(false);
   const [fromStopId, setFromStopId] = useState('');
   const [toStopId, setToStopId] = useState('');
+  // Per-seat fare overrides for the currently selected trip's route
+  const [routeSeatFares, setRouteSeatFares] = useState<RouteSeatFare[]>([]);
+  const routeSeatFaresRouteIdRef = useRef<string>('');
   // Seat ID that triggered a segment-conflict warning (cleared after a short timeout)
 
   // Ref to track the latest fare request and discard stale responses
@@ -874,6 +877,23 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTrip?.id]);
 
+  // Load per-seat fare overrides for the selected trip's route.
+  // Re-fetched whenever the route changes (identified by route name → route id).
+  useEffect(() => {
+    const tripRouteObj = routes.find(r => r.name === selectedTrip?.route);
+    if (!tripRouteObj?.id) {
+      setRouteSeatFares([]);
+      routeSeatFaresRouteIdRef.current = '';
+      return;
+    }
+    if (tripRouteObj.id === routeSeatFaresRouteIdRef.current) return;
+    routeSeatFaresRouteIdRef.current = tripRouteObj.id;
+    transportService
+      .getRouteSeatFares(tripRouteObj.id)
+      .then(fares => setRouteSeatFares(fares.filter(f => f.active !== false)))
+      .catch(err => console.error('[routeSeatFares] load error:', err));
+  }, [selectedTrip?.route, routes]);
+
   // Global Ctrl+Z / Cmd+Z undo handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1130,6 +1150,7 @@ export default function App() {
     bookingNote,
     fareAmount,
     fareAgentAmount,
+    routeSeatFares,
     ws,
     getApplicableRouteSurcharges,
     tripType,
@@ -1484,6 +1505,7 @@ export default function App() {
               paymentMethodInput={paymentMethodInput}
               fareAmount={fareAmount}
               fareAgentAmount={fareAgentAmount}
+              routeSeatFares={routeSeatFares}
               fareLoading={fareLoading}
               fareError={fareError}
               setActiveDeck={setActiveDeck}

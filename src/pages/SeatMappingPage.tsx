@@ -7,7 +7,6 @@ import { Trip, Route, Stop, Agent, Vehicle, TripAddon, RouteSurcharge, RouteSeat
 import { SerializedSeat } from '../lib/vehicleSeatUtils'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { motion } from 'motion/react'
-import { transportService } from '../services/transportService'
 
 interface SeatMappingPageProps {
   // Data
@@ -50,6 +49,8 @@ interface SeatMappingPageProps {
   paymentMethodInput: PaymentMethod;
   fareAmount: number | null;
   fareAgentAmount: number | null;
+  /** Per-seat fare overrides for the current route – passed in from App.tsx */
+  routeSeatFares: RouteSeatFare[];
   fareLoading: boolean;
   fareError: string;
   // Setters
@@ -130,6 +131,7 @@ export function SeatMappingPage({
   paymentMethodInput,
   fareAmount,
   fareAgentAmount,
+  routeSeatFares,
   fareLoading,
   fareError,
   setActiveDeck,
@@ -168,20 +170,6 @@ export function SeatMappingPage({
   lookupFare,
 }: SeatMappingPageProps) {
   const t = TRANSLATIONS[language];
-
-  // Seat-specific fares: fetched once when the trip/route changes
-  const [routeSeatFares, setRouteSeatFares] = useState<RouteSeatFare[]>([]);
-  const seatFaresRouteIdRef = useRef<string>('');
-  useEffect(() => {
-    const tripRouteObj = routes.find(r => r.name === selectedTrip?.route);
-    if (!tripRouteObj?.id) return;
-    if (tripRouteObj.id === seatFaresRouteIdRef.current) return;
-    seatFaresRouteIdRef.current = tripRouteObj.id;
-    transportService
-      .getRouteSeatFares(tripRouteObj.id)
-      .then(fares => setRouteSeatFares(fares.filter(f => f.active !== false)))
-      .catch(err => console.error('[routeSeatFares] load error:', err));
-  }, [selectedTrip?.route, routes]);
 
   /** Return the applicable seat fare for a given seatId and optional trip date. */
   const getActiveSeatFare = (seatId: string, dateStr?: string): RouteSeatFare | undefined => {
@@ -1574,6 +1562,7 @@ export function SeatMappingPage({
                     const effectiveFareAmount = fareAmount !== null
                       ? (isAgentBookingForm && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
                       : null;
+                    // Default fare (for seats without a specific override)
                     const basePriceAdult = effectiveFareAmount !== null
                       ? effectiveFareAmount
                       : (isAgentBookingForm
@@ -1584,31 +1573,86 @@ export function SeatMappingPage({
                       { childrenOver5: 0, childrenUnder5: 0 }
                     );
                     const effectiveAdults = adults + childrenOver5;
-                    const baseTotal = (effectiveAdults * basePriceAdult);
+
+                    // Build the list of all selected seat IDs (primary + extra)
+                    const primarySeat = showBookingForm && showBookingForm !== 'FREE' ? showBookingForm : null;
+                    const extraSeatsForDisplay = extraSeatIds.slice(0, Math.max(0, effectiveAdults - 1));
+                    const allSelectedSeatIds = primarySeat ? [primarySeat, ...extraSeatsForDisplay] : [];
+
+                    // Compute effective fare for each selected seat
+                    const getSeatDisplayFare = (sid: string): number => {
+                      // The primary seat's fare is already in basePriceAdult (via fareAmount)
+                      if (sid === primarySeat || !routeSeatFares || routeSeatFares.length === 0) return basePriceAdult;
+                      const candidates = routeSeatFares.filter(f => f.seatId === sid);
+                      if (candidates.length === 0) return basePriceAdult;
+                      const dateStr = selectedTrip?.date;
+                      let seatFare: RouteSeatFare | undefined;
+                      if (dateStr) {
+                        seatFare = candidates.find(f => {
+                          const afterStart = !f.startDate || f.startDate <= dateStr;
+                          const beforeEnd = !f.endDate || f.endDate >= dateStr;
+                          return afterStart && beforeEnd;
+                        });
+                      }
+                      if (!seatFare) seatFare = candidates.find(f => !f.startDate && !f.endDate);
+                      if (!seatFare) return basePriceAdult;
+                      const discounted = Math.round(seatFare.price * tripDiscountMul);
+                      if (isAgentBookingForm) {
+                        if (fareAgentAmount !== null && seatFare.agentPrice !== undefined) {
+                          return Math.round(seatFare.agentPrice * tripDiscountMul);
+                        }
+                      }
+                      return discounted;
+                    };
+
+                    // Sum per-seat fares instead of multiplying one fare by passenger count
+                    const perSeatFares = allSelectedSeatIds.length > 0
+                      ? allSelectedSeatIds.map(sid => getSeatDisplayFare(sid))
+                      : Array(effectiveAdults).fill(basePriceAdult);
+                    const baseTotal = perSeatFares.reduce((s, f) => s + f, 0);
+
+                    // Check if all seat fares are the same (for compact display)
+                    const allFaresSame = perSeatFares.every(f => f === perSeatFares[0]);
+
                     const routeSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdults, 0);
                     const pickupDropoffSurchargeDisplay = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdults;
                     const allSurcharges = pickupDropoffSurchargeDisplay + surchargeAmount + routeSurchargeTotal;
                     const selectedAddonsInForm = (selectedTrip.addons || [] as TripAddon[]).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0);
                     const addonsTotalInForm = selectedAddonsInForm.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 1), 0);
                     const finalTotal = Math.round(baseTotal + allSurcharges + addonsTotalInForm);
-                    const perSeatSuffix = effectiveAdults > 1 ? ` ×${effectiveAdults}` : '';
+                    const perSeatSuffix = allFaresSame && effectiveAdults > 1 ? ` ×${effectiveAdults}` : '';
+                    const fareLabel = effectiveFareAmount !== null
+                      ? (t.fare_based_price || 'Fare table price')
+                      : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare');
+                    const agentBadge = (isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && effectiveFareAmount === null) ||
+                      (isAgentBookingForm && effectiveFareAmount !== null && fareAgentAmount !== null);
                     return (
                       <>
-                        <div className="flex justify-between items-center text-xs text-gray-500">
-                          <span>
-                            {effectiveFareAmount !== null
-                              ? (t.fare_based_price || 'Fare table price')
-                              : (language === 'vi' ? 'Vé cơ bản' : language === 'ja' ? '基本運賃' : 'Base fare')}
-                            {perSeatSuffix}
-                            {isAgentBookingForm && (selectedTrip.agentPrice || 0) > 0 && effectiveFareAmount === null && (
-                              <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
-                            )}
-                            {isAgentBookingForm && effectiveFareAmount !== null && fareAgentAmount !== null && (
-                              <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
-                            )}
-                          </span>
-                          <span>{baseTotal.toLocaleString()}đ</span>
-                        </div>
+                        {/* If all seat fares are the same, show compact ×N display */}
+                        {allFaresSame ? (
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>
+                              {fareLabel}{perSeatSuffix}
+                              {agentBadge && (
+                                <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
+                              )}
+                            </span>
+                            <span>{baseTotal.toLocaleString()}đ</span>
+                          </div>
+                        ) : (
+                          /* Different fares per seat: show each seat individually */
+                          allSelectedSeatIds.map((sid, idx) => (
+                            <div key={sid} className="flex justify-between items-center text-xs text-gray-500">
+                              <span>
+                                {fareLabel} ({language === 'vi' ? 'Ghế' : language === 'ja' ? '座席' : 'Seat'} {sid})
+                                {agentBadge && idx === 0 && (
+                                  <span className="ml-1 text-orange-500 font-bold">({language === 'vi' ? 'Giá ĐL' : 'Agent'})</span>
+                                )}
+                              </span>
+                              <span>{perSeatFares[idx].toLocaleString()}đ</span>
+                            </div>
+                          ))
+                        )}
                         {applicableRouteSurcharges.map(sc => (
                           <div key={sc.id} className="flex justify-between items-center text-xs text-amber-600">
                             <span>+ {sc.name}</span>
