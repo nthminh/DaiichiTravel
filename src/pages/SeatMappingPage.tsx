@@ -355,9 +355,10 @@ export function SeatMappingPage({
   const pickupStopAddresses = pickupStops.map(s => s.address || '');
   const dropoffStopAddresses = dropoffStops.map(s => s.address || '');
 
-  // Pickup/dropoff validation: require at least one selection when options exist.
-  // Declared here (after pickupStops/dropoffStops) and used in the compact confirm panel.
-  const hasPickupOrDropoffOptions = (tripRoute?.routeStops?.length ?? 0) > 0 || pickupStops.length > 0 || dropoffStops.length > 0;
+  // Pickup/dropoff validation: only require selection when the route has configured stops
+  // (routeStops). Sub-stop lists fall back to all global stops, so checking their length
+  // would make the requirement active even for simple routes with no meaningful stops.
+  const hasPickupOrDropoffOptions = (tripRoute?.routeStops?.length ?? 0) > 0 || pickupStopNames.length > 0 || dropoffStopNames.length > 0;
   const hasPickupOrDropoffSelection = !!(pickupPoint || pickupAddress || dropoffPoint || dropoffAddress);
   const pickupDropoffValid = !hasPickupOrDropoffOptions || hasPickupOrDropoffSelection;
 
@@ -1696,9 +1697,14 @@ export function SeatMappingPage({
                     {language === 'vi' ? 'Vui lòng chọn ít nhất một điểm đón hoặc điểm trả.' : language === 'ja' ? '乗車地または降車地を少なくとも1つ選択してください。' : 'Please select at least one pickup or dropoff point.'}
                   </p>
                 )}
-                <button type="button" onClick={() => setShowBookingConfirmation(true)} disabled={!canConfirmBooking || !pickupDropoffValid} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", (canConfirmBooking && pickupDropoffValid) ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>
-                  {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
-                </button>
+                {(() => {
+                  const isConfirmEnabled = canConfirmBooking && pickupDropoffValid;
+                  return (
+                    <button type="button" onClick={() => setShowBookingConfirmation(true)} disabled={!isConfirmEnabled} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", isConfirmEnabled ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>
+                      {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
+                    </button>
+                  );
+                })()}
               </form>
             </motion.div>
           )}
