@@ -216,8 +216,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
     }
   };
 
-  const formatDate = (iso?: string) => formatDateVN(iso);
-
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -617,7 +615,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">{t.customer_registered_at || 'Đăng ký'}</p>
-                    <p className="text-xs font-bold text-gray-700">{formatDate(c.registeredAt)}</p>
+                    <p className="text-xs font-bold text-gray-700">{formatDateVN(c.registeredAt)}</p>
                   </div>
                 </div>
 
@@ -825,7 +823,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                               {t.customer_total_spent || 'Tổng chi'}: <span className="font-bold text-daiichi-red">{c.totalSpent.toLocaleString()}đ</span>
                             </p>
                           )}
-                          <p className="text-xs text-gray-400">{c.lastActivityAt ? formatDate(c.lastActivityAt) : '—'}</p>
+                          <p className="text-xs text-gray-400">{c.lastActivityAt ? formatDateVN(c.lastActivityAt) : '—'}</p>
                         </div>
                       </div>
 

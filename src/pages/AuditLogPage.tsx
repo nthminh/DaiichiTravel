@@ -52,8 +52,6 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
     return list;
   }, [logs, search, roleFilter, actionFilter]);
 
-  const formatDate = (iso: string) => formatDateTimeVN(iso);
-
   const actionLabel = (action: string) => {
     const key = `audit_action_${action.toLowerCase()}` as keyof typeof t;
     return (t[key] as string | undefined) || action;
@@ -142,7 +140,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(log => (
                   <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(log.createdAt)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTimeVN(log.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-gray-800 text-xs">{log.actorName}</div>
                       <div className="text-[10px] text-gray-400 uppercase">{log.actorRole}</div>
@@ -174,7 +172,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
                   <p className="text-xs text-gray-500">{log.targetLabel}{log.detail ? ` — ${log.detail}` : ''}</p>
                 )}
                 <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                  <Clock size={10} /> {formatDate(log.createdAt)}
+                  <Clock size={10} /> {formatDateTimeVN(log.createdAt)}
                 </p>
               </div>
             ))}
