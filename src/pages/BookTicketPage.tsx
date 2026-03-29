@@ -917,7 +917,7 @@ function TripConfirmPanel({
 
   const stepLabels: [string, string, string, string] = [
     t.step_select_trip || 'Chọn chuyến',
-    t.step_select_seat || 'Nhập TT & Chọn ghế',
+    language === 'vi' ? 'Nhập thông tin' : language === 'ja' ? '情報入力' : 'Enter Info',
     t.step_pickup_dropoff || 'Điểm đón/trả',
     t.step_payment || 'Thanh toán',
   ];
