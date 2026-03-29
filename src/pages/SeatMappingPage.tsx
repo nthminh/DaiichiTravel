@@ -1979,11 +1979,45 @@ export function SeatMappingPage({
                   {customerNameInput && <p className="text-gray-700 font-medium">{customerNameInput}{phoneInput ? ` · ${phoneInput}` : ''}</p>}
                 </div>
                 {/* Pickup / Dropoff */}
-                {(pickupPoint || dropoffPoint) && (
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-1">
+                {(pickupPoint || dropoffPoint || pickupAddress || dropoffAddress) && (
+                  <div className="p-3 bg-gray-50 rounded-xl space-y-2">
                     <p className="font-bold text-gray-700 text-xs uppercase">{language === 'vi' ? '📍 Điểm đón / trả' : language === 'ja' ? '📍 乗降場所' : '📍 Pickup / Dropoff'}</p>
-                    {pickupPoint && <p className="text-gray-700">🔴 {pickupPoint}{pickupAddress ? ` → ${pickupAddress}` : ''}{pickupAddressDetail ? ` (${pickupAddressDetail})` : ''}</p>}
-                    {dropoffPoint && <p className="text-gray-700">🟢 {dropoffPoint}{dropoffAddress ? ` → ${dropoffAddress}` : ''}{dropoffAddressDetail ? ` (${dropoffAddressDetail})` : ''}</p>}
+                    {(pickupPoint || pickupAddress) && (
+                      <div>
+                        {pickupPoint && <p className="text-gray-700 text-sm">🔴 {pickupPoint}</p>}
+                        {(pickupAddress || pickupAddressDetail) && (
+                          <div className="mt-1 pl-3 border-l-2 border-gray-200 space-y-0.5">
+                            {pickupAddress && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</p>
+                                <p className="text-gray-700 text-xs">{pickupAddress}</p>
+                              </div>
+                            )}
+                            {pickupAddressDetail && (
+                              <p className="text-gray-500 text-xs italic">{pickupAddressDetail}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(dropoffPoint || dropoffAddress) && (
+                      <div>
+                        {dropoffPoint && <p className="text-gray-700 text-sm">🟢 {dropoffPoint}</p>}
+                        {(dropoffAddress || dropoffAddressDetail) && (
+                          <div className="mt-1 pl-3 border-l-2 border-gray-200 space-y-0.5">
+                            {dropoffAddress && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</p>
+                                <p className="text-gray-700 text-xs">{dropoffAddress}</p>
+                              </div>
+                            )}
+                            {dropoffAddressDetail && (
+                              <p className="text-gray-500 text-xs italic">{dropoffAddressDetail}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* Addons */}
