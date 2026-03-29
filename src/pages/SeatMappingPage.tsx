@@ -220,6 +220,8 @@ export function SeatMappingPage({
   // Show route details expanded by default so customers can read the route info before selecting seats
   const [showRouteDetails, setShowRouteDetails] = useState(true);
   const [showPriceDetail, setShowPriceDetail] = useState(false);
+  // Confirmation view: read-only review before proceeding to payment
+  const [showBookingConfirmation, setShowBookingConfirmation] = useState(false);
   const segmentConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const takenSeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -508,6 +510,7 @@ export function SeatMappingPage({
                 if (!showBookingForm) {
                   setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
                   setShowBookingForm(seatId);
+                  setShowBookingConfirmation(false);
                   applyFareForSeat(seatId);
                   if (currentUser?.role === UserRole.CUSTOMER) {
                     if (currentUser.name) setCustomerNameInput(currentUser.name);
@@ -528,6 +531,7 @@ export function SeatMappingPage({
             if (isExtraSeat) {
               setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
               setExtraSeatIds(prev => prev.filter(id => id !== seatId));
+              setShowBookingConfirmation(false);
             } else if (isSelectingExtraSeats && extraSeatIds.length < extraSeatsNeeded) {
               setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
               setExtraSeatIds(prev => [...prev, seatId]);
@@ -535,11 +539,13 @@ export function SeatMappingPage({
               setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
               setExtraSeatIds([]);
               setShowBookingForm(seatId);
+              setShowBookingConfirmation(false);
               applyFareForSeat(seatId);
             }
           } else {
             setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
             setShowBookingForm(seatId);
+            setShowBookingConfirmation(false);
             applyFareForSeat(seatId);
             // Pre-fill name & phone for logged-in customers
             if (currentUser?.role === UserRole.CUSTOMER) {
@@ -593,7 +599,7 @@ export function SeatMappingPage({
   return (
   <>
   {/* Mobile backdrop dim when a bottom-sheet form is visible */}
-  {(showPreBookingInfo || (!!showBookingForm && !(isSelectingExtraSeats && !canConfirmBooking))) && (
+  {(showPreBookingInfo || showBookingConfirmation || (!!showBookingForm && !showBookingConfirmation && !(isSelectingExtraSeats && !canConfirmBooking))) && (
     <div className="fixed inset-0 bg-black/20 z-[140] lg:hidden" />
   )}
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -602,17 +608,20 @@ export function SeatMappingPage({
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              if (showBookingForm) {
+              if (showBookingConfirmation) {
+                // Confirmation view is shown – go back to info entry (compact panel)
+                setShowBookingConfirmation(false);
+              } else if (showBookingForm) {
                 // If booking form is open, close it (go back to seat selection)
                 setShowBookingForm(null);
                 setExtraSeatIds([]);
                 setAddonQuantities({});
               } else if (showPreBookingInfo) {
-                // Pre-booking info is the first step – go back to trip search
-                setActiveTab(previousTab);
+                // Pre-booking info form is shown after seat selection – go back to seat map
+                setShowPreBookingInfo(false);
               } else {
-                // At seat map – go back to passenger info step
-                setShowPreBookingInfo(true);
+                // At seat map – go back to trip search
+                setActiveTab(previousTab);
               }
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-gray-500 hover:text-daiichi-red hover:bg-gray-50 rounded-xl transition-all"
@@ -667,72 +676,72 @@ export function SeatMappingPage({
         let currentStep: number;
 
         if (isRoundTrip) {
-          // Round-trip: 6-step flow — info first, then seat for each leg
+          // Round-trip: 6-step flow — seat selection first, then info entry for each leg
           if (language === 'vi') {
-            steps = ['TT đi', 'Ghế đi', 'TT về', 'Ghế về', 'Thanh toán', 'Tải về'];
+            steps = ['Ghế đi', 'TT đi', 'Ghế về', 'TT về', 'Xác nhận', 'Thanh toán'];
             hints = [
-              '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều đi',
               '👆 Chọn ghế phù hợp cho chiều đi (đọc thông tin tuyến đường bên dưới)',
-              '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều về',
+              '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều đi',
               '👆 Chọn ghế phù hợp cho chiều về',
+              '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều về',
+              '✅ Xem lại toàn bộ thông tin trước khi thanh toán',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất cả hai chiều',
-              '📥 Thanh toán thành công! Tải vé khứ hồi về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['出発情報', '出発席', '帰路情報', '帰路席', 'お支払い', 'ダウンロード'];
+            steps = ['出発席', '出発情報', '帰路席', '帰路情報', '確認', 'お支払い'];
             hints = [
-              '📋 出発便の乗客情報と乗降場所を入力してください',
               '👆 出発便の空席（白色）をタップして座席を選んでください',
-              '📋 帰路便の乗客情報と乗降場所を入力してください',
+              '📋 出発便の乗客情報と乗降場所を入力してください',
               '👆 帰路便の空席をタップして座席を選んでください',
+              '📋 帰路便の乗客情報と乗降場所を入力してください',
+              '✅ お支払い前に全ての情報をご確認ください',
               '💳 QRコードをスキャンするか、支払い方法を選択して往復予約を確定してください',
-              '📥 支払い完了！乗車時に使用する往復チケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Out. Info', 'Out. Seat', 'Ret. Info', 'Ret. Seat', 'Payment', 'Download'];
+            steps = ['Out. Seat', 'Out. Info', 'Ret. Seat', 'Ret. Info', 'Confirm', 'Payment'];
             hints = [
-              '📋 Enter passenger info and pickup/dropoff for the outbound trip',
               '👆 Tap an empty seat (white) for the outbound trip (review route info below)',
-              '📋 Enter passenger info and pickup/dropoff for the return trip',
+              '📋 Enter passenger info and pickup/dropoff for the outbound trip',
               '👆 Tap an empty seat for the return trip',
+              '📋 Enter passenger info and pickup/dropoff for the return trip',
+              '✅ Review all details before proceeding to payment',
               '💳 Scan the QR code or choose a payment method to complete both trips',
-              '📥 Payment successful! Download your round-trip ticket to use when boarding',
             ];
           }
-          // Steps 1–2: outbound (info then seat); Steps 3–4: return (info then seat)
+          // Steps 1–2: outbound (seat then info); Steps 3–4: return (seat then info); Step 5: confirm; Step 6: payment
           if (roundTripPhase === 'outbound') {
-            currentStep = showPreBookingInfo ? 1 : 2;
+            currentStep = showBookingForm ? 2 : 1;
           } else {
-            currentStep = showPreBookingInfo ? 3 : 4;
+            currentStep = showBookingConfirmation ? 5 : showBookingForm ? 4 : 3;
           }
         } else {
-          // ONE_WAY: passenger info first, then seat selection
+          // ONE_WAY: seat selection first, then info entry, then confirmation
           if (language === 'vi') {
-            steps = ['Nhập thông tin', 'Chọn ghế', 'Thanh toán', 'Tải về'];
+            steps = ['Chọn ghế', 'Nhập thông tin', 'Xác nhận', 'Thanh toán'];
             hints = [
-              '📋 Khai báo thông tin hành khách, chọn điểm đón/trả trước khi chọn ghế',
               '👆 Chọn ghế trống (màu trắng) — đọc thông tin tuyến đường bên dưới trước khi chọn',
+              '📋 Khai báo thông tin hành khách, chọn điểm đón/trả và dịch vụ thêm',
+              '✅ Xem lại toàn bộ thông tin trước khi thanh toán',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
-              '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['情報を入力', '座席を選ぶ', 'お支払い', 'ダウンロード'];
+            steps = ['座席を選ぶ', '情報を入力', '確認', 'お支払い'];
             hints = [
-              '📋 乗客情報と乗降場所を入力してから座席を選んでください',
               '👆 空席（白色）をタップして座席を選んでください — 下のルート情報を確認してから選んでください',
+              '📋 乗客情報と乗降場所を入力してください',
+              '✅ お支払い前に全ての情報をご確認ください',
               '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
-              '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Enter Info', 'Select Seat', 'Payment', 'Download'];
+            steps = ['Select Seat', 'Enter Info', 'Confirm', 'Payment'];
             hints = [
-              '📋 Enter passenger details and pickup/dropoff before selecting a seat',
               '👆 Tap an empty seat (white) to choose your seat — review route details below first',
+              '📋 Enter passenger details, pickup/dropoff and any add-on services',
+              '✅ Review all details before proceeding to payment',
               '💳 Scan the QR code or choose a payment method to complete',
-              '📥 Payment successful! Download your ticket to use when boarding',
             ];
           }
-          currentStep = showPreBookingInfo ? 1 : 2;
+          currentStep = showBookingConfirmation ? 3 : showBookingForm ? 2 : 1;
         }
 
         return (
@@ -810,6 +819,7 @@ export function SeatMappingPage({
                 // Push a no-op history entry so Escape/undo can cancel the booking form
                 setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
                 setShowBookingForm('FREE');
+                setShowBookingConfirmation(false);
               }}
               disabled={selectedTrip.seats.filter((s: any) => s.status === SeatStatus.EMPTY).length === 0}
               className="px-8 py-4 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 disabled:opacity-50 disabled:cursor-not-allowed text-base"
@@ -1017,14 +1027,14 @@ export function SeatMappingPage({
           </h3>
           <p className="text-xs text-gray-400 mb-1">
             <span className="sm:hidden">
-              {language === 'vi' ? 'Nhập thông tin, chọn ghế trước khi đặt.' : language === 'ja' ? '情報入力後、座席を選んでください。' : 'Enter info, then select a seat.'}
+              {language === 'vi' ? 'Nhập thông tin hành khách, chọn điểm đón/trả.' : language === 'ja' ? '乗客情報と乗降場所を入力してください。' : 'Enter passenger info and pickup/dropoff.'}
             </span>
             <span className="hidden sm:inline">
               {language === 'vi'
-                ? 'Nhập thông tin hành khách và điểm xuất phát / điểm đến trước khi chọn ghế.'
+                ? 'Nhập thông tin hành khách, điểm đón/trả chi tiết và dịch vụ bổ sung.'
                 : language === 'ja'
-                  ? '座席を選ぶ前に乗客情報と乗降区間を入力してください。'
-                  : 'Enter passenger details and departure / destination before selecting seats.'}
+                  ? '乗客情報、乗降場所、および追加サービスを入力してください。'
+                  : 'Enter passenger details, pickup/dropoff locations and any add-on services.'}
             </span>
           </p>
           <form className="space-y-1.5">
@@ -1302,10 +1312,10 @@ export function SeatMappingPage({
               </div>
             )}
 
-            {/* Next: Select Seat button */}
+            {/* Continue to Confirmation button */}
             <button
               type="button"
-              onClick={() => setShowPreBookingInfo(false)}
+              onClick={() => setShowBookingConfirmation(true)}
               disabled={hasFareBlocker || !childAgesComplete}
               className={cn(
                 "w-full py-3 sm:py-4 text-white rounded-xl font-bold shadow-lg transition-all",
@@ -1314,9 +1324,7 @@ export function SeatMappingPage({
                   : "bg-daiichi-red shadow-daiichi-red/20"
               )}
             >
-              {isFreeSeatingTrip
-                ? (language === 'vi' ? '✅ Tiếp theo: Đặt vé →' : language === 'ja' ? '✅ 次へ：予約する →' : '✅ Next: Book Ticket →')
-                : (language === 'vi' ? '✅ Tiếp theo: Chọn ghế →' : language === 'ja' ? '✅ 次へ：座席を選ぶ →' : '✅ Next: Select Seat →')}
+              {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
             </button>
           </form>
         </motion.div>
@@ -1373,7 +1381,7 @@ export function SeatMappingPage({
           )}
 
           {/* ── COMPACT CONFIRM PANEL (seat selected, show price summary + confirm) ── */}
-          {showBookingForm && (
+          {showBookingForm && !showBookingConfirmation && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1390,7 +1398,7 @@ export function SeatMappingPage({
                     ? (language === 'vi' ? '🪑 Xác nhận đặt vé' : language === 'ja' ? '🪑 予約確認' : '🪑 Confirm Booking')
                     : `${t.booking_title}: ${showBookingForm}`}
                 </h3>
-                <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); setShowBookingConfirmation(false); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
               </div>
               <form className="space-y-2.5 sm:space-y-4">
                 {/* ── Passenger info (name, phone, count) – entered after seat selection ── */}
@@ -1909,8 +1917,114 @@ export function SeatMappingPage({
                   })()}
                 </div>
 
-                <button type="button" onClick={() => handleConfirmBooking(showBookingForm || '')} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>{t.confirm_booking}</button>
+                <button type="button" onClick={() => setShowBookingConfirmation(true)} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>
+                  {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
+                </button>
               </form>
+            </motion.div>
+          )}
+
+          {/* ── BOOKING CONFIRMATION VIEW (read-only review before payment) ── */}
+          {showBookingConfirmation && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white p-3 sm:p-5 lg:p-6 fixed bottom-0 left-0 right-0 z-[160] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-emerald-500"
+            >
+              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 lg:hidden" />
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base sm:text-lg font-bold text-emerald-700">
+                  {language === 'vi' ? '✅ Xác nhận thông tin đặt vé' : language === 'ja' ? '✅ 予約内容の確認' : '✅ Booking Confirmation'}
+                </h3>
+                <button onClick={() => setShowBookingConfirmation(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              </div>
+              <p className="text-xs text-gray-400 mb-3">
+                {language === 'vi' ? 'Kiểm tra lại toàn bộ thông tin. Nếu đúng, nhấn xác nhận để thanh toán.' : language === 'ja' ? '全ての情報をご確認ください。正しければ確認ボタンを押してお支払いへ進んでください。' : 'Review all details. If everything is correct, confirm to proceed to payment.'}
+              </p>
+              <div className="space-y-2 text-sm">
+                {/* Trip info */}
+                <div className="p-3 bg-gray-50 rounded-xl space-y-1">
+                  <p className="font-bold text-gray-700 text-xs uppercase">{language === 'vi' ? '🚌 Chuyến xe' : language === 'ja' ? '🚌 乗車便' : '🚌 Trip'}</p>
+                  <p className="text-gray-800">{selectedTrip.route}</p>
+                  <p className="text-gray-500 text-xs">{selectedTrip.date} {selectedTrip.departureTime && `· ${selectedTrip.departureTime}`} {selectedTrip.licensePlate && `· ${selectedTrip.licensePlate}`}</p>
+                </div>
+                {/* Seats */}
+                {!isFreeSeatingTrip && showBookingForm && (
+                  <div className="p-3 bg-gray-50 rounded-xl space-y-1">
+                    <p className="font-bold text-gray-700 text-xs uppercase">{language === 'vi' ? '🪑 Ghế đã chọn' : language === 'ja' ? '🪑 選択座席' : '🪑 Selected Seats'}</p>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="bg-daiichi-red/10 text-daiichi-red px-2 py-1 rounded-lg font-bold text-xs">{showBookingForm}</span>
+                      {extraSeatIds.map(id => (
+                        <span key={id} className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold text-xs">{id}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Passenger info */}
+                <div className="p-3 bg-gray-50 rounded-xl space-y-1">
+                  <p className="font-bold text-gray-700 text-xs uppercase">{language === 'vi' ? '👥 Hành khách' : language === 'ja' ? '👥 乗客' : '👥 Passengers'}</p>
+                  <p className="text-gray-800">{adults} {t.adults}{children > 0 ? ` + ${children} ${t.children}` : ''}</p>
+                  {customerNameInput && <p className="text-gray-700 font-medium">{customerNameInput}{phoneInput ? ` · ${phoneInput}` : ''}</p>}
+                </div>
+                {/* Pickup / Dropoff */}
+                {(pickupPoint || dropoffPoint) && (
+                  <div className="p-3 bg-gray-50 rounded-xl space-y-1">
+                    <p className="font-bold text-gray-700 text-xs uppercase">{language === 'vi' ? '📍 Điểm đón / trả' : language === 'ja' ? '📍 乗降場所' : '📍 Pickup / Dropoff'}</p>
+                    {pickupPoint && <p className="text-gray-700">🔴 {pickupPoint}{pickupAddress ? ` → ${pickupAddress}` : ''}{pickupAddressDetail ? ` (${pickupAddressDetail})` : ''}</p>}
+                    {dropoffPoint && <p className="text-gray-700">🟢 {dropoffPoint}{dropoffAddress ? ` → ${dropoffAddress}` : ''}{dropoffAddressDetail ? ` (${dropoffAddressDetail})` : ''}</p>}
+                  </div>
+                )}
+                {/* Addons */}
+                {(selectedTrip.addons || []).some((a: any) => (addonQuantities[a.id] || 0) > 0) && (
+                  <div className="p-3 bg-emerald-50 rounded-xl space-y-1">
+                    <p className="font-bold text-emerald-700 text-xs uppercase">{language === 'vi' ? '🎁 Dịch vụ bổ sung' : language === 'ja' ? '🎁 オプションサービス' : '🎁 Add-on Services'}</p>
+                    {(selectedTrip.addons || []).filter((a: any) => (addonQuantities[a.id] || 0) > 0).map((a: any) => (
+                      <p key={a.id} className="text-emerald-700 text-xs">{a.name} × {addonQuantities[a.id]} = +{(a.price * addonQuantities[a.id]).toLocaleString()}đ</p>
+                    ))}
+                  </div>
+                )}
+                {/* Total */}
+                {(() => {
+                  const isAgentConfirm = currentUser?.role === UserRole.AGENT;
+                  const tripDiscountMul = 1 - ((selectedTrip.discountPercent || 0) / 100);
+                  const effectiveFareConfirm = fareAmount !== null
+                    ? (isAgentConfirm && fareAgentAmount !== null ? fareAgentAmount : fareAmount)
+                    : null;
+                  const basePriceConfirm = effectiveFareConfirm !== null
+                    ? effectiveFareConfirm
+                    : (isAgentConfirm
+                        ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
+                        : Math.round((selectedTrip.price || 0) * tripDiscountMul));
+                  const childrenOver5Confirm = childrenAges.filter(age => (age ?? 0) >= 5).length;
+                  const effectiveAdultsConfirm = adults + childrenOver5Confirm;
+                  const routeSurchargeConfirm = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdultsConfirm, 0);
+                  const pickupDropoffSurchargeConfirm = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdultsConfirm;
+                  const addonsTotalConfirm = (selectedTrip.addons || []).filter((a: any) => (addonQuantities[a.id] || 0) > 0).reduce((sum: number, a: any) => sum + a.price * (addonQuantities[a.id] || 1), 0);
+                  const finalTotalConfirm = Math.round(basePriceConfirm * effectiveAdultsConfirm + pickupDropoffSurchargeConfirm + surchargeAmount + routeSurchargeConfirm + addonsTotalConfirm);
+                  return (
+                    <div className="p-3 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20 flex items-center justify-between">
+                      <span className="font-bold text-gray-800 text-sm">{t.total_payment || 'Tổng thanh toán'}</span>
+                      <span className="text-xl font-bold text-daiichi-red">{finalTotalConfirm.toLocaleString()}đ</span>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBookingConfirmation(false)}
+                  className="flex-1 py-3 rounded-xl font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+                >
+                  {language === 'vi' ? '✏️ Sửa thông tin' : language === 'ja' ? '✏️ 編集する' : '✏️ Edit'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmBooking(showBookingForm || '')}
+                  className="flex-2 flex-grow py-3 text-white rounded-xl font-bold shadow-lg bg-daiichi-red shadow-daiichi-red/20"
+                >
+                  {language === 'vi' ? '💳 Xác nhận & Thanh toán →' : language === 'ja' ? '💳 確認してお支払い →' : '💳 Confirm & Pay →'}
+                </button>
+              </div>
             </motion.div>
           )}
         </>
