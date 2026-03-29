@@ -148,6 +148,7 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
   const t = TRANSLATIONS[language];
   const isVi = language === 'vi';
   const isJa = language === 'ja';
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const isFreeSeating = booking.freeSeating;
   const seatDisplay = isFreeSeating
@@ -163,12 +164,67 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
     ? getJourneyStops(routes, booking.route, booking.pickupPoint || undefined, booking.dropoffPoint || undefined)
     : [];
 
+  // Find route image(s) for this booking
+  const bookingRoute = routes.find(r => r.name === booking.route);
+  const routeImages = bookingRoute?.images && bookingRoute.images.length > 0
+    ? bookingRoute.images
+    : bookingRoute?.imageUrl ? [bookingRoute.imageUrl] : [];
+
   return (
+    <>
+    {/* Image lightbox overlay */}
+    {lightboxImage && (
+      <div
+        className="fixed inset-0 z-[500] bg-black/80 flex items-center justify-center p-4"
+        onClick={() => setLightboxImage(null)}
+        onKeyDown={e => e.key === 'Escape' && setLightboxImage(null)}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isVi ? 'Ảnh tuyến đường' : isJa ? '路線画像' : 'Route image'}
+        tabIndex={-1}
+      >
+        <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute -top-10 right-0 text-white/80 hover:text-white font-bold text-sm flex items-center gap-1"
+            aria-label={isVi ? 'Đóng ảnh' : isJa ? '閉じる' : 'Close image'}
+          >
+            ✕ {isVi ? 'Đóng' : isJa ? '閉じる' : 'Close'}
+          </button>
+          <img
+            src={lightboxImage}
+            alt={booking.route}
+            className="w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      </div>
+    )}
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
     >
+      {/* Route image – shown at top if available; click to zoom */}
+      {routeImages.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setLightboxImage(routeImages[0])}
+          className="w-full block relative overflow-hidden aspect-video bg-gray-100 cursor-zoom-in"
+          aria-label={isVi ? 'Xem ảnh tuyến đường cỡ lớn' : isJa ? '路線画像を拡大表示' : 'View route image full size'}
+        >
+          <img
+            src={routeImages[0]}
+            alt={booking.route}
+            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute bottom-2 right-2 bg-black/40 rounded-full px-2 py-0.5 text-white text-[10px] font-bold">
+            🔍 {isVi ? 'Xem to' : isJa ? '拡大' : 'Zoom'}
+          </div>
+        </button>
+      )}
+
       {/* Card header */}
       <div className="bg-gradient-to-r from-daiichi-red to-rose-500 px-6 py-4 flex items-center justify-between">
         <div>
@@ -312,5 +368,6 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
         )}
       </div>
     </motion.div>
+    </>
   );
 };
