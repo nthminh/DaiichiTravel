@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { DEFAULT_PAYMENT_METHOD, PaymentMethod } from '../constants/paymentMethods';
 import { transportService } from '../services/transportService';
-import { SeatStatus, TripAddon, UserRole, User, Route, Agent } from '../types';
+import { SeatStatus, TripAddon, UserRole, User, Route, Agent, RouteSeatFare } from '../types';
 import { todayVN } from '../lib/vnDate';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
@@ -67,6 +67,8 @@ export interface BookingContext {
   bookingNote: string;
   fareAmount: number | null;
   fareAgentAmount: number | null;
+  /** Per-seat fare overrides for the current route – used to price each seat individually */
+  routeSeatFares: RouteSeatFare[];
   ws: WebSocket | null;
   /** Helper to compute active route-level surcharges for the trip's date */
   getApplicableRouteSurcharges: (route: Route | undefined, date: string) => any[];
@@ -242,23 +244,7 @@ export function usePayment(ctx: BookingContext) {
     const appliedRouteSurcharges = c.getApplicableRouteSurcharges(tripRoute, tripDate);
     const routeSurchargeTotal = appliedRouteSurcharges.reduce((sum: number, sc: any) => sum + sc.amount * effectiveAdults, 0);
 
-    // Children under 5 are free; only charge adults (which includes children aged 5+)
-    const totalBase = (effectiveAdults * basePriceAdult);
-    // Pickup/dropoff surcharges are per-seat (multiplied by number of passengers)
-    const pickupDropoffSurcharge = (c.pickupSurcharge + c.dropoffSurcharge + c.pickupAddressSurcharge + c.dropoffAddressSurcharge) * effectiveAdults;
-    const totalSurcharge = pickupDropoffSurcharge + c.surchargeAmount + routeSurchargeTotal;
-    // Calculate selected addons total (price × quantity)
-    const selectedAddons = (c.selectedTrip.addons || []).filter((a: TripAddon) => (c.addonQuantities[a.id] || 0) > 0);
-    const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (c.addonQuantities[a.id] || 1), 0);
-    const totalAmount = Math.round(totalBase + totalSurcharge + addonsTotalPrice);
-
-    // Commission amount = difference between retail total and agent net total
-    const retailTotalBase = effectiveAdults * retailPriceAdult;
-    const retailTotalAmount = Math.round(retailTotalBase + totalSurcharge + addonsTotalPrice);
-    const commissionAmount = isAgentBooking && effectiveCommissionRate > 0
-      ? (retailTotalAmount - totalAmount)
-      : 0;
-
+    // Determine all seat IDs upfront so we can compute per-seat fares.
     // Extra seats for all passengers beyond first adult (adults - 1) and children over 5
     const isFreeSeating = c.selectedTrip.seatType === 'free';
     let allSeatIds: string[];
@@ -279,6 +265,82 @@ export function usePayment(ctx: BookingContext) {
       allSeatIds = [seatId, ...extraSeatsForBooking];
       effectiveSeatId = seatId;
     }
+
+    /**
+     * Resolve the raw (retail, discount-adjusted) fare for an extra seat.
+     * Returns the seat-specific fare price if a RouteSeatFare override exists and matches
+     * the trip date; otherwise returns `null` so the caller can use the default.
+     * The primary seat is excluded – its fare is already encoded in basePriceAdult.
+     */
+    const resolveRawSeatFare = (sid: string): number | null => {
+      if (sid === seatId || isFreeSeating || !c.routeSeatFares || c.routeSeatFares.length === 0) {
+        return null;
+      }
+      const candidates = c.routeSeatFares.filter(f => f.seatId === sid);
+      if (candidates.length === 0) return null;
+      // Pick the fare that best matches the trip date
+      let seatFare: RouteSeatFare | undefined;
+      if (tripDate) {
+        seatFare = candidates.find(f => {
+          const afterStart = !f.startDate || f.startDate <= tripDate;
+          const beforeEnd = !f.endDate || f.endDate >= tripDate;
+          return afterStart && beforeEnd;
+        });
+      }
+      if (!seatFare) seatFare = candidates.find(f => !f.startDate && !f.endDate);
+      if (!seatFare) return null;
+      return Math.round(seatFare.price * tripDiscountMultiplier);
+    };
+
+    /**
+     * Look up the effective (agent/discount-adjusted) fare for a given seat.
+     * - The primary seat already has its fare resolved in basePriceAdult (via fareAmount).
+     * - For extra seats, check if there is a RouteSeatFare override for that specific seat.
+     *   If found, apply the same discount/commission logic as the primary seat.
+     *   If not found, fall back to basePriceAdult (the segment/route default fare).
+     * Free-seating trips have no per-seat overrides, so all seats use basePriceAdult.
+     */
+    const getEffectiveFareForSeat = (sid: string): number => {
+      const rawFare = resolveRawSeatFare(sid);
+      if (rawFare === null) return basePriceAdult;
+      // Look up the seat fare object to apply agent override
+      const seatFareObj = c.routeSeatFares.find(f =>
+        f.seatId === sid &&
+        (!tripDate || ((!f.startDate || f.startDate <= tripDate) && (!f.endDate || f.endDate >= tripDate)))
+      ) ?? c.routeSeatFares.find(f => f.seatId === sid && !f.startDate && !f.endDate);
+      // Apply agent commission or agent price override
+      if (isAgentBooking && seatFareObj) {
+        if (effectiveCommissionRate > 0) {
+          return Math.round(rawFare * (1 - effectiveCommissionRate / 100));
+        }
+        if (seatFareObj.agentPrice !== undefined) {
+          return Math.round(seatFareObj.agentPrice * tripDiscountMultiplier);
+        }
+      }
+      return rawFare;
+    };
+
+    // Sum individual seat fares instead of multiplying one seat's fare by passenger count.
+    // Each seat may have a different price (e.g. seat 1 is cheaper, seat 3 is standard).
+    const totalBase = allSeatIds.reduce((sum, sid) => sum + getEffectiveFareForSeat(sid), 0);
+    // Pickup/dropoff surcharges are per-seat (multiplied by number of passengers)
+    const pickupDropoffSurcharge = (c.pickupSurcharge + c.dropoffSurcharge + c.pickupAddressSurcharge + c.dropoffAddressSurcharge) * effectiveAdults;
+    const totalSurcharge = pickupDropoffSurcharge + c.surchargeAmount + routeSurchargeTotal;
+    // Calculate selected addons total (price × quantity)
+    const selectedAddons = (c.selectedTrip.addons || []).filter((a: TripAddon) => (c.addonQuantities[a.id] || 0) > 0);
+    const addonsTotalPrice = selectedAddons.reduce((sum: number, a: TripAddon) => sum + a.price * (c.addonQuantities[a.id] || 1), 0);
+    const totalAmount = Math.round(totalBase + totalSurcharge + addonsTotalPrice);
+
+    // Commission amount = difference between retail total and agent net total.
+    // Retail base sums per-seat retail prices (before commission), reusing resolveRawSeatFare.
+    const retailTotalBase = allSeatIds.reduce((sum, sid) => {
+      const rawFare = resolveRawSeatFare(sid);
+      return sum + (rawFare !== null ? rawFare : retailPriceAdult);
+    }, 0);
+    const retailTotalAmount = Math.round(retailTotalBase + totalSurcharge + addonsTotalPrice);
+    const commissionAmount = isAgentBooking && effectiveCommissionRate > 0
+      ? (retailTotalAmount - totalAmount)
+      : 0;
 
     // Resolve stop orders for segment availability tracking
     const fromRouteStop = tripRoute?.routeStops?.find((s: any) => s.stopId === c.fromStopId);
