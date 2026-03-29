@@ -177,6 +177,11 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
       <div
         className="fixed inset-0 z-[500] bg-black/80 flex items-center justify-center p-4"
         onClick={() => setLightboxImage(null)}
+        onKeyDown={e => e.key === 'Escape' && setLightboxImage(null)}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isVi ? 'Ảnh tuyến đường' : isJa ? '路線画像' : 'Route image'}
+        tabIndex={-1}
       >
         <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
           <button
