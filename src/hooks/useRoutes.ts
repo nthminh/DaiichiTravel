@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FirebaseStorage } from 'firebase/storage';
 import { transportService } from '../services/transportService';
-import { buildFareDocId } from '../services/fareService';
-import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule } from '../types';
+import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
+import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
 /** External dependencies that useRoutes needs from App.tsx */
@@ -61,6 +61,18 @@ type RouteFareEntry = {
   agentPrice: number;
   startDate: string;
   endDate: string;
+};
+
+/** Local form entry for a seat-specific fare (mirrors RouteSeatFare minus id/updatedAt). */
+export type SeatFareEntry = {
+  /** Firestore document ID – preserved from DB or generated at save time. */
+  fareId?: string;
+  seatId: string;
+  price: number;
+  agentPrice: number;
+  startDate: string;
+  endDate: string;
+  note: string;
 };
 
 /**
@@ -158,6 +170,21 @@ export function useRoutes(ctx: RouteContext) {
 
   // Child pricing rules
   const [childPricingRules, setChildPricingRules] = useState<ChildPricingRule[]>([]);
+
+  // Seat-specific fare overrides
+  const [routeFormSeatFares, setRouteFormSeatFares] = useState<SeatFareEntry[]>([]);
+  /** Tracks the Firestore doc IDs that existed before this edit session (for deletion). */
+  const originalSeatFareDocIdsRef = useRef<Set<string>>(new Set());
+  const [showAddSeatFare, setShowAddSeatFare] = useState(false);
+  const [editingSeatFareIdx, setEditingSeatFareIdx] = useState<number | null>(null);
+  const [seatFareForm, setSeatFareForm] = useState<SeatFareEntry>({
+    seatId: '',
+    price: 0,
+    agentPrice: 0,
+    startDate: '',
+    endDate: '',
+    note: '',
+  });
 
   // Saving / error state for route save operations
   const [isSavingRoute, setIsSavingRoute] = useState(false);
@@ -275,6 +302,47 @@ export function useRoutes(ctx: RouteContext) {
           }
         }
         originalFareDocIdsRef.current = new Set();
+
+        // Save seat-specific fare overrides
+        const seatFaresSnapshot = routeFormSeatFares.slice();
+        const savedSeatFareDocIds = new Set<string>();
+        for (const seatFare of seatFaresSnapshot) {
+          const seatFareDocId = seatFare.fareId ?? buildSeatFareDocId(
+            seatFare.seatId,
+            seatFare.startDate || undefined,
+            seatFare.endDate || undefined,
+          );
+          try {
+            const savedId = await transportService.upsertRouteSeatFare(
+              routeId,
+              {
+                routeId,
+                seatId: seatFare.seatId,
+                price: seatFare.price,
+                agentPrice: seatFare.agentPrice > 0 ? seatFare.agentPrice : undefined,
+                startDate: seatFare.startDate || undefined,
+                endDate: seatFare.endDate || undefined,
+                note: seatFare.note || undefined,
+                active: true,
+              },
+              seatFareDocId,
+            );
+            savedSeatFareDocIds.add(savedId);
+          } catch (err) {
+            console.error('Failed to save seat fare:', seatFare, err);
+          }
+        }
+        // Delete seat fares removed during this edit session
+        for (const originalId of originalSeatFareDocIdsRef.current) {
+          if (!savedSeatFareDocIds.has(originalId)) {
+            try {
+              await transportService.deleteRouteSeatFare(routeId, originalId);
+            } catch (err) {
+              console.error('Failed to delete seat fare:', originalId, err);
+            }
+          }
+        }
+        originalSeatFareDocIdsRef.current = new Set();
       }
       setShowAddRoute(false);
       setEditingRoute(null);
@@ -415,6 +483,11 @@ export function useRoutes(ctx: RouteContext) {
     setEditingRouteFareIdx(null);
     setRouteFormStopsHistory([]);
     setRouteFormFaresHistory([]);
+    // Reset seat fares
+    setRouteFormSeatFares([]);
+    originalSeatFareDocIdsRef.current = new Set();
+    setShowAddSeatFare(false);
+    setEditingSeatFareIdx(null);
     setShowAddRoute(true);
     // One-time fetch of fares (replaces the real-time subscription that was
     // previously used here).  A real-time listener would continuously overwrite
@@ -459,6 +532,28 @@ export function useRoutes(ctx: RouteContext) {
               ? 'Không thể tải bảng giá vé. Vui lòng đóng và mở lại để thử lại.'
               : 'Could not load fare table. Please close and reopen to try again.',
           );
+        });
+
+      // One-time fetch of seat-specific fares
+      transportService
+        .getRouteSeatFares(route.id)
+        .then(fares => {
+          const activeFares = fares.filter(f => f.active !== false);
+          originalSeatFareDocIdsRef.current = new Set(activeFares.map(f => f.id));
+          setRouteFormSeatFares(
+            activeFares.map(f => ({
+              fareId: f.id,
+              seatId: f.seatId,
+              price: f.price,
+              agentPrice: f.agentPrice || 0,
+              startDate: f.startDate || '',
+              endDate: f.endDate || '',
+              note: f.note || '',
+            })),
+          );
+        })
+        .catch(err => {
+          console.error('Failed to load seat fares for edit:', err);
         });
     }
   };
@@ -529,6 +624,11 @@ export function useRoutes(ctx: RouteContext) {
     setEditingRouteFareIdx(null);
     setRouteFormStopsHistory([]);
     setRouteFormFaresHistory([]);
+    // Reset seat fares for copy (start fresh – don't copy seat fare doc IDs)
+    setRouteFormSeatFares([]);
+    originalSeatFareDocIdsRef.current = new Set();
+    setShowAddSeatFare(false);
+    setEditingSeatFareIdx(null);
     if (route.id) {
       transportService
         .getRouteFares(route.id)
@@ -560,6 +660,27 @@ export function useRoutes(ctx: RouteContext) {
         })
         .catch(err => {
           console.error('Failed to load route fares for copy:', err);
+        });
+
+      // Copy seat-specific fares (without fareId so new docs are created)
+      transportService
+        .getRouteSeatFares(route.id)
+        .then(fares => {
+          setRouteFormSeatFares(
+            fares
+              .filter(f => f.active !== false)
+              .map(f => ({
+                seatId: f.seatId,
+                price: f.price,
+                agentPrice: f.agentPrice || 0,
+                startDate: f.startDate || '',
+                endDate: f.endDate || '',
+                note: f.note || '',
+              })),
+          );
+        })
+        .catch(err => {
+          console.error('Failed to load seat fares for copy:', err);
         });
     }
     setShowAddRoute(true);
@@ -632,6 +753,14 @@ export function useRoutes(ctx: RouteContext) {
     setRouteConflictWarning,
     childPricingRules,
     setChildPricingRules,
+    routeFormSeatFares,
+    setRouteFormSeatFares,
+    showAddSeatFare,
+    setShowAddSeatFare,
+    editingSeatFareIdx,
+    setEditingSeatFareIdx,
+    seatFareForm,
+    setSeatFareForm,
     handleSaveRoute,
     handleForceSaveRoute,
     handleRouteImageUpload,
