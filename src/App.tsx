@@ -795,11 +795,11 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showBookingForm]);
 
-  // When a new trip is selected for booking, show the passenger info form first.
+  // When a new trip is selected for booking, show the seat map first.
   // Auto-fill pickup/dropoff from search parameters if available.
   useEffect(() => {
     if (!selectedTrip) return;
-    setShowPreBookingInfo(true);
+    setShowPreBookingInfo(false);
     setShowBookingForm(null);
     setExtraSeatIds([]);
     setAddonQuantities({});
