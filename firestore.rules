@@ -136,6 +136,14 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // Per-seat fare overrides: routeSeatFares/{routeId}/seats/{fareDocId}
+    // Public read so the booking page can apply seat-specific prices without auth.
+    // Authenticated write so only app users can manage seat fare overrides.
+    match /routeSeatFares/{routeId}/seats/{fareDocId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // Consignments: authenticated validated write
     match /consignments/{consignment} {
       allow read: if true;
