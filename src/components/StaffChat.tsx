@@ -3,6 +3,7 @@ import { MessageCircle, X, Send, AtSign, Mic, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { cn } from '../lib/utils';
+import { formatDateVN } from '../lib/vnDate';
 import { TRANSLATIONS } from '../constants/translations';
 import type { Language } from '../constants/translations';
 import { StaffMessage, Employee } from '../types';
@@ -237,7 +238,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({
       if (dStr === todayStr) return language === 'vi' ? 'Hôm nay' : 'Today';
       const yesterdayStr = getVNDate(new Date(Date.now() - 86400000));
       if (dStr === yesterdayStr) return language === 'vi' ? 'Hôm qua' : 'Yesterday';
-      return d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
+      return formatDateVN(d);
     } catch { return ''; }
   };
 

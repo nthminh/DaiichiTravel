@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Activity, Search, X, Filter, Clock, User, Tag, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { formatDateTimeVN } from '../lib/vnDate';
 import { TRANSLATIONS, Language } from '../App';
 import { AuditLog, User as AppUser, UserRole } from '../types';
 import { matchesSearch } from '../lib/searchUtils';
@@ -51,14 +52,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
     return list;
   }, [logs, search, roleFilter, actionFilter]);
 
-  const formatDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString(language === 'vi' ? 'vi-VN' : language === 'ja' ? 'ja-JP' : 'en-US', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      });
-    } catch { return iso; }
-  };
+  const formatDate = (iso: string) => formatDateTimeVN(iso);
 
   const actionLabel = (action: string) => {
     const key = `audit_action_${action.toLowerCase()}` as keyof typeof t;

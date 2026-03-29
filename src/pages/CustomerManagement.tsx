@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { formatDateVN } from '../lib/vnDate';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language } from '../App';
 import { CustomerProfile, User as AppUser, UserRole } from '../types';
@@ -215,12 +216,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
     }
   };
 
-  const formatDate = (iso?: string) => {
-    if (!iso) return '—';
-    try {
-      return new Date(iso).toLocaleDateString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
-    } catch { return '—'; }
-  };
+  const formatDate = (iso?: string) => formatDateVN(iso);
 
   return (
     <div className="space-y-8">
