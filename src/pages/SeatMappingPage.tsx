@@ -596,10 +596,15 @@ export function SeatMappingPage({
     );
   };
 
+  const shouldShowMobileBackdrop =
+    showPreBookingInfo ||
+    showBookingConfirmation ||
+    (!!showBookingForm && !showBookingConfirmation && !(isSelectingExtraSeats && !canConfirmBooking));
+
   return (
   <>
   {/* Mobile backdrop dim when a bottom-sheet form is visible */}
-  {(showPreBookingInfo || showBookingConfirmation || (!!showBookingForm && !showBookingConfirmation && !(isSelectingExtraSeats && !canConfirmBooking))) && (
+  {shouldShowMobileBackdrop && (
     <div className="fixed inset-0 bg-black/20 z-[140] lg:hidden" />
   )}
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1312,10 +1317,15 @@ export function SeatMappingPage({
               </div>
             )}
 
-            {/* Continue to Confirmation button */}
+            {/* Continue to Confirmation button (or back to seat map if no seat selected yet) */}
             <button
               type="button"
-              onClick={() => setShowBookingConfirmation(true)}
+              onClick={() => {
+                setShowPreBookingInfo(false);
+                if (showBookingForm) {
+                  setShowBookingConfirmation(true);
+                }
+              }}
               disabled={hasFareBlocker || !childAgesComplete}
               className={cn(
                 "w-full py-3 sm:py-4 text-white rounded-xl font-bold shadow-lg transition-all",
@@ -1324,7 +1334,9 @@ export function SeatMappingPage({
                   : "bg-daiichi-red shadow-daiichi-red/20"
               )}
             >
-              {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
+              {showBookingForm
+                ? (language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →')
+                : (language === 'vi' ? '✅ Tiếp theo: Chọn ghế →' : language === 'ja' ? '✅ 次へ：座席を選ぶ →' : '✅ Next: Select Seat →')}
             </button>
           </form>
         </motion.div>
@@ -2019,8 +2031,9 @@ export function SeatMappingPage({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleConfirmBooking(showBookingForm || '')}
-                  className="flex-2 flex-grow py-3 text-white rounded-xl font-bold shadow-lg bg-daiichi-red shadow-daiichi-red/20"
+                  onClick={() => { if (showBookingForm) handleConfirmBooking(showBookingForm); }}
+                  disabled={!showBookingForm}
+                  className={cn("flex-2 flex-grow py-3 text-white rounded-xl font-bold shadow-lg", showBookingForm ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 cursor-not-allowed")}
                 >
                   {language === 'vi' ? '💳 Xác nhận & Thanh toán →' : language === 'ja' ? '💳 確認してお支払い →' : '💳 Confirm & Pay →'}
                 </button>
