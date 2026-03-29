@@ -144,6 +144,10 @@ export default function App() {
   // Fare-table state (Option 2: explicit fare lookup between stops)
   const [fareAmount, setFareAmount] = useState<number | null>(null);
   const [fareAgentAmount, setFareAgentAmount] = useState<number | null>(null); // agent-specific fare per segment
+  // Segment base fare – always reflects the fare-table result for the selected pickup→dropoff segment.
+  // Kept separate from fareAmount so that per-seat fare overrides (RouteSeatFare) don't overwrite it.
+  const [segmentBaseFare, setSegmentBaseFare] = useState<number | null>(null);
+  const [segmentBaseAgentFare, setSegmentBaseAgentFare] = useState<number | null>(null);
   const [fareError, setFareError] = useState<string>('');
   const [fareLoading, setFareLoading] = useState(false);
   const [fromStopId, setFromStopId] = useState('');
@@ -791,16 +795,18 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showBookingForm]);
 
-  // When a new trip is selected for booking, show the info form first (step 1)
-  // and auto-fill pickup/dropoff from search parameters if available.
+  // When a new trip is selected for booking, go straight to seat selection (show map first).
+  // Auto-fill pickup/dropoff from search parameters if available.
   useEffect(() => {
     if (!selectedTrip) return;
-    setShowPreBookingInfo(true);
+    setShowPreBookingInfo(false);
     setShowBookingForm(null);
     setExtraSeatIds([]);
     setAddonQuantities({});
     setFareAmount(null);
     setFareAgentAmount(null);
+    setSegmentBaseFare(null);
+    setSegmentBaseAgentFare(null);
     setFareError('');
 
     // Auto-populate passenger counts from the search form values
@@ -1158,7 +1164,7 @@ export default function App() {
     onRoundTripOutboundCaptured: (summary) => {
       setOutboundBookingData(summary);
       setRoundTripPhase('return');
-      setShowPreBookingInfo(true); // Show info form again for the return leg
+      setShowPreBookingInfo(false); // Go to seat selection for the return leg
       setActiveTab('book-ticket');
       // Carry over customer name & phone from outbound to return phase
       const { customerName, phone } = summary;
@@ -1254,6 +1260,9 @@ export default function App() {
       if (requestId !== fareRequestIdRef.current) return;
       setFareAmount(result.price);
       setFareAgentAmount(result.agentPrice ?? null);
+      // Also store as segment base fare (not overwritten by per-seat overrides)
+      setSegmentBaseFare(result.price);
+      setSegmentBaseAgentFare(result.agentPrice ?? null);
     } catch (err) {
       if (requestId !== fareRequestIdRef.current) return;
       if (err instanceof FareError) {
@@ -1265,6 +1274,8 @@ export default function App() {
         if (err.code === 'FARE_NOT_CONFIGURED' && tripRoute) {
           setFareAmount(tripRoute.price);
           setFareAgentAmount(tripRoute.agentPrice ?? null);
+          setSegmentBaseFare(tripRoute.price);
+          setSegmentBaseAgentFare(tripRoute.agentPrice ?? null);
         } else {
           setFareError(err.message);
         }
@@ -1505,6 +1516,8 @@ export default function App() {
               paymentMethodInput={paymentMethodInput}
               fareAmount={fareAmount}
               fareAgentAmount={fareAgentAmount}
+              segmentBaseFare={segmentBaseFare}
+              segmentBaseAgentFare={segmentBaseAgentFare}
               routeSeatFares={routeSeatFares}
               fareLoading={fareLoading}
               fareError={fareError}

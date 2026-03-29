@@ -2180,16 +2180,22 @@ export function BookTicketPage({
               <Bus size={10} className="flex-shrink-0" />
               <span className="truncate">{emptySeats} {t.seats_left}</span>
             </div>
-            {/* Add-ons badge – clickable to show service details (non-TOUR_SHORT only) */}
+            {/* Add-ons list – show each service name + price (non-TOUR_SHORT only) */}
             {!isTourShort && (trip.addons || []).length > 0 && (
-              <button
-                onClick={() => setShowAddonDetailTrip(trip)}
-                aria-label={language === 'vi' ? 'Xem chi tiết dịch vụ kèm theo' : language === 'ja' ? '付帯サービスの詳細を見る' : 'View add-on services details'}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-bold border border-emerald-200 self-start hover:bg-emerald-100 transition-colors cursor-pointer"
-              >
-                <Gift size={9} />
-                {(trip.addons || []).length} {language === 'vi' ? 'dịch vụ' : language === 'ja' ? '付帯' : 'add-ons'}
-              </button>
+              <div className="space-y-0.5 self-start">
+                {(trip.addons || []).map(addon => (
+                  <button
+                    key={addon.id}
+                    onClick={() => setShowAddonDetailTrip(trip)}
+                    aria-label={language === 'vi' ? 'Xem chi tiết dịch vụ kèm theo' : language === 'ja' ? '付帯サービスの詳細を見る' : 'View add-on services details'}
+                    className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer w-full"
+                  >
+                    <Gift size={9} className="flex-shrink-0" />
+                    <span className="truncate">{addon.name}</span>
+                    <span className="flex-shrink-0 text-emerald-600">+{addon.price.toLocaleString()}đ</span>
+                  </button>
+                ))}
+              </div>
             )}
             {/* Price – use segment fare when available, fall back to trip.price */}
             <div className="mt-auto">

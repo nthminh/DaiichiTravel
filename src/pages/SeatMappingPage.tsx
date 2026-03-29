@@ -49,6 +49,10 @@ interface SeatMappingPageProps {
   paymentMethodInput: PaymentMethod;
   fareAmount: number | null;
   fareAgentAmount: number | null;
+  /** Segment fare from the fare table (independent of per-seat overrides). Used as fallback
+   * price for seats without a RouteSeatFare when the primary seat has an override. */
+  segmentBaseFare: number | null;
+  segmentBaseAgentFare: number | null;
   /** Per-seat fare overrides for the current route – passed in from App.tsx */
   routeSeatFares: RouteSeatFare[];
   fareLoading: boolean;
@@ -131,6 +135,8 @@ export function SeatMappingPage({
   paymentMethodInput,
   fareAmount,
   fareAgentAmount,
+  segmentBaseFare,
+  segmentBaseAgentFare,
   routeSeatFares,
   fareLoading,
   fareError,
@@ -211,7 +217,8 @@ export function SeatMappingPage({
   // Internal state – only used by this page
   const [segmentConflictSeat, setSegmentConflictSeat] = useState<string | null>(null);
   const [takenSeatNotice, setTakenSeatNotice] = useState<string | null>(null);
-  const [showRouteDetails, setShowRouteDetails] = useState(false);
+  // Show route details expanded by default so customers can read the route info before selecting seats
+  const [showRouteDetails, setShowRouteDetails] = useState(true);
   const [showPriceDetail, setShowPriceDetail] = useState(false);
   const segmentConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const takenSeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -594,7 +601,20 @@ export function SeatMappingPage({
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); setActiveTab(previousTab); }}
+            onClick={() => {
+              if (showBookingForm) {
+                // If booking form is open, close it (go back to seat selection)
+                setShowBookingForm(null);
+                setExtraSeatIds([]);
+                setAddonQuantities({});
+              } else if (showPreBookingInfo) {
+                // If pre-booking info form is open, close it (go back to seat map)
+                setShowPreBookingInfo(false);
+              } else {
+                // At seat map root – go back to the previous tab (trip search)
+                setActiveTab(previousTab);
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-gray-500 hover:text-daiichi-red hover:bg-gray-50 rounded-xl transition-all"
             title={language === 'vi' ? 'Quay lại' : language === 'ja' ? '戻る' : 'Go back'}
           >
@@ -647,72 +667,72 @@ export function SeatMappingPage({
         let currentStep: number;
 
         if (isRoundTrip) {
-          // Round-trip: 6-step flow — info declaration before seat selection for each leg
+          // Round-trip: 6-step flow — seat selection before info for each leg
           if (language === 'vi') {
-            steps = ['TT đi', 'Ghế đi', 'TT về', 'Ghế về', 'Thanh toán', 'Tải về'];
+            steps = ['Ghế đi', 'TT đi', 'Ghế về', 'TT về', 'Thanh toán', 'Tải về'];
             hints = [
-              '✍️ Khai báo thông tin hành khách và chặng chiều đi',
-              '👆 Chọn ghế phù hợp theo số hành khách chiều đi',
-              '✍️ Khai báo thông tin hành khách và chặng chiều về',
-              '👆 Chọn ghế phù hợp theo số hành khách chiều về',
+              '👆 Chọn ghế phù hợp cho chiều đi (đọc thông tin tuyến đường bên dưới)',
+              '✍️ Nhập thông tin hành khách và xác nhận giá vé chiều đi',
+              '👆 Chọn ghế phù hợp cho chiều về',
+              '✍️ Nhập thông tin hành khách và xác nhận giá vé chiều về',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất cả hai chiều',
               '📥 Thanh toán thành công! Tải vé khứ hồi về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['出発情報', '出発席', '帰路情報', '帰路席', 'お支払い', 'ダウンロード'];
+            steps = ['出発席', '出発情報', '帰路席', '帰路情報', 'お支払い', 'ダウンロード'];
             hints = [
-              '✍️ 出発便の乗客情報と区間を入力してください',
-              '👆 出発便の空席（白色）をタップして乗客数に合わせて座席を選んでください',
-              '✍️ 帰路便の乗客情報と区間を入力してください',
-              '👆 帰路便の空席をタップして乗客数に合わせて座席を選んでください',
+              '👆 出発便の空席（白色）をタップして座席を選んでください（ルート情報もご確認ください）',
+              '✍️ 出発便の乗客情報を入力して運賃を確認してください',
+              '👆 帰路便の空席をタップして座席を選んでください',
+              '✍️ 帰路便の乗客情報を入力して運賃を確認してください',
               '💳 QRコードをスキャンするか、支払い方法を選択して往復予約を確定してください',
               '📥 支払い完了！乗車時に使用する往復チケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Out. Info', 'Out. Seat', 'Ret. Info', 'Ret. Seat', 'Payment', 'Download'];
+            steps = ['Out. Seat', 'Out. Info', 'Ret. Seat', 'Ret. Info', 'Payment', 'Download'];
             hints = [
-              '✍️ Declare passenger information and segment for the outbound trip',
-              '👆 Tap an empty seat (white) to select seats for all outbound passengers',
-              '✍️ Declare passenger information and segment for the return trip',
-              '👆 Tap an empty seat to select seats for all return passengers',
+              '👆 Tap an empty seat (white) for the outbound trip (review route info below)',
+              '✍️ Enter passenger details and confirm fare for the outbound trip',
+              '👆 Tap an empty seat for the return trip',
+              '✍️ Enter passenger details and confirm fare for the return trip',
               '💳 Scan the QR code or choose a payment method to complete both trips',
               '📥 Payment successful! Download your round-trip ticket to use when boarding',
             ];
           }
-          // Steps 1–2: outbound (info then seat); Steps 3–4: return (info then seat)
+          // Steps 1–2: outbound (seat then info); Steps 3–4: return (seat then info)
           if (roundTripPhase === 'outbound') {
-            currentStep = showPreBookingInfo ? 1 : 2;
+            currentStep = !showBookingForm && !showPreBookingInfo ? 1 : 2;
           } else {
-            currentStep = showPreBookingInfo ? 3 : 4;
+            currentStep = !showBookingForm && !showPreBookingInfo ? 3 : 4;
           }
         } else {
-          // ONE_WAY: info first, then seat selection
+          // ONE_WAY: seat selection first, then info/confirm
           if (language === 'vi') {
-            steps = ['Nhập thông tin', 'Chọn ghế', 'Thanh toán', 'Tải về'];
+            steps = ['Chọn ghế', 'Nhập thông tin', 'Thanh toán', 'Tải về'];
             hints = [
-              '✍️ Khai báo thông tin hành khách và chọn điểm xuất phát / điểm đến',
-              '👆 Chọn ghế trống (màu trắng) theo số người đã khai báo',
+              '👆 Chọn ghế trống (màu trắng) — đọc thông tin tuyến đường bên dưới trước khi chọn',
+              '✍️ Nhập thông tin hành khách, xem giá chi tiết và xác nhận đặt vé',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
               '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['情報を入力', '座席を選ぶ', 'お支払い', 'ダウンロード'];
+            steps = ['座席を選ぶ', '情報を入力', 'お支払い', 'ダウンロード'];
             hints = [
-              '✍️ 乗客情報と乗降区間を入力してください',
-              '👆 空席（白色）をタップして、乗客数分の座席を選んでください',
+              '👆 空席（白色）をタップして座席を選んでください — 下のルート情報を確認してから選んでください',
+              '✍️ 乗客情報を入力し、料金の詳細を確認して予約を確定してください',
               '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
               '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Enter Info', 'Select Seat', 'Payment', 'Download'];
+            steps = ['Select Seat', 'Enter Info', 'Payment', 'Download'];
             hints = [
-              '✍️ Declare passenger details and choose your departure / destination point',
-              '👆 Tap an empty seat (white) to select seats for all passengers',
+              '👆 Tap an empty seat (white) to choose your seat — review route details below first',
+              '✍️ Enter passenger details, review the price breakdown and confirm booking',
               '💳 Scan the QR code or choose a payment method to complete',
               '📥 Payment successful! Download your ticket to use when boarding',
             ];
           }
-          currentStep = showPreBookingInfo ? 1 : 2;
+          currentStep = !showBookingForm && !showPreBookingInfo ? 1 : 2;
         }
 
         return (
@@ -892,7 +912,7 @@ export function SeatMappingPage({
       ))}
 
       {/* Route details panel – collapsible */}
-      {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details || tripRoute.note) && (
+      {tripRoute && (tripRoute.departurePoint || tripRoute.arrivalPoint || tripRoute.details || tripRoute.note || (tripRoute.routeStops && tripRoute.routeStops.length > 0)) && (
         <div className="mt-6 bg-blue-50 border border-blue-100 rounded-[24px] overflow-hidden">
           <button
             onClick={() => setShowRouteDetails(v => !v)}
@@ -903,7 +923,50 @@ export function SeatMappingPage({
           </button>
           {showRouteDetails && (
             <div className="px-5 pb-5 space-y-3 border-t border-blue-100">
-              {(tripRoute.departurePoint || tripRoute.arrivalPoint) && (
+              {/* Segment-by-segment stops (if route has intermediate stops) */}
+              {tripRoute.routeStops && tripRoute.routeStops.length > 0 && (() => {
+                const sortedStops = [...tripRoute.routeStops].sort((a, b) => a.order - b.order);
+                return (
+                  <div className="pt-3">
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">
+                      {language === 'vi' ? 'Hành trình từng chặng' : language === 'ja' ? '各区間のルート' : 'Route Segments'}
+                    </p>
+                    <div className="space-y-1">
+                      {sortedStops.map((stop, idx) => {
+                        const isFirst = idx === 0;
+                        const isLast = idx === sortedStops.length - 1;
+                        const depTime = selectedTrip.time;
+                        let stopTime: string | null = null;
+                        if (depTime && stop.offsetMinutes) {
+                          const [hStr, mStr] = depTime.split(':');
+                          const h = parseInt(hStr, 10);
+                          const m = parseInt(mStr, 10);
+                          if (!isNaN(h) && !isNaN(m)) {
+                            const total = h * 60 + m + stop.offsetMinutes;
+                            stopTime = `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+                          }
+                        }
+                        return (
+                          <div key={stop.stopId} className="flex items-start gap-2">
+                            <div className="flex flex-col items-center flex-shrink-0 pt-1">
+                              <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isFirst ? 'bg-daiichi-red' : isLast ? 'bg-blue-500' : 'bg-gray-400'}`} />
+                              {idx < sortedStops.length - 1 && <div className="w-px h-3 bg-gray-300 my-0.5" />}
+                            </div>
+                            <div className="flex-1 min-w-0 pb-1">
+                              <div className="flex items-baseline gap-2">
+                                {stopTime && <span className={`text-xs font-bold flex-shrink-0 ${isFirst ? 'text-daiichi-red' : isLast ? 'text-blue-500' : 'text-gray-500'}`}>{stopTime}</span>}
+                                <span className={`text-xs font-semibold truncate ${isFirst || isLast ? 'text-gray-800' : 'text-gray-600'}`}>{stop.stopName}</span>
+                              </div>
+                              {stop.description && <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{stop.description}</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+              {(tripRoute.departurePoint || tripRoute.arrivalPoint) && !(tripRoute.routeStops && tripRoute.routeStops.length > 0) && (
                 <div className="flex items-stretch gap-2 pt-3">
                   <div className="flex flex-col items-center flex-shrink-0 mt-1" aria-hidden="true">
                     <div className="w-2 h-2 rounded-full bg-daiichi-red" />
@@ -1330,6 +1393,127 @@ export function SeatMappingPage({
                 <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
               </div>
               <form className="space-y-2.5 sm:space-y-4">
+                {/* ── Passenger info (name, phone, count) – entered after seat selection ── */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
+                    <div className="flex items-center gap-2 mt-1 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-xl">
+                      <button type="button" onClick={() => {
+                        const newAdults = Math.max(1, adults - 1);
+                        setAdults(newAdults);
+                        const currentOver5Count = childrenAges.filter(age => age >= 5).length;
+                        const newExtraSeatsNeeded = (newAdults - 1) + currentOver5Count;
+                        setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
+                      }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                      <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
+                      <button type="button" onClick={() => setAdults(adults + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label>
+                    <div className="flex items-center gap-2 mt-1 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-xl">
+                      <button type="button" onClick={() => {
+                        const count = Math.max(0, children - 1);
+                        setChildren(count);
+                        setChildrenAges(prev => prev.slice(0, count));
+                        const newAges = childrenAges.slice(0, count);
+                        const newOver5Count = newAges.filter(age => age >= 5).length;
+                        setExtraSeatIds(prev => prev.slice(0, newOver5Count));
+                      }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
+                      <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
+                      <button type="button" onClick={() => {
+                        const count = children + 1;
+                        setChildren(count);
+                        setChildrenAges(prev => {
+                          const arr = [...prev];
+                          while (arr.length < count) arr.push(undefined);
+                          return arr.slice(0, count);
+                        });
+                      }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
+                    </div>
+                  </div>
+                </div>
+                {children > 0 && (
+                  <div className="p-2 bg-blue-50 rounded-xl border border-blue-100 space-y-1.5">
+                    <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
+                    <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Array.from({ length: children }).map((_, i) => (
+                        <div key={i} className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={childrenAges[i] != null ? String(childrenAges[i]) : ''}
+                            placeholder={`${t.child_age_placeholder || 'Age'} ${i + 1}`}
+                            onChange={e => {
+                              const ages = [...childrenAges];
+                              const parsed = parseInt(e.target.value);
+                              ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
+                              setChildrenAges(ages);
+                              const newOver5Count = ages.filter(age => (age ?? 0) >= 5).length;
+                              setExtraSeatIds(prev => prev.slice(0, newOver5Count));
+                            }}
+                            className="w-full px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
+                          />
+                          {(childrenAges[i] ?? 0) >= 5 && (
+                            <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                              {t.child_counted_as_adult || 'Adult'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="relative">
+                  <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.customer_name}</label>
+                  <input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_name} />
+                </div>
+                <div className="relative">
+                  <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.phone_number}</label>
+                  <input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_phone} />
+                </div>
+                {/* Pickup address (sub-stop selection) */}
+                {pickupStopNames.length > 0 && !pickupSectionDisabled && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
+                    <SearchableSelect
+                      options={pickupStopNames}
+                      optionDetails={pickupStopAddresses}
+                      value={pickupAddress}
+                      onChange={(val) => {
+                        setPickupAddress(val);
+                        const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
+                        setPickupAddressSurcharge(matchedStop?.surcharge || 0);
+                        setPickupStopAddress(matchedStop?.address || '');
+                      }}
+                      placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
+                      className="mt-1"
+                      inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
+                    />
+                  </div>
+                )}
+                {/* Dropoff address (sub-stop selection) */}
+                {dropoffStopNames.length > 0 && !dropoffSectionDisabled && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
+                    <SearchableSelect
+                      options={dropoffStopNames}
+                      optionDetails={dropoffStopAddresses}
+                      value={dropoffAddress}
+                      onChange={(val) => {
+                        setDropoffAddress(val);
+                        const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
+                        setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
+                        setDropoffStopAddress(matchedStop?.address || '');
+                      }}
+                      placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
+                      className="mt-1"
+                      inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
+                    />
+                  </div>
+                )}
                 {/* Segment conflict warning */}
                 {(() => {
                   if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;
@@ -1584,7 +1768,27 @@ export function SeatMappingPage({
                       // The primary seat's fare is already in basePriceAdult (via fareAmount)
                       if (sid === primarySeat || !routeSeatFares || routeSeatFares.length === 0) return basePriceAdult;
                       const candidates = routeSeatFares.filter(f => f.seatId === sid);
-                      if (candidates.length === 0) return basePriceAdult;
+                      if (candidates.length === 0) {
+                        // No specific fare override for this seat.
+                        // If the primary seat has an override that set fareAmount, basePriceAdult reflects
+                        // that override price. Extra seats without their own override should use the
+                        // segment/route base fare instead, not the primary seat's discounted fare.
+                        if (segmentBaseFare !== null) {
+                          const segBase = isAgentBookingForm && segmentBaseAgentFare !== null
+                            ? segmentBaseAgentFare
+                            : segmentBaseFare;
+                          return Math.round(segBase * tripDiscountMul);
+                        }
+                        // No segment fare available – check if primary seat itself has an override
+                        if (primarySeat && routeSeatFares.some(f => f.seatId === primarySeat)) {
+                          // Primary seat uses an override; fall back to trip default for this regular seat
+                          if (isAgentBookingForm) {
+                            return Math.round((selectedTrip.agentPrice || selectedTrip.price || 0) * tripDiscountMul);
+                          }
+                          return Math.round((selectedTrip.price || 0) * tripDiscountMul);
+                        }
+                        return basePriceAdult;
+                      }
                       const dateStr = selectedTrip?.date;
                       let seatFare: RouteSeatFare | undefined;
                       if (dateStr) {
