@@ -267,20 +267,17 @@ export function usePayment(ctx: BookingContext) {
     }
 
     /**
-     * Look up the effective (agent/discount-adjusted) fare for a given seat.
-     * - The primary seat already has its fare resolved in basePriceAdult (via fareAmount).
-     * - For extra seats, check if there is a RouteSeatFare override for that specific seat.
-     *   If found, apply the same discount/commission logic as the primary seat.
-     *   If not found, fall back to basePriceAdult (the segment/route default fare).
-     * Free-seating trips have no per-seat overrides, so all seats use basePriceAdult.
+     * Resolve the raw (retail, discount-adjusted) fare for an extra seat.
+     * Returns the seat-specific fare price if a RouteSeatFare override exists and matches
+     * the trip date; otherwise returns `null` so the caller can use the default.
+     * The primary seat is excluded – its fare is already encoded in basePriceAdult.
      */
-    const getEffectiveFareForSeat = (sid: string): number => {
-      // The primary seat's fare is already encoded in basePriceAdult
+    const resolveRawSeatFare = (sid: string): number | null => {
       if (sid === seatId || isFreeSeating || !c.routeSeatFares || c.routeSeatFares.length === 0) {
-        return basePriceAdult;
+        return null;
       }
       const candidates = c.routeSeatFares.filter(f => f.seatId === sid);
-      if (candidates.length === 0) return basePriceAdult;
+      if (candidates.length === 0) return null;
       // Pick the fare that best matches the trip date
       let seatFare: RouteSeatFare | undefined;
       if (tripDate) {
@@ -291,19 +288,36 @@ export function usePayment(ctx: BookingContext) {
         });
       }
       if (!seatFare) seatFare = candidates.find(f => !f.startDate && !f.endDate);
-      if (!seatFare) return basePriceAdult;
-      // Apply trip-level discount
-      const discounted = Math.round(seatFare.price * tripDiscountMultiplier);
+      if (!seatFare) return null;
+      return Math.round(seatFare.price * tripDiscountMultiplier);
+    };
+
+    /**
+     * Look up the effective (agent/discount-adjusted) fare for a given seat.
+     * - The primary seat already has its fare resolved in basePriceAdult (via fareAmount).
+     * - For extra seats, check if there is a RouteSeatFare override for that specific seat.
+     *   If found, apply the same discount/commission logic as the primary seat.
+     *   If not found, fall back to basePriceAdult (the segment/route default fare).
+     * Free-seating trips have no per-seat overrides, so all seats use basePriceAdult.
+     */
+    const getEffectiveFareForSeat = (sid: string): number => {
+      const rawFare = resolveRawSeatFare(sid);
+      if (rawFare === null) return basePriceAdult;
+      // Look up the seat fare object to apply agent override
+      const seatFareObj = c.routeSeatFares.find(f =>
+        f.seatId === sid &&
+        (!tripDate || ((!f.startDate || f.startDate <= tripDate) && (!f.endDate || f.endDate >= tripDate)))
+      ) ?? c.routeSeatFares.find(f => f.seatId === sid && !f.startDate && !f.endDate);
       // Apply agent commission or agent price override
-      if (isAgentBooking) {
+      if (isAgentBooking && seatFareObj) {
         if (effectiveCommissionRate > 0) {
-          return Math.round(discounted * (1 - effectiveCommissionRate / 100));
+          return Math.round(rawFare * (1 - effectiveCommissionRate / 100));
         }
-        if (seatFare.agentPrice !== undefined) {
-          return Math.round(seatFare.agentPrice * tripDiscountMultiplier);
+        if (seatFareObj.agentPrice !== undefined) {
+          return Math.round(seatFareObj.agentPrice * tripDiscountMultiplier);
         }
       }
-      return discounted;
+      return rawFare;
     };
 
     // Sum individual seat fares instead of multiplying one seat's fare by passenger count.
@@ -318,24 +332,10 @@ export function usePayment(ctx: BookingContext) {
     const totalAmount = Math.round(totalBase + totalSurcharge + addonsTotalPrice);
 
     // Commission amount = difference between retail total and agent net total.
-    // Retail base sums per-seat retail prices (before commission).
+    // Retail base sums per-seat retail prices (before commission), reusing resolveRawSeatFare.
     const retailTotalBase = allSeatIds.reduce((sum, sid) => {
-      if (sid === seatId || isFreeSeating || !c.routeSeatFares || c.routeSeatFares.length === 0) {
-        return sum + retailPriceAdult;
-      }
-      const candidates = c.routeSeatFares.filter(f => f.seatId === sid);
-      if (candidates.length === 0) return sum + retailPriceAdult;
-      let seatFare: RouteSeatFare | undefined;
-      if (tripDate) {
-        seatFare = candidates.find(f => {
-          const afterStart = !f.startDate || f.startDate <= tripDate;
-          const beforeEnd = !f.endDate || f.endDate >= tripDate;
-          return afterStart && beforeEnd;
-        });
-      }
-      if (!seatFare) seatFare = candidates.find(f => !f.startDate && !f.endDate);
-      if (!seatFare) return sum + retailPriceAdult;
-      return sum + Math.round(seatFare.price * tripDiscountMultiplier);
+      const rawFare = resolveRawSeatFare(sid);
+      return sum + (rawFare !== null ? rawFare : retailPriceAdult);
     }, 0);
     const retailTotalAmount = Math.round(retailTotalBase + totalSurcharge + addonsTotalPrice);
     const commissionAmount = isAgentBooking && effectiveCommissionRate > 0
