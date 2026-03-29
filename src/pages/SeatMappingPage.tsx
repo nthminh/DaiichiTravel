@@ -608,11 +608,11 @@ export function SeatMappingPage({
                 setExtraSeatIds([]);
                 setAddonQuantities({});
               } else if (showPreBookingInfo) {
-                // If pre-booking info form is open, close it (go back to seat map)
-                setShowPreBookingInfo(false);
-              } else {
-                // At seat map root – go back to the previous tab (trip search)
+                // Pre-booking info is the first step – go back to trip search
                 setActiveTab(previousTab);
+              } else {
+                // At seat map – go back to passenger info step
+                setShowPreBookingInfo(true);
               }
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-gray-500 hover:text-daiichi-red hover:bg-gray-50 rounded-xl transition-all"
@@ -667,72 +667,72 @@ export function SeatMappingPage({
         let currentStep: number;
 
         if (isRoundTrip) {
-          // Round-trip: 6-step flow — seat selection before info for each leg
+          // Round-trip: 6-step flow — info first, then seat for each leg
           if (language === 'vi') {
-            steps = ['Ghế đi', 'TT đi', 'Ghế về', 'TT về', 'Thanh toán', 'Tải về'];
+            steps = ['TT đi', 'Ghế đi', 'TT về', 'Ghế về', 'Thanh toán', 'Tải về'];
             hints = [
+              '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều đi',
               '👆 Chọn ghế phù hợp cho chiều đi (đọc thông tin tuyến đường bên dưới)',
-              '✍️ Nhập thông tin hành khách và xác nhận giá vé chiều đi',
+              '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều về',
               '👆 Chọn ghế phù hợp cho chiều về',
-              '✍️ Nhập thông tin hành khách và xác nhận giá vé chiều về',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất cả hai chiều',
               '📥 Thanh toán thành công! Tải vé khứ hồi về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['出発席', '出発情報', '帰路席', '帰路情報', 'お支払い', 'ダウンロード'];
+            steps = ['出発情報', '出発席', '帰路情報', '帰路席', 'お支払い', 'ダウンロード'];
             hints = [
-              '👆 出発便の空席（白色）をタップして座席を選んでください（ルート情報もご確認ください）',
-              '✍️ 出発便の乗客情報を入力して運賃を確認してください',
+              '📋 出発便の乗客情報と乗降場所を入力してください',
+              '👆 出発便の空席（白色）をタップして座席を選んでください',
+              '📋 帰路便の乗客情報と乗降場所を入力してください',
               '👆 帰路便の空席をタップして座席を選んでください',
-              '✍️ 帰路便の乗客情報を入力して運賃を確認してください',
               '💳 QRコードをスキャンするか、支払い方法を選択して往復予約を確定してください',
               '📥 支払い完了！乗車時に使用する往復チケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Out. Seat', 'Out. Info', 'Ret. Seat', 'Ret. Info', 'Payment', 'Download'];
+            steps = ['Out. Info', 'Out. Seat', 'Ret. Info', 'Ret. Seat', 'Payment', 'Download'];
             hints = [
+              '📋 Enter passenger info and pickup/dropoff for the outbound trip',
               '👆 Tap an empty seat (white) for the outbound trip (review route info below)',
-              '✍️ Enter passenger details and confirm fare for the outbound trip',
+              '📋 Enter passenger info and pickup/dropoff for the return trip',
               '👆 Tap an empty seat for the return trip',
-              '✍️ Enter passenger details and confirm fare for the return trip',
               '💳 Scan the QR code or choose a payment method to complete both trips',
               '📥 Payment successful! Download your round-trip ticket to use when boarding',
             ];
           }
-          // Steps 1–2: outbound (seat then info); Steps 3–4: return (seat then info)
+          // Steps 1–2: outbound (info then seat); Steps 3–4: return (info then seat)
           if (roundTripPhase === 'outbound') {
-            currentStep = !showBookingForm && !showPreBookingInfo ? 1 : 2;
+            currentStep = showPreBookingInfo ? 1 : 2;
           } else {
-            currentStep = !showBookingForm && !showPreBookingInfo ? 3 : 4;
+            currentStep = showPreBookingInfo ? 3 : 4;
           }
         } else {
-          // ONE_WAY: seat selection first, then info/confirm
+          // ONE_WAY: passenger info first, then seat selection
           if (language === 'vi') {
-            steps = ['Chọn ghế', 'Nhập thông tin', 'Thanh toán', 'Tải về'];
+            steps = ['Nhập thông tin', 'Chọn ghế', 'Thanh toán', 'Tải về'];
             hints = [
+              '📋 Khai báo thông tin hành khách, chọn điểm đón/trả trước khi chọn ghế',
               '👆 Chọn ghế trống (màu trắng) — đọc thông tin tuyến đường bên dưới trước khi chọn',
-              '✍️ Nhập thông tin hành khách, xem giá chi tiết và xác nhận đặt vé',
               '💳 Quét mã QR hoặc chọn phương thức thanh toán để hoàn tất',
               '📥 Thanh toán thành công! Tải vé về máy để sử dụng khi lên xe',
             ];
           } else if (language === 'ja') {
-            steps = ['座席を選ぶ', '情報を入力', 'お支払い', 'ダウンロード'];
+            steps = ['情報を入力', '座席を選ぶ', 'お支払い', 'ダウンロード'];
             hints = [
+              '📋 乗客情報と乗降場所を入力してから座席を選んでください',
               '👆 空席（白色）をタップして座席を選んでください — 下のルート情報を確認してから選んでください',
-              '✍️ 乗客情報を入力し、料金の詳細を確認して予約を確定してください',
               '💳 QRコードをスキャンするか、支払い方法を選択して完了してください',
               '📥 支払い完了！乗車時に使用するチケットをダウンロードしてください',
             ];
           } else {
-            steps = ['Select Seat', 'Enter Info', 'Payment', 'Download'];
+            steps = ['Enter Info', 'Select Seat', 'Payment', 'Download'];
             hints = [
+              '📋 Enter passenger details and pickup/dropoff before selecting a seat',
               '👆 Tap an empty seat (white) to choose your seat — review route details below first',
-              '✍️ Enter passenger details, review the price breakdown and confirm booking',
               '💳 Scan the QR code or choose a payment method to complete',
               '📥 Payment successful! Download your ticket to use when boarding',
             ];
           }
-          currentStep = !showBookingForm && !showPreBookingInfo ? 1 : 2;
+          currentStep = showPreBookingInfo ? 1 : 2;
         }
 
         return (

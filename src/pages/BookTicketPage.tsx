@@ -735,9 +735,6 @@ function StepIndicator({ currentStep, labels }: StepIndicatorProps) {
 interface TripConfirmPanelProps {
   trip: Trip;
   route: Route | undefined;
-  stops: Stop[];
-  routes: Route[];
-  vehicles: Vehicle[];
   language: Language;
   segmentFares: Map<string, { price: number; agentPrice?: number }>;
   searchStationFrom: string;
@@ -749,14 +746,15 @@ interface TripConfirmPanelProps {
   currentUser: any | null;
   searchAdults: number;
   searchChildren: number;
-  onConfirm: (pickupStop: Stop | null, dropoffStop: Stop | null) => void;
+  searchChildrenAges: (number | undefined)[];
+  onConfirm: () => void;
   onClose: () => void;
 }
 
 function TripConfirmPanel({
-  trip, route, stops, language, segmentFares,
+  trip, route, language, segmentFares,
   searchStationFrom, searchStationTo, searchFrom, searchTo,
-  roundTripPhase, tripType, currentUser, searchAdults, searchChildren,
+  roundTripPhase, tripType, currentUser, searchAdults, searchChildren, searchChildrenAges,
   onConfirm, onClose,
 }: TripConfirmPanelProps) {
   const t = TRANSLATIONS[language];
@@ -764,30 +762,12 @@ function TripConfirmPanel({
   const effectiveFrom = isReturnPhase ? (searchStationTo || searchTo) : (searchStationFrom || searchFrom);
   const effectiveTo = isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo);
 
-  const [selectedPickup, setSelectedPickup] = useState<Stop | null>(null);
-  const [selectedDropoff, setSelectedDropoff] = useState<Stop | null>(null);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  // ---- Passenger count summary ----
+  const childrenOver5Count = searchChildrenAges.filter(age => age !== undefined && age >= 5).length;
+  const childrenUnder5Count = searchChildren - childrenOver5Count;
+  const billablePassengers = searchAdults + childrenOver5Count;
 
-  const handlePickupSelect = (stop: Stop | null) => { setSelectedPickup(stop); if (stop) setConfirmError(null); };
-  const handleDropoffSelect = (stop: Stop | null) => { setSelectedDropoff(stop); if (stop) setConfirmError(null); };
   // ---- helpers ----
-  const isAddressDisabledByDate = (disableFlag: boolean | undefined, fromDate: string | undefined, toDate: string | undefined, tripDate: string): boolean => {
-    if (!disableFlag) return false;
-    if (!fromDate && !toDate) return true;
-    const afterFrom = fromDate ? tripDate >= fromDate : true;
-    const beforeTo = toDate ? tripDate <= toDate : true;
-    return !!tripDate && afterFrom && beforeTo;
-  };
-
-  /** Returns true if tripDate (YYYY-MM-DD) falls within the optional [fromDate, toDate] range. Empty bounds are open-ended. */
-  const isTripDateWithinRange = (tripDate: string, fromDate: string | undefined, toDate: string | undefined): boolean => {
-    if (!fromDate && !toDate) return true;
-    if (!tripDate) return false;
-    if (fromDate && tripDate < fromDate) return false;
-    if (toDate && tripDate > toDate) return false;
-    return true;
-  };
-
   const getApplicableRouteSurcharges = (r: Route | undefined, tripDate: string): RouteSurcharge[] => {
     if (!r?.surcharges) return [];
     return r.surcharges.filter(sc => {
@@ -797,64 +777,8 @@ function TripConfirmPanel({
     });
   };
 
-  const resolveTerminal = (selectedName: string | undefined, routeDefaultName: string | undefined): Stop | undefined => {
-    const name = selectedName || routeDefaultName;
-    if (!name) return undefined;
-    const direct = stops.find(s => s.type === 'TERMINAL' && s.name === name);
-    if (direct) return direct;
-    const parentId = stops.find(s => s.name === name)?.terminalId;
-    if (parentId) return stops.find(s => s.id === parentId);
-    return undefined;
-  };
-
   const tripDate = trip.date || '';
   const applicableSurcharges = getApplicableRouteSurcharges(route, tripDate);
-
-  // ---- Pickup stops ----
-  const departureTerminal = resolveTerminal(effectiveFrom, route?.departurePoint);
-  const isPickupDisabledByDate = isAddressDisabledByDate(route?.disablePickupAddress, route?.disablePickupAddressFrom, route?.disablePickupAddressTo, tripDate);
-  const pickupDisableStopType = route?.disablePickupAddressStopType || 'ALL';
-  const pickupSectionDisabled = isPickupDisabledByDate && pickupDisableStopType === 'ALL';
-  const disabledPickupCategories = route?.disabledPickupCategories ?? [];
-  const isPickupCategoryDisableActive = disabledPickupCategories.length > 0 && isTripDateWithinRange(tripDate, route?.disabledPickupCategoriesFromDate, route?.disabledPickupCategoriesToDate);
-
-  const pickupStops = useMemo(() => {
-    const base = departureTerminal
-      ? stops.filter(s => s.terminalId === departureTerminal.id)
-      : stops.filter(s => s.type !== 'TERMINAL');
-    const afterType = isPickupDisabledByDate && pickupDisableStopType !== 'ALL'
-      ? base.filter(s => (s.type ?? 'STOP') !== pickupDisableStopType)
-      : base;
-    return isPickupCategoryDisableActive
-      ? afterType.filter(s => !disabledPickupCategories.includes(s.category ?? ''))
-      : afterType;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, departureTerminal?.id, isPickupDisabledByDate, pickupDisableStopType, route?.disabledPickupCategories, route?.disabledPickupCategoriesFromDate, route?.disabledPickupCategoriesToDate, tripDate]);
-
-  // ---- Dropoff stops ----
-  const arrivalTerminal = resolveTerminal(effectiveTo, route?.arrivalPoint);
-  const isDropoffDisabledByDate = isAddressDisabledByDate(route?.disableDropoffAddress, route?.disableDropoffAddressFrom, route?.disableDropoffAddressTo, tripDate);
-  const dropoffDisableStopType = route?.disableDropoffAddressStopType || 'ALL';
-  const dropoffSectionDisabled = isDropoffDisabledByDate && dropoffDisableStopType === 'ALL';
-  const disabledDropoffCategories = route?.disabledDropoffCategories ?? [];
-  const isDropoffCategoryDisableActive = disabledDropoffCategories.length > 0 && isTripDateWithinRange(tripDate, route?.disabledDropoffCategoriesFromDate, route?.disabledDropoffCategoriesToDate);
-
-  const dropoffStops = useMemo(() => {
-    const base = arrivalTerminal
-      ? stops.filter(s => s.terminalId === arrivalTerminal.id)
-      : stops.filter(s => s.type !== 'TERMINAL');
-    const afterType = isDropoffDisabledByDate && dropoffDisableStopType !== 'ALL'
-      ? base.filter(s => (s.type ?? 'STOP') !== dropoffDisableStopType)
-      : base;
-    return isDropoffCategoryDisableActive
-      ? afterType.filter(s => !disabledDropoffCategories.includes(s.category ?? ''))
-      : afterType;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, arrivalTerminal?.id, isDropoffDisabledByDate, dropoffDisableStopType, route?.disabledDropoffCategories, route?.disabledDropoffCategoriesFromDate, route?.disabledDropoffCategoriesToDate, tripDate]);
-
-  // Pickup/dropoff are required when stops exist and the section is not fully disabled
-  const pickupRequired = !pickupSectionDisabled && pickupStops.length > 0;
-  const dropoffRequired = !dropoffSectionDisabled && dropoffStops.length > 0;
 
   // ---- Time calculation ----
   const calcTime = (base: string, offsetMins: number): string => {
@@ -987,15 +911,14 @@ function TripConfirmPanel({
   const baseFare = agentBase !== null ? agentBase : retailBase;
   const discountPct = trip.discountPercent || 0;
   const discountedFare = discountPct > 0 ? Math.round(baseFare * (1 - discountPct / 100)) : baseFare;
-  const pickupSurchargeAmt = selectedPickup?.surcharge || 0;
-  const dropoffSurchargeAmt = selectedDropoff?.surcharge || 0;
   const routeSurchargeTotal = applicableSurcharges.reduce((sum, sc) => sum + sc.amount, 0);
-  const totalPerPerson = discountedFare + pickupSurchargeAmt + dropoffSurchargeAmt + routeSurchargeTotal;
+  const totalPerPerson = discountedFare + routeSurchargeTotal;
+  const grandTotal = totalPerPerson * billablePassengers;
 
   const stepLabels: [string, string, string, string] = [
     t.step_select_trip || 'Chọn chuyến',
+    language === 'vi' ? 'Nhập thông tin' : language === 'ja' ? '情報入力' : 'Enter Info',
     t.step_pickup_dropoff || 'Điểm đón/trả',
-    t.step_select_seat || 'Chọn ghế',
     t.step_payment || 'Thanh toán',
   ];
 
@@ -1013,7 +936,7 @@ function TripConfirmPanel({
             <span className="hidden sm:inline">{t.trip_confirm_back || 'Quay lại'}</span>
           </button>
           <div className="flex-1">
-            <StepIndicator currentStep={2} labels={stepLabels} />
+            <StepIndicator currentStep={1} labels={stepLabels} />
           </div>
         </div>
       </div>
@@ -1125,65 +1048,45 @@ function TripConfirmPanel({
             </div>
           </div>
 
-          {/* ── Pickup selection ── */}
+          {/* ── Passenger summary ── */}
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-daiichi-red flex-shrink-0" />
-              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_pickup_title || 'Chọn điểm đón'}</h3>
-              {pickupRequired
-                ? <span className="text-[10px] text-daiichi-red ml-auto font-semibold">{t.trip_confirm_required || '(Bắt buộc)'}</span>
-                : <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
-              }
+              <Users size={14} className="text-daiichi-red flex-shrink-0" />
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                {language === 'vi' ? 'Hành khách' : language === 'ja' ? '乗客' : 'Passengers'}
+              </h3>
             </div>
-            <div className="p-3">
-              {pickupSectionDisabled ? (
-                <div className="flex items-center gap-2 py-2 text-xs text-amber-600">
-                  <Info size={13} className="flex-shrink-0" />
-                  <span>{t.trip_confirm_pickup_disabled || 'Điểm đón bị tắt cho tuyến/ngày này'}</span>
-                </div>
-              ) : pickupStops.length === 0 ? (
-                <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_pickup_stops || 'Không có điểm đón tại bến này'}</p>
-              ) : (
-                <CompactStopSelector
-                  stops={pickupStops}
-                  selectedStop={selectedPickup}
-                  onSelect={handlePickupSelect}
-                  placeholder={language === 'vi' ? 'Gõ để tìm điểm đón...' : language === 'ja' ? '乗車地を検索...' : 'Search pickup point...'}
-                  emptyLabel={t.not_selected_yet || 'Chưa chọn'}
-                  theme="pickup"
-                />
+            <div className="p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">{language === 'vi' ? 'Người lớn' : language === 'ja' ? '大人' : 'Adults'}</span>
+                <span className="font-bold text-gray-800">{searchAdults}</span>
+              </div>
+              {searchChildren > 0 && (
+                <>
+                  {childrenOver5Count > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">
+                        {language === 'vi' ? `Trẻ em ≥5 tuổi (tính giá người lớn)` : language === 'ja' ? '5歳以上の子供（大人料金）' : 'Children ≥5 (adult price)'}
+                      </span>
+                      <span className="font-bold text-daiichi-red">{childrenOver5Count}</span>
+                    </div>
+                  )}
+                  {childrenUnder5Count > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">
+                        {language === 'vi' ? 'Trẻ em <5 tuổi (miễn phí)' : language === 'ja' ? '5歳未満の子供（無料）' : 'Children <5 (free)'}
+                      </span>
+                      <span className="font-bold text-green-600">{childrenUnder5Count}</span>
+                    </div>
+                  )}
+                </>
               )}
-            </div>
-          </div>
-
-          {/* ── Dropoff selection ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_dropoff_title || 'Chọn điểm trả'}</h3>
-              {dropoffRequired
-                ? <span className="text-[10px] text-daiichi-red ml-auto font-semibold">{t.trip_confirm_required || '(Bắt buộc)'}</span>
-                : <span className="text-[10px] text-gray-400 ml-auto">{t.trip_confirm_optional || '(Không bắt buộc)'}</span>
-              }
-            </div>
-            <div className="p-3">
-              {dropoffSectionDisabled ? (
-                <div className="flex items-center gap-2 py-2 text-xs text-amber-600">
-                  <Info size={13} className="flex-shrink-0" />
-                  <span>{t.trip_confirm_dropoff_disabled || 'Điểm trả bị tắt cho tuyến/ngày này'}</span>
-                </div>
-              ) : dropoffStops.length === 0 ? (
-                <p className="text-xs text-gray-400 py-2 italic">{t.trip_confirm_no_dropoff_stops || 'Không có điểm trả tại bến này'}</p>
-              ) : (
-                <CompactStopSelector
-                  stops={dropoffStops}
-                  selectedStop={selectedDropoff}
-                  onSelect={handleDropoffSelect}
-                  placeholder={language === 'vi' ? 'Gõ để tìm điểm trả...' : language === 'ja' ? '降車地を検索...' : 'Search dropoff point...'}
-                  emptyLabel={t.not_selected_yet || 'Chưa chọn'}
-                  theme="dropoff"
-                />
-              )}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-sm">
+                <span className="font-bold text-gray-700">
+                  {language === 'vi' ? 'Tổng vé cần mua' : language === 'ja' ? '購入する座席数' : 'Total tickets'}
+                </span>
+                <span className="font-bold text-daiichi-red">{billablePassengers}</span>
+              </div>
             </div>
           </div>
 
@@ -1202,18 +1105,6 @@ function TripConfirmPanel({
                   {discountPct > 0 && <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 rounded-full">-{discountPct}%</span>}
                 </div>
               </div>
-              {pickupSurchargeAmt > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">{t.trip_confirm_pickup_surcharge || 'Phụ phí điểm đón'} ({selectedPickup?.name})</span>
-                  <span className="font-semibold text-orange-600">+{pickupSurchargeAmt.toLocaleString()}đ</span>
-                </div>
-              )}
-              {dropoffSurchargeAmt > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">{t.trip_confirm_dropoff_surcharge || 'Phụ phí điểm trả'} ({selectedDropoff?.name})</span>
-                  <span className="font-semibold text-orange-600">+{dropoffSurchargeAmt.toLocaleString()}đ</span>
-                </div>
-              )}
               {applicableSurcharges.map(sc => (
                 <div key={sc.id} className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">{t.trip_confirm_surcharges || 'Phụ phí tuyến'}: {sc.name}</span>
@@ -1221,16 +1112,30 @@ function TripConfirmPanel({
                 </div>
               ))}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <span className="text-sm font-bold text-gray-800">{t.trip_confirm_total || 'Tổng dự kiến / người'}</span>
-                <span className="text-base font-bold text-daiichi-red">{totalPerPerson.toLocaleString()}đ</span>
+                <span className="text-sm text-gray-600">{t.trip_confirm_total || 'Tổng dự kiến / người'}</span>
+                <span className="text-sm font-bold text-gray-800">{totalPerPerson.toLocaleString()}đ</span>
               </div>
+              {billablePassengers > 1 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-800">
+                    {language === 'vi' ? `Tổng ${billablePassengers} khách (dự kiến)` : language === 'ja' ? `合計 ${billablePassengers}名（概算）` : `Total ${billablePassengers} pax (est.)`}
+                  </span>
+                  <span className="text-base font-bold text-daiichi-red">{grandTotal.toLocaleString()}đ</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Tip note */}
           <div className="flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
             <Info size={13} className="text-blue-400 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-blue-700">{t.trip_confirm_note || 'Vui lòng xác nhận thông tin trước khi chọn ghế'}</p>
+            <p className="text-[11px] text-blue-700">
+              {language === 'vi'
+                ? 'Vui lòng xác nhận thông tin chuyến trước khi tiếp tục nhập thông tin hành khách và chọn ghế'
+                : language === 'ja'
+                  ? '次のステップで乗客情報と座席選択を行います'
+                  : 'Please confirm the trip details before proceeding to enter passenger info and select seats'}
+            </p>
           </div>
         </div>
       </div>
@@ -1238,12 +1143,6 @@ function TripConfirmPanel({
       {/* Fixed bottom action bar */}
       <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] safe-area-inset-bottom">
         <div className="max-w-2xl mx-auto space-y-2">
-          {confirmError && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
-              <Info size={13} className="text-red-500 flex-shrink-0" />
-              <p className="text-[11px] text-red-600 font-medium">{confirmError}</p>
-            </div>
-          )}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -1255,25 +1154,12 @@ function TripConfirmPanel({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (pickupRequired && !selectedPickup) {
-                  setConfirmError(t.trip_confirm_pickup_required_error || 'Vui lòng chọn điểm đón trước khi tiếp tục');
-                  return;
-                }
-                if (dropoffRequired && !selectedDropoff) {
-                  setConfirmError(t.trip_confirm_dropoff_required_error || 'Vui lòng chọn điểm trả trước khi tiếp tục');
-                  return;
-                }
-                setConfirmError(null);
-                onConfirm(selectedPickup, selectedDropoff);
-              }}
+              onClick={() => onConfirm()}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-daiichi-red text-white rounded-2xl font-bold shadow-lg shadow-daiichi-red/20 hover:scale-[1.02] transition-all"
             >
               <CheckCircle2 size={16} />
               <span>
-                {trip.seatType === 'free'
-                  ? (language === 'vi' ? 'Xác nhận & Đặt vé' : language === 'ja' ? '確認・予約' : 'Confirm & Book')
-                  : (t.confirm_and_select_seat || 'Xác nhận & Chọn ghế')}
+                {language === 'vi' ? 'Tiếp theo: Nhập thông tin & Chọn ghế' : language === 'ja' ? '次へ：情報入力・座席選択' : 'Next: Enter Info & Select Seat'}
               </span>
               <ChevronRight size={16} />
             </button>
@@ -2188,10 +2074,10 @@ export function BookTicketPage({
                     key={addon.id}
                     onClick={() => setShowAddonDetailTrip(trip)}
                     aria-label={language === 'vi' ? 'Xem chi tiết dịch vụ kèm theo' : language === 'ja' ? '付帯サービスの詳細を見る' : 'View add-on services details'}
-                    className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer w-full"
+                    className="flex items-start gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer w-full"
                   >
-                    <Gift size={9} className="flex-shrink-0" />
-                    <span className="truncate">{addon.name}</span>
+                    <Gift size={9} className="flex-shrink-0 mt-0.5" />
+                    <span className="break-words leading-tight min-w-0 flex-1">{addon.name}</span>
                     <span className="flex-shrink-0 text-emerald-600">+{addon.price.toLocaleString()}đ</span>
                   </button>
                 ))}
@@ -2248,78 +2134,7 @@ export function BookTicketPage({
                 );
               })()}
             </div>
-            {/* Select seat CTA */}
-            {(() => {
-              // RUNNING trips: visible to customers but direct booking is not available.
-              // Customers must contact an agency to book.
-              if (isRunning) {
-                return (
-                  <button
-                    onClick={() => showToast(t.running_trip_contact_msg || 'Chuyến này đang chạy. Vui lòng liên hệ đại lý để đặt vé.', 'info')}
-                    className="w-full px-2 py-1.5 bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/10 cursor-pointer"
-                  >
-                    🚌 {t.contact_agency_to_book || 'Liên hệ đại lý để đặt'}
-                  </button>
-                );
-              }
-              // Merged trips: customers must contact the bus company directly
-              if (trip.isMerged) {
-                return (
-                  <button
-                    onClick={() => alert(language === 'vi'
-                      ? 'Chuyến này đã được ghép lại. Vui lòng liên hệ nhà xe để đặt chỗ.'
-                      : language === 'ja'
-                        ? 'この便は統合されました。座席予約はバス会社にお問い合わせください。'
-                        : 'This trip has been merged. Please contact the bus company to book.')}
-                    className="w-full px-2 py-1.5 bg-orange-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-400/10 cursor-not-allowed"
-                  >
-                    🔗 {language === 'vi' ? 'Liên hệ nhà xe' : language === 'ja' ? 'バス会社に連絡' : 'Contact Bus Co.'}
-                  </button>
-                );
-              }
-              // Check if departure is within the cutoff window for non-staff users
-              const isPrivilegedUser = currentUser?.role === UserRole.MANAGER ||
-                currentUser?.role === 'SUPERVISOR' ||
-                currentUser?.role === 'STAFF';
-              let isCutoffBlocked = false;
-              if (!isPrivilegedUser && paymentConfig.bookingCutoffEnabled && paymentConfig.bookingCutoffMinutes > 0) {
-                const tripDateStr = trip.date;
-                const tripTime = trip.time || '00:00';
-                if (tripDateStr) {
-                  const parts = tripDateStr.split(/[\/\-]/);
-                  if (parts.length === 3) {
-                    // Build ISO string with explicit Vietnam timezone (+07:00) so the
-                    // departure moment is computed correctly regardless of the browser's
-                    // local timezone.
-                    let isoDate: string;
-                    if (tripDateStr.includes('/')) {
-                      // DD/MM/YYYY → YYYY-MM-DD
-                      isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                    } else {
-                      isoDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                    }
-                    const departureDate = new Date(`${isoDate}T${tripTime}:00+07:00`);
-                    const msUntilDeparture = departureDate.getTime() - Date.now();
-                    isCutoffBlocked = msUntilDeparture <= paymentConfig.bookingCutoffMinutes * 60 * 1000;
-                  }
-                }
-              }
-              return isCutoffBlocked ? (
-                <button
-                  onClick={() => alert(t.booking_cutoff_alert || 'Xe sắp chạy! Vui lòng liên hệ đại lý hoặc nhân viên nhà xe để đặt vé cận giờ.')}
-                  className="w-full px-2 py-1.5 bg-gray-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-gray-400/10 cursor-not-allowed"
-                >
-                  🔒 {language === 'vi' ? 'Liên hệ đại lý' : language === 'ja' ? '代理店にお問い合わせ' : 'Contact Agent'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => setPendingConfirmTrip(trip)}
-                  className="w-full px-2 py-1.5 bg-daiichi-red text-white rounded-xl text-xs font-bold shadow-lg shadow-daiichi-red/10"
-                >
-                  {t.view_details || 'Xem chi tiết'}
-                </button>
-              );
-            })()}
+            {/* Select seat CTA – moved to card footer (below) */}
           </div>
         </div>
         {/* TOUR_SHORT: inline add-on selector – shown directly on the card */}
@@ -2446,36 +2261,102 @@ export function BookTicketPage({
 
           return (
             <div className="px-3 pb-2.5 border-t border-gray-100 pt-1.5 mt-0.5">
-              <div className="flex items-stretch gap-2 min-w-0">
-                <div className="flex flex-col items-center flex-shrink-0 mt-0.5" aria-hidden="true">
-                  <div className="w-1.5 h-1.5 rounded-full bg-daiichi-red" />
-                  <div className="w-px flex-1 bg-gray-200 my-0.5" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                </div>
-                <div className="flex flex-col gap-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {depTime && (
-                      <span className="text-[10px] font-bold text-blue-600 flex-shrink-0">{depTime}</span>
-                    )}
-                    <span
-                      className="text-[10px] font-semibold text-gray-700 leading-tight line-clamp-1"
-                      aria-label={`${language === 'vi' ? 'Điểm đi' : language === 'ja' ? '出発地' : 'From'}: ${effectiveFrom || '—'}`}
-                    >
-                      {effectiveFrom || '—'}
-                    </span>
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-stretch gap-2 min-w-0 flex-1">
+                  <div className="flex flex-col items-center flex-shrink-0 mt-0.5" aria-hidden="true">
+                    <div className="w-1.5 h-1.5 rounded-full bg-daiichi-red" />
+                    <div className="w-px flex-1 bg-gray-200 my-0.5" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                   </div>
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {arrTime && (
-                      <span className="text-[10px] font-bold text-blue-400 flex-shrink-0">{arrTime}</span>
-                    )}
-                    <span
-                      className="text-[10px] font-medium text-gray-500 leading-tight line-clamp-1"
-                      aria-label={`${language === 'vi' ? 'Điểm đến' : language === 'ja' ? '目的地' : 'To'}: ${effectiveTo || '—'}`}
-                    >
-                      {effectiveTo || '—'}
-                    </span>
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {depTime && (
+                        <span className="text-[10px] font-bold text-blue-600 flex-shrink-0">{depTime}</span>
+                      )}
+                      <span
+                        className="text-[10px] font-semibold text-gray-700 leading-tight line-clamp-1"
+                        aria-label={`${language === 'vi' ? 'Điểm đi' : language === 'ja' ? '出発地' : 'From'}: ${effectiveFrom || '—'}`}
+                      >
+                        {effectiveFrom || '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {arrTime && (
+                        <span className="text-[10px] font-bold text-blue-400 flex-shrink-0">{arrTime}</span>
+                      )}
+                      <span
+                        className="text-[10px] font-medium text-gray-500 leading-tight line-clamp-1"
+                        aria-label={`${language === 'vi' ? 'Điểm đến' : language === 'ja' ? '目的地' : 'To'}: ${effectiveTo || '—'}`}
+                      >
+                        {effectiveTo || '—'}
+                      </span>
+                    </div>
                   </div>
                 </div>
+                {/* CTA button – inline with itinerary footer */}
+                {(() => {
+                  if (isRunning) {
+                    return (
+                      <button
+                        onClick={() => showToast(t.running_trip_contact_msg || 'Chuyến này đang chạy. Vui lòng liên hệ đại lý để đặt vé.', 'info')}
+                        className="flex-shrink-0 px-2 py-1 bg-blue-500 text-white rounded-lg text-[9px] font-bold whitespace-nowrap"
+                      >
+                        🚌 {t.contact_agency_to_book || 'Liên hệ đại lý'}
+                      </button>
+                    );
+                  }
+                  if (trip.isMerged) {
+                    return (
+                      <button
+                        onClick={() => alert(language === 'vi'
+                          ? 'Chuyến này đã được ghép lại. Vui lòng liên hệ nhà xe để đặt chỗ.'
+                          : language === 'ja'
+                            ? 'この便は統合されました。座席予約はバス会社にお問い合わせください。'
+                            : 'This trip has been merged. Please contact the bus company to book.')}
+                        className="flex-shrink-0 px-2 py-1 bg-orange-400 text-white rounded-lg text-[9px] font-bold whitespace-nowrap cursor-not-allowed"
+                      >
+                        🔗 {language === 'vi' ? 'Liên hệ nhà xe' : language === 'ja' ? 'バス会社' : 'Contact Co.'}
+                      </button>
+                    );
+                  }
+                  const isPrivilegedUser = currentUser?.role === UserRole.MANAGER ||
+                    currentUser?.role === 'SUPERVISOR' ||
+                    currentUser?.role === 'STAFF';
+                  let isCutoffBlocked = false;
+                  if (!isPrivilegedUser && paymentConfig.bookingCutoffEnabled && paymentConfig.bookingCutoffMinutes > 0) {
+                    const tripDateStr = trip.date;
+                    const tripTime = trip.time || '00:00';
+                    if (tripDateStr) {
+                      const parts = tripDateStr.split(/[\/\-]/);
+                      if (parts.length === 3) {
+                        let isoDate: string;
+                        if (tripDateStr.includes('/')) {
+                          isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                        } else {
+                          isoDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                        }
+                        const departureDate = new Date(`${isoDate}T${tripTime}:00+07:00`);
+                        const msUntilDeparture = departureDate.getTime() - Date.now();
+                        isCutoffBlocked = msUntilDeparture <= paymentConfig.bookingCutoffMinutes * 60 * 1000;
+                      }
+                    }
+                  }
+                  return isCutoffBlocked ? (
+                    <button
+                      onClick={() => alert(t.booking_cutoff_alert || 'Xe sắp chạy! Vui lòng liên hệ đại lý hoặc nhân viên nhà xe để đặt vé cận giờ.')}
+                      className="flex-shrink-0 px-2 py-1 bg-gray-400 text-white rounded-lg text-[9px] font-bold whitespace-nowrap cursor-not-allowed"
+                    >
+                      🔒 {language === 'vi' ? 'Liên hệ đại lý' : language === 'ja' ? '代理店' : 'Contact'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setPendingConfirmTrip(trip)}
+                      className="flex-shrink-0 px-2.5 py-1 bg-daiichi-red text-white rounded-lg text-[9px] font-bold whitespace-nowrap shadow shadow-daiichi-red/20"
+                    >
+                      {t.view_details || 'Xem chi tiết'} →
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           );
@@ -2485,16 +2366,9 @@ export function BookTicketPage({
   };
 
   // Handler called when user confirms in TripConfirmPanel
-  const handleTripConfirm = (pickupStop: Stop | null, dropoffStop: Stop | null) => {
+  const handleTripConfirm = () => {
     if (!pendingConfirmTrip) return;
-    // Set pickup/dropoff from the user's selection in the confirm panel
-    setPickupAddress(pickupStop ? pickupStop.name : '');
-    setPickupStopAddress(pickupStop ? (pickupStop.address || '') : '');
-    setPickupAddressSurcharge(pickupStop ? (pickupStop.surcharge || 0) : 0);
-    setDropoffAddress(dropoffStop ? dropoffStop.name : '');
-    setDropoffStopAddress(dropoffStop ? (dropoffStop.address || '') : '');
-    setDropoffAddressSurcharge(dropoffStop ? (dropoffStop.surcharge || 0) : 0);
-    // Navigate to seat mapping
+    // Navigate to seat mapping; pickup/dropoff carry over from search params via App.tsx
     setSelectedTrip(pendingConfirmTrip);
     setPreviousTab('book-ticket');
     setActiveTab('seat-mapping');
@@ -2508,9 +2382,6 @@ export function BookTicketPage({
       <TripConfirmPanel
         trip={pendingConfirmTrip}
         route={routes.find(r => r.name === pendingConfirmTrip.route)}
-        stops={stops}
-        routes={routes}
-        vehicles={vehicles}
         language={language}
         segmentFares={segmentFares}
         searchStationFrom={searchStationFrom}
@@ -2522,6 +2393,7 @@ export function BookTicketPage({
         currentUser={currentUser}
         searchAdults={searchAdults}
         searchChildren={searchChildren}
+        searchChildrenAges={searchChildrenAges}
         onConfirm={handleTripConfirm}
         onClose={() => setPendingConfirmTrip(null)}
       />
