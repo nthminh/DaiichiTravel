@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { formatDateVN } from '../lib/vnDate';
 import { matchesSearch } from '../lib/searchUtils';
 import { TRANSLATIONS, Language } from '../App';
 import { CustomerProfile, User as AppUser, UserRole } from '../types';
@@ -213,13 +214,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
     } catch {
       showError(language === 'vi' ? 'Cập nhật thất bại' : 'Update failed');
     }
-  };
-
-  const formatDate = (iso?: string) => {
-    if (!iso) return '—';
-    try {
-      return new Date(iso).toLocaleDateString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
-    } catch { return '—'; }
   };
 
   return (
@@ -621,7 +615,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">{t.customer_registered_at || 'Đăng ký'}</p>
-                    <p className="text-xs font-bold text-gray-700">{formatDate(c.registeredAt)}</p>
+                    <p className="text-xs font-bold text-gray-700">{formatDateVN(c.registeredAt)}</p>
                   </div>
                 </div>
 
@@ -829,7 +823,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
                               {t.customer_total_spent || 'Tổng chi'}: <span className="font-bold text-daiichi-red">{c.totalSpent.toLocaleString()}đ</span>
                             </p>
                           )}
-                          <p className="text-xs text-gray-400">{c.lastActivityAt ? formatDate(c.lastActivityAt) : '—'}</p>
+                          <p className="text-xs text-gray-400">{c.lastActivityAt ? formatDateVN(c.lastActivityAt) : '—'}</p>
                         </div>
                       </div>
 

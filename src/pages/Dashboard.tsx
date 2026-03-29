@@ -14,7 +14,7 @@ import { TRANSLATIONS, Language, TripStatus, UserRole, SeatStatus } from '../App
 import { transportService } from '../services/transportService';
 import { ResizableTh } from '../components/ResizableTh';
 import { exportRowsToExcel } from '../utils/exportUtils';
-import { formatBookingDate } from '../lib/vnDate';
+import { formatBookingDate, formatDateVN } from '../lib/vnDate';
 
 interface DashboardProps {
   language: Language;
@@ -299,7 +299,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       if (diffMins < 60) return language === 'vi' ? `${diffMins} phút trước` : `${diffMins} mins ago`;
       const diffHours = Math.floor(diffMins / 60);
       if (diffHours < 24) return language === 'vi' ? `${diffHours} giờ trước` : `${diffHours} hours ago`;
-      return date.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      return formatDateVN(date);
     } catch {
       return '';
     }

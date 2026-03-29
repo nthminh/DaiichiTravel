@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Pencil, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { formatDateVN } from '../lib/vnDate';
 import { Language, TRANSLATIONS, User, UserRole } from '../App';
 import { Agent } from '../types';
 import { AgentTopUpQRModal } from '../components/PaymentQRModal';
@@ -224,9 +225,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
         b.customerName || '',
         b.phone || '',
         b.route || '',
-        b.createdAt?.toDate
-          ? b.createdAt.toDate().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' })
-          : b.createdAt ? new Date(b.createdAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' }) : '',
+        b.createdAt ? formatDateVN(b.createdAt) : '',
         b.amount || 0,
         b.paymentMethod || '',
         b.status || '',
@@ -631,7 +630,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                             <p className="text-xs text-gray-400">{b.phone || ''}</p>
                           </td>
                           <td className="px-5 py-3 hidden md:table-cell text-xs text-gray-500">
-                            {createdAt ? createdAt.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                            {createdAt ? formatDateVN(createdAt) : '—'}
                           </td>
                           <td className="px-5 py-3 font-bold text-daiichi-red">
                             {(b.amount || 0).toLocaleString('vi-VN')}đ

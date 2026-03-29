@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { DEFAULT_PAYMENT_METHOD, PaymentMethod } from '../constants/paymentMethods';
 import { transportService } from '../services/transportService';
 import { SeatStatus, TripAddon, UserRole, User, Route, Agent } from '../types';
+import { todayVN } from '../lib/vnDate';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
 
@@ -298,7 +299,7 @@ export function usePayment(ctx: BookingContext) {
       : c.selectedTrip.time;
     // If the offset pushes the time past midnight, advance the date by the number of overflow days
     const adjustedTripDate = (() => {
-      const baseDate = c.selectedTrip.date || new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const baseDate = c.selectedTrip.date || todayVN();
       if (fromStopOffsetMinutes <= 0) return baseDate;
       const [h, m] = c.selectedTrip.time.split(':').map(Number);
       if (isNaN(h) || isNaN(m)) return baseDate;

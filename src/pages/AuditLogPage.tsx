@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Activity, Search, X, Filter, Clock, User, Tag, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { formatDateTimeVN } from '../lib/vnDate';
 import { TRANSLATIONS, Language } from '../App';
 import { AuditLog, User as AppUser, UserRole } from '../types';
 import { matchesSearch } from '../lib/searchUtils';
@@ -50,15 +51,6 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
     }
     return list;
   }, [logs, search, roleFilter, actionFilter]);
-
-  const formatDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString(language === 'vi' ? 'vi-VN' : language === 'ja' ? 'ja-JP' : 'en-US', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      });
-    } catch { return iso; }
-  };
 
   const actionLabel = (action: string) => {
     const key = `audit_action_${action.toLowerCase()}` as keyof typeof t;
@@ -148,7 +140,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(log => (
                   <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(log.createdAt)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTimeVN(log.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-gray-800 text-xs">{log.actorName}</div>
                       <div className="text-[10px] text-gray-400 uppercase">{log.actorRole}</div>
@@ -180,7 +172,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
                   <p className="text-xs text-gray-500">{log.targetLabel}{log.detail ? ` — ${log.detail}` : ''}</p>
                 )}
                 <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                  <Clock size={10} /> {formatDate(log.createdAt)}
+                  <Clock size={10} /> {formatDateTimeVN(log.createdAt)}
                 </p>
               </div>
             ))}

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getTodayVN } from '../lib/utils';
+import { formatDateVN } from '../lib/vnDate';
 import { matchesSearch } from '../lib/searchUtils';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
@@ -246,11 +247,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
       UNPAID: '#b91c1c',
       PARTIAL: '#b45309',
     };
-    const createdDateStr = inv.createdAt?.toDate
-      ? inv.createdAt.toDate().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' })
-      : inv.createdAt
-        ? new Date(inv.createdAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' })
-        : getTodayVN();
+    const createdDateStr = inv.createdAt ? formatDateVN(inv.createdAt) : getTodayVN();
 
     const itemsHtml = inv.items.map((item, i) => `
       <tr>

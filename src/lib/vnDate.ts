@@ -48,14 +48,23 @@ export function todayVN(): string {
   }).format(new Date());
 }
 
+/** Converts any timestamp value (string, Date, or Firestore Timestamp) to a Date. */
+function toDate(value: string | Date | { toDate(): Date } | null | undefined): Date | null {
+  if (!value) return null;
+  if (typeof value === 'object' && 'toDate' in value) return value.toDate();
+  if (value instanceof Date) return value;
+  const d = new Date(value as string);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 /**
  * Formats an ISO/Firestore timestamp string for display in Vietnam timezone.
  * Returns e.g. "18/03/2025 14:30" in vi locale.
+ * Accepts string, Date, or Firestore Timestamp objects.
  */
-export function formatDateTimeVN(value: string | Date | null | undefined, locale: string = 'vi-VN'): string {
-  if (!value) return '—';
-  const d = typeof value === 'string' ? new Date(value) : value;
-  if (isNaN(d.getTime())) return '—';
+export function formatDateTimeVN(value: string | Date | { toDate(): Date } | null | undefined, locale: string = 'vi-VN'): string {
+  const d = toDate(value);
+  if (!d) return '—';
   return d.toLocaleString(locale, {
     timeZone: TZ,
     day: '2-digit',
@@ -81,11 +90,11 @@ export function formatBookingDate(dateStr: string | null | undefined): string {
 /**
  * Formats an ISO/Firestore timestamp string as a date only in Vietnam timezone.
  * Returns e.g. "18/03/2025" in vi locale.
+ * Accepts string, Date, or Firestore Timestamp objects.
  */
-export function formatDateVN(value: string | Date | null | undefined, locale: string = 'vi-VN'): string {
-  if (!value) return '—';
-  const d = typeof value === 'string' ? new Date(value) : value;
-  if (isNaN(d.getTime())) return '—';
+export function formatDateVN(value: string | Date | { toDate(): Date } | null | undefined, locale: string = 'vi-VN'): string {
+  const d = toDate(value);
+  if (!d) return '—';
   return d.toLocaleDateString(locale, {
     timeZone: TZ,
     day: '2-digit',

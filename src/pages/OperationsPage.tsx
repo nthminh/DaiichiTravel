@@ -1053,7 +1053,7 @@ export function OperationsPage({
               );
             })()}
             {/* Passenger table – one row per booking group */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
