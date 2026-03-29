@@ -464,6 +464,14 @@ export default function App() {
     setRouteConflictWarning,
     childPricingRules,
     setChildPricingRules,
+    routeFormSeatFares,
+    setRouteFormSeatFares,
+    showAddSeatFare,
+    setShowAddSeatFare,
+    editingSeatFareIdx,
+    setEditingSeatFareIdx,
+    seatFareForm,
+    setSeatFareForm,
     handleSaveRoute,
     handleForceSaveRoute,
     handleRouteImageUpload,
@@ -1507,6 +1515,7 @@ export default function App() {
               setBookingNote={setBookingNote}
               setPaymentMethodInput={setPaymentMethodInput}
               setFareAmount={setFareAmount}
+              setFareAgentAmount={setFareAgentAmount}
               setFareError={setFareError}
               setActiveTab={setActiveTab}
               handleConfirmBooking={handleConfirmBooking}
@@ -1759,6 +1768,14 @@ export default function App() {
               setRouteConflictWarning={setRouteConflictWarning}
               childPricingRules={childPricingRules}
               setChildPricingRules={setChildPricingRules}
+              routeFormSeatFares={routeFormSeatFares}
+              setRouteFormSeatFares={setRouteFormSeatFares}
+              showAddSeatFare={showAddSeatFare}
+              setShowAddSeatFare={setShowAddSeatFare}
+              editingSeatFareIdx={editingSeatFareIdx}
+              setEditingSeatFareIdx={setEditingSeatFareIdx}
+              seatFareForm={seatFareForm}
+              setSeatFareForm={setSeatFareForm}
               handleSaveRoute={handleSaveRoute}
               handleForceSaveRoute={handleForceSaveRoute}
               handleRouteImageUpload={handleRouteImageUpload}

@@ -111,6 +111,23 @@ export interface RouteFare {
   sortOrder?: number; // display order in the fare table (0-based index)
 }
 
+// A per-seat price override stored in the routeSeatFares subcollection.
+// Path: routeSeatFares/{routeId}/seats/{fareDocId}
+// Allows configuring discounted/premium prices for specific seats (e.g. bad-position seats)
+// with optional seasonal date ranges. Two prices: retail (price) and agent (agentPrice).
+export interface RouteSeatFare {
+  id: string;           // Firestore document ID (seatId or seatId|startDate|endDate)
+  routeId: string;
+  seatId: string;       // The seat label, e.g. "1", "2A", "H1"
+  price: number;        // Retail price override for this seat
+  agentPrice?: number;  // Agent/wholesaler price override for this seat
+  startDate?: string;   // YYYY-MM-DD, fare valid from (seasonal pricing)
+  endDate?: string;     // YYYY-MM-DD, fare valid until (seasonal pricing)
+  note?: string;        // Optional note, e.g. "Ghế cuối xe", "Ghế kém vị trí"
+  active: boolean;
+  updatedAt: string;    // ISO string
+}
+
 // Return type of getFareForStops()
 export interface FareResult {
   price: number;

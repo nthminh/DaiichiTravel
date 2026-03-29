@@ -18,7 +18,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog } from '../types';
+import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -599,6 +599,53 @@ export const transportService = {
   deleteFare: async (routeId: string, fareDocId: string) => {
     if (!db) return;
     await deleteDoc(doc(db, 'routeFares', routeId, 'fares', fareDocId));
+  },
+
+  // ===== SEAT FARE METHODS (per-seat price overrides) =====
+
+  /** Fetch all seat-specific fares for a route (one-time read). */
+  getRouteSeatFares: async (routeId: string): Promise<RouteSeatFare[]> => {
+    if (!db) return [];
+    const snap = await getDocs(collection(db, 'routeSeatFares', routeId, 'seats'));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteSeatFare, 'id'>) }));
+  },
+
+  /** Real-time listener for seat-specific fares on a route. */
+  subscribeToRouteSeatFares: (routeId: string, callback: (fares: RouteSeatFare[]) => void) => {
+    if (!db) return () => {};
+    return onSnapshot(
+      collection(db, 'routeSeatFares', routeId, 'seats'),
+      (snap) => {
+        callback(snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<RouteSeatFare, 'id'>) })));
+      },
+      (err) => { console.error('[routeSeatFares] subscription error:', err); callback([]); },
+    );
+  },
+
+  /**
+   * Create or overwrite a seat-specific fare entry.
+   * Returns the Firestore document ID used for the fare.
+   */
+  upsertRouteSeatFare: async (
+    routeId: string,
+    fare: Omit<RouteSeatFare, 'id' | 'updatedAt'>,
+    fareDocId?: string,
+  ): Promise<string> => {
+    if (!db) throw new Error('Firebase not configured');
+    const docId = fareDocId ?? [
+      fare.seatId,
+      ...(fare.startDate ? [fare.startDate] : []),
+      ...(fare.endDate ? [fare.endDate] : []),
+    ].join('|');
+    const data = { ...fare, updatedAt: new Date().toISOString() };
+    await setDoc(doc(db, 'routeSeatFares', routeId, 'seats', docId), data);
+    return docId;
+  },
+
+  /** Delete a seat-specific fare entry. */
+  deleteRouteSeatFare: async (routeId: string, fareDocId: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'routeSeatFares', routeId, 'seats', fareDocId));
   },
 
   // ===== VEHICLE METHODS =====

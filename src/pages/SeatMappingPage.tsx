@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { X, CheckCircle2, Gift, ChevronDown, ChevronUp, Info, Lock } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole, SeatStatus } from '../constants/translations'
 import { PAYMENT_METHODS, type PaymentMethod, PAYMENT_METHOD_TRANSLATION_KEYS } from '../constants/paymentMethods'
-import { Trip, Route, Stop, Agent, Vehicle, TripAddon, RouteSurcharge } from '../types'
+import { Trip, Route, Stop, Agent, Vehicle, TripAddon, RouteSurcharge, RouteSeatFare } from '../types'
 import { SerializedSeat } from '../lib/vehicleSeatUtils'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { motion } from 'motion/react'
+import { transportService } from '../services/transportService'
 
 interface SeatMappingPageProps {
   // Data
@@ -81,6 +82,7 @@ interface SeatMappingPageProps {
   setBookingNote: (v: string) => void;
   setPaymentMethodInput: (v: PaymentMethod) => void;
   setFareAmount: (v: number | null) => void;
+  setFareAgentAmount: (v: number | null) => void;
   setFareError: (v: string) => void;
   setActiveTab: (tab: string) => void;
   // Handlers
@@ -159,12 +161,64 @@ export function SeatMappingPage({
   setBookingNote,
   setPaymentMethodInput,
   setFareAmount,
+  setFareAgentAmount,
   setFareError,
   setActiveTab,
   handleConfirmBooking,
   lookupFare,
 }: SeatMappingPageProps) {
   const t = TRANSLATIONS[language];
+
+  // Seat-specific fares: fetched once when the trip/route changes
+  const [routeSeatFares, setRouteSeatFares] = useState<RouteSeatFare[]>([]);
+  const seatFaresRouteIdRef = useRef<string>('');
+  useEffect(() => {
+    const tripRouteObj = routes.find(r => r.name === selectedTrip?.route);
+    if (!tripRouteObj?.id) return;
+    if (tripRouteObj.id === seatFaresRouteIdRef.current) return;
+    seatFaresRouteIdRef.current = tripRouteObj.id;
+    transportService
+      .getRouteSeatFares(tripRouteObj.id)
+      .then(fares => setRouteSeatFares(fares.filter(f => f.active !== false)))
+      .catch(err => console.error('[routeSeatFares] load error:', err));
+  }, [selectedTrip?.route, routes]);
+
+  /** Return the applicable seat fare for a given seatId and optional trip date. */
+  const getActiveSeatFare = (seatId: string, dateStr?: string): RouteSeatFare | undefined => {
+    const candidates = routeSeatFares.filter(f => f.seatId === seatId);
+    if (candidates.length === 0) return undefined;
+    if (dateStr) {
+      const dated = candidates.find(f => {
+        const afterStart = !f.startDate || f.startDate <= dateStr;
+        const beforeEnd = !f.endDate || f.endDate >= dateStr;
+        return afterStart && beforeEnd;
+      });
+      if (dated) return dated;
+    }
+    // Fallback: fare without date restriction
+    const fallback = candidates.find(f => !f.startDate && !f.endDate);
+    if (fallback) return fallback;
+    return candidates[0];
+  };
+
+  /**
+   * Called each time the primary seat changes.
+   * Applies the seat-specific fare if one exists; otherwise re-fetches the
+   * segment fare (or resets to null so the trip default price is used).
+   */
+  const applyFareForSeat = (seatId: string) => {
+    const tripRouteObj = routes.find(r => r.name === selectedTrip?.route);
+    const seatFare = getActiveSeatFare(seatId, selectedTrip?.date);
+    if (seatFare) {
+      setFareAmount(seatFare.price);
+      setFareAgentAmount(seatFare.agentPrice ?? null);
+    } else if (fromStopId && toStopId) {
+      lookupFare(tripRouteObj, fromStopId, toStopId);
+    } else {
+      setFareAmount(null);
+      setFareAgentAmount(null);
+    }
+  };
 
   // Internal state – only used by this page
   const [segmentConflictSeat, setSegmentConflictSeat] = useState<string | null>(null);
@@ -459,6 +513,7 @@ export function SeatMappingPage({
                 if (!showBookingForm) {
                   setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
                   setShowBookingForm(seatId);
+                  applyFareForSeat(seatId);
                   if (currentUser?.role === UserRole.CUSTOMER) {
                     if (currentUser.name) setCustomerNameInput(currentUser.name);
                     if (currentUser.phone) setPhoneInput(currentUser.phone);
@@ -485,10 +540,12 @@ export function SeatMappingPage({
               setSeatSelectionHistory(prev => [...prev, { primarySeat: showBookingForm, extraSeats: extraSeatIds }]);
               setExtraSeatIds([]);
               setShowBookingForm(seatId);
+              applyFareForSeat(seatId);
             }
           } else {
             setSeatSelectionHistory(prev => [...prev, { primarySeat: null, extraSeats: [] }]);
             setShowBookingForm(seatId);
+            applyFareForSeat(seatId);
             // Pre-fill name & phone for logged-in customers
             if (currentUser?.role === UserRole.CUSTOMER) {
               if (currentUser.name) setCustomerNameInput(currentUser.name);

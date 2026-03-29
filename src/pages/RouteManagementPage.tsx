@@ -8,7 +8,7 @@ import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { exportRouteToPDF } from '../utils/exportUtils';
-import { DEFAULT_ROUTE_FORM } from '../hooks/useRoutes';
+import { DEFAULT_ROUTE_FORM, type SeatFareEntry } from '../hooks/useRoutes';
 import { transportService } from '../services/transportService';
 import { matchesSearch } from '../lib/searchUtils';
 import { formatDateVN } from '../lib/vnDate';
@@ -101,6 +101,14 @@ interface RouteManagementPageProps {
   setRouteConflictWarning: (v: boolean) => void;
   childPricingRules: ChildPricingRule[];
   setChildPricingRules: React.Dispatch<React.SetStateAction<ChildPricingRule[]>>;
+  routeFormSeatFares: SeatFareEntry[];
+  setRouteFormSeatFares: React.Dispatch<React.SetStateAction<SeatFareEntry[]>>;
+  showAddSeatFare: boolean;
+  setShowAddSeatFare: (v: boolean) => void;
+  editingSeatFareIdx: number | null;
+  setEditingSeatFareIdx: (v: number | null) => void;
+  seatFareForm: SeatFareEntry;
+  setSeatFareForm: React.Dispatch<React.SetStateAction<SeatFareEntry>>;
   handleSaveRoute: () => Promise<void>;
   handleForceSaveRoute: () => void;
   handleRouteImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
@@ -179,6 +187,14 @@ export function RouteManagementPage({
   setRouteConflictWarning,
   childPricingRules,
   setChildPricingRules,
+  routeFormSeatFares,
+  setRouteFormSeatFares,
+  showAddSeatFare,
+  setShowAddSeatFare,
+  editingSeatFareIdx,
+  setEditingSeatFareIdx,
+  seatFareForm,
+  setSeatFareForm,
   handleSaveRoute,
   handleForceSaveRoute,
   handleRouteImageUpload,
@@ -189,32 +205,6 @@ export function RouteManagementPage({
   currentUser,
 }: RouteManagementPageProps) {
   const isAdmin = currentUser?.role === UserRole.MANAGER;
-
-  // Price calculator local state
-  const [calcFromStopId, setCalcFromStopId] = React.useState('');
-  const [calcToStopId, setCalcToStopId] = React.useState('');
-  const [calcSeatCount, setCalcSeatCount] = React.useState(1);
-  const [calcDateFrom, setCalcDateFrom] = React.useState('');
-  const [calcDateTo, setCalcDateTo] = React.useState('');
-  const calcResult = React.useMemo(() => {
-    if (!calcFromStopId || !calcToStopId || calcSeatCount <= 0) return null;
-    const candidates = routeFormFares.filter(f => f.fromStopId === calcFromStopId && f.toStopId === calcToStopId);
-    if (candidates.length === 0) return null;
-    // Prefer fare whose date range covers the query dates
-    let best: typeof candidates[0] | undefined;
-    if (calcDateFrom || calcDateTo) {
-      best = candidates.find(f => {
-        const afterStart = !f.startDate || !calcDateFrom || f.startDate <= calcDateFrom;
-        const beforeEnd = !f.endDate || !calcDateTo || f.endDate >= calcDateTo;
-        return afterStart && beforeEnd;
-      });
-    }
-    // Fallback: fare without date restriction
-    if (!best) best = candidates.find(f => !f.startDate && !f.endDate);
-    // Fallback: any fare
-    if (!best) best = candidates[0];
-    return { price: best.price * calcSeatCount, agentPrice: best.agentPrice * calcSeatCount, pricePerSeat: best.price, agentPerSeat: best.agentPrice };
-  }, [calcFromStopId, calcToStopId, calcSeatCount, calcDateFrom, calcDateTo, routeFormFares]);
         const filteredRoutes = routes.filter(route => {
           if (routeFilterDeparture && !matchesSearch(route.departurePoint || '', routeFilterDeparture)) return false;
           if (routeFilterArrival && !matchesSearch(route.arrivalPoint || '', routeFilterArrival)) return false;
@@ -963,70 +953,197 @@ export function RouteManagementPage({
                       </div>
                     )}
 
-                    {/* Price Calculator */}
-                    {(routeForm.departurePoint && routeForm.arrivalPoint && routeFormFares.length > 0) && (
-                      <div className="border border-blue-100 rounded-2xl p-4 space-y-3">
+                    {/* Seat-specific Fare Overrides (Giá vé theo ghế) */}
+                    <div className="border border-purple-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-bold text-blue-700">
-                            🧮 {language === 'vi' ? 'Tính giá ghế' : language === 'ja' ? '座席料金計算' : 'Seat Price Calculator'}
+                          <p className="text-sm font-bold text-purple-700">
+                            🪑 {language === 'vi' ? 'Giá vé theo ghế' : language === 'ja' ? '座席別運賃' : 'Seat-specific Fares'}
                           </p>
                           <p className="text-[10px] text-gray-400">
                             {language === 'vi'
-                              ? 'Tính tổng giá theo số ghế và khoảng thời gian. Nếu không chọn thời gian, áp dụng giá mặc định.'
-                              : 'Calculate total price by seat count and date range. If no date set, uses default fare.'}
+                              ? 'Thiết lập giá riêng (khách lẻ & đại lý) cho từng ghế xấu vị trí. Khi khách chọn ghế đó, giá này sẽ được áp dụng thay giá chặng.'
+                              : 'Set individual prices (retail & agent) per seat for poor-position seats. Selecting that seat overrides the segment fare.'}
                           </p>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ điểm' : 'From stop'}</label>
-                            <select value={calcFromStopId} onChange={e => setCalcFromStopId(e.target.value)} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200">
-                              <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
-                              {allRouteStops.map(s => <option key={s.stopId} value={s.stopId}>{s.stopName}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến điểm' : 'To stop'}</label>
-                            <select value={calcToStopId} onChange={e => setCalcToStopId(e.target.value)} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200">
-                              <option value="">{language === 'vi' ? '-- Chọn --' : '-- Select --'}</option>
-                              {allRouteStops.filter(s => s.stopId !== calcFromStopId).map(s => <option key={s.stopId} value={s.stopId}>{s.stopName}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Số ghế' : 'Seat count'}</label>
-                            <input type="number" min="1" max="999" value={calcSeatCount} onChange={e => setCalcSeatCount(Math.max(1, parseInt(e.target.value) || 1))} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                          </div>
-                          <div className="flex flex-col justify-end">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Từ ngày' : 'From date'}</label>
-                            <input type="date" value={calcDateFrom} onChange={e => setCalcDateFrom(e.target.value)} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày' : 'To date'}</label>
-                            <input type="date" value={calcDateTo} onChange={e => setCalcDateTo(e.target.value)} className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                          </div>
-                        </div>
-                        {calcResult ? (
-                          <div className="bg-blue-50 rounded-xl p-3 space-y-1">
-                            <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest">
-                              {language === 'vi' ? 'Kết quả' : 'Result'} — {calcSeatCount} {language === 'vi' ? 'ghế' : 'seat(s)'}
-                            </p>
-                            <p className="text-lg font-bold text-daiichi-red">
-                              {calcResult.price.toLocaleString()}đ
-                              <span className="text-xs text-gray-400 font-normal ml-2">({calcResult.pricePerSeat.toLocaleString()}đ × {calcSeatCount})</span>
-                            </p>
-                            {calcResult.agentPerSeat > 0 && (
-                              <p className="text-sm font-bold text-orange-600">
-                                {language === 'vi' ? 'Đại lý' : 'Agent'}: {calcResult.agentPrice.toLocaleString()}đ
-                                <span className="text-xs text-gray-400 font-normal ml-2">({calcResult.agentPerSeat.toLocaleString()}đ × {calcSeatCount})</span>
-                              </p>
-                            )}
-                          </div>
-                        ) : (calcFromStopId && calcToStopId) ? (
-                          <p className="text-xs text-orange-500 text-center py-2">
-                            {language === 'vi' ? 'Không tìm thấy giá cho chặng này' : 'No fare found for this stop pair'}
-                          </p>
-                        ) : null}
+                        {!showAddSeatFare && (
+                          <button
+                            onClick={() => {
+                              setShowAddSeatFare(true);
+                              setEditingSeatFareIdx(null);
+                              setSeatFareForm({ seatId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '', note: '' });
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 flex-shrink-0"
+                          >
+                            + {language === 'vi' ? 'Thêm giá ghế' : 'Add seat fare'}
+                          </button>
+                        )}
                       </div>
-                    )}
+
+                      {routeFormSeatFares.length === 0 && !showAddSeatFare && (
+                        <p className="text-xs text-gray-400 text-center py-2">
+                          {language === 'vi' ? 'Chưa có giá ghế riêng – nhấn nút để thêm' : 'No seat-specific fares yet – click to add'}
+                        </p>
+                      )}
+
+                      {routeFormSeatFares.map((sf, idx) => (
+                        <div key={idx} className="flex items-center gap-3 bg-purple-50 rounded-xl p-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-800">
+                              {language === 'vi' ? 'Ghế' : 'Seat'} <span className="text-purple-700">{sf.seatId}</span>
+                              {sf.note && <span className="text-xs text-gray-400 font-normal ml-2">— {sf.note}</span>}
+                            </p>
+                            <div className="flex gap-3 mt-1 flex-wrap">
+                              <span className="text-xs font-bold text-daiichi-red">{sf.price.toLocaleString()}đ</span>
+                              {sf.agentPrice > 0 && <span className="text-xs font-bold text-orange-600">{language === 'vi' ? 'ĐL' : 'Agt'}: {sf.agentPrice.toLocaleString()}đ</span>}
+                              {(sf.startDate || sf.endDate) && (
+                                <span className="text-xs text-gray-400">
+                                  {sf.startDate && sf.endDate
+                                    ? `${formatDateVN(sf.startDate)} → ${formatDateVN(sf.endDate)}`
+                                    : sf.startDate
+                                    ? `${language === 'vi' ? 'Từ' : 'From'} ${formatDateVN(sf.startDate)}`
+                                    : `${language === 'vi' ? 'Đến' : 'To'} ${formatDateVN(sf.endDate)}`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setEditingSeatFareIdx(idx);
+                              setSeatFareForm({ ...sf });
+                              setShowAddSeatFare(true);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-100 rounded-lg flex-shrink-0"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            onClick={() => setRouteFormSeatFares(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+
+                      {showAddSeatFare && (
+                        <div className="border border-dashed border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/50">
+                          <p className="text-xs font-bold text-purple-700">
+                            {editingSeatFareIdx !== null
+                              ? (language === 'vi' ? 'Hiệu chỉnh giá ghế' : 'Edit seat fare')
+                              : (language === 'vi' ? 'Thêm giá ghế mới' : 'Add seat fare')}
+                          </p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                {language === 'vi' ? 'Số ghế / Ký hiệu ghế' : 'Seat ID / Label'}
+                              </label>
+                              <input
+                                type="text"
+                                placeholder={language === 'vi' ? 'VD: 1, 2A, H1...' : 'E.g. 1, 2A, H1...'}
+                                value={seatFareForm.seatId}
+                                onChange={e => setSeatFareForm(p => ({ ...p, seatId: e.target.value.trim() }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.ticket_price} (đ)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={seatFareForm.price}
+                                onChange={e => setSeatFareForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t.agent_price} (đ)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={seatFareForm.agentPrice}
+                                onChange={e => setSeatFareForm(p => ({ ...p, agentPrice: parseInt(e.target.value) || 0 }))}
+                                className="w-full mt-1 px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Áp dụng từ ngày' : 'Valid from'}</label>
+                              <input
+                                type="date"
+                                value={seatFareForm.startDate}
+                                onChange={e => setSeatFareForm(p => ({ ...p, startDate: e.target.value }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Đến ngày' : 'Valid until'}</label>
+                              <input
+                                type="date"
+                                value={seatFareForm.endDate}
+                                onChange={e => setSeatFareForm(p => ({ ...p, endDate: e.target.value }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Ghi chú' : 'Note'}</label>
+                              <input
+                                type="text"
+                                placeholder={language === 'vi' ? 'VD: Ghế cuối xe, Ghế kém vị trí...' : 'E.g. Rear seat, Poor position...'}
+                                value={seatFareForm.note}
+                                onChange={e => setSeatFareForm(p => ({ ...p, note: e.target.value }))}
+                                className="w-full mt-1 px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => { setShowAddSeatFare(false); setEditingSeatFareIdx(null); }}
+                              className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600"
+                            >
+                              {t.cancel}
+                            </button>
+                            <button
+                              disabled={!seatFareForm.seatId}
+                              onClick={() => {
+                                if (!seatFareForm.seatId) return;
+                                if (editingSeatFareIdx !== null) {
+                                  // Check for exact duplicates at other indices
+                                  const dup = routeFormSeatFares.findIndex((sf, i) =>
+                                    i !== editingSeatFareIdx &&
+                                    sf.seatId === seatFareForm.seatId &&
+                                    sf.startDate === seatFareForm.startDate &&
+                                    sf.endDate === seatFareForm.endDate
+                                  );
+                                  if (dup >= 0) {
+                                    alert(language === 'vi' ? 'Đã có giá ghế với cùng số ghế và cùng thời gian áp dụng' : 'A fare for this seat ID and date range already exists');
+                                    return;
+                                  }
+                                  const existingFareId = routeFormSeatFares[editingSeatFareIdx]?.fareId;
+                                  setRouteFormSeatFares(prev => prev.map((sf, i) => i === editingSeatFareIdx ? { ...seatFareForm, fareId: existingFareId } : sf));
+                                } else {
+                                  const dup = routeFormSeatFares.findIndex(sf =>
+                                    sf.seatId === seatFareForm.seatId &&
+                                    sf.startDate === seatFareForm.startDate &&
+                                    sf.endDate === seatFareForm.endDate
+                                  );
+                                  if (dup >= 0) {
+                                    alert(language === 'vi' ? 'Đã có giá ghế với cùng số ghế và cùng thời gian áp dụng' : 'A fare for this seat ID and date range already exists');
+                                    return;
+                                  }
+                                  setRouteFormSeatFares(prev => [...prev, { ...seatFareForm }]);
+                                }
+                                setShowAddSeatFare(false);
+                                setEditingSeatFareIdx(null);
+                                setSeatFareForm({ seatId: '', price: routeForm.price, agentPrice: routeForm.agentPrice, startDate: '', endDate: '', note: '' });
+                              }}
+                              className="px-4 py-1.5 bg-purple-600 text-white text-xs rounded-lg font-bold disabled:opacity-50"
+                            >
+                              {t.save}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Pickup / Dropoff Address Settings (Cấu hình điểm đón / điểm trả) */}
                     <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
