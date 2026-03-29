@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FirebaseStorage } from 'firebase/storage';
 import { transportService } from '../services/transportService';
-import { buildFareDocId } from '../services/fareService';
+import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
 import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
@@ -307,11 +307,11 @@ export function useRoutes(ctx: RouteContext) {
         const seatFaresSnapshot = routeFormSeatFares.slice();
         const savedSeatFareDocIds = new Set<string>();
         for (const seatFare of seatFaresSnapshot) {
-          const seatFareDocId = seatFare.fareId ?? [
+          const seatFareDocId = seatFare.fareId ?? buildSeatFareDocId(
             seatFare.seatId,
-            ...(seatFare.startDate ? [seatFare.startDate] : []),
-            ...(seatFare.endDate ? [seatFare.endDate] : []),
-          ].join('|');
+            seatFare.startDate || undefined,
+            seatFare.endDate || undefined,
+          );
           try {
             const savedId = await transportService.upsertRouteSeatFare(
               routeId,

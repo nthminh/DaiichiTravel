@@ -165,6 +165,22 @@ export function buildFareDocId(
 }
 
 /**
+ * Build a deterministic Firestore document ID for a per-seat fare.
+ * Seats without date restrictions use "{seatId}" as the document ID.
+ * Date-specific overrides append the date range: "{seatId}|{startDate}|{endDate}".
+ */
+export function buildSeatFareDocId(
+  seatId: string,
+  startDate?: string,
+  endDate?: string,
+): string {
+  if (!startDate && !endDate) {
+    return seatId;
+  }
+  return `${seatId}|${startDate || ''}|${endDate || ''}`;
+}
+
+/**
  * Admin utility: create or overwrite a fare for a (fromStop → toStop) pair.
  * Sets active=true on every upsert so existing inactive fares are re-enabled.
  *

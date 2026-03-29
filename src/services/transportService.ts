@@ -19,7 +19,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog } from '../types';
-import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, type GetFareParams } from './fareService';
+import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, buildSeatFareDocId, type GetFareParams } from './fareService';
 
 interface TourData {
   title: string;
@@ -625,6 +625,7 @@ export const transportService = {
   /**
    * Create or overwrite a seat-specific fare entry.
    * Returns the Firestore document ID used for the fare.
+   * Document ID format: "{seatId}" (no dates) or "{seatId}|{startDate}|{endDate}" (with dates).
    */
   upsertRouteSeatFare: async (
     routeId: string,
@@ -632,11 +633,7 @@ export const transportService = {
     fareDocId?: string,
   ): Promise<string> => {
     if (!db) throw new Error('Firebase not configured');
-    const docId = fareDocId ?? [
-      fare.seatId,
-      ...(fare.startDate ? [fare.startDate] : []),
-      ...(fare.endDate ? [fare.endDate] : []),
-    ].join('|');
+    const docId = fareDocId ?? buildSeatFareDocId(fare.seatId, fare.startDate, fare.endDate);
     const data = { ...fare, updatedAt: new Date().toISOString() };
     await setDoc(doc(db, 'routeSeatFares', routeId, 'seats', docId), data);
     return docId;

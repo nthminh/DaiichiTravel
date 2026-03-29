@@ -195,10 +195,10 @@ export function SeatMappingPage({
       });
       if (dated) return dated;
     }
-    // Fallback: fare without date restriction
-    const fallback = candidates.find(f => !f.startDate && !f.endDate);
-    if (fallback) return fallback;
-    return candidates[0];
+    // Fallback: fare without date restriction (open-ended default price)
+    return candidates.find(f => !f.startDate && !f.endDate);
+    // If only date-specific fares exist and none match the trip date,
+    // return undefined so the segment fare / route default is used instead.
   };
 
   /**
