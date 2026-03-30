@@ -92,6 +92,8 @@ export interface Route {
   childPricingRules?: ChildPricingRule[];
   /** Route service category – used to filter routes by the home-page category icons. */
   routeCategory?: 'BUS' | 'TOUR_SHORT' | 'CRUISE' | 'HOTEL';
+  /** Default add-on services for this route – automatically applied to all trips on this route. */
+  addons?: TripAddon[];
 }
 
 // A single fare entry in the routeFares subcollection
