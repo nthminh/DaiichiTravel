@@ -1778,6 +1778,7 @@ export function BookTicketPage({
 
     // Show WAITING and RUNNING trips. RUNNING trips are visible but not directly bookable.
     if (trip.status !== TripStatus.WAITING && trip.status !== TripStatus.RUNNING) return false;
+    const tripRoute = routeByName.get(trip.route);
     const tripVehicle = p.freeSearch
       ? vehicles.find(v => v.licensePlate === trip.licensePlate)
       : undefined;
@@ -1790,10 +1791,13 @@ export function BookTicketPage({
         trip.date || '',
         String(trip.price || ''),
         tripVehicle?.type || '',
+        tripRoute?.departurePoint || '',
+        tripRoute?.arrivalPoint || '',
+        tripRoute?.details || '',
+        tripRoute?.note || '',
       ].join(' ');
       if (!matchesSearch(searchable, p.freeSearch)) return false;
     }
-    const tripRoute = routeByName.get(trip.route);
     // Category filter: only show trips whose route matches the selected category.
     if (effectiveCategoryFilter) {
       if (!tripRoute || tripRoute.routeCategory !== effectiveCategoryFilter) return false;
@@ -2581,69 +2585,87 @@ export function BookTicketPage({
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4", tripType === 'ROUND_TRIP' ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           {/* FROM + TO combined cell with swap button overlaid between inputs */}
           <div className="lg:col-span-2">
-            {/* FROM and TO – on mobile: two separate bordered pair cards; on sm+: side by side */}
-            <div className="relative flex flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
-            {/* FROM input card */}
-            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-daiichi-red/30 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
-              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
-              <div className="sm:mt-1">
-                <StopSearchInput
-                  grouped="top"
-                  value={searchFrom}
-                  terminalValue={searchStationFrom}
-                  stops={filteredStops}
-                  placeholder={isMobile ? t.stop_search_from_placeholder_mobile : (t.stop_search_from_placeholder || t.from)}
-                  nearestHint={t.stop_search_nearest_hint}
-                  mustSelectError={t.stop_search_must_select}
-                  onChange={handleFromChange}
-                  onConfirmed={() => toStopRef.current?.focus()}
-                  stopPickerMatchingLabel={t.stop_picker_matching}
-                  stopPickerAllLabel={t.stop_picker_all}
-                  stopPickerCloseLabel={t.stop_picker_close}
-                  stopPickerNoStopsLabel={t.stop_picker_no_stops}
-                />
+            {effectiveCategoryFilter === 'TOUR_SHORT' ? (
+              /* TOUR_SHORT: keyword search input instead of FROM/TO stops */
+              <div>
+                <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.keyword_search}</label>
+                <div className="relative sm:mt-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                  <input
+                    type="text"
+                    value={bookTicketSearch}
+                    onChange={e => setBookTicketSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+                    placeholder={t.tour_keyword_search_placeholder}
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 hover:border-gray-400 rounded-2xl focus:outline-none focus:border-daiichi-red focus:ring-2 focus:ring-daiichi-red/20"
+                  />
+                </div>
               </div>
-            </div>
-            {/* TO input card */}
-            <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-blue-300/60 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
-              <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
-              <div className="sm:mt-1">
-                <StopSearchInput
-                  ref={toStopRef}
-                  grouped="top"
-                  value={searchTo}
-                  terminalValue={searchStationTo}
-                  stops={filteredStops}
-                  placeholder={isMobile ? t.stop_search_to_placeholder_mobile : (t.stop_search_to_placeholder || t.to)}
-                  nearestHint={t.stop_search_nearest_hint}
-                  mustSelectError={t.stop_search_must_select}
-                  onChange={handleToChange}
-                  stopPickerMatchingLabel={t.stop_picker_matching}
-                  stopPickerAllLabel={t.stop_picker_all}
-                  stopPickerCloseLabel={t.stop_picker_close}
-                  stopPickerNoStopsLabel={t.stop_picker_no_stops}
-                />
+            ) : (
+              /* Default: FROM and TO stop search inputs */
+              <div className="relative flex flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
+              {/* FROM input card */}
+              <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-daiichi-red/30 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
+                <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.from}</label>
+                <div className="sm:mt-1">
+                  <StopSearchInput
+                    grouped="top"
+                    value={searchFrom}
+                    terminalValue={searchStationFrom}
+                    stops={filteredStops}
+                    placeholder={isMobile ? t.stop_search_from_placeholder_mobile : (t.stop_search_from_placeholder || t.from)}
+                    nearestHint={t.stop_search_nearest_hint}
+                    mustSelectError={t.stop_search_must_select}
+                    onChange={handleFromChange}
+                    onConfirmed={() => toStopRef.current?.focus()}
+                    stopPickerMatchingLabel={t.stop_picker_matching}
+                    stopPickerAllLabel={t.stop_picker_all}
+                    stopPickerCloseLabel={t.stop_picker_close}
+                    stopPickerNoStopsLabel={t.stop_picker_no_stops}
+                  />
+                </div>
               </div>
-            </div>
-            {/* Mobile swap button: absolutely positioned to overlap FROM and TO, ~1cm from right */}
-            <button
-              type="button"
-              onClick={handleSwap}
-              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="sm:hidden absolute right-10 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
-            >
-              <ArrowUpDown size={15} strokeWidth={2.5} />
-            </button>
-            {/* Swap button for desktop (sm+): absolutely positioned between FROM and TO, rotated 90° */}
-            <button
-              type="button"
-              onClick={handleSwap}
-              title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
-              className="hidden sm:flex absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10 rotate-90"
-            >
-              <ArrowUpDown size={15} strokeWidth={2.5} />
-            </button>
-            </div>
+              {/* TO input card */}
+              <div className="flex-1 min-w-0 bg-gray-50 sm:bg-transparent border-2 border-blue-300/60 sm:border-0 rounded-2xl sm:rounded-none sm:p-0">
+                <label className="hidden sm:block text-[10px] font-bold text-gray-700 uppercase tracking-widest ml-1">{t.to}</label>
+                <div className="sm:mt-1">
+                  <StopSearchInput
+                    ref={toStopRef}
+                    grouped="top"
+                    value={searchTo}
+                    terminalValue={searchStationTo}
+                    stops={filteredStops}
+                    placeholder={isMobile ? t.stop_search_to_placeholder_mobile : (t.stop_search_to_placeholder || t.to)}
+                    nearestHint={t.stop_search_nearest_hint}
+                    mustSelectError={t.stop_search_must_select}
+                    onChange={handleToChange}
+                    stopPickerMatchingLabel={t.stop_picker_matching}
+                    stopPickerAllLabel={t.stop_picker_all}
+                    stopPickerCloseLabel={t.stop_picker_close}
+                    stopPickerNoStopsLabel={t.stop_picker_no_stops}
+                  />
+                </div>
+              </div>
+              {/* Mobile swap button: absolutely positioned to overlap FROM and TO, ~1cm from right */}
+              <button
+                type="button"
+                onClick={handleSwap}
+                title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+                className="sm:hidden absolute right-10 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all"
+              >
+                <ArrowUpDown size={15} strokeWidth={2.5} />
+              </button>
+              {/* Swap button for desktop (sm+): absolutely positioned between FROM and TO, rotated 90° */}
+              <button
+                type="button"
+                onClick={handleSwap}
+                title={t.swap_from_to || 'Đổi điểm đi và điểm đến'}
+                className="hidden sm:flex absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border-2 border-daiichi-red/60 bg-white text-daiichi-red shadow hover:border-daiichi-red hover:bg-daiichi-red/10 transition-all z-10 rotate-90"
+              >
+                <ArrowUpDown size={15} strokeWidth={2.5} />
+              </button>
+              </div>
+            )}
           </div>
           {/* Date fields: on mobile show as 2 equal columns when ROUND_TRIP */}
           {tripType === 'ROUND_TRIP' ? (
