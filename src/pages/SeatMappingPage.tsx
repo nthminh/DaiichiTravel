@@ -273,7 +273,7 @@ export function SeatMappingPage({
     ? !hasFareBlocker
     : (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
   const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver5Count > 0);
-  const shouldShowSeatCountBanner = !showPreBookingInfo && !isFreeSeatingTrip && !showBookingForm && totalSeatsNeeded > 1;
+  const shouldShowSeatCountBanner = !isFreeSeatingTrip && !showBookingForm && totalSeatsNeeded > 1;
 
   // Route-level surcharges
   const tripDate = selectedTrip.date || '';
@@ -354,6 +354,13 @@ export function SeatMappingPage({
   // Secondary text (address) shown in the dropdown alongside the stop name
   const pickupStopAddresses = pickupStops.map(s => s.address || '');
   const dropoffStopAddresses = dropoffStops.map(s => s.address || '');
+
+  // Pickup/dropoff validation: only require selection when the route has configured stops
+  // (routeStops). Sub-stop lists fall back to all global stops, so checking their length
+  // would make the requirement active even for simple routes with no meaningful stops.
+  const hasPickupOrDropoffOptions = (tripRoute?.routeStops?.length ?? 0) > 0 || pickupStopNames.length > 0 || dropoffStopNames.length > 0;
+  const hasPickupOrDropoffSelection = !!(pickupPoint || pickupAddress || dropoffPoint || dropoffAddress);
+  const pickupDropoffValid = !hasPickupOrDropoffOptions || hasPickupOrDropoffSelection;
 
   // Build seat status lookup
   const seatStatusMap: Record<string, SeatStatus> = {};
@@ -597,7 +604,6 @@ export function SeatMappingPage({
   };
 
   const shouldShowMobileBackdrop =
-    showPreBookingInfo ||
     showBookingConfirmation ||
     (!!showBookingForm && !showBookingConfirmation && !(isSelectingExtraSeats && !canConfirmBooking));
 
@@ -621,9 +627,6 @@ export function SeatMappingPage({
                 setShowBookingForm(null);
                 setExtraSeatIds([]);
                 setAddonQuantities({});
-              } else if (showPreBookingInfo) {
-                // Pre-booking info form is shown after seat selection – go back to seat map
-                setShowPreBookingInfo(false);
               } else {
                 // At seat map – go back to trip search
                 setActiveTab(previousTab);
@@ -1018,354 +1021,6 @@ export function SeatMappingPage({
     </div>
 
     <div className="space-y-6">
-      {showPreBookingInfo ? (
-        /* ── STEP 1: PRE-BOOKING INFO FORM ── */
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-2 sm:p-3 lg:p-3 fixed bottom-0 left-0 right-0 z-[150] rounded-t-3xl max-h-[90vh] overflow-y-auto lg:static lg:rounded-2xl lg:max-h-none lg:overflow-visible lg:shadow-sm border-2 border-daiichi-red"
-        >
-          {/* Drag handle visible on mobile */}
-          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 lg:hidden" />
-          <h3 className="text-base sm:text-lg font-bold mb-0.5 sm:mb-1">
-            {language === 'vi' ? '📋 Khai báo thông tin' : language === 'ja' ? '📋 乗客情報の入力' : '📋 Passenger Information'}
-          </h3>
-          <p className="text-xs text-gray-400 mb-1">
-            <span className="sm:hidden">
-              {language === 'vi' ? 'Nhập thông tin hành khách, chọn điểm đón/trả.' : language === 'ja' ? '乗客情報と乗降場所を入力してください。' : 'Enter passenger info and pickup/dropoff.'}
-            </span>
-            <span className="hidden sm:inline">
-              {language === 'vi'
-                ? 'Nhập thông tin hành khách, điểm đón/trả chi tiết và dịch vụ bổ sung.'
-                : language === 'ja'
-                  ? '乗客情報、乗降場所、および追加サービスを入力してください。'
-                  : 'Enter passenger details, pickup/dropoff locations and any add-on services.'}
-            </span>
-          </p>
-          <form className="space-y-1.5">
-            {/* Adults / Children */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">{t.adults}</label>
-                <div className="flex items-center gap-2 mt-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl">
-                  <button type="button" onClick={() => {
-                    const newAdults = Math.max(1, adults - 1);
-                    setAdults(newAdults);
-                    const currentOver5Count = childrenAges.filter(age => age >= 5).length;
-                    const newExtraSeatsNeeded = (newAdults - 1) + currentOver5Count;
-                    setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
-                  }} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
-                  <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
-                  <button type="button" onClick={() => setAdults(adults + 1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label>
-                <div className="flex items-center gap-2 mt-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-100 rounded-xl">
-                  <button type="button" onClick={() => {
-                    const count = Math.max(0, children - 1);
-                    setChildren(count);
-                    setChildrenAges(prev => prev.slice(0, count));
-                    const newAges = childrenAges.slice(0, count);
-                    const newOver5Count = newAges.filter(age => age >= 5).length;
-                    setExtraSeatIds(prev => prev.slice(0, newOver5Count));
-                  }} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
-                  <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
-                  <button type="button" onClick={() => {
-                    const count = children + 1;
-                    setChildren(count);
-                    setChildrenAges(prev => {
-                      const arr = [...prev];
-                      while (arr.length < count) arr.push(undefined);
-                      return arr.slice(0, count);
-                    });
-                  }} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none flex-shrink-0">+</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Children ages */}
-            {children > 0 && (
-              <div className="p-2 sm:p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1.5 sm:space-y-2">
-                <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                <p className="text-[10px] text-blue-400">
-                  <span className="sm:hidden">
-                    {language === 'vi' ? '≥5 tuổi: mua vé; <5 tuổi: miễn phí' : language === 'ja' ? '5歳以上：有料、4歳以下：無料' : '≥5 yrs: charged; <5 yrs: free'}
-                  </span>
-                  <span className="hidden sm:inline">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</span>
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: children }).map((_, i) => (
-                    <div key={i} className="relative">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={childrenAges[i] != null ? String(childrenAges[i]) : ''}
-                        placeholder={`${t.child_age_placeholder || 'Age'} ${i + 1}`}
-                        onChange={e => {
-                          const ages = [...childrenAges];
-                          const parsed = parseInt(e.target.value);
-                          ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
-                          setChildrenAges(ages);
-                          const newOver5Count = ages.filter(age => (age ?? 0) >= 5).length;
-                          setExtraSeatIds(prev => prev.slice(0, newOver5Count));
-                        }}
-                        className="w-full px-3 py-1.5 sm:py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
-                      />
-                      {(childrenAges[i] ?? 0) >= 5 && (
-                        <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                          {t.child_counted_as_adult || 'Adult'}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Name */}
-            <div className="relative">
-              <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.customer_name}</label>
-              <input type="text" value={customerNameInput} onChange={(e) => setCustomerNameInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_name} />
-            </div>
-            {/* Phone */}
-            <div className="relative">
-              <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.phone_number}</label>
-              <input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_phone} />
-            </div>
-
-            {/* Departure Stop (Điểm xuất phát) + Pickup Address */}
-            {(() => {
-              const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
-              const pickupOptions = hasRouteFares && tripRoute?.routeStops
-                ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
-                : stops.map(s => s.name);
-              const defaultDeparture = tripRoute?.departurePoint || '';
-              return (
-                <>
-                  <div>
-                    <SearchableSelect
-                      options={pickupOptions}
-                      value={pickupPoint}
-                      inlineLabel={t.pickup_point}
-                      onChange={(val) => {
-                        setPickupPoint(val);
-                        setPickupAddress('');
-                        setPickupStopAddress('');
-                        setPickupAddressSurcharge(0);
-                        const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
-                        const globalStop = stops.find(s => s.name === val);
-                        const newFromId = routeStop?.stopId || globalStop?.id || '';
-                        setPickupSurcharge(globalStop?.surcharge || 0);
-                        setFromStopId(newFromId);
-                        setFareAmount(null);
-                        setFareError('');
-                        if (newFromId && toStopId && hasRouteFares) {
-                          lookupFare(tripRoute, newFromId, toStopId);
-                        }
-                      }}
-                      placeholder={pickupPoint ? t.select_pickup : (defaultDeparture || t.select_pickup)}
-                    />
-                    {!pickupPoint && defaultDeparture && (
-                      <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultDeparture}` : `Default: ${defaultDeparture}`}</p>
-                    )}
-                  </div>
-                  <div className="pl-3 border-l-2 border-gray-200">
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
-                    <SearchableSelect
-                      options={pickupStopNames}
-                      optionDetails={pickupStopAddresses}
-                      value={pickupAddress}
-                      onChange={(val) => {
-                        setPickupAddress(val);
-                        const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
-                        setPickupAddressSurcharge(matchedStop?.surcharge || 0);
-                        setPickupStopAddress(matchedStop?.address || '');
-                      }}
-                      placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
-                      className="mt-0.5"
-                      inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
-                      disabled={pickupSectionDisabled}
-                    />
-                    <input
-                      type="text"
-                      value={pickupAddressDetail}
-                      onChange={e => setPickupAddressDetail(e.target.value)}
-                      placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
-                      className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      disabled={pickupSectionDisabled}
-                    />
-                    {pickupSectionDisabled && (
-                      <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : 'Pickup address input is disabled for this route'}</p>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Destination Stop (Điểm đến) + Dropoff Address */}
-            {(() => {
-              const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
-              const dropoffOptions = hasRouteFares && tripRoute?.routeStops
-                ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order).map(rs => rs.stopName)
-                : stops.map(s => s.name);
-              const defaultArrival = tripRoute?.arrivalPoint || '';
-              return (
-                <>
-                  <div>
-                    <SearchableSelect
-                      options={dropoffOptions}
-                      value={dropoffPoint}
-                      inlineLabel={t.dropoff_point}
-                      onChange={(val) => {
-                        setDropoffPoint(val);
-                        setDropoffAddress('');
-                        setDropoffStopAddress('');
-                        setDropoffAddressSurcharge(0);
-                        const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
-                        const globalStop = stops.find(s => s.name === val);
-                        const newToId = routeStop?.stopId || globalStop?.id || '';
-                        setDropoffSurcharge(globalStop?.surcharge || 0);
-                        setToStopId(newToId);
-                        setFareAmount(null);
-                        setFareError('');
-                        if (fromStopId && newToId && hasRouteFares) {
-                          lookupFare(tripRoute, fromStopId, newToId);
-                        }
-                      }}
-                      placeholder={dropoffPoint ? t.select_dropoff : (defaultArrival || t.select_dropoff)}
-                    />
-                    {!dropoffPoint && defaultArrival && (
-                      <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultArrival}` : `Default: ${defaultArrival}`}</p>
-                    )}
-                  </div>
-                  <div className="pl-3 border-l-2 border-gray-200">
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
-                    <SearchableSelect
-                      options={dropoffStopNames}
-                      optionDetails={dropoffStopAddresses}
-                      value={dropoffAddress}
-                      onChange={(val) => {
-                        setDropoffAddress(val);
-                        const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
-                        setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
-                        setDropoffStopAddress(matchedStop?.address || '');
-                      }}
-                      placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
-                      className="mt-0.5"
-                      inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
-                      disabled={dropoffSectionDisabled}
-                    />
-                    <input
-                      type="text"
-                      value={dropoffAddressDetail}
-                      onChange={e => setDropoffAddressDetail(e.target.value)}
-                      placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
-                      className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                      disabled={dropoffSectionDisabled}
-                    />
-                    {dropoffSectionDisabled && (
-                      <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : 'Dropoff address input is disabled for this route'}</p>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Fare error blocker reminder */}
-            {hasFareBlocker && (
-              <p className="text-xs text-red-500 font-medium">{fareError}</p>
-            )}
-
-            {/* Child ages required warning */}
-            {children > 0 && !childAgesComplete && (
-              <p className="text-xs text-red-500 font-medium">{t.child_ages_required || 'Please enter the age for all children before proceeding.'}</p>
-            )}
-
-            {/* Fare info: price per person + total – shown right above the action button */}
-            {fareLoading && (
-              <p className="text-xs text-blue-500 animate-pulse">{t.fare_loading || 'Looking up fare...'}</p>
-            )}
-            {!fareLoading && fareAmount !== null && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs text-emerald-600 font-bold">
-                    {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'person'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowPriceDetail(true)}
-                    className="text-[10px] text-blue-600 font-bold px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
-                  >
-                    <Info size={10} />
-                    {t.view_details || 'Chi tiết'}
-                  </button>
-                </div>
-                {fareAgentAmount !== null && currentUser?.role === UserRole.AGENT && fareAgentAmount !== fareAmount && (
-                  <p className="text-xs text-orange-600 font-bold">
-                    {language === 'vi' ? 'Giá đại lý' : language === 'ja' ? '代理店価格' : 'Agent price'}: {fareAgentAmount.toLocaleString()}đ/{t.per_person || 'person'}
-                  </p>
-                )}
-                <div className="flex items-center justify-between px-3 py-2 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
-                  <span className="text-xs font-bold text-gray-700">
-                    {t.total_payment || 'Tổng thanh toán'}
-                    {' '}({priceBillablePassengers} {language === 'vi' ? 'khách' : language === 'ja' ? '名' : 'pax'})
-                  </span>
-                  <span className="text-sm font-bold text-daiichi-red">{priceGrandTotal.toLocaleString()}đ</span>
-                </div>
-              </div>
-            )}
-
-            {/* Continue to Confirmation button (or back to seat map if no seat selected yet) */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowPreBookingInfo(false);
-                if (showBookingForm) {
-                  setShowBookingConfirmation(true);
-                }
-              }}
-              disabled={hasFareBlocker || !childAgesComplete}
-              className={cn(
-                "w-full py-3 sm:py-4 text-white rounded-xl font-bold shadow-lg transition-all",
-                (hasFareBlocker || !childAgesComplete)
-                  ? "bg-gray-300 shadow-gray-200 cursor-not-allowed"
-                  : "bg-daiichi-red shadow-daiichi-red/20"
-              )}
-            >
-              {showBookingForm
-                ? (language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →')
-                : (language === 'vi' ? '✅ Tiếp theo: Chọn ghế →' : language === 'ja' ? '✅ 次へ：座席を選ぶ →' : '✅ Next: Select Seat →')}
-            </button>
-          </form>
-        </motion.div>
-      ) : (
-        /* ── STEP 2+: SEAT SELECTION AND CONFIRM ── */
-        <>
-          {/* Compact info summary with edit link */}
-          <div className="bg-white px-4 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-gray-700 truncate">
-                {customerNameInput || (language === 'vi' ? 'Chưa nhập tên' : 'No name')}
-                {phoneInput ? ` · ${phoneInput}` : ''}
-              </p>
-              <p className="text-[10px] text-gray-500 truncate mt-0.5">
-                {adults} {t.adults}{children > 0 ? ` + ${children} ${t.children}` : ''}
-                {(pickupPoint || tripRoute?.departurePoint) && (
-                  <> · {pickupPoint || tripRoute?.departurePoint || '?'} → {dropoffPoint || tripRoute?.arrivalPoint || '?'}</>
-                )}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPreBookingInfo(true)}
-              className="flex-shrink-0 text-[10px] text-daiichi-red font-bold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              ✏️ {language === 'vi' ? 'Sửa' : language === 'ja' ? '編集' : 'Edit'}
-            </button>
-          </div>
-
           {!showBookingForm && (selectedTrip.addons || []).length > 0 && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-emerald-200">
               <div className="flex items-center gap-2 mb-3">
@@ -1407,8 +1062,8 @@ export function SeatMappingPage({
               <div className="flex justify-between items-center mb-2 sm:mb-4">
                 <h3 className="text-base sm:text-lg font-bold">
                   {isFreeSeatingTrip
-                    ? (language === 'vi' ? '🪑 Xác nhận đặt vé' : language === 'ja' ? '🪑 予約確認' : '🪑 Confirm Booking')
-                    : `${t.booking_title}: ${showBookingForm}`}
+                    ? (language === 'vi' ? '📝 Nhập thông tin' : language === 'ja' ? '📝 情報入力' : '📝 Enter Information')
+                    : (language === 'vi' ? `📝 Nhập thông tin: ${showBookingForm}` : language === 'ja' ? `📝 情報入力: ${showBookingForm}` : `📝 Enter Information: ${showBookingForm}`)}
                 </h3>
                 <button onClick={() => { setShowBookingForm(null); setExtraSeatIds([]); setAddonQuantities({}); setShowBookingConfirmation(false); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
               </div>
@@ -1494,46 +1149,135 @@ export function SeatMappingPage({
                   <label className="absolute left-3 top-1 text-[9px] font-bold text-gray-400 uppercase tracking-wider pointer-events-none z-10">{t.phone_number}</label>
                   <input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} className="w-full px-3 pt-5 pb-1 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 text-sm" placeholder={t.enter_phone} />
                 </div>
-                {/* Pickup address (sub-stop selection) */}
-                {pickupStopNames.length > 0 && !pickupSectionDisabled && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
-                    <SearchableSelect
-                      options={pickupStopNames}
-                      optionDetails={pickupStopAddresses}
-                      value={pickupAddress}
-                      onChange={(val) => {
-                        setPickupAddress(val);
-                        const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
-                        setPickupAddressSurcharge(matchedStop?.surcharge || 0);
-                        setPickupStopAddress(matchedStop?.address || '');
-                      }}
-                      placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
-                      className="mt-1"
-                      inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
-                    />
-                  </div>
-                )}
-                {/* Dropoff address (sub-stop selection) */}
-                {dropoffStopNames.length > 0 && !dropoffSectionDisabled && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
-                    <SearchableSelect
-                      options={dropoffStopNames}
-                      optionDetails={dropoffStopAddresses}
-                      value={dropoffAddress}
-                      onChange={(val) => {
-                        setDropoffAddress(val);
-                        const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
-                        setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
-                        setDropoffStopAddress(matchedStop?.address || '');
-                      }}
-                      placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
-                      className="mt-1"
-                      inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
-                    />
-                  </div>
-                )}
+                {/* Departure Stop (Điểm xuất phát) + Pickup Address / Destination Stop + Dropoff Address */}
+                {(() => {
+                  const hasRouteFares = (tripRoute?.routeStops?.length ?? 0) > 0;
+                  const routeStopsSorted = hasRouteFares && tripRoute?.routeStops
+                    ? [...tripRoute.routeStops].sort((a, b) => a.order - b.order)
+                    : null;
+                  const stopOptions = routeStopsSorted ? routeStopsSorted.map(rs => rs.stopName) : stops.map(s => s.name);
+                  const defaultDeparture = tripRoute?.departurePoint || '';
+                  const defaultArrival = tripRoute?.arrivalPoint || '';
+                  return (
+                    <>
+                      {/* ── Pickup terminal + sub-stop ── */}
+                      <div>
+                        <SearchableSelect
+                          options={stopOptions}
+                          value={pickupPoint}
+                          inlineLabel={t.pickup_point}
+                          onChange={(val) => {
+                            setPickupPoint(val);
+                            setPickupAddress('');
+                            setPickupStopAddress('');
+                            setPickupAddressSurcharge(0);
+                            const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
+                            const globalStop = stops.find(s => s.name === val);
+                            const newFromId = routeStop?.stopId || globalStop?.id || '';
+                            setPickupSurcharge(globalStop?.surcharge || 0);
+                            setFromStopId(newFromId);
+                            setFareAmount(null);
+                            setFareError('');
+                            if (newFromId && toStopId && hasRouteFares) {
+                              lookupFare(tripRoute, newFromId, toStopId);
+                            }
+                          }}
+                          placeholder={pickupPoint ? t.select_pickup : (defaultDeparture || t.select_pickup)}
+                        />
+                        {!pickupPoint && defaultDeparture && (
+                          <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultDeparture}` : `Default: ${defaultDeparture}`}</p>
+                        )}
+                      </div>
+                      <div className="pl-3 border-l-2 border-gray-200">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.pickup_address || 'Điểm đón'}</label>
+                        <SearchableSelect
+                          options={pickupStopNames}
+                          optionDetails={pickupStopAddresses}
+                          value={pickupAddress}
+                          onChange={(val) => {
+                            setPickupAddress(val);
+                            const matchedStop = stops.find(s => s.name === val && pickupStopNames.includes(val));
+                            setPickupAddressSurcharge(matchedStop?.surcharge || 0);
+                            setPickupStopAddress(matchedStop?.address || '');
+                          }}
+                          placeholder={t.pickup_address_ph || 'Chọn hoặc nhập điểm đón...'}
+                          className="mt-0.5"
+                          inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
+                          disabled={pickupSectionDisabled}
+                        />
+                        <input
+                          type="text"
+                          value={pickupAddressDetail}
+                          onChange={e => setPickupAddressDetail(e.target.value)}
+                          placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
+                          className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                          disabled={pickupSectionDisabled}
+                        />
+                        {pickupSectionDisabled && (
+                          <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm đón đã bị vô hiệu hóa cho tuyến này' : 'Pickup address input is disabled for this route'}</p>
+                        )}
+                      </div>
+
+                      {/* ── Dropoff terminal + sub-stop ── */}
+                      <div>
+                        <SearchableSelect
+                          options={stopOptions}
+                          value={dropoffPoint}
+                          inlineLabel={t.dropoff_point}
+                          onChange={(val) => {
+                            setDropoffPoint(val);
+                            setDropoffAddress('');
+                            setDropoffStopAddress('');
+                            setDropoffAddressSurcharge(0);
+                            const routeStop = tripRoute?.routeStops?.find(rs => rs.stopName === val);
+                            const globalStop = stops.find(s => s.name === val);
+                            const newToId = routeStop?.stopId || globalStop?.id || '';
+                            setDropoffSurcharge(globalStop?.surcharge || 0);
+                            setToStopId(newToId);
+                            setFareAmount(null);
+                            setFareError('');
+                            if (fromStopId && newToId && hasRouteFares) {
+                              lookupFare(tripRoute, fromStopId, newToId);
+                            }
+                          }}
+                          placeholder={dropoffPoint ? t.select_dropoff : (defaultArrival || t.select_dropoff)}
+                        />
+                        {!dropoffPoint && defaultArrival && (
+                          <p className="mt-1 text-[10px] text-gray-400">{language === 'vi' ? `Mặc định: ${defaultArrival}` : `Default: ${defaultArrival}`}</p>
+                        )}
+                      </div>
+                      <div className="pl-3 border-l-2 border-gray-200">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase">{t.dropoff_address || 'Điểm trả'}</label>
+                        <SearchableSelect
+                          options={dropoffStopNames}
+                          optionDetails={dropoffStopAddresses}
+                          value={dropoffAddress}
+                          onChange={(val) => {
+                            setDropoffAddress(val);
+                            const matchedStop = stops.find(s => s.name === val && dropoffStopNames.includes(val));
+                            setDropoffAddressSurcharge(matchedStop?.surcharge || 0);
+                            setDropoffStopAddress(matchedStop?.address || '');
+                          }}
+                          placeholder={t.dropoff_address_ph || 'Chọn hoặc nhập điểm trả...'}
+                          className="mt-0.5"
+                          inputClassName="!px-3 !py-1.5 !text-xs !rounded-lg"
+                          disabled={dropoffSectionDisabled}
+                        />
+                        <input
+                          type="text"
+                          value={dropoffAddressDetail}
+                          onChange={e => setDropoffAddressDetail(e.target.value)}
+                          placeholder={language === 'vi' ? 'Chi tiết (số nhà, tầng...)' : language === 'ja' ? '詳細（番地など）' : 'Detail (house no., floor...)'}
+                          className="mt-1 w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                          disabled={dropoffSectionDisabled}
+                        />
+                        {dropoffSectionDisabled && (
+                          <p className="mt-1 text-[10px] text-orange-500">{language === 'vi' ? 'Điểm trả đã bị vô hiệu hóa cho tuyến này' : 'Dropoff address input is disabled for this route'}</p>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
                 {/* Segment conflict warning */}
                 {(() => {
                   if (!hasSegmentSelection || !showBookingForm || showBookingForm === 'FREE') return null;
@@ -1758,6 +1502,25 @@ export function SeatMappingPage({
                   />
                 </div>
 
+                {/* Fare info + Xem chi tiết giá */}
+                {fareLoading && (
+                  <p className="text-xs text-blue-500 animate-pulse">{t.fare_loading || 'Looking up fare...'}</p>
+                )}
+                {!fareLoading && fareAmount !== null && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs text-emerald-600 font-bold">
+                      {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'người'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowPriceDetail(true)}
+                      className="text-[10px] text-blue-600 font-bold px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                    >
+                      <Info size={10} />
+                      {language === 'vi' ? 'Xem chi tiết giá' : language === 'ja' ? '料金詳細を見る' : 'View price details'}
+                    </button>
+                  </div>
+                )}
                 {/* Price Summary */}
                 <div className="p-4 bg-daiichi-accent/20 rounded-xl border border-daiichi-accent/30 space-y-2">
                   {(() => {
@@ -1929,9 +1692,19 @@ export function SeatMappingPage({
                   })()}
                 </div>
 
-                <button type="button" onClick={() => setShowBookingConfirmation(true)} disabled={!canConfirmBooking} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", canConfirmBooking ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>
-                  {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
-                </button>
+                {!pickupDropoffValid && (
+                  <p className="text-xs text-red-500 font-medium">
+                    {language === 'vi' ? 'Vui lòng chọn ít nhất một điểm đón hoặc điểm trả.' : language === 'ja' ? '乗車地または降車地を少なくとも1つ選択してください。' : 'Please select at least one pickup or dropoff point.'}
+                  </p>
+                )}
+                {(() => {
+                  const isConfirmEnabled = canConfirmBooking && pickupDropoffValid;
+                  return (
+                    <button type="button" onClick={() => setShowBookingConfirmation(true)} disabled={!isConfirmEnabled} className={cn("w-full py-4 text-white rounded-xl font-bold shadow-lg", isConfirmEnabled ? "bg-daiichi-red shadow-daiichi-red/20" : "bg-gray-300 shadow-gray-200 cursor-not-allowed")}>
+                      {language === 'vi' ? '✅ Tiếp theo: Xác nhận →' : language === 'ja' ? '✅ 次へ：確認する →' : '✅ Next: Confirm →'}
+                    </button>
+                  );
+                })()}
               </form>
             </motion.div>
           )}
@@ -2074,8 +1847,6 @@ export function SeatMappingPage({
               </div>
             </motion.div>
           )}
-        </>
-      )}
     </div>
   </div>
   {/* Price Detail Modal */}
