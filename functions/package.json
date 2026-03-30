@@ -11,16 +11,12 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@exodus/bytes": "^1.15.0",
     "exceljs": "^4.4.0",
     "firebase-admin": "^12.1.1",
     "firebase-functions": "^5.0.1",
-    "html-encoding-sniffer": "^6.0.0",
-    "isomorphic-dompurify": "^3.3.0",
     "nodemailer": "^8.0.2"
   },
   "devDependencies": {
-    "@types/dompurify": "^3.0.5",
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^7.0.11",
     "typescript": "~5.8.2"
