@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info, ZoomIn } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle, RouteSurcharge } from '../types'
@@ -915,6 +915,35 @@ function TripConfirmPanel({
   const totalPerPerson = discountedFare + routeSurchargeTotal;
   const grandTotal = totalPerPerson * billablePassengers;
 
+  // TOUR_SHORT: use childPricingRules for per-age-group pricing
+  const isTourShort = route?.routeCategory === 'TOUR_SHORT';
+  const childPricingRules = isTourShort ? (route?.childPricingRules ?? []) : [];
+  const useAgePricing = isTourShort && childPricingRules.length > 0;
+  const childAgeGroups: { label: string; count: number; farePer: number }[] = (() => {
+    if (!useAgePricing || searchChildren === 0) return [];
+    const groupMap = new Map<string, { label: string; count: number; farePer: number }>();
+    searchChildrenAges.slice(0, searchChildren).forEach((age) => {
+      const ageVal = age ?? 0;
+      const rule = childPricingRules.find(r => ageVal >= r.fromAge && ageVal <= r.toAge);
+      const farePer = rule ? Math.round(totalPerPerson * rule.percent / 100) : totalPerPerson;
+      const groupKey = rule ? rule.id : '__no_rule__';
+      const label = rule
+        ? (language === 'vi'
+            ? `Trẻ ${rule.fromAge}–${rule.toAge} tuổi (${rule.percent}%)`
+            : language === 'ja'
+              ? `子供 ${rule.fromAge}–${rule.toAge}歳 (${rule.percent}%)`
+              : `Children ${rule.fromAge}–${rule.toAge} yrs (${rule.percent}%)`)
+        : (language === 'vi' ? 'Trẻ em' : language === 'ja' ? '子供' : 'Children');
+      if (!groupMap.has(groupKey)) groupMap.set(groupKey, { label, count: 0, farePer });
+      groupMap.get(groupKey)!.count++;
+    });
+    return Array.from(groupMap.values());
+  })();
+  const displayGrandTotal = useAgePricing && searchChildren > 0
+    ? totalPerPerson * searchAdults + childAgeGroups.reduce((s, g) => s + g.count * g.farePer, 0)
+    : grandTotal;
+  const displayTotalPassengers = searchAdults + searchChildren;
+
   const stepLabels: [string, string, string, string] = [
     t.step_select_trip || 'Chọn chuyến',
     language === 'vi' ? 'Nhập thông tin' : language === 'ja' ? '情報入力' : 'Enter Info',
@@ -1063,29 +1092,47 @@ function TripConfirmPanel({
               </div>
               {searchChildren > 0 && (
                 <>
-                  {childrenOver5Count > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">
-                        {language === 'vi' ? `Trẻ em ≥5 tuổi (tính giá người lớn)` : language === 'ja' ? '5歳以上の子供（大人料金）' : 'Children ≥5 (adult price)'}
-                      </span>
-                      <span className="font-bold text-daiichi-red">{childrenOver5Count}</span>
-                    </div>
-                  )}
-                  {childrenUnder5Count > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">
-                        {language === 'vi' ? 'Trẻ em <5 tuổi (miễn phí)' : language === 'ja' ? '5歳未満の子供（無料）' : 'Children <5 (free)'}
-                      </span>
-                      <span className="font-bold text-green-600">{childrenUnder5Count}</span>
-                    </div>
+                  {useAgePricing ? (
+                    /* TOUR_SHORT: show per-age-group breakdown from childPricingRules */
+                    childAgeGroups.map((g, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">{g.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-800">{g.count}</span>
+                          <span className="text-[10px] text-gray-400">×{g.farePer.toLocaleString()}đ</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    /* BUS / default: simple over/under 5 logic */
+                    <>
+                      {childrenOver5Count > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">
+                            {language === 'vi' ? `Trẻ em ≥5 tuổi (tính giá người lớn)` : language === 'ja' ? '5歳以上の子供（大人料金）' : 'Children ≥5 (adult price)'}
+                          </span>
+                          <span className="font-bold text-daiichi-red">{childrenOver5Count}</span>
+                        </div>
+                      )}
+                      {childrenUnder5Count > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">
+                            {language === 'vi' ? 'Trẻ em <5 tuổi (miễn phí)' : language === 'ja' ? '5歳未満の子供（無料）' : 'Children <5 (free)'}
+                          </span>
+                          <span className="font-bold text-green-600">{childrenUnder5Count}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-sm">
                 <span className="font-bold text-gray-700">
-                  {language === 'vi' ? 'Tổng vé cần mua' : language === 'ja' ? '購入する座席数' : 'Total tickets'}
+                  {language === 'vi' ? 'Tổng hành khách' : language === 'ja' ? '合計人数' : 'Total pax'}
                 </span>
-                <span className="font-bold text-daiichi-red">{billablePassengers}</span>
+                <span className="font-bold text-daiichi-red">
+                  {useAgePricing ? displayTotalPassengers : billablePassengers}
+                </span>
               </div>
             </div>
           </div>
@@ -1112,15 +1159,33 @@ function TripConfirmPanel({
                 </div>
               ))}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <span className="text-sm text-gray-600">{t.trip_confirm_total || 'Tổng dự kiến / người'}</span>
+                <span className="text-sm text-gray-600">
+                  {useAgePricing
+                    ? (language === 'vi' ? 'Giá người lớn / người' : language === 'ja' ? '大人料金 / 人' : 'Adult fare / person')
+                    : (t.trip_confirm_total || 'Tổng dự kiến / người')}
+                </span>
                 <span className="text-sm font-bold text-gray-800">{totalPerPerson.toLocaleString()}đ</span>
               </div>
-              {billablePassengers > 1 && (
+              {useAgePricing && childAgeGroups.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  {childAgeGroups.map((g, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{g.label} ×{g.count}</span>
+                      <span className="font-semibold text-gray-800">{(g.count * g.farePer).toLocaleString()}đ</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(useAgePricing ? displayTotalPassengers : billablePassengers) > 1 && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-gray-800">
-                    {language === 'vi' ? `Tổng ${billablePassengers} khách (dự kiến)` : language === 'ja' ? `合計 ${billablePassengers}名（概算）` : `Total ${billablePassengers} pax (est.)`}
+                    {language === 'vi'
+                      ? `Tổng ${useAgePricing ? displayTotalPassengers : billablePassengers} khách (dự kiến)`
+                      : language === 'ja'
+                        ? `合計 ${useAgePricing ? displayTotalPassengers : billablePassengers}名（概算）`
+                        : `Total ${useAgePricing ? displayTotalPassengers : billablePassengers} pax (est.)`}
                   </span>
-                  <span className="text-base font-bold text-daiichi-red">{grandTotal.toLocaleString()}đ</span>
+                  <span className="text-base font-bold text-daiichi-red">{displayGrandTotal.toLocaleString()}đ</span>
                 </div>
               )}
             </div>
@@ -1441,6 +1506,12 @@ export function BookTicketPage({
   // Track which trip the user clicked "Select Seat" on – used to show the TripConfirmPanel
   // before navigating to seat-mapping. null = no confirmation panel open.
   const [pendingConfirmTrip, setPendingConfirmTrip] = useState<Trip | null>(null);
+
+  // Image lightbox: stores which trip+image is being viewed full-screen
+  const [lightboxState, setLightboxState] = useState<{ tripId: string; imgIdx: number } | null>(null);
+  // Touch tracking for swipe gestures (carousel + lightbox)
+  const cardSwipeTouchX = useRef<Record<string, number>>({});
+  const lightboxTouchX = useRef(0);
 
   // For TOUR_SHORT trips: track which addons are selected per trip (tripId → addonId[])
   const [selectedAddonsByTrip, setSelectedAddonsByTrip] = useState<Record<string, string[]>>({});
@@ -1932,7 +2003,23 @@ export function BookTicketPage({
         {/* Desktop (md+): all 3 columns side by side */}
         <div className="grid grid-cols-2 md:grid-cols-[2fr_1.5fr_1.5fr] gap-2 px-2 pb-2">
           {/* Column 1: Large route image – full width on mobile, proportional column on desktop */}
-          <div className="col-span-2 md:col-span-1 relative overflow-hidden rounded-2xl aspect-video md:aspect-auto md:min-h-[110px]">
+          <div
+            className="col-span-2 md:col-span-1 relative overflow-hidden rounded-2xl aspect-video md:aspect-auto md:min-h-[110px]"
+            onTouchStart={e => { cardSwipeTouchX.current[trip.id] = e.touches[0].clientX; }}
+            onTouchEnd={e => {
+              const startX = cardSwipeTouchX.current[trip.id] ?? 0;
+              const dx = e.changedTouches[0].clientX - startX;
+              if (Math.abs(dx) > 40 && isTripRevealed && routeImages.length > 1) {
+                setTripCardImgIdx(prev => {
+                  const cur = prev[trip.id] ?? 0;
+                  const newIdx = dx < 0
+                    ? (cur + 1) % routeImages.length
+                    : (cur - 1 + routeImages.length) % routeImages.length;
+                  return { ...prev, [trip.id]: newIdx };
+                });
+              }
+            }}
+          >
             {(currentImg || vehicleImg) ? (
               <>
                 {currentImg && (
@@ -1952,6 +2039,17 @@ export function BookTicketPage({
                     style={{ filter: isTripRevealed ? 'none' : 'blur(8px)' }}
                     referrerPolicy="no-referrer"
                   />
+                )}
+                {/* Click-to-open lightbox button (shown on revealed images) */}
+                {isTripRevealed && currentImg && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setLightboxState({ tripId: trip.id, imgIdx: carouselIdx }); }}
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-all z-10"
+                    aria-label={language === 'vi' ? 'Xem ảnh to' : language === 'ja' ? '大きい画像を見る' : 'View full image'}
+                  >
+                    <ZoomIn size={12} />
+                  </button>
                 )}
                 {/* Carousel prev/next buttons */}
                 {isTripRevealed && routeImages.length > 1 && (
@@ -2370,13 +2468,105 @@ export function BookTicketPage({
     if (!pendingConfirmTrip) return;
     // Navigate to seat mapping; pickup/dropoff carry over from search params via App.tsx
     setSelectedTrip(pendingConfirmTrip);
-    setPreviousTab('book-ticket');
+    // Preserve the correct "back" tab: tours tab for TOUR_SHORT, otherwise book-ticket
+    const tripRoute = routes.find(r => r.name === pendingConfirmTrip.route);
+    setPreviousTab(tripRoute?.routeCategory === 'TOUR_SHORT' ? 'tours' : 'book-ticket');
     setActiveTab('seat-mapping');
     setPendingConfirmTrip(null);
   };
 
   return (
     <>
+    {/* Image lightbox overlay */}
+    {lightboxState && (() => {
+      const lbTrip = trips.find(t => t.id === lightboxState.tripId);
+      const lbRoute = lbTrip ? routes.find(r => r.name === lbTrip.route) : undefined;
+      const lbImages = (lbRoute?.images && lbRoute.images.length > 0) ? lbRoute.images : (lbRoute?.imageUrl ? [lbRoute.imageUrl] : []);
+      if (lbImages.length === 0) return null;
+      const lbIdx = lightboxState.imgIdx;
+      const goPrev = () => setLightboxState(s => s ? { ...s, imgIdx: (s.imgIdx - 1 + lbImages.length) % lbImages.length } : null);
+      const goNext = () => setLightboxState(s => s ? { ...s, imgIdx: (s.imgIdx + 1) % lbImages.length } : null);
+      return (
+        <div
+          className="fixed inset-0 z-[500] flex items-center justify-center bg-black/90"
+          onClick={() => setLightboxState(null)}
+          onTouchStart={e => { lightboxTouchX.current = e.touches[0].clientX; }}
+          onTouchEnd={e => {
+            const dx = e.changedTouches[0].clientX - lightboxTouchX.current;
+            if (Math.abs(dx) > 50) {
+              if (dx < 0) {
+                goNext();
+              } else {
+                goPrev();
+              }
+            }
+          }}
+          onKeyDown={e => {
+            if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
+            else if (e.key === 'Escape') setLightboxState(null);
+          }}
+          tabIndex={0}
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'vi' ? 'Xem ảnh' : 'View image'}
+        >
+          {/* Close */}
+          <button
+            type="button"
+            onClick={() => setLightboxState(null)}
+            className="absolute top-4 right-4 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40 transition-all"
+            aria-label={language === 'vi' ? 'Đóng' : 'Close'}
+          ><X size={18} /></button>
+          {/* Prev */}
+          {lbImages.length > 1 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); goPrev(); }}
+              className="absolute left-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40 transition-all text-xl"
+              aria-label="Previous"
+            >‹</button>
+          )}
+          {/* Image */}
+          <img
+            src={lbImages[lbIdx]}
+            alt={lbTrip?.route ?? ''}
+            className="max-w-full max-h-full object-contain rounded-lg select-none"
+            onClick={e => e.stopPropagation()}
+            referrerPolicy="no-referrer"
+          />
+          {/* Next */}
+          {lbImages.length > 1 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); goNext(); }}
+              className="absolute right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40 transition-all text-xl"
+              aria-label="Next"
+            >›</button>
+          )}
+          {/* Dots */}
+          {lbImages.length > 1 && (
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
+              {lbImages.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setLightboxState(s => s ? { ...s, imgIdx: i } : null); }}
+                  className={cn('w-2 h-2 rounded-full transition-all', i === lbIdx ? 'bg-white' : 'bg-white/40')}
+                  aria-label={`Ảnh ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+          {/* Counter */}
+          {lbImages.length > 1 && (
+            <div className="absolute top-4 left-4 z-10 px-2 py-0.5 bg-black/40 text-white text-xs rounded-full">
+              {lbIdx + 1} / {lbImages.length}
+            </div>
+          )}
+        </div>
+      );
+    })()}
     {/* TripConfirmPanel – full-screen overlay shown when user clicks a trip card */}
     {pendingConfirmTrip && (
       <TripConfirmPanel
