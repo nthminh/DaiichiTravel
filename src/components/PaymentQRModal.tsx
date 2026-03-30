@@ -9,6 +9,8 @@ import { transportService } from '../services/transportService';
 
 const PAYMENT_TIMEOUT_SECONDS = 3 * 60; // 3 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
+const AUTO_CONFIRM_DELAY_MS = 1200; // brief visual feedback before auto-confirming from Firestore
+const MANUAL_CONFIRM_DELAY_MS = 600; // simulated processing delay for manual confirm button
 
 interface PaymentQRModalProps {
   /** Total amount to pay in VND */
@@ -91,7 +93,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
           setAutoDetected(true);
           setConfirming(true);
           // Brief visual feedback then auto-confirm
-          setTimeout(() => onConfirmRef.current(), 1200);
+          setTimeout(() => onConfirmRef.current(), AUTO_CONFIRM_DELAY_MS);
         } else {
           // Payment was registered but data doesn't match – show warning
           setAmountMismatch(true);
@@ -121,7 +123,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
     autoConfirmCalledRef.current = true;
     setConfirming(true);
     // Small delay to simulate processing
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, MANUAL_CONFIRM_DELAY_MS));
     onConfirmRef.current();
   };
 

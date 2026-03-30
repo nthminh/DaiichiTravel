@@ -247,9 +247,6 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
       setSimulatorError(language === 'vi' ? 'Vui lòng nhập số tiền hợp lệ.' : 'Please enter a valid amount.');
       return;
     }
-    if (!content) {
-      setSimulatorContent(ref);
-    }
 
     // Find the corresponding pending payment to verify amount
     const pending = pendingPayments.find(p => p.paymentRef.toUpperCase() === ref);
