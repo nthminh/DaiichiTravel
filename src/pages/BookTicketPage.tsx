@@ -843,7 +843,7 @@ function TripConfirmPanel({
 
   // ---- Ordered itinerary stops ----
   const orderedItinerary = useMemo(() => {
-    const stops_list: { name: string; time: string | null; isEndpoint: boolean }[] = [];
+    const stops_list: { name: string; time: string | null; isEndpoint: boolean; description?: string }[] = [];
     const dep = route?.departurePoint || effectiveFrom || '';
     const arr = route?.arrivalPoint || effectiveTo || '';
     if (dep) stops_list.push({ name: dep, time: trip.time ? calcTime(trip.time, route?.departureOffsetMinutes ?? 0) : null, isEndpoint: true });
@@ -857,6 +857,7 @@ function TripConfirmPanel({
             name: s.stopName,
             time: trip.time && (s.offsetMinutes ?? 0) > 0 ? calcTime(trip.time, s.offsetMinutes ?? 0) : null,
             isEndpoint: false,
+            description: s.description,
           });
         });
     }
@@ -1069,6 +1070,7 @@ function TripConfirmPanel({
                             stop.isEndpoint ? "font-semibold text-gray-800" : "font-medium text-gray-600"
                           )}>{stop.name}</span>
                         </div>
+                        {stop.description && <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{stop.description}</p>}
                       </div>
                     </div>
                   ))}
