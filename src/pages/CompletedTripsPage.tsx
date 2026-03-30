@@ -403,11 +403,22 @@ export function CompletedTripsPage({
               )}
               {(showTripAddons.addons || []).map((addon: TripAddon) => (
                 <div key={addon.id} className={`flex items-start justify-between bg-gray-50 rounded-xl p-4 ${isAdmin ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
+                  role={isAdmin ? 'button' : undefined}
+                  tabIndex={isAdmin ? 0 : undefined}
                   onClick={isAdmin ? () => {
                     setEditingAddonId(addon.id);
                     setTripAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
                     setShowAddTripAddon(true);
                     setAddonUploadError(null);
+                  } : undefined}
+                  onKeyDown={isAdmin ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditingAddonId(addon.id);
+                      setTripAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
+                      setShowAddTripAddon(true);
+                      setAddonUploadError(null);
+                    }
                   } : undefined}
                 >
                   <div className="flex-1">
