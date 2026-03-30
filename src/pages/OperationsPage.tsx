@@ -60,8 +60,8 @@ interface OperationsPageProps {
   batchTripLoading: boolean;
   batchAddonServices: import('../types').TripAddon[];
   setBatchAddonServices: React.Dispatch<React.SetStateAction<import('../types').TripAddon[]>>;
-  batchAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' };
-  setBatchAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' }>>;
+  batchAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] };
+  setBatchAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] }>>;
   showBatchAddonForm: boolean;
   setShowBatchAddonForm: (v: boolean) => void;
   isSavingTrip: boolean;
@@ -71,8 +71,8 @@ interface OperationsPageProps {
   setShowTripAddons: React.Dispatch<React.SetStateAction<Trip | null>>;
   showAddTripAddon: boolean;
   setShowAddTripAddon: (v: boolean) => void;
-  tripAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' };
-  setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' }>>;
+  tripAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] };
+  setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] }>>;
   tripColWidths: { time: number; licensePlate: number; route: number; driver: number; status: number; options: number };
   setTripColWidths: React.Dispatch<React.SetStateAction<{ time: number; licensePlate: number; route: number; driver: number; status: number; options: number }>>;
   tripColVisibility: { time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; seats: boolean; passengers: boolean; addons: boolean };
@@ -103,6 +103,7 @@ interface OperationsPageProps {
   handleDeletePassenger: (seatId: string) => void;
   handleAddTripAddon: () => void;
   handleDeleteTripAddon: (addonId: string) => void;
+  uploadAddonImage?: (file: File) => Promise<string>;
   exportTripToExcelHandler: (trip: any) => void;
   exportAllTripsToExcelHandler: (trips: Trip[]) => void;
   exportTripToPDFHandler: (trip: any) => void;
@@ -218,6 +219,7 @@ export function OperationsPage({
   handleDeletePassenger,
   handleAddTripAddon,
   handleDeleteTripAddon,
+  uploadAddonImage,
   exportTripToExcelHandler,
   exportAllTripsToExcelHandler,
   exportTripToPDFHandler,
@@ -246,6 +248,22 @@ export function OperationsPage({
   const [showMergeConfirm, setShowMergeConfirm] = React.useState(false);
   const [currentTripPage, setCurrentTripPage] = React.useState(1);
   const TRIPS_PER_PAGE = 50;
+  const [addonImageUploading, setAddonImageUploading] = React.useState(false);
+
+  const handleAddonImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setForm: (updater: (p: any) => any) => void) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadAddonImage) return;
+    setAddonImageUploading(true);
+    try {
+      const url = await uploadAddonImage(file);
+      setForm((p: any) => ({ ...p, images: [...(p.images || []), url] }));
+    } catch (err) {
+      console.error('Addon image upload failed:', err);
+    } finally {
+      setAddonImageUploading(false);
+      e.target.value = '';
+    }
+  };
 
   // Seat lock modal state
   const [lockSeatsTrip, setLockSeatsTrip] = React.useState<Trip | null>(null);
@@ -432,7 +450,7 @@ export function OperationsPage({
             <Download size={16} />
             {language === 'vi' ? 'Xuất Excel tất cả' : 'Export All Excel'}
           </button>
-          <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); setBatchAddonServices([]); setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); setShowBatchAddonForm(false); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
+          <button onClick={() => { setShowBatchAddTrip(true); setBatchTripForm({ dateFrom: '', dateTo: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, seatCount: 11 }); setBatchTimeSlots(['']); setBatchAddonServices([]); setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); setShowBatchAddonForm(false); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">⚡ {t.batch_add_trips}</button>
           <button onClick={() => { setShowAddTrip(true); setEditingTrip(null); setTripForm({ time: '', date: '', route: '', licensePlate: '', driverName: '', price: 0, agentPrice: 0, discountPercent: 0, seatCount: 11, status: TripStatus.WAITING }); }} className="bg-daiichi-red text-white px-4 py-2 rounded-lg font-bold">+ {t.add_trip}</button>
         </div>
       </div>
@@ -604,7 +622,7 @@ export function OperationsPage({
               </div>
               <div className="space-y-2">
                 {batchAddonServices.map(addon => (
-                  <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                  <div key={addon.id} className="flex items-start justify-between bg-gray-50 rounded-xl px-4 py-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm">{addon.name}</span>
@@ -612,8 +630,15 @@ export function OperationsPage({
                       </div>
                       {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
                       <p className="text-sm font-bold text-daiichi-red mt-0.5">+{addon.price.toLocaleString()}đ</p>
+                      {(addon.images || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(addon.images || []).map((img, i) => (
+                            <img key={i} src={img} alt="" className="w-12 h-12 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => setBatchAddonServices(prev => prev.filter(a => a.id !== addon.id))} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>
+                    <button onClick={() => setBatchAddonServices(prev => prev.filter(a => a.id !== addon.id))} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"><Trash2 size={16} /></button>
                   </div>
                 ))}
                 {showBatchAddonForm ? (
@@ -630,17 +655,35 @@ export function OperationsPage({
                         </select>
                       </div>
                       <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={batchAddonForm.description} onChange={e => setBatchAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                      {/* Image upload */}
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Hình ảnh dịch vụ' : language === 'ja' ? 'サービス画像' : 'Service Images'}</label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(batchAddonForm.images || []).map((img, i) => (
+                            <div key={i} className="relative">
+                              <img src={img} alt="" className="w-16 h-16 object-cover rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
+                              <button type="button" onClick={() => setBatchAddonForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✕</button>
+                            </div>
+                          ))}
+                          {uploadAddonImage && (
+                            <label className={`w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red transition-colors ${addonImageUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                              {addonImageUploading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-xl leading-none">+</span>}
+                              <input type="file" accept="image/*" className="hidden" disabled={addonImageUploading} onChange={e => handleAddonImageUpload(e, setBatchAddonForm)} />
+                            </label>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => { setShowBatchAddonForm(false); setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                      <button onClick={() => { setShowBatchAddonForm(false); setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); }} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
                       <button
                         onClick={() => {
                           if (!batchAddonForm.name) return;
                           setBatchAddonServices(prev => [...prev, { id: crypto.randomUUID(), ...batchAddonForm }]);
-                          setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER' });
+                          setBatchAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] });
                           setShowBatchAddonForm(false);
                         }}
-                        disabled={!batchAddonForm.name}
+                        disabled={!batchAddonForm.name || addonImageUploading}
                         className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50"
                       >{t.save}</button>
                     </div>
@@ -726,7 +769,7 @@ export function OperationsPage({
                 <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
               )}
               {(showTripAddons.addons || []).map(addon => (
-                <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                <div key={addon.id} className="flex items-start justify-between bg-gray-50 rounded-xl p-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm">{addon.name}</span>
@@ -734,8 +777,15 @@ export function OperationsPage({
                     </div>
                     {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
                     <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
+                    {(addon.images || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(addon.images || []).map((img, i) => (
+                          <img key={i} src={img} alt="" className="w-14 h-14 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>}
+                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"><Trash2 size={16} /></button>}
                 </div>
               ))}
               {showAddTripAddon ? (
@@ -752,10 +802,28 @@ export function OperationsPage({
                       </select>
                     </div>
                     <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    {/* Image upload */}
+                    <div className="col-span-2">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Hình ảnh dịch vụ' : language === 'ja' ? 'サービス画像' : 'Service Images'}</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(tripAddonForm.images || []).map((img, i) => (
+                          <div key={i} className="relative">
+                            <img src={img} alt="" className="w-16 h-16 object-cover rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
+                            <button type="button" onClick={() => setTripAddonForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✕</button>
+                          </div>
+                        ))}
+                        {uploadAddonImage && (
+                          <label className={`w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red transition-colors ${addonImageUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {addonImageUploading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-xl leading-none">+</span>}
+                            <input type="file" accept="image/*" className="hidden" disabled={addonImageUploading} onChange={e => handleAddonImageUpload(e, setTripAddonForm)} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
+                    <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name || addonImageUploading} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
                   </div>
                 </div>
               ) : (
@@ -1352,7 +1420,7 @@ export function OperationsPage({
                     </button>
                   </td>}
                   {tripColVisibility.addons && <td className="px-6 py-4">
-                    <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
+                    <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
                       <span>{(trip.addons || []).length}</span>
                       <span>{t.manage_addons}</span>
                     </button>

@@ -295,6 +295,7 @@ export interface TripAddon {
   price: number;
   description?: string;
   type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER';
+  images?: string[];
 }
 
 export interface Trip {

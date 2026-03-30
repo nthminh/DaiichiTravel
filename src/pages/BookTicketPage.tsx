@@ -3087,17 +3087,26 @@ export function BookTicketPage({
             <p className="text-sm text-gray-500">{showAddonDetailTrip.time} · {showAddonDetailTrip.route}</p>
             <div className="space-y-3">
               {(showAddonDetailTrip.addons || []).map((addon: TripAddon) => (
-                <div key={addon.id} className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm text-gray-800">{addon.name}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
-                        {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
-                      </span>
+                <div key={addon.id} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-gray-800">{addon.name}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
+                          {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
+                        </span>
+                      </div>
+                      {addon.description && <p className="text-xs text-gray-500 mt-1">{addon.description}</p>}
                     </div>
-                    {addon.description && <p className="text-xs text-gray-500 mt-1">{addon.description}</p>}
+                    <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
                   </div>
-                  <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                  {(addon.images || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {(addon.images || []).map((img, i) => (
+                        <img key={i} src={img} alt={addon.name} className="w-full rounded-xl object-cover max-h-48" referrerPolicy="no-referrer" />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
