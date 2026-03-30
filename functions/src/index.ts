@@ -5,6 +5,7 @@ import { logger } from 'firebase-functions/v2';
 import * as nodemailer from 'nodemailer';
 import { sanitize } from 'isomorphic-dompurify';
 import ExcelJS from 'exceljs';
+import { createHmac } from 'crypto';
 
 /**
  * Sanitize a user-supplied value for safe inclusion in HTML content or plain-text
@@ -1002,6 +1003,241 @@ export const exportGenericExcel = https.onCall(
       const msg = err instanceof Error ? err.message : String(err);
       logger.error('[exportGenericExcel] Failed to build workbook', { filename, error: msg });
       throw new https.HttpsError('internal', 'Failed to generate Excel file.');
+    }
+  },
+);
+
+// ─── OnePay IPN helpers ───────────────────────────────────────────────────────
+
+/**
+ * Build the query-string data that OnePay requires to compute or verify
+ * the HMAC-SHA256 signature.  Rules per the OnePay technical specification:
+ *   1. Keep only keys starting with `vpc_` or `user_`
+ *   2. Exclude `vpc_SecureHash` and `vpc_SecureHashType`
+ *   3. Sort keys alphabetically (case-sensitive, lexicographic)
+ *   4. Join as `key=value&…` — values are NOT URL-encoded
+ */
+function buildOnepayHashData(params: Record<string, string>): string {
+  return Object.keys(params)
+    .filter(
+      k =>
+        (k.startsWith('vpc_') || k.startsWith('user_')) &&
+        k !== 'vpc_SecureHash' &&
+        k !== 'vpc_SecureHashType',
+    )
+    .sort()
+    .map(k => `${k}=${params[k]}`)
+    .join('&');
+}
+
+/**
+ * Verify the OnePay HMAC-SHA256 signature using the Node.js `crypto` module.
+ *
+ * @param hexKey       Merchant hash-secret in hex format (ONEPAY_HASH_KEY secret)
+ * @param message      Pre-built hash-data string (from buildOnepayHashData)
+ * @param receivedHash The vpc_SecureHash value provided by OnePay
+ * @returns            true if the computed hash matches the received hash
+ */
+function verifyOnepayHmac(
+  hexKey: string,
+  message: string,
+  receivedHash: string,
+): boolean {
+  if (
+    !hexKey ||
+    hexKey.length === 0 ||
+    hexKey.length % 2 !== 0 ||
+    !/^[0-9A-Fa-f]+$/.test(hexKey)
+  ) {
+    return false;
+  }
+  const keyBuffer = Buffer.from(hexKey, 'hex');
+  const computed = createHmac('sha256', keyBuffer)
+    .update(message, 'utf8')
+    .digest('hex')
+    .toUpperCase();
+  return computed === receivedHash.toUpperCase();
+}
+
+// ─── onepayIpn – HTTP request handler ────────────────────────────────────────
+
+/**
+ * OnePay IPN (Instant Payment Notification) endpoint.
+ *
+ * OnePay calls this URL after every transaction to deliver the final result.
+ * The merchant must:
+ *   1. Accept both GET (query-string) and POST (application/x-www-form-urlencoded).
+ *   2. Verify the HMAC-SHA256 signature in `vpc_SecureHash`.
+ *   3. Validate transaction data integrity (amount, order existence).
+ *   4. Update the `pendingPayments/{orderId}` Firestore document.
+ *   5. Reply HTTP 200 + body `responsecode=1&desc=confirm-success` on success.
+ *   6. Reply HTTP ≠ 200 + body `responsecode=0&desc=confirm-fail` on failure
+ *      so OnePay activates its retry mechanism (3 retries, ~50 s apart).
+ *
+ * Important: do NOT hard-code which vpc_* parameters are expected — OnePay
+ * may include or omit fields depending on the transaction type, which would
+ * otherwise cause NullPointer-style exceptions.
+ *
+ * Required Firebase Secret:
+ *   ONEPAY_HASH_KEY — HMAC-SHA256 hex secret issued by OnePay
+ *
+ * Configure the deployed function URL in the OnePay merchant portal as the
+ * static IPN URL, and/or pass it as `vpc_CallbackURL` in each payment request
+ * for dynamic IPN routing.
+ */
+export const onepayIpn = https.onRequest(
+  {
+    region: 'asia-southeast1',
+    cors: false,
+    secrets: ['ONEPAY_HASH_KEY'],
+  },
+  async (req, res) => {
+    // 1. Only GET and POST are accepted per the OnePay specification.
+    if (req.method !== 'GET' && req.method !== 'POST') {
+      res.status(405).type('text/plain').send('responsecode=0&desc=confirm-fail');
+      return;
+    }
+
+    // 2. Flatten all parameters into a plain Record<string, string>.
+    //    GET  → query-string values in req.query
+    //    POST → form-body values in req.body (parsed by Express middleware)
+    const source: Record<string, unknown> =
+      req.method === 'GET'
+        ? (req.query as Record<string, unknown>)
+        : ((req.body as Record<string, unknown>) ?? {});
+
+    const params: Record<string, string> = {};
+    for (const [key, val] of Object.entries(source)) {
+      if (typeof val === 'string') {
+        params[key] = val;
+      } else if (Array.isArray(val) && typeof val[0] === 'string') {
+        // Take the first value when duplicate query-string keys appear.
+        params[key] = val[0] as string;
+      }
+    }
+
+    const orderId = params['vpc_MerchTxnRef'] ?? '';
+    logger.info('[onepayIpn] IPN received', {
+      method: req.method,
+      orderId,
+      responseCode: params['vpc_TxnResponseCode'],
+    });
+
+    // 3. Verify the HMAC-SHA256 signature — vpc_SecureHash is mandatory.
+    const receivedHash = params['vpc_SecureHash'];
+    if (!receivedHash) {
+      logger.warn('[onepayIpn] Missing vpc_SecureHash', { orderId });
+      res.status(400).type('text/plain').send('responsecode=0&desc=confirm-fail');
+      return;
+    }
+
+    const hashKey = process.env.ONEPAY_HASH_KEY;
+    if (!hashKey) {
+      logger.error('[onepayIpn] ONEPAY_HASH_KEY secret is not configured');
+      res.status(500).type('text/plain').send('responsecode=0&desc=confirm-fail');
+      return;
+    }
+
+    const hashData = buildOnepayHashData(params);
+    if (!verifyOnepayHmac(hashKey, hashData, receivedHash)) {
+      logger.warn('[onepayIpn] Signature verification failed', { orderId });
+      res.status(400).type('text/plain').send('responsecode=0&desc=confirm-fail');
+      return;
+    }
+
+    // 4. Validate orderId: must be non-empty and free of characters that are
+    //    invalid in Firestore document IDs (forward slash, leading dots).
+    if (!orderId || orderId.includes('/') || orderId === '.' || orderId === '..') {
+      logger.warn('[onepayIpn] Invalid or missing vpc_MerchTxnRef', { orderId });
+      res.status(400).type('text/plain').send('responsecode=0&desc=confirm-fail');
+      return;
+    }
+
+    const responseCode = params['vpc_TxnResponseCode'] ?? '';
+    const transactionNo = params['vpc_TransactionNo'] ?? '';
+    // vpc_Amount is in the smallest currency unit (VND × 100).
+    // Compare as integers to avoid floating-point precision issues.
+    const rawAmountStr = params['vpc_Amount'] ?? '';
+    const rawAmount = parseInt(rawAmountStr, 10);
+    if (isNaN(rawAmount)) {
+      logger.warn('[onepayIpn] Invalid vpc_Amount', { orderId, raw: rawAmountStr });
+      res.status(400).type('text/plain').send('responsecode=0&desc=confirm-fail');
+      return;
+    }
+    const amount = rawAmount / 100;
+
+    /** Helper: mark the payment as CANCELLED and persist to Firestore. */
+    const cancelPayment = (docRef: admin.firestore.DocumentReference) =>
+      docRef.update({
+        status: 'CANCELLED',
+        confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+    const db = admin.firestore();
+    try {
+      const paymentDocRef = db.collection('pendingPayments').doc(orderId);
+      const paymentSnap = await paymentDocRef.get();
+
+      // 5. Unknown order: acknowledge receipt so OnePay stops retrying.
+      if (!paymentSnap.exists) {
+        logger.warn('[onepayIpn] Payment document not found', { orderId });
+        res.status(200).type('text/plain').send('responsecode=1&desc=confirm-success');
+        return;
+      }
+
+      const paymentData = paymentSnap.data() as Record<string, unknown>;
+
+      // 6. Idempotency: already-processed payments must not be double-counted.
+      if (paymentData['status'] !== 'PENDING') {
+        logger.info('[onepayIpn] Already processed', {
+          orderId,
+          status: paymentData['status'],
+        });
+        res.status(200).type('text/plain').send('responsecode=1&desc=confirm-success');
+        return;
+      }
+
+      const isSuccess = responseCode === '0';
+
+      if (isSuccess) {
+        // 7a. Verify amount integrity before confirming the payment.
+        //     Compare raw integer amounts (vpc_Amount units) to avoid FP precision issues.
+        const expectedAmount =
+          typeof paymentData['expectedAmount'] === 'number'
+            ? (paymentData['expectedAmount'] as number)
+            : 0;
+        const expectedRaw = Math.round(expectedAmount * 100);
+
+        if (expectedRaw > 0 && rawAmount !== expectedRaw) {
+          logger.warn('[onepayIpn] Amount mismatch – cancelling payment', {
+            orderId,
+            expectedRaw,
+            receivedRaw: rawAmount,
+          });
+          await cancelPayment(paymentDocRef);
+          res.status(200).type('text/plain').send('responsecode=1&desc=confirm-success');
+          return;
+        }
+
+        // 7b. Confirm the payment as PAID.
+        await paymentDocRef.update({
+          status: 'PAID',
+          paidAmount: amount,
+          paidContent: transactionNo,
+          confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        logger.info('[onepayIpn] Payment confirmed', { orderId, amount, transactionNo });
+      } else {
+        // 7c. Transaction failed at the bank / OnePay — mark as CANCELLED.
+        await cancelPayment(paymentDocRef);
+        logger.info('[onepayIpn] Payment failed', { orderId, responseCode });
+      }
+
+      res.status(200).type('text/plain').send('responsecode=1&desc=confirm-success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('[onepayIpn] Database error', { orderId, error: msg });
+      res.status(500).type('text/plain').send('responsecode=0&desc=confirm-fail');
     }
   },
 );
