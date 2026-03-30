@@ -54,12 +54,12 @@ export const BANK_CONFIG: BankConfig = {
  * Returns empty string so the <img> tag will fail and the SVG QR fallback is shown.
  * (OnePay does not expose a public QR image API like VietQR does.)
  */
-export function generateVietQrUrl(_params: {
+export function generatePaymentQrUrl(_params: {
   amount: number;
   description: string;
   accountName?: string;
 }): string {
-  // Return empty so PaymentQRModal falls back to the QRCodeSVG with generateVietQrString()
+  // Return empty so PaymentQRModal falls back to the QRCodeSVG with generatePaymentQrString()
   return '';
 }
 
@@ -68,7 +68,7 @@ export function generateVietQrUrl(_params: {
  * In demo mode this produces a simulated OnePay payment URL that can be scanned
  * to inspect the payment details (no real transaction is triggered).
  */
-export function generateVietQrString(params: {
+export function generatePaymentQrString(params: {
   amount: number;
   description: string;
 }): string {
@@ -87,3 +87,8 @@ export function generateVietQrString(params: {
     `&vpc_Locale=vn`
   );
 }
+
+/** @deprecated Use generatePaymentQrUrl instead */
+export const generateVietQrUrl = generatePaymentQrUrl;
+/** @deprecated Use generatePaymentQrString instead */
+export const generateVietQrString = generatePaymentQrString;

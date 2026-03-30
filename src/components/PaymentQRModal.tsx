@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constants/bankConfig';
+import { BANK_CONFIG, generatePaymentQrUrl, generatePaymentQrString } from '../constants/bankConfig';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 
@@ -108,8 +108,8 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const timerIsUrgent = secondsLeft <= 60; // last 1 minute
 
   const description = `${paymentRef}${bookingLabel ? ' ' + bookingLabel : ''}`;
-  const qrImageUrl = generateVietQrUrl({ amount, description });
-  const qrString = generateVietQrString({ amount, description });
+  const qrImageUrl = generatePaymentQrUrl({ amount, description });
+  const qrString = generatePaymentQrString({ amount, description });
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(paymentRef).then(() => {
@@ -380,10 +380,10 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
   const description = `NAP TIEN DAI LY ${agentCode}`;
 
   const qrImageUrl = showQr && topUpAmount > 0
-    ? generateVietQrUrl({ amount: topUpAmount, description })
+    ? generatePaymentQrUrl({ amount: topUpAmount, description })
     : '';
   const qrString = showQr && topUpAmount > 0
-    ? generateVietQrString({ amount: topUpAmount, description })
+    ? generatePaymentQrString({ amount: topUpAmount, description })
     : '';
 
   const handleCopy = () => {
