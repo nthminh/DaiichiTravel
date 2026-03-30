@@ -3,11 +3,11 @@ import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constants/bankConfig';
+import { BANK_CONFIG, generatePaymentQrUrl, generatePaymentQrString } from '../constants/bankConfig';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 
-const PAYMENT_TIMEOUT_SECONDS = 3 * 60; // 3 minutes
+const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
 const AUTO_CONFIRM_DELAY_MS = 1200; // brief visual feedback before auto-confirming from Firestore
 const MANUAL_CONFIRM_DELAY_MS = 600; // simulated processing delay for manual confirm button
@@ -51,7 +51,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
-  // 3-minute countdown timer
+  // 30-minute countdown timer
   useEffect(() => {
     const intervalId = setInterval(() => {
       setSecondsLeft(prev => {
@@ -108,8 +108,8 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const timerIsUrgent = secondsLeft <= 60; // last 1 minute
 
   const description = `${paymentRef}${bookingLabel ? ' ' + bookingLabel : ''}`;
-  const qrImageUrl = generateVietQrUrl({ amount, description });
-  const qrString = generateVietQrString({ amount, description });
+  const qrImageUrl = generatePaymentQrUrl({ amount, description });
+  const qrString = generatePaymentQrString({ amount, description });
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(paymentRef).then(() => {
@@ -242,7 +242,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                 {/* Try VietQR image first, fallback to QRCodeSVG */}
                 <img
                   src={qrImageUrl}
-                  alt="VietQR payment code"
+                  alt="OnePay payment QR code"
                   className="w-48 h-48 object-contain"
                   onError={(e) => {
                     // On error (network or API unavailable), hide the image
@@ -380,10 +380,10 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
   const description = `NAP TIEN DAI LY ${agentCode}`;
 
   const qrImageUrl = showQr && topUpAmount > 0
-    ? generateVietQrUrl({ amount: topUpAmount, description })
+    ? generatePaymentQrUrl({ amount: topUpAmount, description })
     : '';
   const qrString = showQr && topUpAmount > 0
-    ? generateVietQrString({ amount: topUpAmount, description })
+    ? generatePaymentQrString({ amount: topUpAmount, description })
     : '';
 
   const handleCopy = () => {
