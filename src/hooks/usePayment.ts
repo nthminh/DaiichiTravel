@@ -762,8 +762,20 @@ export function usePayment(ctx: BookingContext) {
           const capturedReturnTripId = c.selectedTrip.id;
           const capturedReturnSeatIds = [...allSeatIds];
 
+          // Create pending payment record in Firestore for round-trip booking
+          transportService.createPendingPayment({
+            paymentRef: paymentReference,
+            expectedAmount: combinedAmount,
+            customerName: bookingData.customerName,
+            routeInfo: `${outboundLeg.bookingData.route ?? ''} ↔ ${bookingData.route ?? ''}`,
+            tripId: c.selectedTrip.id,
+          }).catch(err => console.error('[pendingPayment] create error:', err));
+
           const releaseAllReservations = async () => {
             const ctx2 = ctxRef.current;
+            // Clean up the pending payment record
+            transportService.deletePendingPayment(paymentReference)
+              .catch(err => console.error('[pendingPayment] delete error:', err));
             await Promise.all([
               transportService.releaseSeats(capturedOutboundTripId, capturedOutboundSeatIds),
               transportService.releaseSeats(capturedReturnTripId, capturedReturnSeatIds),
@@ -791,6 +803,9 @@ export function usePayment(ctx: BookingContext) {
           const saveBothBookingsAfterReservation = async () => {
             const ctx2 = ctxRef.current;
             const capturedLeg = capturedOutboundRef.current!;
+            // Clean up the pending payment record
+            transportService.deletePendingPayment(paymentReference)
+              .catch(err => console.error('[pendingPayment] delete error:', err));
 
             const savedOutbound = await saveSingleBooking(
               { ...capturedLeg.bookingData, paymentStatus: 'PAID' },
@@ -1015,9 +1030,22 @@ export function usePayment(ctx: BookingContext) {
         ? { fromStopOrder, toStopOrder }
         : undefined;
 
+      // Create a pending payment record in Firestore so the QR modal can detect
+      // payment confirmation in real-time (auto-verify amount & content).
+      transportService.createPendingPayment({
+        paymentRef: paymentReference,
+        expectedAmount: totalAmount,
+        customerName: bookingData.customerName,
+        routeInfo: bookingData.route ?? '',
+        tripId: c.selectedTrip.id,
+      }).catch(err => console.error('[pendingPayment] create error:', err));
+
       // Release reserved seats when the user cancels or the 3-min timer expires
       const releaseReservation = async () => {
         const ctx2 = ctxRef.current;
+        // Clean up the pending payment record
+        transportService.deletePendingPayment(paymentReference)
+          .catch(err => console.error('[pendingPayment] delete error:', err));
         await transportService.releaseSeats(capturedTripId, capturedSeatIds, capturedSegmentInfo)
           .catch(err => console.error('Failed to release reserved seats:', err));
         // Reverse the optimistic UI update
@@ -1035,6 +1063,9 @@ export function usePayment(ctx: BookingContext) {
       // saveBookingAfterReservation only creates the booking doc; seats already reserved
       const saveBookingAfterReservation = async () => {
         const ctx2 = ctxRef.current;
+        // Clean up the pending payment record now that it's been confirmed
+        transportService.deletePendingPayment(paymentReference)
+          .catch(err => console.error('[pendingPayment] delete error:', err));
         try {
           const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID' });
           const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };

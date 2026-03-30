@@ -1,14 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import {
   CreditCard, Search, Filter, Download, CheckCircle,
   Clock, XCircle, Users, TrendingUp, Wallet, QrCode,
   ChevronDown, ChevronUp, Pencil, X, ChevronLeft, ChevronRight,
+  Zap, AlertTriangle, FlaskConical,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatDateVN } from '../lib/vnDate';
 import { Language, TRANSLATIONS, User, UserRole } from '../App';
-import { Agent } from '../types';
+import { Agent, PendingPayment } from '../types';
 import { AgentTopUpQRModal } from '../components/PaymentQRModal';
 import { transportService } from '../services/transportService';
 import { NotePopover } from '../components/NotePopover';
@@ -204,6 +205,77 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     if (isNaN(val)) return;
     onUpdateAgent(editBalanceAgent.id, { balance: val });
     setEditBalanceAgent(null);
+  };
+
+  // ── Payment Test Simulator ─────────────────────────────────────────────────
+  const [pendingPayments, setPendingPayments] = useState<PendingPayment[]>([]);
+  const [simulatorRef, setSimulatorRef] = useState('');
+  const [simulatorAmount, setSimulatorAmount] = useState('');
+  const [simulatorContent, setSimulatorContent] = useState('');
+  const [simulatorError, setSimulatorError] = useState('');
+  const [simulatorSuccess, setSimulatorSuccess] = useState('');
+  const [simulatorLoading, setSimulatorLoading] = useState(false);
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+
+  // Subscribe to pending payments in real-time
+  useEffect(() => {
+    const unsub = transportService.subscribeToPendingPayments(setPendingPayments);
+    return unsub;
+  }, []);
+
+  // Auto-fill amount when a pending payment is selected
+  const handleSelectPendingPayment = useCallback((p: PendingPayment) => {
+    setSimulatorRef(p.paymentRef);
+    setSimulatorAmount(String(p.expectedAmount));
+    setSimulatorContent(p.paymentRef);
+    setSimulatorError('');
+    setSimulatorSuccess('');
+  }, []);
+
+  const handleSimulatePayment = async () => {
+    setSimulatorError('');
+    setSimulatorSuccess('');
+    const ref = simulatorRef.trim().toUpperCase();
+    const amt = parseFloat(simulatorAmount);
+    const content = simulatorContent.trim();
+
+    if (!ref) {
+      setSimulatorError(language === 'vi' ? 'Vui lòng nhập mã thanh toán.' : 'Please enter payment reference.');
+      return;
+    }
+    if (isNaN(amt) || amt <= 0) {
+      setSimulatorError(language === 'vi' ? 'Vui lòng nhập số tiền hợp lệ.' : 'Please enter a valid amount.');
+      return;
+    }
+
+    // Find the corresponding pending payment to verify amount
+    const pending = pendingPayments.find(p => p.paymentRef.toUpperCase() === ref);
+    if (!pending) {
+      setSimulatorError(
+        language === 'vi'
+          ? `Không tìm thấy giao dịch chờ với mã "${ref}". Hãy chắc chắn khách hàng đang ở màn hình thanh toán.`
+          : `No pending payment found for "${ref}". Make sure the customer is on the payment screen.`
+      );
+      return;
+    }
+
+    setSimulatorLoading(true);
+    try {
+      await transportService.confirmPendingPayment(ref, amt, content || ref);
+      setSimulatorSuccess(
+        language === 'vi'
+          ? `✅ Đã xác nhận thanh toán ${amt.toLocaleString('vi-VN')}đ cho mã "${ref}". App sẽ tự động cập nhật.`
+          : `✅ Payment of ${amt.toLocaleString()} confirmed for "${ref}". App will update automatically.`
+      );
+      setSimulatorRef('');
+      setSimulatorAmount('');
+      setSimulatorContent('');
+    } catch (err) {
+      console.error('Simulator error:', err);
+      setSimulatorError(language === 'vi' ? 'Lỗi khi xác nhận thanh toán. Vui lòng thử lại.' : 'Error confirming payment. Please try again.');
+    } finally {
+      setSimulatorLoading(false);
+    }
   };
 
   // ── Export to CSV ─────────────────────────────────────────────────────────
@@ -781,6 +853,188 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
           language={language}
           onClose={() => setTopUpAgent(null)}
         />
+      )}
+
+      {/* ── Payment Test Simulator (manager only) ─────────────────────────── */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Section header */}
+          <button
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+            onClick={() => setSimulatorOpen(o => !o)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-purple-50 rounded-xl flex items-center justify-center">
+                <FlaskConical size={18} className="text-purple-600" />
+              </div>
+              <div className="text-left">
+                <p className="font-bold text-gray-800 text-sm">
+                  {language === 'vi' ? 'Mô phỏng thanh toán (Thử nghiệm)' : 'Payment Simulator (Test)'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {language === 'vi'
+                    ? `${pendingPayments.length} giao dịch QR đang chờ xác nhận`
+                    : `${pendingPayments.length} QR transaction(s) awaiting confirmation`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {pendingPayments.length > 0 && (
+                <span className="w-5 h-5 bg-purple-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {pendingPayments.length}
+                </span>
+              )}
+              {simulatorOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+            </div>
+          </button>
+
+          {simulatorOpen && (
+            <div className="border-t border-gray-100 p-5 space-y-5">
+              {/* Pending payments list */}
+              {pendingPayments.length > 0 ? (
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+                    {language === 'vi' ? 'Giao dịch đang chờ' : 'Pending Transactions'}
+                  </p>
+                  <div className="space-y-2">
+                    {pendingPayments.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleSelectPendingPayment(p)}
+                        className={cn(
+                          'w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all hover:bg-purple-50',
+                          simulatorRef.toUpperCase() === p.paymentRef.toUpperCase()
+                            ? 'border-purple-400 bg-purple-50'
+                            : 'border-gray-200 bg-gray-50'
+                        )}
+                      >
+                        <div>
+                          <p className="font-bold text-gray-800 text-sm font-mono">{p.paymentRef}</p>
+                          <p className="text-xs text-gray-500">{p.customerName} · {p.routeInfo}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-purple-700 text-sm">{p.expectedAmount.toLocaleString('vi-VN')}đ</p>
+                          <p className="text-[10px] text-gray-400">
+                            {language === 'vi' ? 'Nhấn để chọn' : 'Click to select'}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-400 text-sm">
+                  <QrCode size={32} className="mx-auto mb-2 opacity-30" />
+                  <p>
+                    {language === 'vi'
+                      ? 'Không có giao dịch QR nào đang chờ.'
+                      : 'No pending QR transactions.'}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {language === 'vi'
+                      ? 'Giao dịch sẽ xuất hiện khi khách hàng đến màn hình thanh toán.'
+                      : 'Transactions appear when a customer reaches the payment screen.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Simulator form */}
+              <div className="bg-purple-50 rounded-2xl p-4 space-y-3 border border-purple-100">
+                <p className="text-xs font-bold text-purple-700 uppercase tracking-widest">
+                  {language === 'vi' ? 'Nhập thông tin thanh toán' : 'Enter Payment Details'}
+                </p>
+
+                <div className="space-y-2">
+                  <label className="block text-xs text-gray-500 font-medium">
+                    {language === 'vi' ? 'Mã thanh toán (paymentRef)' : 'Payment Reference'}
+                  </label>
+                  <input
+                    type="text"
+                    value={simulatorRef}
+                    onChange={e => {
+                      setSimulatorRef(e.target.value.toUpperCase());
+                      setSimulatorContent(e.target.value.toUpperCase());
+                      setSimulatorError('');
+                      setSimulatorSuccess('');
+                    }}
+                    placeholder="DT-ABC123"
+                    className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs text-gray-500 font-medium">
+                    {language === 'vi' ? 'Số tiền (VNĐ)' : 'Amount (VND)'}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={simulatorAmount}
+                    onChange={e => {
+                      setSimulatorAmount(e.target.value);
+                      setSimulatorError('');
+                      setSimulatorSuccess('');
+                    }}
+                    placeholder="500000"
+                    className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs text-gray-500 font-medium">
+                    {language === 'vi' ? 'Nội dung chuyển khoản' : 'Transfer Description'}
+                  </label>
+                  <input
+                    type="text"
+                    value={simulatorContent}
+                    onChange={e => {
+                      setSimulatorContent(e.target.value.toUpperCase());
+                      setSimulatorError('');
+                      setSimulatorSuccess('');
+                    }}
+                    placeholder={language === 'vi' ? 'Nội dung phải chứa mã vé' : 'Must contain ticket code'}
+                    className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                  />
+                  <p className="text-[10px] text-gray-400">
+                    {language === 'vi'
+                      ? 'Nội dung phải chứa mã thanh toán (ví dụ: DT-ABC123) để được xác nhận tự động.'
+                      : 'Content must include the payment ref (e.g. DT-ABC123) for auto-confirmation.'}
+                  </p>
+                </div>
+
+                {simulatorError && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-2.5">
+                    <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-red-700">{simulatorError}</p>
+                  </div>
+                )}
+
+                {simulatorSuccess && (
+                  <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl p-2.5">
+                    <CheckCircle size={13} className="text-green-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-green-700">{simulatorSuccess}</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSimulatePayment}
+                  disabled={simulatorLoading || !simulatorRef.trim() || !simulatorAmount}
+                  className={cn(
+                    'w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2',
+                    simulatorLoading || !simulatorRef.trim() || !simulatorAmount
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg shadow-purple-200'
+                  )}
+                >
+                  <Zap size={15} />
+                  {simulatorLoading
+                    ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                    : (language === 'vi' ? 'Xác nhận thanh toán (Giả lập)' : 'Confirm Payment (Simulate)')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
