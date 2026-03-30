@@ -41,6 +41,7 @@ export const DEFAULT_BATCH_ADDON_FORM = {
   price: 0,
   description: '',
   type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER',
+  images: [] as string[],
 };
 
 /**

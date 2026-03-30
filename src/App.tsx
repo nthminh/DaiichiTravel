@@ -340,7 +340,7 @@ export default function App() {
   // Trip addon management state
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
   const [showAddonDetailTrip, setShowAddonDetailTrip] = useState<Trip | null>(null);
-  const [tripAddonForm, setTripAddonForm] = useState({ name: '', price: 0, description: '', type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' });
+  const [tripAddonForm, setTripAddonForm] = useState({ name: '', price: 0, description: '', type: 'OTHER' as 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER', images: [] as string[] });
   const [showAddTripAddon, setShowAddTripAddon] = useState(false);
   // Addon quantities for the current booking: addonId -> quantity (0 means unselected)
   const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
@@ -1014,12 +1014,13 @@ export default function App() {
       price: tripAddonForm.price,
       description: tripAddonForm.description,
       type: tripAddonForm.type,
+      ...(tripAddonForm.images && tripAddonForm.images.length > 0 ? { images: tripAddonForm.images } : {}),
     };
     const updatedAddons = [...(showTripAddons.addons || []), newAddon];
     try {
       await transportService.updateTrip(showTripAddons.id, { addons: updatedAddons });
       setShowTripAddons(prev => prev ? { ...prev, addons: updatedAddons } : null);
-      setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' });
+      setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] });
       setShowAddTripAddon(false);
     } catch (err) {
       console.error('Failed to add trip addon:', err);
@@ -1035,6 +1036,23 @@ export default function App() {
     } catch (err) {
       console.error('Failed to delete trip addon:', err);
     }
+  };
+
+  const handleUploadAddonImage = async (file: File): Promise<string> => {
+    let compressed: File;
+    try {
+      compressed = await compressImage(file, 0.80, 1280);
+    } catch (err) {
+      throw new Error('Image compression failed. Please try a different image.');
+    }
+    const sRef = storageRef(storage, `addonImages/${Date.now()}_${compressed.name}`);
+    const task = uploadBytesResumable(sRef, compressed, { contentType: compressed.type });
+    return new Promise<string>((resolve, reject) => {
+      task.on('state_changed', undefined, reject, async () => {
+        const url = await getDownloadURL(task.snapshot.ref);
+        resolve(url);
+      });
+    });
   };
 
   const handleUpdateAgent = async (agentId: string, updates: any) => {
@@ -1920,6 +1938,7 @@ export default function App() {
               handleDeletePassenger={handleDeletePassenger}
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
+              uploadAddonImage={handleUploadAddonImage}
               exportTripToExcelHandler={exportTripToExcelHandler}
               exportAllTripsToExcelHandler={exportAllTripsToExcelHandler}
               exportTripToPDFHandler={exportTripToPDFHandler}
@@ -2004,6 +2023,7 @@ export default function App() {
               handleSaveTripNote={handleSaveTripNote}
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
+              uploadAddonImage={handleUploadAddonImage}
               setSelectedTrip={setSelectedTrip}
               setPreviousTab={setPreviousTab}
               setActiveTab={setActiveTab}

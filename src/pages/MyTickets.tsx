@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Ticket, MapPin, Calendar, Clock, User, Phone, QrCode, AlertCircle, Mail } from 'lucide-react';
+import { Ticket, Calendar, Clock, User, Phone, QrCode, AlertCircle, Mail, Gift, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Language, TRANSLATIONS, UserRole } from '../App';
-import { Route } from '../types';
+import { Route, TripAddon } from '../types';
 import { cn } from '../lib/utils';
 import { getJourneyStops } from '../lib/routeUtils';
 import { formatBookingDate } from '../lib/vnDate';
@@ -89,8 +89,8 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
         </div>
       )}
 
-      {/* Ticket cards */}
-      <div className="space-y-4">
+      {/* Ticket cards grid – compact on desktop like BookTicketPage */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {allTickets.map((booking, idx) => (
           <TicketCard key={booking.id || booking.ticketCode || idx} booking={booking} language={language} routes={routes} />
         ))}
@@ -145,10 +145,10 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
 // ── Individual ticket card ──────────────────────────────────────────────────
 
 const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] }> = ({ booking, language, routes = [] }) => {
-  const t = TRANSLATIONS[language];
   const isVi = language === 'vi';
   const isJa = language === 'ja';
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [addonDetail, setAddonDetail] = useState<{ trip: any; addons: TripAddon[] } | null>(null);
 
   const isFreeSeating = booking.freeSeating;
   const seatDisplay = isFreeSeating
@@ -200,172 +200,176 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
         </div>
       </div>
     )}
+
+    {/* Addon detail modal */}
+    {addonDetail && (
+      <div
+        className="fixed inset-0 z-[500] bg-black/50 flex items-center justify-center p-4"
+        onClick={() => setAddonDetail(null)}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="bg-white rounded-[28px] p-6 max-w-md w-full space-y-4 max-h-[80vh] overflow-y-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Gift size={20} className="text-emerald-600" />
+              <h3 className="text-lg font-bold text-emerald-700">
+                {isVi ? 'Dịch vụ kèm theo' : isJa ? '付帯サービス' : 'Add-on Services'}
+              </h3>
+            </div>
+            <button onClick={() => setAddonDetail(null)} className="p-2 hover:bg-gray-50 rounded-xl" aria-label={isVi ? 'Đóng' : 'Close'}>
+              <X size={20} />
+            </button>
+          </div>
+          <div className="space-y-3">
+            {addonDetail.addons.map((addon) => (
+              <div key={addon.id} className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <span className="font-bold text-sm text-gray-800">{addon.name}</span>
+                    {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                  </div>
+                  <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                </div>
+                {(addon.images || []).length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {(addon.images || []).map((img, i) => (
+                      <img key={i} src={img} alt={`${addon.name} - ${i + 1}`} className="w-full rounded-xl object-cover max-h-48" referrerPolicy="no-referrer" />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+      className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
     >
-      {/* Route image – shown at top if available; click to zoom */}
-      {routeImages.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setLightboxImage(routeImages[0])}
-          className="w-full block relative overflow-hidden aspect-video bg-gray-100 cursor-zoom-in"
-          aria-label={isVi ? 'Xem ảnh tuyến đường cỡ lớn' : isJa ? '路線画像を拡大表示' : 'View route image full size'}
-        >
-          <img
-            src={routeImages[0]}
-            alt={booking.route}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-            referrerPolicy="no-referrer"
-          />
-          <div className="absolute bottom-2 right-2 bg-black/40 rounded-full px-2 py-0.5 text-white text-[10px] font-bold">
-            🔍 {isVi ? 'Xem to' : isJa ? '拡大' : 'Zoom'}
-          </div>
-        </button>
-      )}
-
-      {/* Card header */}
-      <div className="bg-gradient-to-r from-daiichi-red to-rose-500 px-6 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">{t.ticket_code || 'Mã vé'}</p>
-          <p className="text-white font-mono font-bold text-lg">{booking.ticketCode || `#${booking.id}`}</p>
-        </div>
-        <div className={`px-3 py-1 rounded-full border text-xs font-bold ${statusColor}`}>
+      {/* Route name header */}
+      <div className="px-3 pt-2.5 pb-1.5 flex items-center justify-between gap-2 bg-gradient-to-r from-daiichi-red to-rose-500">
+        <span className="text-white/90 font-bold text-xs truncate flex-1">{booking.route}</span>
+        <div className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex-shrink-0 ${statusColor}`}>
           {statusLabel}
         </div>
       </div>
 
-      {/* Card body */}
-      <div className="px-6 py-5 space-y-4">
-        {/* Route */}
-        <div className="flex items-start gap-3">
-          <MapPin size={16} className="text-daiichi-red mt-0.5 shrink-0" />
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.trip || 'Tuyến xe'}</p>
-            <p className="font-bold text-gray-800">{booking.route}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {/* Date */}
-          <div className="flex items-start gap-2">
-            <Calendar size={14} className="text-gray-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.date || 'Ngày đi'}</p>
-              <p className="font-bold text-gray-700 text-sm">{formatBookingDate(booking.date)}</p>
+      {/* Card body: image + info side by side (md+), stacked on mobile */}
+      <div className="flex flex-col sm:flex-row flex-1">
+        {/* Left: route image */}
+        {routeImages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setLightboxImage(routeImages[0])}
+            className="sm:w-28 md:w-32 flex-shrink-0 relative overflow-hidden bg-gray-100 cursor-zoom-in aspect-video sm:aspect-auto"
+            aria-label={isVi ? 'Xem ảnh tuyến đường cỡ lớn' : isJa ? '路線画像を拡大表示' : 'View route image full size'}
+          >
+            <img
+              src={routeImages[0]}
+              alt={booking.route}
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute bottom-1 right-1 bg-black/40 rounded-full px-1.5 py-0.5 text-white text-[9px] font-bold">
+              🔍
             </div>
-          </div>
-
-          {/* Time */}
-          <div className="flex items-start gap-2">
-            <Clock size={14} className="text-gray-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.departure || 'Giờ xuất phát'}</p>
-              <p className="font-bold text-gray-700 text-sm">{booking.time}</p>
-            </div>
-          </div>
-
-          {/* Seat */}
-          <div className="flex items-start gap-2">
-            <QrCode size={14} className="text-gray-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.seat || 'Ghế'}</p>
-              <p className={`font-bold text-sm ${isFreeSeating ? 'text-blue-500' : 'text-daiichi-red'}`}>{seatDisplay}</p>
-            </div>
-          </div>
-
-          {/* Passengers */}
-          <div className="flex items-start gap-2">
-            <User size={14} className="text-gray-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.passengers || 'Hành khách'}</p>
-              <p className="font-bold text-gray-700 text-sm">
-                {booking.adults} {t.adults || 'NL'}
-                {(booking.children || 0) > 0 ? `, ${booking.children} ${t.children || 'TE'}` : ''}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Pickup/dropoff */}
-        {(booking.pickupPoint || booking.dropoffPoint) && (
-          <div className="grid grid-cols-2 gap-4 pt-1">
-            {booking.pickupPoint && (
-              <div>
-                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">{t.pickup_point || 'Điểm đón'}</p>
-                <p className="text-xs font-medium text-gray-600 leading-snug">{booking.pickupPoint}</p>
-              </div>
-            )}
-            {booking.dropoffPoint && (
-              <div>
-                <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">{t.dropoff_point || 'Điểm trả'}</p>
-                <p className="text-xs font-medium text-gray-600 leading-snug">{booking.dropoffPoint}</p>
-              </div>
-            )}
-          </div>
+          </button>
         )}
 
-        {/* Customer info */}
-        <div className="flex items-center gap-3 pt-1 border-t border-gray-50">
-          <User size={14} className="text-gray-400 shrink-0" />
-          <div>
-            <p className="font-bold text-gray-700 text-sm">{booking.customerName}</p>
-            {booking.phone && <p className="text-xs text-gray-400">{booking.phone}</p>}
+        {/* Right: ticket info */}
+        <div className="flex-1 px-4 py-3 space-y-2 min-w-0">
+          {/* Ticket code */}
+          <div className="flex items-center gap-1">
+            <QrCode size={12} className="text-gray-400 flex-shrink-0" />
+            <span className="font-mono font-bold text-xs text-daiichi-red truncate">{booking.ticketCode || `#${booking.id}`}</span>
           </div>
-        </div>
 
-        {/* Price */}
-        <div className="flex items-center justify-between p-4 bg-daiichi-accent/30 rounded-2xl">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.payment_method || 'Hình thức TT'}</p>
-            <p className="text-sm font-bold text-gray-600">{booking.paymentMethod || '-'}</p>
+          {/* Date + Time */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div className="flex items-center gap-1 min-w-0">
+              <Calendar size={11} className="text-gray-400 flex-shrink-0" />
+              <span className="text-xs font-medium text-gray-600 truncate">{formatBookingDate(booking.date)}</span>
+            </div>
+            <div className="flex items-center gap-1 min-w-0">
+              <Clock size={11} className="text-gray-400 flex-shrink-0" />
+              <span className="text-xs font-medium text-gray-600 truncate">{booking.time}</span>
+            </div>
+            {/* Seat */}
+            <div className="flex items-center gap-1 min-w-0">
+              <QrCode size={11} className="text-gray-400 flex-shrink-0" />
+              <span className={`text-xs font-bold truncate ${isFreeSeating ? 'text-blue-500' : 'text-daiichi-red'}`}>{seatDisplay || '-'}</span>
+            </div>
+            {/* Passengers */}
+            <div className="flex items-center gap-1 min-w-0">
+              <User size={11} className="text-gray-400 flex-shrink-0" />
+              <span className="text-xs font-medium text-gray-600 truncate">
+                {booking.adults}{(booking.children || 0) > 0 ? `+${booking.children}` : ''} {isVi ? 'người' : isJa ? '名' : 'pax'}
+              </span>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment || 'Tổng tiền'}</p>
-            <p className="text-2xl font-bold text-daiichi-red">{(booking.amount || 0).toLocaleString()}đ</p>
-          </div>
-        </div>
 
-        {/* Add-ons */}
-        {booking.selectedAddons && booking.selectedAddons.length > 0 && (
-          <div className="space-y-1">
-            {booking.selectedAddons.map((a: any) => (
-              <div key={a.id} className="flex justify-between text-xs text-gray-500">
-                <span>{a.name}{a.quantity > 1 ? ` ×${a.quantity}` : ''}</span>
-                <span className="font-medium text-emerald-600">+{((a.price || 0) * (a.quantity || 1)).toLocaleString()}đ</span>
-              </div>
-            ))}
+          {/* Customer name */}
+          <div className="flex items-center gap-1 min-w-0 pt-0.5 border-t border-gray-50">
+            <User size={11} className="text-gray-400 flex-shrink-0" />
+            <span className="text-xs font-semibold text-gray-700 truncate">{booking.customerName}</span>
           </div>
-        )}
 
-        {/* Journey stops row */}
-        {journeyStops.length >= 2 && (
-          <div className="pt-3 border-t border-gray-50">
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              {t.all_stops_label || 'Hành trình'}
-            </p>
-            <div className="flex flex-wrap items-center gap-1">
-              {journeyStops.map((stop, idx) => (
-                <React.Fragment key={idx}>
-                  <span className={cn(
-                    "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                    idx === 0
-                      ? "bg-daiichi-red text-white"
-                      : idx === journeyStops.length - 1
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100 text-gray-600"
-                  )}>
-                    {stop}
-                  </span>
-                  {idx < journeyStops.length - 1 && (
-                    <span className="text-gray-300 text-[10px] font-bold">→</span>
-                  )}
-                </React.Fragment>
+          {/* Price row */}
+          <div className="flex items-center justify-between pt-0.5">
+            <span className="text-[10px] text-gray-400 font-medium">{booking.paymentMethod || '-'}</span>
+            <span className="text-base font-bold text-daiichi-red">{(booking.amount || 0).toLocaleString()}đ</span>
+          </div>
+
+          {/* Add-ons – clickable tags */}
+          {booking.selectedAddons && booking.selectedAddons.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {booking.selectedAddons.map((a: any) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setAddonDetail({ trip: booking, addons: booking.selectedAddons })}
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                >
+                  <Gift size={8} className="flex-shrink-0" />
+                  <span>{a.name}</span>
+                  <span className="text-emerald-600">+{((a.price || 0) * (a.quantity || 1)).toLocaleString()}đ</span>
+                </button>
               ))}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Journey stops */}
+          {journeyStops.length >= 2 && (
+            <div className="pt-1 border-t border-gray-50">
+              <div className="flex flex-wrap items-center gap-1">
+                {journeyStops.map((stop, idx) => (
+                  <React.Fragment key={idx}>
+                    <span className={cn(
+                      "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                      idx === 0
+                        ? "bg-daiichi-red text-white"
+                        : idx === journeyStops.length - 1
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-100 text-gray-600"
+                    )}>
+                      {stop}
+                    </span>
+                    {idx < journeyStops.length - 1 && (
+                      <span className="text-gray-300 text-[9px] font-bold">→</span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
     </>

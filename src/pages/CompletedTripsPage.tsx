@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, X, Download, FileText, Users, Copy, Edit3, Trash2, SlidersHorizontal, Check } from 'lucide-react';
+import { Search, Filter, X, Download, FileText, Users, Copy, Edit3, Trash2, SlidersHorizontal, Check, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { getLocalDateString, getOffsetDayLabel } from '../lib/utils';
@@ -39,8 +39,8 @@ interface CompletedTripsPageProps {
   setShowTripAddons: React.Dispatch<React.SetStateAction<Trip | null>>;
   showAddTripAddon: boolean;
   setShowAddTripAddon: (v: boolean) => void;
-  tripAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' };
-  setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER' }>>;
+  tripAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] };
+  setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] }>>;
   tripColVisibility: { time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; seats: boolean; passengers: boolean; addons: boolean };
   tripColWidths: { time: number; licensePlate: number; route: number; driver: number; status: number; options: number };
   setTripColWidths: React.Dispatch<React.SetStateAction<{ time: number; licensePlate: number; route: number; driver: number; status: number; options: number }>>;
@@ -59,6 +59,7 @@ interface CompletedTripsPageProps {
   handleSaveTripNote: (id: string, note: string) => void;
   handleAddTripAddon: () => void;
   handleDeleteTripAddon: (addonId: string) => void;
+  uploadAddonImage?: (file: File) => Promise<string>;
   setSelectedTrip: (trip: Trip) => void;
   setPreviousTab: (tab: string) => void;
   setActiveTab: (tab: string) => void;
@@ -116,6 +117,7 @@ export function CompletedTripsPage({
   handleSaveTripNote,
   handleAddTripAddon,
   handleDeleteTripAddon,
+  uploadAddonImage,
   setSelectedTrip,
   setPreviousTab,
   setActiveTab,
@@ -123,6 +125,22 @@ export function CompletedTripsPage({
 }: CompletedTripsPageProps) {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
+  const [addonImageUploading, setAddonImageUploading] = React.useState(false);
+
+  const handleAddonImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setForm: (updater: (p: any) => any) => void) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadAddonImage) return;
+    setAddonImageUploading(true);
+    try {
+      const url = await uploadAddonImage(file);
+      setForm((p: any) => ({ ...p, images: [...(p.images || []), url] }));
+    } catch (err) {
+      console.error('Addon image upload failed:', err);
+    } finally {
+      setAddonImageUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const completedTrips = trips.filter(trip => {
     if (trip.status !== TripStatus.COMPLETED) return false;
@@ -378,7 +396,7 @@ export function CompletedTripsPage({
                 <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
               )}
               {(showTripAddons.addons || []).map((addon: TripAddon) => (
-                <div key={addon.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                <div key={addon.id} className="flex items-start justify-between bg-gray-50 rounded-xl p-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm">{addon.name}</span>
@@ -386,8 +404,15 @@ export function CompletedTripsPage({
                     </div>
                     {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
                     <p className="text-sm font-bold text-daiichi-red mt-1">+{addon.price.toLocaleString()}đ</p>
+                    {(addon.images || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(addon.images || []).map((img, i) => (
+                          <img key={i} src={img} alt={`${addon.name} - ${i + 1}`} className="w-14 h-14 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2"><Trash2 size={16} /></button>}
+                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} aria-label={language === 'vi' ? 'Xóa dịch vụ' : 'Delete service'} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"><Trash2 size={16} /></button>}
                 </div>
               ))}
               {showAddTripAddon ? (
@@ -404,10 +429,28 @@ export function CompletedTripsPage({
                       </select>
                     </div>
                     <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label><input type="text" value={tripAddonForm.description} onChange={e => setTripAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
+                    {/* Image upload */}
+                    <div className="col-span-2">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Hình ảnh dịch vụ' : language === 'ja' ? 'サービス画像' : 'Service Images'}</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(tripAddonForm.images || []).map((img, i) => (
+                          <div key={i} className="relative">
+                            <img src={img} alt={`${i + 1}`} className="w-16 h-16 object-cover rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
+                            <button type="button" aria-label={language === 'vi' ? 'Xóa ảnh' : 'Remove image'} onClick={() => setTripAddonForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✕</button>
+                          </div>
+                        ))}
+                        {uploadAddonImage && (
+                          <label aria-label={language === 'vi' ? 'Thêm ảnh' : 'Add image'} className={`w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red transition-colors ${addonImageUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {addonImageUploading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-xl leading-none">+</span>}
+                            <input type="file" accept="image/*" aria-label={language === 'vi' ? 'Chọn ảnh dịch vụ' : 'Select service image'} className="hidden" disabled={addonImageUploading} onChange={e => handleAddonImageUpload(e, setTripAddonForm)} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
+                    <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name || addonImageUploading} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
                   </div>
                 </div>
               ) : (
@@ -546,7 +589,7 @@ export function CompletedTripsPage({
                       </button>
                     </td>}
                     {tripColVisibility.addons && <td className="px-6 py-4">
-                      <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER' }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
+                      <button onClick={() => { setShowTripAddons({ ...trip }); setShowAddTripAddon(false); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
                         <span>{(trip.addons || []).length}</span>
                         <span>{t.manage_addons}</span>
                       </button>
