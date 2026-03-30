@@ -3,7 +3,7 @@ import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Colu
 import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
-import { Trip, Route, Vehicle, Employee, PricePeriod, User, UserRole } from '../types';
+import { Trip, Route, Vehicle, Employee, PricePeriod, User, UserRole, TripAddon } from '../types';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { ResizableTh } from '../components/ResizableTh';
@@ -269,6 +269,13 @@ export function OperationsPage({
       setAddonImageUploading(false);
       e.target.value = '';
     }
+  };
+
+  const handleEditAddon = (addon: TripAddon) => {
+    setEditingAddonId(addon.id);
+    setTripAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
+    setShowAddTripAddon(true);
+    setAddonUploadError(null);
   };
 
   // Seat lock modal state
@@ -778,19 +785,11 @@ export function OperationsPage({
                 <div key={addon.id} className={`flex items-start justify-between bg-gray-50 rounded-xl p-4 ${isAdmin ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
                   role={isAdmin ? 'button' : undefined}
                   tabIndex={isAdmin ? 0 : undefined}
-                  onClick={isAdmin ? () => {
-                    setEditingAddonId(addon.id);
-                    setTripAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
-                    setShowAddTripAddon(true);
-                    setAddonUploadError(null);
-                  } : undefined}
+                  onClick={isAdmin ? () => handleEditAddon(addon) : undefined}
                   onKeyDown={isAdmin ? (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setEditingAddonId(addon.id);
-                      setTripAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
-                      setShowAddTripAddon(true);
-                      setAddonUploadError(null);
+                      handleEditAddon(addon);
                     }
                   } : undefined}
                 >
@@ -811,6 +810,7 @@ export function OperationsPage({
                   </div>
                   {isAdmin && (
                     <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); handleEditAddon(addon); }} aria-label={language === 'vi' ? 'Chỉnh sửa dịch vụ' : 'Edit service'} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit3 size={16} /></button>
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteTripAddon(addon.id); }} aria-label={language === 'vi' ? 'Xóa dịch vụ' : 'Delete service'} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                     </div>
                   )}
