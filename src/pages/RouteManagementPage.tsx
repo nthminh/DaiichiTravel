@@ -240,7 +240,7 @@ export function RouteManagementPage({
     if (editingRouteAddonId) {
       setRouteAddons(prev => prev.map(a => a.id === editingRouteAddonId ? { ...a, ...routeAddonForm } : a));
     } else {
-      const newAddon: TripAddon = { id: `addon_${Date.now()}_${Math.random().toString(36).slice(2)}`, ...routeAddonForm };
+      const newAddon: TripAddon = { id: crypto.randomUUID(), ...routeAddonForm };
       setRouteAddons(prev => [...prev, newAddon]);
     }
     setRouteAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] });
