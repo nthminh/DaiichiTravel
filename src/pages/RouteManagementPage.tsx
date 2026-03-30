@@ -3,7 +3,7 @@ import { X, Loader2, Edit3, Trash2, Search, Filter, Calendar, FileText, Copy } f
 import { cn } from '../lib/utils';
 import type { Language } from '../constants/translations';
 import { TRANSLATIONS } from '../constants/translations';
-import { Route, Stop, PricePeriod, RouteSurcharge, RouteStop, ChildPricingRule, User, UserRole } from '../types';
+import { Route, Stop, PricePeriod, RouteSurcharge, RouteStop, ChildPricingRule, User, UserRole, TripAddon } from '../types';
 import { ResizableTh } from '../components/ResizableTh';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
@@ -101,6 +101,9 @@ interface RouteManagementPageProps {
   setRouteConflictWarning: (v: boolean) => void;
   childPricingRules: ChildPricingRule[];
   setChildPricingRules: React.Dispatch<React.SetStateAction<ChildPricingRule[]>>;
+  routeAddons: TripAddon[];
+  setRouteAddons: React.Dispatch<React.SetStateAction<TripAddon[]>>;
+  uploadAddonImage?: (file: File) => Promise<string>;
   routeFormSeatFares: SeatFareEntry[];
   setRouteFormSeatFares: React.Dispatch<React.SetStateAction<SeatFareEntry[]>>;
   showAddSeatFare: boolean;
@@ -187,6 +190,9 @@ export function RouteManagementPage({
   setRouteConflictWarning,
   childPricingRules,
   setChildPricingRules,
+  routeAddons,
+  setRouteAddons,
+  uploadAddonImage,
   routeFormSeatFares,
   setRouteFormSeatFares,
   showAddSeatFare,
@@ -205,6 +211,50 @@ export function RouteManagementPage({
   currentUser,
 }: RouteManagementPageProps) {
   const isAdmin = currentUser?.role === UserRole.MANAGER;
+  // Local UI state for route addon services form
+  const [showAddRouteAddon, setShowAddRouteAddon] = React.useState(false);
+  const [editingRouteAddonId, setEditingRouteAddonId] = React.useState<string | null>(null);
+  const [routeAddonForm, setRouteAddonForm] = React.useState({ name: '', price: 0, description: '', type: 'OTHER' as TripAddon['type'], images: [] as string[] });
+  const [addonImageUploading, setAddonImageUploading] = React.useState(false);
+  const [addonUploadError, setAddonUploadError] = React.useState<string | null>(null);
+
+  const handleAddonImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadAddonImage) return;
+    setAddonImageUploading(true);
+    setAddonUploadError(null);
+    try {
+      const url = await uploadAddonImage(file);
+      setRouteAddonForm(p => ({ ...p, images: [...(p.images || []), url] }));
+    } catch (err) {
+      console.error('Addon image upload failed:', err);
+      setAddonUploadError(language === 'vi' ? 'Tải ảnh thất bại. Vui lòng thử lại.' : 'Image upload failed. Please try again.');
+    } finally {
+      setAddonImageUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSaveRouteAddon = () => {
+    if (!routeAddonForm.name) return;
+    if (editingRouteAddonId) {
+      setRouteAddons(prev => prev.map(a => a.id === editingRouteAddonId ? { ...a, ...routeAddonForm } : a));
+    } else {
+      const newAddon: TripAddon = { id: crypto.randomUUID(), ...routeAddonForm };
+      setRouteAddons(prev => [...prev, newAddon]);
+    }
+    setRouteAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] });
+    setShowAddRouteAddon(false);
+    setEditingRouteAddonId(null);
+    setAddonUploadError(null);
+  };
+
+  const handleEditRouteAddon = (addon: TripAddon) => {
+    setEditingRouteAddonId(addon.id);
+    setRouteAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
+    setShowAddRouteAddon(true);
+    setAddonUploadError(null);
+  };
         const filteredRoutes = routes.filter(route => {
           if (routeFilterDeparture && !matchesSearch(route.departurePoint || '', routeFilterDeparture)) return false;
           if (routeFilterArrival && !matchesSearch(route.arrivalPoint || '', routeFilterArrival)) return false;
@@ -231,7 +281,7 @@ export function RouteManagementPage({
             <div className="flex justify-between items-center flex-wrap gap-3">
               <div><h2 className="text-2xl font-bold">{t.route_management}</h2><p className="text-sm text-gray-500">{t.route_list}</p></div>
               <div className="flex gap-3">
-                        <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, departureDescription: '', arrivalDescription: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '', routeCategory: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); setChildPricingRules([]); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
+                        <button onClick={() => { setShowAddRoute(true); setEditingRoute(null); setIsCopyingRoute(false); setRouteForm({ stt: routes.length + 1, name: '', departurePoint: '', arrivalPoint: '', price: 0, agentPrice: 0, duration: '', departureOffsetMinutes: 0, arrivalOffsetMinutes: 0, departureDescription: '', arrivalDescription: '', details: '', imageUrl: '', images: [], vehicleImageUrl: '', disablePickupAddress: false, disablePickupAddressFrom: '', disablePickupAddressTo: '', disablePickupAddressStopType: 'ALL', disableDropoffAddress: false, disableDropoffAddressFrom: '', disableDropoffAddressTo: '', disableDropoffAddressStopType: 'ALL', disabledPickupCategories: [], disabledPickupCategoriesFromDate: '', disabledPickupCategoriesToDate: '', disabledDropoffCategories: [], disabledDropoffCategoriesFromDate: '', disabledDropoffCategoriesToDate: '', routeCategory: '' }); setRoutePricePeriods([]); setShowAddPricePeriod(false); setEditingPricePeriodId(null); setRouteSurcharges([]); setShowAddRouteSurcharge(false); setEditingRouteSurchargeId(null); setRouteFormStops([]); setShowAddRouteStop(false); setRouteFormFares([]); setShowAddRouteFare(false); setEditingRouteFareIdx(null); setChildPricingRules([]); setRouteAddons([]); }} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.add_route}</button>
               </div>
             </div>
 
@@ -1382,6 +1432,113 @@ export function RouteManagementPage({
                           ><Trash2 size={12} /></button>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Route Add-on Services */}
+                    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-700">{language === 'vi' ? 'Dịch vụ kèm theo' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}</p>
+                          <p className="text-[10px] text-gray-400">{language === 'vi' ? 'Thiết lập dịch vụ bổ sung mặc định cho tuyến này. Các chuyến trên tuyến sẽ tự động có các dịch vụ này.' : 'Set default add-on services for this route. Trips on this route will automatically include these services.'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setShowAddRouteAddon(true); setEditingRouteAddonId(null); setRouteAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); setAddonUploadError(null); }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 flex-shrink-0"
+                        >
+                          + {language === 'vi' ? 'Thêm dịch vụ' : 'Add Service'}
+                        </button>
+                      </div>
+                      {routeAddons.length === 0 && !showAddRouteAddon && (
+                        <p className="text-xs text-gray-400 text-center py-1">{language === 'vi' ? 'Chưa có dịch vụ kèm theo – nhấn "Thêm dịch vụ" để thêm' : 'No add-on services – click "Add Service" to add one'}</p>
+                      )}
+                      {routeAddons.map(addon => (
+                        <div key={addon.id} className="flex items-start justify-between bg-gray-50 rounded-xl p-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm">{addon.name}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing : addon.type === 'TRANSPORT' ? t.addon_type_transport : addon.type === 'FOOD' ? t.addon_type_food : t.addon_type_other}
+                              </span>
+                            </div>
+                            {addon.description && <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>}
+                            <p className="text-sm font-bold text-daiichi-red mt-0.5">+{addon.price.toLocaleString()}đ</p>
+                            {(addon.images || []).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {(addon.images || []).map((img, i) => (
+                                  <img key={i} src={img} alt={`${addon.name} - ${i + 1}`} className="w-12 h-12 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleEditRouteAddon(addon)}
+                              aria-label={language === 'vi' ? 'Chỉnh sửa dịch vụ' : 'Edit service'}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                            ><Edit3 size={14} /></button>
+                            <button
+                              type="button"
+                              onClick={() => setRouteAddons(prev => prev.filter(a => a.id !== addon.id))}
+                              aria-label={language === 'vi' ? 'Xóa dịch vụ' : 'Delete service'}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            ><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+                      ))}
+                      {showAddRouteAddon && (
+                        <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                          {editingRouteAddonId && (
+                            <p className="text-xs font-bold text-daiichi-red uppercase tracking-widest">{language === 'vi' ? 'Chỉnh sửa dịch vụ' : 'Edit Service'}</p>
+                          )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label>
+                              <input type="text" value={routeAddonForm.name} onChange={e => setRouteAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label>
+                              <input type="number" min="0" value={routeAddonForm.price} onChange={e => setRouteAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_type}</label>
+                              <select value={routeAddonForm.type} onChange={e => setRouteAddonForm(p => ({ ...p, type: e.target.value as TripAddon['type'] }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none">
+                                <option value="SIGHTSEEING">{t.addon_type_sightseeing}</option>
+                                <option value="TRANSPORT">{t.addon_type_transport}</option>
+                                <option value="FOOD">{t.addon_type_food}</option>
+                                <option value="OTHER">{t.addon_type_other}</option>
+                              </select>
+                            </div>
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_desc}</label>
+                              <input type="text" value={routeAddonForm.description} onChange={e => setRouteAddonForm(p => ({ ...p, description: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Hình ảnh dịch vụ' : language === 'ja' ? 'サービス画像' : 'Service Images'}</label>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {(routeAddonForm.images || []).map((img, i) => (
+                                  <div key={i} className="relative">
+                                    <img src={img} alt={`${i + 1}`} className="w-16 h-16 object-cover rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
+                                    <button type="button" aria-label={language === 'vi' ? 'Xóa ảnh' : 'Remove image'} onClick={() => setRouteAddonForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✕</button>
+                                  </div>
+                                ))}
+                                {uploadAddonImage && (
+                                  <label aria-label={language === 'vi' ? 'Thêm ảnh' : 'Add image'} className={`w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red transition-colors ${addonImageUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    {addonImageUploading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-xl leading-none">+</span>}
+                                    <input type="file" accept="image/*" aria-label={language === 'vi' ? 'Chọn ảnh dịch vụ' : 'Select service image'} className="hidden" disabled={addonImageUploading} onChange={handleAddonImageUpload} />
+                                  </label>
+                                )}
+                              </div>
+                              {addonUploadError && <p className="text-xs text-red-500 mt-1">{addonUploadError}</p>}
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => { setShowAddRouteAddon(false); setEditingRouteAddonId(null); setRouteAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); setAddonUploadError(null); }} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                            <button type="button" onClick={handleSaveRouteAddon} disabled={!routeAddonForm.name || addonImageUploading} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{editingRouteAddonId ? t.update : t.save}</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                   </div>

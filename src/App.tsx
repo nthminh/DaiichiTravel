@@ -471,6 +471,8 @@ export default function App() {
     setRouteConflictWarning,
     childPricingRules,
     setChildPricingRules,
+    routeAddons,
+    setRouteAddons,
     routeFormSeatFares,
     setRouteFormSeatFares,
     showAddSeatFare,
@@ -1848,6 +1850,9 @@ export default function App() {
               setRouteConflictWarning={setRouteConflictWarning}
               childPricingRules={childPricingRules}
               setChildPricingRules={setChildPricingRules}
+              routeAddons={routeAddons}
+              setRouteAddons={setRouteAddons}
+              uploadAddonImage={storage ? handleUploadAddonImage : undefined}
               routeFormSeatFares={routeFormSeatFares}
               setRouteFormSeatFares={setRouteFormSeatFares}
               showAddSeatFare={showAddSeatFare}

@@ -3,7 +3,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { FirebaseStorage } from 'firebase/storage';
 import { transportService } from '../services/transportService';
 import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
-import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare } from '../types';
+import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare, TripAddon } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
 /** External dependencies that useRoutes needs from App.tsx */
@@ -171,6 +171,9 @@ export function useRoutes(ctx: RouteContext) {
   // Child pricing rules
   const [childPricingRules, setChildPricingRules] = useState<ChildPricingRule[]>([]);
 
+  // Route-level add-on services
+  const [routeAddons, setRouteAddons] = useState<TripAddon[]>([]);
+
   // Seat-specific fare overrides
   const [routeFormSeatFares, setRouteFormSeatFares] = useState<SeatFareEntry[]>([]);
   /** Tracks the Firestore doc IDs that existed before this edit session (for deletion). */
@@ -247,6 +250,7 @@ export function useRoutes(ctx: RouteContext) {
         surcharges: routeSurcharges,
         routeStops: fullRouteStops,
         childPricingRules,
+        addons: routeAddons.length > 0 ? routeAddons : undefined,
         // Strip empty string so Firestore stores undefined instead of ''.
         routeCategory: (currentForm.routeCategory as Route['routeCategory']) || undefined,
       };
@@ -469,6 +473,7 @@ export function useRoutes(ctx: RouteContext) {
     setRoutePricePeriods(route.pricePeriods || []);
     setRouteSurcharges(route.surcharges || []);
     setChildPricingRules(route.childPricingRules || []);
+    setRouteAddons(route.addons || []);
     setShowAddPricePeriod(false);
     setEditingPricePeriodId(null);
     setShowAddRouteSurcharge(false);
@@ -606,6 +611,9 @@ export function useRoutes(ctx: RouteContext) {
     );
     setChildPricingRules(
       (route.childPricingRules || []).map((r, i) => ({ ...r, id: `cpr_${now}_${i}` })),
+    );
+    setRouteAddons(
+      (route.addons || []).map((a, i) => ({ ...a, id: `addon_${now}_${i}` })),
     );
     const loadedStops = (route.routeStops || [])
       .filter(s => s.stopId !== '__departure__' && s.stopId !== '__arrival__')
@@ -753,6 +761,8 @@ export function useRoutes(ctx: RouteContext) {
     setRouteConflictWarning,
     childPricingRules,
     setChildPricingRules,
+    routeAddons,
+    setRouteAddons,
     routeFormSeatFares,
     setRouteFormSeatFares,
     showAddSeatFare,
