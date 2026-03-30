@@ -7,7 +7,7 @@ import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constan
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 
-const PAYMENT_TIMEOUT_SECONDS = 3 * 60; // 3 minutes
+const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
 const AUTO_CONFIRM_DELAY_MS = 1200; // brief visual feedback before auto-confirming from Firestore
 const MANUAL_CONFIRM_DELAY_MS = 600; // simulated processing delay for manual confirm button
@@ -51,7 +51,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
-  // 3-minute countdown timer
+  // 30-minute countdown timer
   useEffect(() => {
     const intervalId = setInterval(() => {
       setSecondsLeft(prev => {
@@ -242,7 +242,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                 {/* Try VietQR image first, fallback to QRCodeSVG */}
                 <img
                   src={qrImageUrl}
-                  alt="VietQR payment code"
+                  alt="OnePay payment QR code"
                   className="w-48 h-48 object-contain"
                   onError={(e) => {
                     // On error (network or API unavailable), hide the image
