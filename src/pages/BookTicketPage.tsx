@@ -1517,6 +1517,7 @@ export function BookTicketPage({
 
   // For TOUR_SHORT trips: track which addons are selected per trip (tripId → addonId[])
   const [selectedAddonsByTrip, setSelectedAddonsByTrip] = useState<Record<string, string[]>>({});
+  const [showSingleAddonDetail, setShowSingleAddonDetail] = useState<TripAddon | null>(null);
 
   const toggleAddon = (tripId: string, addonId: string) => {
     setSelectedAddonsByTrip(prev => {
@@ -2235,18 +2236,19 @@ export function BookTicketPage({
                       className="accent-emerald-600 w-3.5 h-3.5 flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[11px] font-semibold text-gray-800 truncate">{addon.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold whitespace-nowrap">
-                          {addon.type === 'SIGHTSEEING' ? t.addon_type_sightseeing :
-                           addon.type === 'TRANSPORT' ? t.addon_type_transport :
-                           addon.type === 'FOOD' ? t.addon_type_food :
-                           t.addon_type_other}
-                        </span>
-                      </div>
-                      {addon.description && <p className="text-[9px] text-gray-400 truncate">{addon.description}</p>}
+                      <span className="text-[11px] font-semibold text-gray-800 truncate">{addon.name}</span>
                     </div>
                     <span className="text-[11px] font-bold text-daiichi-red whitespace-nowrap">+{addon.price.toLocaleString()}đ</span>
+                    {(addon.description || (addon.images && addon.images.length > 0)) && (
+                      <button
+                        type="button"
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); setShowSingleAddonDetail(addon as TripAddon); }}
+                        aria-label={language === 'vi' ? 'Xem chi tiết' : language === 'ja' ? '詳細を見る' : 'View details'}
+                        className="flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-800 transition-colors"
+                      >
+                        <Info size={13} />
+                      </button>
+                    )}
                   </label>
                 );
               })}
@@ -3071,6 +3073,33 @@ export function BookTicketPage({
           );
         })()}
       </div>
+      {/* Single addon detail modal – shown when user clicks ℹ on a TOUR_SHORT addon */}
+      {showSingleAddonDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowSingleAddonDetail(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="single-addon-detail-title" className="bg-white rounded-[32px] p-6 max-w-md w-full space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Gift size={20} className="text-emerald-600" />
+                <h3 id="single-addon-detail-title" className="text-lg font-bold text-emerald-700">{showSingleAddonDetail.name}</h3>
+              </div>
+              <button onClick={() => setShowSingleAddonDetail(null)} aria-label={language === 'vi' ? 'Đóng' : language === 'ja' ? '閉じる' : 'Close'} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+            </div>
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-daiichi-red whitespace-nowrap">+{showSingleAddonDetail.price.toLocaleString()}đ</span>
+              </div>
+              {showSingleAddonDetail.description && <p className="text-xs text-gray-500">{showSingleAddonDetail.description}</p>}
+              {(showSingleAddonDetail.images || []).length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {(showSingleAddonDetail.images || []).map((img, i) => (
+                    <img key={i} src={img} alt={showSingleAddonDetail.name} className="w-full rounded-xl object-cover max-h-48" referrerPolicy="no-referrer" />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Addon detail modal – shown when user clicks gift badge on a trip card */}
       {showAddonDetailTrip && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddonDetailTrip(null)}>
