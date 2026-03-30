@@ -1038,7 +1038,29 @@ export default function App() {
     }
   };
 
+  const handleUpdateTripAddon = async (addonId: string) => {
+    if (!showTripAddons || !tripAddonForm.name) return;
+    const updatedAddon: TripAddon = {
+      id: addonId,
+      name: tripAddonForm.name,
+      price: tripAddonForm.price,
+      description: tripAddonForm.description,
+      type: tripAddonForm.type,
+      ...(tripAddonForm.images && tripAddonForm.images.length > 0 ? { images: tripAddonForm.images } : {}),
+    };
+    const updatedAddons = (showTripAddons.addons || []).map(a => a.id === addonId ? updatedAddon : a);
+    try {
+      await transportService.updateTrip(showTripAddons.id, { addons: updatedAddons });
+      setShowTripAddons(prev => prev ? { ...prev, addons: updatedAddons } : null);
+      setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] });
+      setShowAddTripAddon(false);
+    } catch (err) {
+      console.error('Failed to update trip addon:', err);
+    }
+  };
+
   const handleUploadAddonImage = async (file: File): Promise<string> => {
+    if (!storage) throw new Error('Storage not configured');
     let compressed: File;
     try {
       compressed = await compressImage(file, 0.80, 1280);
@@ -1938,7 +1960,8 @@ export default function App() {
               handleDeletePassenger={handleDeletePassenger}
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
-              uploadAddonImage={handleUploadAddonImage}
+              handleUpdateTripAddon={handleUpdateTripAddon}
+              uploadAddonImage={storage ? handleUploadAddonImage : undefined}
               exportTripToExcelHandler={exportTripToExcelHandler}
               exportAllTripsToExcelHandler={exportAllTripsToExcelHandler}
               exportTripToPDFHandler={exportTripToPDFHandler}
@@ -2023,7 +2046,8 @@ export default function App() {
               handleSaveTripNote={handleSaveTripNote}
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
-              uploadAddonImage={handleUploadAddonImage}
+              handleUpdateTripAddon={handleUpdateTripAddon}
+              uploadAddonImage={storage ? handleUploadAddonImage : undefined}
               setSelectedTrip={setSelectedTrip}
               setPreviousTab={setPreviousTab}
               setActiveTab={setActiveTab}
