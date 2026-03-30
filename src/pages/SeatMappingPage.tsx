@@ -297,7 +297,33 @@ export function SeatMappingPage({
   const priceChildrenOver5 = childrenAges.filter(age => (age ?? 0) >= 5).length;
   const priceFreeChildren = children - priceChildrenOver5;
   const priceBillablePassengers = adults + priceChildrenOver5;
-  const priceGrandTotal = priceTotalPerPerson * priceBillablePassengers;
+  // TOUR_SHORT: use childPricingRules for per-age-group pricing (same logic as BookTicketPage)
+  const priceIsTourShort = tripRoute?.routeCategory === 'TOUR_SHORT';
+  const priceChildPricingRules = priceIsTourShort ? (tripRoute?.childPricingRules ?? []) : [];
+  const priceUseAgePricing = priceIsTourShort && priceChildPricingRules.length > 0;
+  const priceChildAgeGroups: { label: string; count: number; farePer: number }[] = (() => {
+    if (!priceUseAgePricing || children === 0) return [];
+    const groupMap = new Map<string, { label: string; count: number; farePer: number }>();
+    childrenAges.slice(0, children).forEach((age) => {
+      const ageVal = age ?? 0;
+      const rule = priceChildPricingRules.find(r => ageVal >= r.fromAge && ageVal <= r.toAge);
+      const farePer = rule ? Math.round(priceTotalPerPerson * rule.percent / 100) : priceTotalPerPerson;
+      const groupKey = rule ? rule.id : '__no_rule__';
+      const label = rule
+        ? (language === 'vi'
+            ? `Trẻ ${rule.fromAge}–${rule.toAge} tuổi (${rule.percent}%)`
+            : language === 'ja'
+              ? `子供 ${rule.fromAge}–${rule.toAge}歳 (${rule.percent}%)`
+              : `Children ${rule.fromAge}–${rule.toAge} yrs (${rule.percent}%)`)
+        : (language === 'vi' ? 'Trẻ em' : language === 'ja' ? '子供' : 'Children');
+      if (!groupMap.has(groupKey)) groupMap.set(groupKey, { label, count: 0, farePer });
+      groupMap.get(groupKey)!.count++;
+    });
+    return Array.from(groupMap.values());
+  })();
+  const priceGrandTotal = priceUseAgePricing && children > 0
+    ? priceTotalPerPerson * adults + priceChildAgeGroups.reduce((s, g) => s + g.count * g.farePer, 0)
+    : priceTotalPerPerson * priceBillablePassengers;
   // Pre-compute stop name lists for pickup/dropoff address selects.
   // Only show STOP-type (điểm dừng) entries – never major TERMINAL stations (ga lớn).
   // Use the user-selected departure/arrival (pickupPoint/dropoffPoint) as the effective
@@ -1918,7 +1944,9 @@ export function SeatMappingPage({
           {/* Total per person */}
           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
             <span className="text-sm font-bold text-gray-800">
-              {t.trip_confirm_total || 'Tổng dự kiến / người'}
+              {priceIsTourShort
+                ? (language === 'vi' ? 'Giá người lớn / người' : language === 'ja' ? '大人料金 / 人' : 'Adult fare / person')
+                : (t.trip_confirm_total || 'Tổng dự kiến / người')}
             </span>
             <span className="font-bold text-daiichi-red">{priceTotalPerPerson.toLocaleString()}đ</span>
           </div>
@@ -1930,29 +1958,49 @@ export function SeatMappingPage({
               </span>
               <span className="font-semibold text-gray-800">{(adults * priceTotalPerPerson).toLocaleString()}đ</span>
             </div>
-            {priceChildrenOver5 > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">
-                  {priceChildrenOver5}{' '}
-                  {language === 'vi' ? 'trẻ em (≥5 tuổi)' : language === 'ja' ? '子ども（5歳以上）' : 'child(ren) (≥5 yrs)'}
-                  {' '}× {priceTotalPerPerson.toLocaleString()}đ
-                </span>
-                <span className="font-semibold text-gray-800">{(priceChildrenOver5 * priceTotalPerPerson).toLocaleString()}đ</span>
-              </div>
-            )}
-            {priceFreeChildren > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">
-                  {priceFreeChildren}{' '}
-                  {language === 'vi' ? 'trẻ em (<5 tuổi, miễn phí)' : language === 'ja' ? '子ども（5歳未満、無料）' : 'child(ren) (<5 yrs, free)'}
-                </span>
-                <span className="text-gray-400">0đ</span>
-              </div>
+            {priceUseAgePricing ? (
+              /* TOUR_SHORT: show per-age-group breakdown */
+              priceChildAgeGroups.map((g, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <span className="text-gray-600">{g.label} ×{g.count}</span>
+                  <span className="font-semibold text-gray-800">{(g.count * g.farePer).toLocaleString()}đ</span>
+                </div>
+              ))
+            ) : (
+              <>
+                {priceChildrenOver5 > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">
+                      {priceChildrenOver5}{' '}
+                      {language === 'vi' ? 'trẻ em (≥5 tuổi)' : language === 'ja' ? '子ども（5歳以上）' : 'child(ren) (≥5 yrs)'}
+                      {' '}× {priceTotalPerPerson.toLocaleString()}đ
+                    </span>
+                    <span className="font-semibold text-gray-800">{(priceChildrenOver5 * priceTotalPerPerson).toLocaleString()}đ</span>
+                  </div>
+                )}
+                {priceFreeChildren > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">
+                      {priceFreeChildren}{' '}
+                      {language === 'vi' ? 'trẻ em (<5 tuổi, miễn phí)' : language === 'ja' ? '子ども（5歳未満、無料）' : 'child(ren) (<5 yrs, free)'}
+                    </span>
+                    <span className="text-gray-400">0đ</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
           {/* Grand total — most important */}
           <div className="flex items-center justify-between px-4 py-3 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
-            <span className="font-bold text-gray-800">{t.total_payment || 'Tổng thanh toán'}</span>
+            <span className="font-bold text-gray-800">
+              {priceUseAgePricing && children > 0
+                ? (language === 'vi'
+                    ? `Tổng ${adults + children} khách (dự kiến)`
+                    : language === 'ja'
+                      ? `合計 ${adults + children} 名（予定）`
+                      : `Total ${adults + children} guests (estimate)`)
+                : (t.total_payment || 'Tổng thanh toán')}
+            </span>
             <span className="text-xl font-bold text-daiichi-red">{priceGrandTotal.toLocaleString()}đ</span>
           </div>
           {/* Warning if child ages incomplete */}
