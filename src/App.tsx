@@ -630,8 +630,6 @@ export default function App() {
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
     const unsubscribeCategories = transportService.subscribeToCustomerCategories(setCustomerCategories);
-    const unsubscribeCategoryRequests = transportService.subscribeToCategoryRequests(setCategoryRequests);
-    const unsubscribeAuditLogs = transportService.subscribeToAuditLogs(setAuditLogs);
     return () => {
       unsubscribeTrips();
       unsubscribeConsignments();
@@ -645,8 +643,6 @@ export default function App() {
       unsubscribeUserGuides();
       unsubscribeCustomers();
       unsubscribeCategories();
-      unsubscribeCategoryRequests();
-      unsubscribeAuditLogs();
     };
   }, []);
 
@@ -672,27 +668,37 @@ export default function App() {
     };
   }, []);
 
-  // Subscribe to driverAssignments and staffMessages only when authenticated
-  // (Firestore rules require isSignedIn() for these collections).
+  // Subscribe to driverAssignments, staffMessages, categoryRequests, and auditLogs only when
+  // authenticated (Firestore rules require isSignedIn() for these collections).
   useEffect(() => {
     if (!auth) return;
     let assignmentUnsub: (() => void) | null = null;
     let messagesUnsub: (() => void) | null = null;
+    let categoryRequestsUnsub: (() => void) | null = null;
+    let auditLogsUnsub: (() => void) | null = null;
     const authUnsub = onAuthStateChanged(auth, (user) => {
       if (assignmentUnsub) { assignmentUnsub(); assignmentUnsub = null; }
       if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
+      if (categoryRequestsUnsub) { categoryRequestsUnsub(); categoryRequestsUnsub = null; }
+      if (auditLogsUnsub) { auditLogsUnsub(); auditLogsUnsub = null; }
       if (user) {
         assignmentUnsub = transportService.subscribeToDriverAssignments(setDriverAssignments);
         messagesUnsub = transportService.subscribeToStaffMessages(setStaffMessages);
+        categoryRequestsUnsub = transportService.subscribeToCategoryRequests(setCategoryRequests);
+        auditLogsUnsub = transportService.subscribeToAuditLogs(setAuditLogs);
       } else {
         setDriverAssignments([]);
         setStaffMessages([]);
+        setCategoryRequests([]);
+        setAuditLogs([]);
       }
     });
     return () => {
       authUnsub();
       if (assignmentUnsub) assignmentUnsub();
       if (messagesUnsub) messagesUnsub();
+      if (categoryRequestsUnsub) categoryRequestsUnsub();
+      if (auditLogsUnsub) auditLogsUnsub();
     };
   }, []);
 
