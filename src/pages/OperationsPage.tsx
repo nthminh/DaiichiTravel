@@ -103,6 +103,7 @@ interface OperationsPageProps {
   handleDeletePassenger: (seatId: string) => void;
   handleAddTripAddon: () => void;
   handleDeleteTripAddon: (addonId: string) => void;
+  handleUpdateTripAddon: (addonId: string) => void;
   uploadAddonImage?: (file: File) => Promise<string>;
   exportTripToExcelHandler: (trip: any) => void;
   exportAllTripsToExcelHandler: (trips: Trip[]) => void;
@@ -219,6 +220,7 @@ export function OperationsPage({
   handleDeletePassenger,
   handleAddTripAddon,
   handleDeleteTripAddon,
+  handleUpdateTripAddon,
   uploadAddonImage,
   exportTripToExcelHandler,
   exportAllTripsToExcelHandler,
@@ -249,16 +251,20 @@ export function OperationsPage({
   const [currentTripPage, setCurrentTripPage] = React.useState(1);
   const TRIPS_PER_PAGE = 50;
   const [addonImageUploading, setAddonImageUploading] = React.useState(false);
+  const [editingAddonId, setEditingAddonId] = React.useState<string | null>(null);
+  const [addonUploadError, setAddonUploadError] = React.useState<string | null>(null);
 
   const handleAddonImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setForm: (updater: (p: any) => any) => void) => {
     const file = e.target.files?.[0];
     if (!file || !uploadAddonImage) return;
     setAddonImageUploading(true);
+    setAddonUploadError(null);
     try {
       const url = await uploadAddonImage(file);
       setForm((p: any) => ({ ...p, images: [...(p.images || []), url] }));
     } catch (err) {
       console.error('Addon image upload failed:', err);
+      setAddonUploadError(language === 'vi' ? 'Tải ảnh thất bại. Vui lòng thử lại.' : language === 'ja' ? '画像のアップロードに失敗しました。再試行してください。' : 'Image upload failed. Please try again.');
     } finally {
       setAddonImageUploading(false);
       e.target.value = '';
@@ -762,14 +768,21 @@ export function OperationsPage({
                 <h3 className="text-xl font-bold">{t.manage_addons}</h3>
                 <p className="text-sm text-gray-500 mt-1">{showTripAddons.time} · {showTripAddons.route}</p>
               </div>
-              <button onClick={() => { setShowTripAddons(null); setShowAddTripAddon(false); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+              <button onClick={() => { setShowTripAddons(null); setShowAddTripAddon(false); setEditingAddonId(null); setAddonUploadError(null); }} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
             </div>
             <div className="space-y-3">
               {(showTripAddons.addons || []).length === 0 && !showAddTripAddon && (
                 <p className="text-sm text-gray-400 text-center py-4">{language === 'vi' ? 'Chưa có dịch vụ kèm theo' : 'No add-on services yet'}</p>
               )}
               {(showTripAddons.addons || []).map(addon => (
-                <div key={addon.id} className="flex items-start justify-between bg-gray-50 rounded-xl p-4">
+                <div key={addon.id} className={`flex items-start justify-between bg-gray-50 rounded-xl p-4 ${isAdmin ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
+                  onClick={isAdmin ? () => {
+                    setEditingAddonId(addon.id);
+                    setTripAddonForm({ name: addon.name, price: addon.price, description: addon.description || '', type: addon.type, images: addon.images || [] });
+                    setShowAddTripAddon(true);
+                    setAddonUploadError(null);
+                  } : undefined}
+                >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm">{addon.name}</span>
@@ -785,11 +798,18 @@ export function OperationsPage({
                       </div>
                     )}
                   </div>
-                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} aria-label={language === 'vi' ? 'Xóa dịch vụ' : 'Delete service'} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"><Trash2 size={16} /></button>}
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteTripAddon(addon.id); }} aria-label={language === 'vi' ? 'Xóa dịch vụ' : 'Delete service'} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                    </div>
+                  )}
                 </div>
               ))}
               {showAddTripAddon ? (
                 <div className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                  {editingAddonId && (
+                    <p className="text-xs font-bold text-daiichi-red uppercase tracking-widest">{language === 'vi' ? 'Chỉnh sửa dịch vụ' : language === 'ja' ? 'サービスを編集' : 'Edit Service'}</p>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_name}</label><input type="text" value={tripAddonForm.name} onChange={e => setTripAddonForm(p => ({ ...p, name: e.target.value }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
                     <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.addon_price} (đ)</label><input type="number" min="0" value={tripAddonForm.price} onChange={e => setTripAddonForm(p => ({ ...p, price: parseInt(e.target.value) || 0 }))} className="w-full mt-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" /></div>
@@ -819,15 +839,24 @@ export function OperationsPage({
                           </label>
                         )}
                       </div>
+                      {addonUploadError && <p className="text-xs text-red-500 mt-1">{addonUploadError}</p>}
                     </div>
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowAddTripAddon(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
-                    <button onClick={handleAddTripAddon} disabled={!tripAddonForm.name || addonImageUploading} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{t.save}</button>
+                    <button onClick={() => { setShowAddTripAddon(false); setEditingAddonId(null); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); setAddonUploadError(null); }} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
+                    <button onClick={async () => {
+                      if (editingAddonId) {
+                        await handleUpdateTripAddon(editingAddonId);
+                        setEditingAddonId(null);
+                        setAddonUploadError(null);
+                      } else {
+                        handleAddTripAddon();
+                      }
+                    }} disabled={!tripAddonForm.name || addonImageUploading} className="px-4 py-2 bg-daiichi-red text-white text-sm rounded-xl font-bold disabled:opacity-50">{editingAddonId ? t.update : t.save}</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowAddTripAddon(true)} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
+                <button onClick={() => { setShowAddTripAddon(true); setEditingAddonId(null); setTripAddonForm({ name: '', price: 0, description: '', type: 'OTHER', images: [] }); }} className="w-full py-3 border border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:text-daiichi-red hover:border-daiichi-red transition-colors">+ {t.add_addon}</button>
               )}
             </div>
           </div>
