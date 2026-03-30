@@ -237,7 +237,7 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
                 {(addon.images || []).length > 0 && (
                   <div className="mt-2 space-y-2">
                     {(addon.images || []).map((img, i) => (
-                      <img key={i} src={img} alt={addon.name} className="w-full rounded-xl object-cover max-h-48" referrerPolicy="no-referrer" />
+                      <img key={i} src={img} alt={`${addon.name} - ${i + 1}`} className="w-full rounded-xl object-cover max-h-48" referrerPolicy="no-referrer" />
                     ))}
                   </div>
                 )}

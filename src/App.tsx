@@ -1039,7 +1039,12 @@ export default function App() {
   };
 
   const handleUploadAddonImage = async (file: File): Promise<string> => {
-    const compressed = await compressImage(file, 0.80, 1280);
+    let compressed: File;
+    try {
+      compressed = await compressImage(file, 0.80, 1280);
+    } catch (err) {
+      throw new Error('Image compression failed. Please try a different image.');
+    }
     const sRef = storageRef(storage, `addonImages/${Date.now()}_${compressed.name}`);
     const task = uploadBytesResumable(sRef, compressed, { contentType: compressed.type });
     return new Promise<string>((resolve, reject) => {

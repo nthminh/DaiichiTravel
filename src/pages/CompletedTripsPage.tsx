@@ -407,12 +407,12 @@ export function CompletedTripsPage({
                     {(addon.images || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {(addon.images || []).map((img, i) => (
-                          <img key={i} src={img} alt="" className="w-14 h-14 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
+                          <img key={i} src={img} alt={`${addon.name} - ${i + 1}`} className="w-14 h-14 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
                         ))}
                       </div>
                     )}
                   </div>
-                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"><Trash2 size={16} /></button>}
+                  {isAdmin && <button onClick={() => handleDeleteTripAddon(addon.id)} aria-label={language === 'vi' ? 'Xóa dịch vụ' : 'Delete service'} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"><Trash2 size={16} /></button>}
                 </div>
               ))}
               {showAddTripAddon ? (
@@ -435,14 +435,14 @@ export function CompletedTripsPage({
                       <div className="flex flex-wrap gap-2 mt-1">
                         {(tripAddonForm.images || []).map((img, i) => (
                           <div key={i} className="relative">
-                            <img src={img} alt="" className="w-16 h-16 object-cover rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
-                            <button type="button" onClick={() => setTripAddonForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✕</button>
+                            <img src={img} alt={`${i + 1}`} className="w-16 h-16 object-cover rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
+                            <button type="button" aria-label={language === 'vi' ? 'Xóa ảnh' : 'Remove image'} onClick={() => setTripAddonForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✕</button>
                           </div>
                         ))}
                         {uploadAddonImage && (
-                          <label className={`w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red transition-colors ${addonImageUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          <label aria-label={language === 'vi' ? 'Thêm ảnh' : 'Add image'} className={`w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red transition-colors ${addonImageUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             {addonImageUploading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-xl leading-none">+</span>}
-                            <input type="file" accept="image/*" className="hidden" disabled={addonImageUploading} onChange={e => handleAddonImageUpload(e, setTripAddonForm)} />
+                            <input type="file" accept="image/*" aria-label={language === 'vi' ? 'Chọn ảnh dịch vụ' : 'Select service image'} className="hidden" disabled={addonImageUploading} onChange={e => handleAddonImageUpload(e, setTripAddonForm)} />
                           </label>
                         )}
                       </div>
