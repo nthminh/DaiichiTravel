@@ -18,7 +18,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog } from '../types';
+import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, buildSeatFareDocId, type GetFareParams } from './fareService';
 
 interface TourData {
@@ -1291,5 +1291,84 @@ export const transportService = {
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as AuditLog[]);
     }, (err) => { console.error('[auditLogs] subscription error:', err); callback([]); });
+  },
+
+  // ─── Pending Payments (QR auto-verification) ───────────────────────────────
+
+  /**
+   * Create a pending payment document when a QR payment session starts.
+   * The document ID equals the paymentRef (e.g. "DT-ABC123") for easy lookup.
+   */
+  createPendingPayment: async (payment: Omit<PendingPayment, 'id' | 'createdAt' | 'status'>) => {
+    if (!db) throw new Error('Firebase not configured');
+    await setDoc(doc(db, 'pendingPayments', payment.paymentRef), {
+      ...payment,
+      status: 'PENDING',
+      createdAt: Timestamp.now(),
+    });
+  },
+
+  /**
+   * Subscribe to a specific pending payment document in real-time.
+   * Used by PaymentQRModal to detect automatic payment confirmation.
+   * Returns an unsubscribe function.
+   */
+  subscribeToPendingPayment: (
+    paymentRef: string,
+    callback: (data: PendingPayment | null) => void
+  ): (() => void) => {
+    if (!db) return () => {};
+    return onSnapshot(doc(db, 'pendingPayments', paymentRef), (snap) => {
+      callback(snap.exists() ? ({ id: snap.id, ...snap.data() } as PendingPayment) : null);
+    }, (err) => {
+      console.error('[pendingPayment] subscription error:', err);
+      callback(null);
+    });
+  },
+
+  /**
+   * Subscribe to all pending payments with status='PENDING'.
+   * Used by the payment test simulator UI.
+   */
+  subscribeToPendingPayments: (callback: (payments: PendingPayment[]) => void): (() => void) => {
+    if (!db) return () => {};
+    const q = query(
+      collection(db, 'pendingPayments'),
+      where('status', '==', 'PENDING'),
+      orderBy('createdAt', 'desc')
+    );
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PendingPayment[]);
+    }, (err) => {
+      console.error('[pendingPayments] subscription error:', err);
+      callback([]);
+    });
+  },
+
+  /**
+   * Mark a pending payment as PAID with the actual paid amount and content.
+   * Called by the payment test simulator (or OnePay IPN handler).
+   * The QR modal will pick this up via its real-time subscription.
+   */
+  confirmPendingPayment: async (paymentRef: string, paidAmount: number, paidContent: string) => {
+    if (!db) throw new Error('Firebase not configured');
+    await updateDoc(doc(db, 'pendingPayments', paymentRef), {
+      status: 'PAID',
+      paidAmount,
+      paidContent,
+      confirmedAt: Timestamp.now(),
+    });
+  },
+
+  /**
+   * Delete a pending payment document (cleanup on cancel, expiry, or completion).
+   */
+  deletePendingPayment: async (paymentRef: string) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, 'pendingPayments', paymentRef));
+    } catch (err) {
+      console.error('[pendingPayment] delete error:', err);
+    }
   },
 };

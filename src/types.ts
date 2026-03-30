@@ -565,6 +565,32 @@ export interface AuditLog {
   ipAddress?: string;         // optional
 }
 
+/** Pending QR payment waiting for confirmation – stored in Firestore 'pendingPayments' collection */
+export interface PendingPayment {
+  /** Document ID – same as paymentRef (e.g. DT-ABC123) */
+  id: string;
+  /** Unique payment reference code used in the transfer description */
+  paymentRef: string;
+  /** Expected amount in VND */
+  expectedAmount: number;
+  /** Customer name for display */
+  customerName: string;
+  /** Route info string for display (e.g. "HCM → HN") */
+  routeInfo: string;
+  /** Trip ID the seats belong to */
+  tripId: string;
+  /** Current status */
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED';
+  /** Amount actually received (filled by simulator / payment gateway IPN) */
+  paidAmount?: number;
+  /** Transfer description content (must contain paymentRef for verification) */
+  paidContent?: string;
+  /** Firestore server timestamp when document was created */
+  createdAt: any;
+  /** Firestore server timestamp when payment was confirmed */
+  confirmedAt?: any;
+}
+
 // Customer profile stored in Firestore customers collection
 export interface CustomerProfile {
   id: string;

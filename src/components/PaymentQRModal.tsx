@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock } from 'lucide-react';
+import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { BANK_CONFIG, generateVietQrUrl, generateVietQrString } from '../constants/bankConfig';
 import { Language, TRANSLATIONS } from '../App';
+import { transportService } from '../services/transportService';
 
 const PAYMENT_TIMEOUT_SECONDS = 3 * 60; // 3 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
@@ -37,6 +38,16 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const [confirming, setConfirming] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [expired, setExpired] = useState(false);
+  // Auto-payment detection state
+  const [autoDetected, setAutoDetected] = useState(false);
+  const [amountMismatch, setAmountMismatch] = useState(false);
+  // Prevent duplicate auto-confirm calls
+  const autoConfirmCalledRef = useRef(false);
+  // Keep stable reference to onConfirm/onCancel for use inside subscriptions
+  const onConfirmRef = useRef(onConfirm);
+  onConfirmRef.current = onConfirm;
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   // 3-minute countdown timer
   useEffect(() => {
@@ -56,10 +67,39 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   // Auto-cancel after EXPIRED_AUTO_CLOSE_MS when timer expires
   useEffect(() => {
     if (expired) {
-      const timer = setTimeout(onCancel, EXPIRED_AUTO_CLOSE_MS);
+      const timer = setTimeout(() => onCancelRef.current(), EXPIRED_AUTO_CLOSE_MS);
       return () => clearTimeout(timer);
     }
-  }, [expired, onCancel]);
+  }, [expired]);
+
+  // Subscribe to Firestore pendingPayments document for automatic payment detection
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToPendingPayment(paymentRef, (data) => {
+      if (!data || autoConfirmCalledRef.current) return;
+
+      if (data.status === 'PAID') {
+        const paidAmt = data.paidAmount ?? 0;
+        const paidContent = (data.paidContent ?? '').toUpperCase();
+        const refUpper = paymentRef.toUpperCase();
+
+        // Verify: amount must match AND content must include the payment reference
+        const amountOk = paidAmt === amount;
+        const contentOk = paidContent.includes(refUpper);
+
+        if (amountOk && contentOk) {
+          autoConfirmCalledRef.current = true;
+          setAutoDetected(true);
+          setConfirming(true);
+          // Brief visual feedback then auto-confirm
+          setTimeout(() => onConfirmRef.current(), 1200);
+        } else {
+          // Payment was registered but data doesn't match – show warning
+          setAmountMismatch(true);
+        }
+      }
+    });
+    return unsubscribe;
+  }, [paymentRef, amount]);
 
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
@@ -77,11 +117,12 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   }, [paymentRef]);
 
   const handleConfirm = async () => {
-    if (expired) return;
+    if (expired || autoConfirmCalledRef.current) return;
+    autoConfirmCalledRef.current = true;
     setConfirming(true);
     // Small delay to simulate processing
     await new Promise(r => setTimeout(r, 600));
-    onConfirm();
+    onConfirmRef.current();
   };
 
   return (
@@ -151,6 +192,34 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                 <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-700 font-medium">
                   {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Thông tin ngân hàng là giả, KHÔNG chuyển tiền thật'}
+                </p>
+              </div>
+            )}
+
+            {/* Auto-detected success */}
+            {autoDetected && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <Zap size={18} className="text-green-600 shrink-0" />
+                <p className="text-sm text-green-700 font-bold">
+                  {language === 'vi'
+                    ? '✅ Đã nhận thanh toán! Đang xác nhận đơn hàng...'
+                    : language === 'ja'
+                    ? '✅ 支払いを受領しました！注文を確認中...'
+                    : '✅ Payment received! Confirming your order...'}
+                </p>
+              </div>
+            )}
+
+            {/* Amount mismatch warning */}
+            {amountMismatch && !autoDetected && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-700 font-medium">
+                  {language === 'vi'
+                    ? '⚠️ Số tiền hoặc nội dung chuyển khoản không khớp. Vui lòng kiểm tra lại.'
+                    : language === 'ja'
+                    ? '⚠️ 金額または振込内容が一致しません。ご確認ください。'
+                    : '⚠️ Payment amount or content does not match. Please check again.'}
                 </p>
               </div>
             )}
@@ -236,7 +305,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
               </div>
             </div>
 
-            {/* Info note */}
+            {/* Auto-detection info note */}
             <div className="flex items-start gap-2 text-xs text-gray-500">
               <Info size={13} className="shrink-0 mt-0.5 text-blue-400" />
               <span>
@@ -253,23 +322,26 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
+                disabled={confirming}
+                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t.qr_payment_cancel || 'Huỷ'}
               </button>
               <motion.button
                 type="button"
                 onClick={handleConfirm}
-                disabled={confirming || expired}
+                disabled={confirming || expired || autoDetected}
                 whileTap={{ scale: 0.97 }}
                 className={cn(
                   'flex-[2] py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-all',
-                  confirming
+                  (confirming || autoDetected)
                     ? 'bg-green-400 shadow-green-200 cursor-not-allowed'
                     : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
                 )}
               >
-                {confirming
+                {autoDetected
+                  ? (language === 'vi' ? 'Đang xác nhận...' : 'Confirming...')
+                  : confirming
                   ? (t.qr_payment_pending || 'Đang xử lý...')
                   : (t.qr_payment_confirm || 'Tôi đã thanh toán xong')}
               </motion.button>
