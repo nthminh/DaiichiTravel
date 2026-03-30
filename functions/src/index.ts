@@ -178,7 +178,7 @@ export const verifyRecaptchaAndSendOtp = https.onCall(
  *   firebase functions:secrets:set SMTP_PASS
  */
 export const notifyInquiry = onDocumentCreated(
-  { document: 'inquiries/{inquiryId}', region: 'asia-southeast1' },
+  { document: 'inquiries/{inquiryId}', region: 'asia-southeast1', secrets: ['SMTP_USER', 'SMTP_PASS'] },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
@@ -381,7 +381,7 @@ interface SendEmailLoginLinkResponse {
 }
 
 export const sendEmailLoginLink = https.onCall(
-  { region: 'asia-southeast1', cors: true },
+  { region: 'asia-southeast1', cors: true, secrets: ['SMTP_USER', 'SMTP_PASS'] },
   async (request): Promise<SendEmailLoginLinkResponse> => {
     const data = request.data as SendEmailLoginLinkRequest;
 
@@ -521,7 +521,7 @@ ${companyInfoHtml(appUrl)}`;
  * function exits gracefully without throwing.
  */
 export const onCustomerCreated = onDocumentCreated(
-  { document: 'customers/{customerId}', region: 'asia-southeast1' },
+  { document: 'customers/{customerId}', region: 'asia-southeast1', secrets: ['SMTP_USER', 'SMTP_PASS'] },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
