@@ -802,7 +802,10 @@ export default function App() {
     setShowPreBookingInfo(false);
     setShowBookingForm(null);
     setExtraSeatIds([]);
-    setAddonQuantities({});
+    // Note: addonQuantities is intentionally NOT reset here so that pre-populated
+    // addon selections from BookTicketPage (TOUR_SHORT flow) are preserved.
+    // Addon quantities are reset by BookTicketPage's handleTripConfirm for non-TOUR_SHORT trips,
+    // and by SeatMappingPage when the user navigates back or cancels the booking form.
     setFareAmount(null);
     setFareAgentAmount(null);
     setSegmentBaseFare(null);
@@ -1491,6 +1494,7 @@ export default function App() {
               setSelectedTrip={setSelectedTrip}
               setPreviousTab={setPreviousTab}
               setActiveTab={setActiveTab}
+              setAddonQuantities={setAddonQuantities}
               setRoundTripPhase={setRoundTripPhase}
               setTripCardImgIdx={setTripCardImgIdx}
               setShowAddonDetailTrip={setShowAddonDetailTrip}
@@ -1668,6 +1672,7 @@ export default function App() {
               setSelectedTrip={setSelectedTrip}
               setPreviousTab={setPreviousTab}
               setActiveTab={setActiveTab}
+              setAddonQuantities={setAddonQuantities}
               setRoundTripPhase={setRoundTripPhase}
               setTripCardImgIdx={setTripCardImgIdx}
               setShowAddonDetailTrip={setShowAddonDetailTrip}

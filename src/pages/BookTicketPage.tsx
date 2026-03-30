@@ -747,6 +747,8 @@ interface TripConfirmPanelProps {
   searchAdults: number;
   searchChildren: number;
   searchChildrenAges: (number | undefined)[];
+  /** IDs of addons selected on the BookTicketPage card (TOUR_SHORT only) */
+  selectedAddons?: string[];
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -755,6 +757,7 @@ function TripConfirmPanel({
   trip, route, language, segmentFares,
   searchStationFrom, searchStationTo, searchFrom, searchTo,
   roundTripPhase, tripType, currentUser, searchAdults, searchChildren, searchChildrenAges,
+  selectedAddons,
   onConfirm, onClose,
 }: TripConfirmPanelProps) {
   const t = TRANSLATIONS[language];
@@ -944,6 +947,13 @@ function TripConfirmPanel({
     ? totalPerPerson * searchAdults + childAgeGroups.reduce((s, g) => s + g.count * g.farePer, 0)
     : grandTotal;
   const displayTotalPassengers = searchAdults + searchChildren;
+
+  // ---- Selected addons (TOUR_SHORT) ----
+  const selectedAddonObjects = (trip.addons || []).filter(a => (selectedAddons || []).includes(a.id));
+  const addonPricePerPerson = selectedAddonObjects.reduce((sum, a) => sum + a.price, 0);
+  // Addons apply to all passengers (adults + children), consistent with SeatMappingPage behaviour
+  const addonPassengerCount = displayTotalPassengers;
+  const addonGrandTotal = addonPricePerPerson * addonPassengerCount;
 
   const stepLabels: [string, string, string, string] = [
     t.step_select_trip || 'Chọn chuyến',
@@ -1190,6 +1200,27 @@ function TripConfirmPanel({
                   <span className="text-base font-bold text-daiichi-red">{displayGrandTotal.toLocaleString()}đ</span>
                 </div>
               )}
+              {/* ── Selected add-on services (TOUR_SHORT) ── */}
+              {selectedAddonObjects.length > 0 && (
+                <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                  <p className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 uppercase">
+                    <Gift size={10} />
+                    {language === 'vi' ? 'Dịch vụ kèm theo' : language === 'ja' ? '付帯サービス' : 'Add-on Services'}
+                  </p>
+                  {selectedAddonObjects.map(addon => (
+                    <div key={addon.id} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{addon.name} ×{addonPassengerCount}</span>
+                      <span className="font-semibold text-emerald-600">+{(addon.price * addonPassengerCount).toLocaleString()}đ</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between pt-1.5 border-t border-emerald-100">
+                    <span className="text-sm font-bold text-gray-800">
+                      {language === 'vi' ? 'Tổng cộng (dự kiến)' : language === 'ja' ? '合計（概算）' : 'Grand Total (est.)'}
+                    </span>
+                    <span className="text-base font-bold text-daiichi-red">{(displayGrandTotal + addonGrandTotal).toLocaleString()}đ</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1305,6 +1336,7 @@ interface BookTicketPageProps {
   setSelectedTrip: (trip: any) => void;
   setPreviousTab: (tab: string) => void;
   setActiveTab: (tab: string) => void;
+  setAddonQuantities?: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   setRoundTripPhase: (phase: 'outbound' | 'return') => void;
   setTripCardImgIdx: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   setShowAddonDetailTrip: (trip: Trip | null) => void;
@@ -1418,6 +1450,7 @@ export function BookTicketPage({
   setSelectedTrip,
   setPreviousTab,
   setActiveTab,
+  setAddonQuantities,
   setRoundTripPhase,
   setTripCardImgIdx,
   setShowAddonDetailTrip,
@@ -2446,6 +2479,18 @@ export function BookTicketPage({
     // Preserve the correct "back" tab: tours tab for TOUR_SHORT, otherwise book-ticket
     const tripRoute = routes.find(r => r.name === pendingConfirmTrip.route);
     setPreviousTab(tripRoute?.routeCategory === 'TOUR_SHORT' ? 'tours' : 'book-ticket');
+    // Pre-populate addon quantities for TOUR_SHORT: selected addons × total passengers
+    if (setAddonQuantities) {
+      if (tripRoute?.routeCategory === 'TOUR_SHORT') {
+        const selectedAddonsForTrip = selectedAddonsByTrip[pendingConfirmTrip.id] || [];
+        const totalPassengers = searchAdults + searchChildren;
+        const initialQtys: Record<string, number> = {};
+        selectedAddonsForTrip.forEach(addonId => { initialQtys[addonId] = totalPassengers; });
+        setAddonQuantities(initialQtys);
+      } else {
+        setAddonQuantities({});
+      }
+    }
     setActiveTab('seat-mapping');
     setPendingConfirmTrip(null);
   };
@@ -2559,6 +2604,7 @@ export function BookTicketPage({
         searchAdults={searchAdults}
         searchChildren={searchChildren}
         searchChildrenAges={searchChildrenAges}
+        selectedAddons={selectedAddonsByTrip[pendingConfirmTrip.id] || []}
         onConfirm={handleTripConfirm}
         onClose={() => setPendingConfirmTrip(null)}
       />
