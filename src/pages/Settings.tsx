@@ -142,6 +142,14 @@ export const Settings: React.FC<SettingsProps> = ({
     shbAccountNumber: '',
     shbAccountName: '',
     shbEnvironment: 'sandbox' as 'sandbox' | 'production',
+    // OnePay Vietnam
+    onepayEnabled: false,
+    onepayMerchant: '',
+    onepayAccessCode: '',
+    onepayHashKey: '',
+    onepayReturnUrl: '',
+    onepayEnvironment: 'sandbox' as 'sandbox' | 'production',
+    onepayGatewayType: 'domestic' as 'domestic' | 'international',
   };
   const [paymentConfig, setPaymentConfig] = useState(DEFAULT_PAYMENT_CONFIG);
   const [paymentConfigLoading, setPaymentConfigLoading] = useState(true);
@@ -1001,6 +1009,178 @@ export const Settings: React.FC<SettingsProps> = ({
                           {language === 'vi'
                             ? 'Thông tin xác thực được lưu trữ an toàn. Tích hợp OAuth2 sẽ sử dụng Client ID và Client Secret để lấy access token.'
                             : 'Credentials stored securely. OAuth2 integration will use Client ID & Client Secret to obtain access tokens.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* OnePay Việt Nam */}
+                <div className="p-4 rounded-2xl border border-orange-100 bg-orange-50/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">💳</span>
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">
+                          {language === 'vi' ? 'OnePay Việt Nam' : 'OnePay Vietnam'}
+                        </p>
+                        <p className={cn("text-xs font-bold", paymentConfig.onepayEnabled ? "text-green-600" : "text-gray-400")}>
+                          {paymentConfig.onepayEnabled
+                            ? (language === 'vi' ? 'Đã kích hoạt' : 'Enabled')
+                            : (language === 'vi' ? 'Chưa kết nối' : 'Not connected')}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setPaymentConfig(p => ({ ...p, onepayEnabled: !p.onepayEnabled }))}
+                      className={cn("transition-colors", paymentConfig.onepayEnabled ? "text-orange-500" : "text-gray-300")}
+                    >
+                      {paymentConfig.onepayEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                    </button>
+                  </div>
+
+                  {paymentConfig.onepayEnabled && (
+                    <div className="pt-3 border-t border-orange-100 space-y-3">
+                      <p className="text-[11px] text-orange-600 font-semibold">
+                        {language === 'vi' ? 'Thông tin kết nối cổng thanh toán OnePay' : 'OnePay Payment Gateway Connection Details'}
+                      </p>
+
+                      {/* Loại cổng thanh toán */}
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          {language === 'vi' ? 'Loại cổng thanh toán' : 'Gateway Type'}
+                        </label>
+                        <div className="flex gap-3 mt-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="onepay_gateway"
+                              value="domestic"
+                              checked={paymentConfig.onepayGatewayType === 'domestic'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, onepayGatewayType: 'domestic' }))}
+                              className="accent-orange-500"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">
+                              {language === 'vi' ? 'Nội địa (ATM)' : 'Domestic (ATM)'}
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="onepay_gateway"
+                              value="international"
+                              checked={paymentConfig.onepayGatewayType === 'international'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, onepayGatewayType: 'international' }))}
+                              className="accent-orange-500"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">
+                              {language === 'vi' ? 'Quốc tế (Visa/Master)' : 'International (Visa/Master)'}
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Môi trường */}
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          {language === 'vi' ? 'Môi trường' : 'Environment'}
+                        </label>
+                        <div className="flex gap-3 mt-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="onepay_env"
+                              value="sandbox"
+                              checked={paymentConfig.onepayEnvironment === 'sandbox'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, onepayEnvironment: 'sandbox' }))}
+                              className="accent-orange-500"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">Sandbox (Test)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="onepay_env"
+                              value="production"
+                              checked={paymentConfig.onepayEnvironment === 'production'}
+                              onChange={() => setPaymentConfig(p => ({ ...p, onepayEnvironment: 'production' }))}
+                              className="accent-orange-500"
+                            />
+                            <span className="text-sm text-gray-600 font-medium">Production (Live)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Thông tin xác thực OnePay */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {language === 'vi' ? 'Mã Merchant (vpc_Merchant)' : 'Merchant ID (vpc_Merchant)'}
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentConfig.onepayMerchant}
+                            onChange={e => setPaymentConfig(p => ({ ...p, onepayMerchant: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Mã merchant do OnePay cấp' : 'Merchant code from OnePay'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {language === 'vi' ? 'Mã Access Code (vpc_Access_Code)' : 'Access Code (vpc_Access_Code)'}
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentConfig.onepayAccessCode}
+                            onChange={e => setPaymentConfig(p => ({ ...p, onepayAccessCode: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Access Code do OnePay cấp' : 'Access Code from OnePay'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 font-mono"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {language === 'vi' ? 'Khóa bí mật HMAC-SHA256 (Hash Key — dạng hex)' : 'HMAC-SHA256 Hash Key (hex string)'}
+                          </label>
+                          <input
+                            type="password"
+                            value={paymentConfig.onepayHashKey}
+                            onChange={e => setPaymentConfig(p => ({ ...p, onepayHashKey: e.target.value }))}
+                            placeholder={language === 'vi' ? 'Hash Secret Key dạng hex do OnePay cấp' : 'Hex-encoded Hash Secret Key from OnePay'}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 font-mono"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {language === 'vi' ? 'URL nhận kết quả (vpc_ReturnURL)' : 'Return URL (vpc_ReturnURL)'}
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentConfig.onepayReturnUrl}
+                            onChange={e => setPaymentConfig(p => ({ ...p, onepayReturnUrl: e.target.value }))}
+                            placeholder="https://example.com/payment/return"
+                            className="w-full mt-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Thông tin endpoint */}
+                      <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                        <p className="text-[11px] text-orange-700 font-semibold mb-1">
+                          {language === 'vi' ? '🔗 Endpoint API OnePay' : '🔗 OnePay API Endpoint'}
+                        </p>
+                        <p className="text-[10px] text-orange-600 font-mono">
+                          {paymentConfig.onepayGatewayType === 'domestic'
+                            ? (paymentConfig.onepayEnvironment === 'sandbox'
+                                ? 'https://mtf.onepay.vn/paygate/vpcpay.op'
+                                : 'https://onepay.vn/paygate/vpcpay.op')
+                            : (paymentConfig.onepayEnvironment === 'sandbox'
+                                ? 'https://mtf.onepay.vn/onecomm-pay/vpc.op'
+                                : 'https://onepay.vn/onecomm-pay/vpc.op')}
+                        </p>
+                        <p className="text-[10px] text-orange-500 mt-1">
+                          {language === 'vi'
+                            ? 'Thông tin xác thực được lưu trữ an toàn. Chữ ký HMAC-SHA256 được tính phía client khi tạo URL thanh toán.'
+                            : 'Credentials stored securely. HMAC-SHA256 signature is computed client-side when generating the payment URL.'}
                         </p>
                       </div>
                     </div>

@@ -9,6 +9,10 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID: string
   readonly VITE_FIREBASE_MEASUREMENT_ID: string
   readonly VITE_RECAPTCHA_SITE_KEY?: string
+  // OnePay Vietnam (tuỳ chọn — có thể cấu hình qua Settings thay thế)
+  readonly VITE_ONEPAY_MERCHANT?: string
+  readonly VITE_ONEPAY_ACCESS_CODE?: string
+  readonly VITE_ONEPAY_HASH_KEY?: string
 }
 
 interface ImportMeta {
