@@ -263,7 +263,7 @@ export function RouteManagementPage({
                       >
                         <option value="">{language === 'vi' ? '-- Chọn loại tuyến --' : '-- Select category --'}</option>
                         <option value="BUS">{language === 'vi' ? '🚌 Xe bus' : language === 'ja' ? '🚌 バス' : '🚌 Bus'}</option>
-                        <option value="TOUR_SHORT">{language === 'vi' ? '🗺️ Tour ngày' : language === 'ja' ? '🗺️ 日帰りツアー' : '🗺️ Day Tour'}</option>
+                        <option value="TOUR_SHORT">{language === 'vi' ? '🗺️ Tour' : language === 'ja' ? '🗺️ ツアー' : '🗺️ Tour'}</option>
                         <option value="CRUISE">{language === 'vi' ? '⚓ Du thuyền' : language === 'ja' ? '⚓ クルーズ' : '⚓ Cruise'}</option>
                         <option value="HOTEL">{language === 'vi' ? '🏨 Khách sạn' : language === 'ja' ? '🏨 ホテル' : '🏨 Hotel'}</option>
                       </select>
@@ -1529,7 +1529,7 @@ export function RouteManagementPage({
                             route.routeCategory === 'HOTEL' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500'
                           }`}>
                             {route.routeCategory === 'BUS' ? (language === 'vi' ? '🚌 Xe bus' : '🚌 Bus') :
-                             route.routeCategory === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour ngày' : '🗺️ Day Tour') :
+                             route.routeCategory === 'TOUR_SHORT' ? '🗺️ Tour' :
                              route.routeCategory === 'CRUISE' ? (language === 'vi' ? '⚓ Du thuyền' : '⚓ Cruise') :
                              route.routeCategory === 'HOTEL' ? (language === 'vi' ? '🏨 Khách sạn' : '🏨 Hotel') : route.routeCategory}
                           </span>
