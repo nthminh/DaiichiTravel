@@ -3,23 +3,25 @@ import * as https from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import * as nodemailer from 'nodemailer';
-import { sanitize } from 'isomorphic-dompurify';
+
 import ExcelJS from 'exceljs';
 import { createHmac } from 'crypto';
 
 /**
  * Sanitize a user-supplied value for safe inclusion in HTML content or plain-text
- * email headers. All HTML tags are stripped (ALLOWED_TAGS: []) and newline
- * characters are removed to prevent both XSS in the email body and SMTP
- * header-injection in the subject line.
+ * email headers. HTML special characters are encoded to prevent XSS in the email
+ * body, and newline characters are removed to prevent SMTP header-injection in the
+ * subject line.
  */
 function clean(value: unknown): string {
   if (value == null) return '';
-  return sanitize(String(value), {
-    ALLOWED_TAGS: [],
-    RETURN_DOM: false,
-    RETURN_DOM_FRAGMENT: false,
-  }).replace(/[\r\n]+/g, ' ');
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/[\r\n]+/g, ' ');
 }
 
 admin.initializeApp();
