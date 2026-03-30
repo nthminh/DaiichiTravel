@@ -1532,11 +1532,13 @@ export function SeatMappingPage({
                 {fareLoading && (
                   <p className="text-xs text-blue-500 animate-pulse">{t.fare_loading || 'Looking up fare...'}</p>
                 )}
-                {!fareLoading && fareAmount !== null && (
+                {!fareLoading && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-xs text-emerald-600 font-bold">
-                      {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'người'}
-                    </p>
+                    {fareAmount !== null && (
+                      <p className="text-xs text-emerald-600 font-bold">
+                        {t.fare_based_price || 'Fare table price'}: {fareAmount.toLocaleString()}đ/{t.per_person || 'người'}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => setShowPriceDetail(true)}

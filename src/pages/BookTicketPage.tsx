@@ -1733,64 +1733,31 @@ export function BookTicketPage({
     });
   }, [searchFrom, searchTo, tripType, roundTripPhase, routes]);
 
-  // When a vehicle type filter is active, narrow the stop suggestions to only terminals /
-  // child stops that belong to routes served by that vehicle type.
+  // When a category filter is active, narrow the stop suggestions to only terminals /
+  // child stops whose classification matches the active route category (BUS, TOUR_SHORT, etc.).
   const filteredStops = useMemo<Stop[]>(() => {
-    if (!vehicleTypeFilter) return stops;
+    if (!effectiveCategoryFilter) return stops;
 
-    // Primary approach: filter by the terminal's vehicleTypes field (set in stop management).
-    // If any terminal has vehicleTypes configured, use this direct approach.
-    const terminalsWithType = stops.filter(s => s.type === 'TERMINAL' && s.vehicleTypes);
-    if (terminalsWithType.length > 0) {
+    // Filter by the terminal's vehicleTypes field which now stores the route category.
+    const terminalsWithCategory = stops.filter(s => s.type === 'TERMINAL' && s.vehicleTypes);
+    if (terminalsWithCategory.length > 0) {
       const allowedTerminalIds = new Set<string>(
-        terminalsWithType
-          .filter(t => matchesSearch(t.vehicleTypes!, vehicleTypeFilter))
+        terminalsWithCategory
+          .filter(t => t.vehicleTypes === effectiveCategoryFilter)
           .map(t => t.id)
       );
+      // Return only matching terminals and their child stops.
+      // When no terminals match the active category, return an empty list so
+      // users aren't confused by unrelated stops appearing.
       return stops.filter(stop => {
         if (stop.type === 'TERMINAL') return allowedTerminalIds.has(stop.id);
         return stop.terminalId ? allowedTerminalIds.has(stop.terminalId) : false;
       });
     }
 
-    // Fallback (legacy): filter via vehicle → trips → routes → stops.
-    // Collect license plates of vehicles matching the selected type
-    const matchingPlates = new Set(
-      vehicles.filter(v => v.type === vehicleTypeFilter).map(v => v.licensePlate)
-    );
-    // Collect route names from trips that use those vehicles
-    const filteredRouteNames = new Set(
-      trips
-        .filter(trip => matchingPlates.has(trip.licensePlate))
-        .map(trip => trip.route)
-        .filter(Boolean)
-    );
-    if (filteredRouteNames.size === 0) return stops;
-    // Collect all stop names referenced by those routes
-    const allowedStopNames = new Set<string>();
-    routes
-      .filter(r => filteredRouteNames.has(r.name))
-      .forEach(r => {
-        if (r.departurePoint) allowedStopNames.add(r.departurePoint);
-        if (r.arrivalPoint) allowedStopNames.add(r.arrivalPoint);
-        (r.routeStops || []).forEach(rs => {
-          if (rs.stopName) allowedStopNames.add(rs.stopName);
-        });
-      });
-    // Build set of terminal IDs whose name is allowed
-    const allowedTerminalIds = new Set<string>();
-    stops.forEach(stop => {
-      if (stop.type === 'TERMINAL' && stop.id && allowedStopNames.has(stop.name)) {
-        allowedTerminalIds.add(stop.id);
-      }
-    });
-    return stops.filter(stop => {
-      if (stop.type === 'TERMINAL') return allowedStopNames.has(stop.name);
-      // Child stops without a valid terminalId cannot be linked to a filtered terminal,
-      // so they are excluded to avoid surfacing unresolvable suggestions.
-      return stop.terminalId ? allowedTerminalIds.has(stop.terminalId) : false;
-    });
-  }, [vehicleTypeFilter, stops, vehicles, trips, routes]);
+    // Fallback: no terminals have categories set yet – show all stops.
+    return stops;
+  }, [effectiveCategoryFilter, stops]);
 
   // filterTrip accepts an optional explicit params object so that handleSearch can pass
   // the newly-committed values synchronously (before the React state update is applied).

@@ -440,11 +440,11 @@ export interface Stop {
    */
   priority?: number;
   /**
-   * For type='TERMINAL': comma-separated list of vehicle types that stop at this terminal.
-   * Used to filter stop suggestions when the customer selects a vehicle type.
-   * e.g. "Limousine 11 ghế, Bus 45 chỗ"
+   * For type='TERMINAL': route service category classification.
+   * Used to filter stop suggestions to match the active search category.
+   * Matches Route.routeCategory values: 'BUS' | 'TOUR_SHORT' | 'CRUISE' | 'HOTEL'.
    */
-  vehicleTypes?: string;
+  vehicleTypes?: 'BUS' | 'TOUR_SHORT' | 'CRUISE' | 'HOTEL';
   /**
    * Serial / display order number (số thứ tự). Used to sort stops in the management table.
    * Lower number appears first.

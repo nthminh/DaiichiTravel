@@ -26,6 +26,13 @@ const CATEGORY_LABELS: Record<NonNullable<Stop['category']>, Record<Language, st
   FREE:       { vi: 'Miễn phí',          en: 'Free',          ja: '無料' },
 };
 
+const ROUTE_CATEGORY_LABELS: Record<NonNullable<Stop['vehicleTypes']>, Record<Language, string>> = {
+  BUS:        { vi: '🚌 Xe bus',     en: '🚌 Bus',        ja: '🚌 バス' },
+  TOUR_SHORT: { vi: '🗺️ Tour ngày',  en: '🗺️ Day Tour',   ja: '🗺️ 日帰りツアー' },
+  CRUISE:     { vi: '⚓ Du thuyền',  en: '⚓ Cruise',      ja: '⚓ クルーズ' },
+  HOTEL:      { vi: '🏨 Khách sạn', en: '🏨 Hotel',       ja: '🏨 ホテル' },
+};
+
 const EMPTY_FORM: Omit<Stop, 'id'> = {
   name: '',
   address: '',
@@ -528,15 +535,18 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
             {formData.type === 'TERMINAL' && (
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                  {language === 'vi' ? 'Loại xe' : 'Vehicle Types'}
+                  {language === 'vi' ? 'Phân loại' : language === 'ja' ? '分類' : 'Classification'}
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.vehicleTypes ?? ''}
-                  onChange={e => setFormData(prev => ({ ...prev, vehicleTypes: e.target.value || undefined }))}
+                  onChange={e => setFormData(prev => ({ ...prev, vehicleTypes: (e.target.value || undefined) as Stop['vehicleTypes'] }))}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
-                  placeholder={language === 'vi' ? 'VD: Limousine 11 ghế, Bus 45 chỗ' : 'e.g. Limousine 11 ghế, Bus 45 chỗ'}
-                />
+                >
+                  <option value="">{language === 'vi' ? '— Chưa phân loại —' : language === 'ja' ? '— 未分類 —' : '— Not classified —'}</option>
+                  {(Object.keys(ROUTE_CATEGORY_LABELS) as NonNullable<Stop['vehicleTypes']>[]).map(cat => (
+                    <option key={cat} value={cat}>{ROUTE_CATEGORY_LABELS[cat][language]}</option>
+                  ))}
+                </select>
               </div>
             )}
             <div className="space-y-2">
@@ -723,7 +733,7 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                   {language === 'vi' ? 'Loại điểm' : 'Category'}
                 </ResizableTh>
                 <ResizableTh width={colWidths.vehicleTypes} onResize={(w) => setColWidths(p => ({ ...p, vehicleTypes: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  {language === 'vi' ? 'Loại xe' : 'Vehicle Types'}
+                  {language === 'vi' ? 'Phân loại' : language === 'ja' ? '分類' : 'Classification'}
                 </ResizableTh>
                 <ResizableTh width={colWidths.address} onResize={(w) => setColWidths(p => ({ ...p, address: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.stop_address}</ResizableTh>
                 <ResizableTh width={colWidths.surcharge} onResize={(w) => setColWidths(p => ({ ...p, surcharge: w }))} className="px-4 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.surcharge}</ResizableTh>
@@ -820,11 +830,11 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                         </span>
                       </td>
 
-                      {/* Vehicle Types */}
+                      {/* Classification */}
                       <td className="px-4 py-5">
                         {isTerminal && stop.vehicleTypes ? (
                           <span className="text-xs font-medium text-purple-700 bg-purple-50 px-2 py-1 rounded-lg">
-                            {stop.vehicleTypes}
+                            {ROUTE_CATEGORY_LABELS[stop.vehicleTypes]?.[language] ?? '?'}
                           </span>
                         ) : (
                           <span className="text-xs text-gray-300 italic">—</span>
@@ -988,15 +998,18 @@ export const StopManagement: React.FC<StopManagementProps> = ({ language, stops,
                               {formData.type === 'TERMINAL' && (
                                 <div className="space-y-2">
                                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                                    {language === 'vi' ? 'Loại xe' : 'Vehicle Types'}
+                                    {language === 'vi' ? 'Phân loại' : language === 'ja' ? '分類' : 'Classification'}
                                   </label>
-                                  <input
-                                    type="text"
+                                  <select
                                     value={formData.vehicleTypes ?? ''}
-                                    onChange={e => setFormData(prev => ({ ...prev, vehicleTypes: e.target.value || undefined }))}
+                                    onChange={e => setFormData(prev => ({ ...prev, vehicleTypes: (e.target.value || undefined) as Stop['vehicleTypes'] }))}
                                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none text-sm"
-                                    placeholder={language === 'vi' ? 'VD: Limousine 11 ghế, Bus 45 chỗ' : 'e.g. Limousine 11 ghế, Bus 45 chỗ'}
-                                  />
+                                  >
+                                    <option value="">{language === 'vi' ? '— Chưa phân loại —' : language === 'ja' ? '— 未分類 —' : '— Not classified —'}</option>
+                                    {(Object.keys(ROUTE_CATEGORY_LABELS) as NonNullable<Stop['vehicleTypes']>[]).map(cat => (
+                                      <option key={cat} value={cat}>{ROUTE_CATEGORY_LABELS[cat][language]}</option>
+                                    ))}
+                                  </select>
                                 </div>
                               )}
                               <div className="space-y-2">
