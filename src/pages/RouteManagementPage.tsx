@@ -1529,7 +1529,7 @@ export function RouteManagementPage({
                             route.routeCategory === 'HOTEL' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500'
                           }`}>
                             {route.routeCategory === 'BUS' ? (language === 'vi' ? '🚌 Xe bus' : '🚌 Bus') :
-                             route.routeCategory === 'TOUR_SHORT' ? (language === 'vi' ? '🗺️ Tour' : '🗺️ Tour') :
+                             route.routeCategory === 'TOUR_SHORT' ? '🗺️ Tour' :
                              route.routeCategory === 'CRUISE' ? (language === 'vi' ? '⚓ Du thuyền' : '⚓ Cruise') :
                              route.routeCategory === 'HOTEL' ? (language === 'vi' ? '🏨 Khách sạn' : '🏨 Hotel') : route.routeCategory}
                           </span>
