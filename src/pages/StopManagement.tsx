@@ -28,7 +28,7 @@ const CATEGORY_LABELS: Record<NonNullable<Stop['category']>, Record<Language, st
 
 const ROUTE_CATEGORY_LABELS: Record<NonNullable<Stop['vehicleTypes']>, Record<Language, string>> = {
   BUS:        { vi: '🚌 Xe bus',     en: '🚌 Bus',        ja: '🚌 バス' },
-  TOUR_SHORT: { vi: '🗺️ Tour ngày',  en: '🗺️ Day Tour',   ja: '🗺️ 日帰りツアー' },
+  TOUR_SHORT: { vi: '🗺️ Tour',       en: '🗺️ Day Tour',   ja: '🗺️ 日帰りツアー' },
   CRUISE:     { vi: '⚓ Du thuyền',  en: '⚓ Cruise',      ja: '⚓ クルーズ' },
   HOTEL:      { vi: '🏨 Khách sạn', en: '🏨 Hotel',       ja: '🏨 ホテル' },
 };
