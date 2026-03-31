@@ -257,7 +257,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     setUploadingRoomIdx(roomIdx);
     try {
       const urls: string[] = [];
-      for (const file of files) {
+      for (const file of files as File[]) {
         const compressed = await compressImage(file, 0.75, 1280);
         const storageRef = ref(storage, `tours/rooms/${Date.now()}_${compressed.name}`);
         const uploadTask = uploadBytesResumable(storageRef, compressed);
