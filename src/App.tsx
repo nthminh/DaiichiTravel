@@ -52,6 +52,7 @@ import { buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGrou
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const TourManagement = lazy(() => import('./pages/TourManagement').then(m => ({ default: m.TourManagement })));
+const CruiseTourPage = lazy(() => import('./pages/CruiseTourPage').then(m => ({ default: m.CruiseTourPage })));
 const StopManagement = lazy(() => import('./pages/StopManagement').then(m => ({ default: m.StopManagement })));
 const FinancialReport = lazy(() => import('./pages/FinancialReport').then(m => ({ default: m.FinancialReport })));
 const UserGuide = lazy(() => import('./pages/UserGuide').then(m => ({ default: m.UserGuide })));
@@ -1736,7 +1737,7 @@ export default function App() {
             setIsTourBookingLoading={setIsTourBookingLoading}
             tourBookingStatus={tourBookingStatus}
             setTourBookingStatus={setTourBookingStatus}
-            onBackToTours={() => setActiveTab('tours')}
+            onBackToTours={() => setActiveTab('cruise-tours')}
             onViewTicket={(booking) => { setLastBooking(booking); setIsTicketOpen(true); }}
             onGoHome={() => setActiveTab('home')}
             getLocalDateString={getLocalDateString}
@@ -2001,6 +2002,17 @@ export default function App() {
 
       case 'tour-management':
         return <TourManagement language={language} currentUser={currentUser} />;
+
+      case 'cruise-tours':
+        return (
+          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
+            <CruiseTourPage
+              tours={tours}
+              language={language}
+              onSelectTour={(tour) => { setSelectedTour(tour); setActiveTab('book-tour'); }}
+            />
+          </Suspense>
+        );
 
       case 'completed-trips':
         return (

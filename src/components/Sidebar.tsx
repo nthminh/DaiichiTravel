@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket
+  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket, Anchor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'customers', label: TRANSLATIONS[language].customers || 'Khách hàng', icon: Users },
     { id: 'audit-log', label: TRANSLATIONS[language].audit_log || 'Nhật ký hoạt động', icon: BookOpen },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', icon: CheckCircle },
-    { id: 'tour-management', label: language === 'vi' ? 'Quản lý Tour' : 'Tour Management', icon: Star },
+    { id: 'tour-management', label: language === 'vi' ? 'Tour du thuyền' : language === 'ja' ? 'クルーズツアー管理' : 'Cruise Tours', icon: Anchor },
     { id: 'pickup-dropoff', label: TRANSLATIONS[language].pickup_dropoff_management || 'Điểm đón/Trả', icon: MapPin },
     { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin },
     { id: 'agents', label: t.agents, icon: Users },
@@ -52,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'my-tickets', label: t.my_tickets || 'Vé đã mua', icon: Ticket, roles: [UserRole.CUSTOMER, UserRole.GUEST] },
     { id: 'agent-bookings', label: t.agent_bookings || 'Vé của tôi', icon: Ticket, roles: [UserRole.AGENT] },
     { id: 'tours', label: t.tours, icon: Star, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
+    { id: 'cruise-tours', label: language === 'vi' ? 'Tour du thuyền' : language === 'ja' ? 'クルーズツアー' : 'Cruise Tours', icon: Anchor, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST] },
     { id: 'consignments', label: t.consignments, icon: Package, roles: [UserRole.MANAGER, UserRole.AGENT] },
     { id: 'user-guide', label: t.user_guide ?? 'Hướng dẫn sử dụng', icon: BookOpen, roles: [UserRole.MANAGER, UserRole.AGENT, UserRole.CUSTOMER, UserRole.GUEST, 'STAFF', 'DRIVER'] as UserRole[] },
     { id: 'settings', label: t.settings, icon: SettingsIcon, roles: [UserRole.MANAGER, UserRole.AGENT] },
