@@ -20,6 +20,17 @@ export interface TourAddonItem {
   description?: string;
 }
 
+export interface TourRoomTypeItem {
+  id: string;
+  name: string;
+  capacity: number;
+  pricingMode: 'PER_ROOM' | 'PER_PERSON';
+  price: number;
+  totalRooms: number;
+  description: string;
+  images: string[];
+}
+
 export interface TourItem {
   id: string;
   title: string;
@@ -44,6 +55,11 @@ export interface TourItem {
   addons?: TourAddonItem[];
   startDate?: string;
   endDate?: string;
+  roomTypes?: TourRoomTypeItem[];
+  departureTime?: string;
+  departureLocation?: string;
+  returnTime?: string;
+  returnLocation?: string;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────

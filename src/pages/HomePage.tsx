@@ -150,10 +150,9 @@ export function HomePage({ language, currentUser, agents, setActiveTab, setAgent
     {
       label: isVi ? 'Du thuyền' : isJa ? 'クルーズ' : 'Cruise',
       icon: Anchor,
-      tab: 'book-ticket',
+      tab: 'cruise-tours',
       color: 'text-cyan-600',
       bg: 'bg-cyan-50',
-      categoryKey: 'CRUISE',
     },
     {
       label: isVi ? 'Tour' : isJa ? 'ツアー' : 'Tour',
