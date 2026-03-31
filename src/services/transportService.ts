@@ -21,6 +21,17 @@ import { db } from '../lib/firebase';
 import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, buildSeatFareDocId, type GetFareParams } from './fareService';
 
+interface TourRoomTypeData {
+  id: string;
+  name: string;
+  capacity: number;
+  pricingMode: 'PER_ROOM' | 'PER_PERSON';
+  price: number;
+  totalRooms: number;
+  description: string;
+  images: string[];
+}
+
 interface TourData {
   title: string;
   description: string;
@@ -34,7 +45,7 @@ interface TourData {
   numChildren?: number;   // number of children (>4 years old) in the tour group
   duration?: string;      // e.g., "3 ngày 2 đêm"
   nights?: number;        // number of overnight stays
-  pricePerNight?: number; // overnight cost per person per night
+  pricePerNight?: number; // overnight cost per person per night (legacy – replaced by roomTypes)
   breakfastCount?: number;    // number of breakfast meals per person
   pricePerBreakfast?: number; // price per breakfast per person
   surcharge?: number;         // additional surcharge amount (flat fee)
@@ -42,6 +53,11 @@ interface TourData {
   youtubeUrl?: string;        // optional YouTube video link for the tour
   startDate?: string;         // tour start date (YYYY-MM-DD)
   endDate?: string;           // tour end date (YYYY-MM-DD)
+  departureTime?: string;     // departure time e.g. "07:00"
+  departureLocation?: string; // meeting/boarding point
+  returnTime?: string;        // expected return time
+  returnLocation?: string;    // end-of-tour location
+  roomTypes?: TourRoomTypeData[]; // overnight cabin/room options with per-room pricing
   itinerary?: { day: number; content: string }[];
   addons?: { id: string; name: string; price: number; description?: string }[]; // optional add-on services
 }

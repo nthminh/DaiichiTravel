@@ -213,6 +213,18 @@ export interface TourAddon {
   description?: string;
 }
 
+/** A room type available on a multi-day overnight tour (cabin, suite, berth, etc.) */
+export interface TourRoomType {
+  id: string;
+  name: string;              // e.g., "Phòng Standard", "Cabin Deluxe", "Phòng VIP"
+  capacity: number;          // maximum number of guests per room/cabin
+  pricingMode: 'PER_ROOM' | 'PER_PERSON'; // sell by room or per guest
+  price: number;             // price per room (PER_ROOM) or per person (PER_PERSON)
+  totalRooms: number;        // total number of rooms of this type
+  description: string;       // amenities, features, equipment details
+  images: string[];          // room/cabin photos
+}
+
 export interface Tour {
   id: string;
   title: string;
@@ -223,6 +235,11 @@ export interface Tour {
   image: string;
   addons: TourAddon[];
   itinerary: { day: number; content: string }[];
+  roomTypes?: TourRoomType[];      // overnight room/cabin options
+  departureTime?: string;          // e.g., "07:00"
+  departureLocation?: string;      // meeting/boarding point
+  returnTime?: string;             // expected return time
+  returnLocation?: string;         // end-of-tour location
 }
 
 export interface Booking {

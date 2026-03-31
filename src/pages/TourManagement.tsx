@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee,
   Search, Youtube, Copy, Calendar, ChevronDown, ChevronRight,
-  MapPin, Clock, BedDouble, Users
+  MapPin, Clock, BedDouble
 } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -66,9 +66,10 @@ interface TourManagementProps {
 }
 
 const emptyRoomType = (): TourRoomType => ({
-  id: `room_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+  id: crypto.randomUUID(),
   name: '',
   capacity: 2,
+  // PER_PERSON is the default as most tour packages price per traveller
   pricingMode: 'PER_PERSON',
   price: 0,
   totalRooms: 1,
@@ -423,7 +424,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       endDate: tour.endDate || '',
       itinerary: tour.itinerary ? tour.itinerary.map(i => ({ ...i })) : [],
       addons: tour.addons ? tour.addons.map(a => ({ ...a })) : [],
-      roomTypes: tour.roomTypes ? tour.roomTypes.map(r => ({ ...r, id: `room_${Date.now()}_${Math.random().toString(36).slice(2)}` })) : [],
+      roomTypes: tour.roomTypes ? tour.roomTypes.map(r => ({ ...r, id: crypto.randomUUID() })) : [],
       departureTime: tour.departureTime || '',
       departureLocation: tour.departureLocation || '',
       returnTime: tour.returnTime || '',
@@ -896,7 +897,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             </div>
             <button
               type="button"
-              onClick={() => setForm(prev => ({ ...prev, addons: [...prev.addons, { id: `addon_${Date.now()}`, name: '', price: 0, description: '' }] }))}
+              onClick={() => setForm(prev => ({ ...prev, addons: [...prev.addons, { id: crypto.randomUUID(), name: '', price: 0, description: '' }] }))}
               className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors"
             >
               <Plus size={12} />
