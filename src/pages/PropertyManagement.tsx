@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X,
   Search, ChevronDown, ChevronRight, Building2, Ship, Home,
-  Clock, DollarSign, Users, Grid3X3, Star, Calendar, MapPin,
-  BedDouble, Wifi, Wind, Bath, Tv, Coffee
+  Clock, Users, Grid3X3, Calendar, MapPin,
+  BedDouble
 } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
-import { User } from '../types';
-import { Property, PropertyRoomType, PropertyRoomSurcharge } from '../types';
+import { User, Property, PropertyRoomType, PropertyRoomSurcharge } from '../types';
 import { transportService } from '../services/transportService';
 import { compressImage } from '../lib/imageUtils';
 
@@ -138,7 +137,8 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   // Room types panel
   const [roomTypesPanelId, setRoomTypesPanelId] = useState<string | null>(null);
   const [roomTypesByProperty, setRoomTypesByProperty] = useState<Record<string, PropertyRoomType[]>>({});
-  const [roomTypeSubscriptions, setRoomTypeSubscriptions] = useState<Record<string, () => void>>({});
+  // Use a ref to track active subscriptions (avoids stale closure issues in effects)
+  const roomTypeUnsubsRef = useRef<Record<string, () => void>>({});
 
   // Add room type form
   const [showAddRoomTypeForm, setShowAddRoomTypeForm] = useState<string | null>(null);
@@ -163,16 +163,19 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   // ── subscribe to room types when panel opens ───────────────────────────────
   useEffect(() => {
     if (!roomTypesPanelId) return;
-    if (roomTypeSubscriptions[roomTypesPanelId]) return; // already subscribed
-    const unsub = transportService.subscribeToPropertyRoomTypes(roomTypesPanelId, (rts) => {
-      setRoomTypesByProperty(prev => ({ ...prev, [roomTypesPanelId]: rts }));
+    if (roomTypeUnsubsRef.current[roomTypesPanelId]) return; // already subscribed
+    const id = roomTypesPanelId;
+    const unsub = transportService.subscribeToPropertyRoomTypes(id, (rts) => {
+      setRoomTypesByProperty(prev => ({ ...prev, [id]: rts }));
     });
-    setRoomTypeSubscriptions(prev => ({ ...prev, [roomTypesPanelId]: unsub }));
-    return () => {
-      unsub();
-      setRoomTypeSubscriptions(prev => { const next = { ...prev }; delete next[roomTypesPanelId!]; return next; });
-    };
-  }, [roomTypesPanelId]); // eslint-disable-line react-hooks/exhaustive-deps
+    roomTypeUnsubsRef.current[id] = unsub;
+  }, [roomTypesPanelId]);
+
+  // ── cleanup all subscriptions on unmount ──────────────────────────────────
+  useEffect(() => {
+    const unsubsRef = roomTypeUnsubsRef;
+    return () => { Object.values(unsubsRef.current).forEach(fn => fn()); };
+  }, []);
 
   // ── image upload helpers ───────────────────────────────────────────────────
   const uploadImages = useCallback(async (files: FileList, pathPrefix: string): Promise<string[]> => {
@@ -859,7 +862,11 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
 
                   {/* Room types badge */}
                   <div className="hidden sm:flex flex-col items-center">
-                    <span className="text-lg font-extrabold text-gray-700">{roomTypesByProperty[prop.id]?.length ?? '–'}</span>
+                    <span className="text-lg font-extrabold text-gray-700">
+                      {roomTypesByProperty[prop.id] !== undefined
+                        ? roomTypesByProperty[prop.id].length
+                        : roomTypesPanelId === prop.id ? <Loader2 size={14} className="animate-spin" /> : '–'}
+                    </span>
                     <span className="text-[10px] text-gray-400 uppercase font-bold">{language === 'vi' ? 'Loại phòng' : 'Room types'}</span>
                   </div>
 
