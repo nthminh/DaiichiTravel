@@ -52,6 +52,7 @@ import { buildSeatTicketCodeMap as libBuildSeatTicketCodeMap, buildPassengerGrou
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const TourManagement = lazy(() => import('./pages/TourManagement').then(m => ({ default: m.TourManagement })));
+const PropertyManagement = lazy(() => import('./pages/PropertyManagement').then(m => ({ default: m.PropertyManagement })));
 const CruiseTourPage = lazy(() => import('./pages/CruiseTourPage').then(m => ({ default: m.CruiseTourPage })));
 const StopManagement = lazy(() => import('./pages/StopManagement').then(m => ({ default: m.StopManagement })));
 const FinancialReport = lazy(() => import('./pages/FinancialReport').then(m => ({ default: m.FinancialReport })));
@@ -2002,6 +2003,9 @@ export default function App() {
 
       case 'tour-management':
         return <TourManagement language={language} currentUser={currentUser} />;
+
+      case 'property-management':
+        return <PropertyManagement language={language} currentUser={currentUser} />;
 
       case 'cruise-tours':
         return (

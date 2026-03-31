@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket, Anchor
+  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket, Anchor, Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -38,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'audit-log', label: TRANSLATIONS[language].audit_log || 'Nhật ký hoạt động', icon: BookOpen },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', icon: CheckCircle },
     { id: 'tour-management', label: language === 'vi' ? 'Tour du thuyền' : language === 'ja' ? 'クルーズツアー管理' : 'Cruise Tours', icon: Anchor },
+    { id: 'property-management', label: language === 'vi' ? 'Quản lý tài sản' : language === 'ja' ? '資産管理' : 'Property Mgmt', icon: Building2 },
     { id: 'pickup-dropoff', label: TRANSLATIONS[language].pickup_dropoff_management || 'Điểm đón/Trả', icon: MapPin },
     { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin },
     { id: 'agents', label: t.agents, icon: Users },

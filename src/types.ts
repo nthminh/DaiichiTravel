@@ -611,6 +611,47 @@ export interface PendingPayment {
   confirmedAt?: any;
 }
 
+// ─── Property Management (Quản lý tài sản) ───────────────────────────────────
+
+/** Time-based surcharge that applies during a specific date range for a room type */
+export interface PropertyRoomSurcharge {
+  id: string;
+  label: string;       // e.g. "Lễ Tết", "Hè 2025"
+  startDate: string;   // YYYY-MM-DD
+  endDate: string;     // YYYY-MM-DD
+  amount: number;      // additional VND per unit (per room or per person)
+  note?: string;
+}
+
+/** A room/cabin type that belongs to a property (stored as Firestore subcollection) */
+export interface PropertyRoomType {
+  id: string;
+  name: string;                // e.g. "Phòng Suite VIP", "Cabin Double Ocean View"
+  capacityAdults: number;      // maximum adults per unit
+  capacityChildren: number;    // maximum children per unit
+  areaSqm: number;             // area in m²
+  basePrice: number;           // base price per night/unit (reference price)
+  surcharges: PropertyRoomSurcharge[];  // time-period based surcharges
+  checkinTime: string;         // e.g. "14:00"
+  checkoutTime: string;        // e.g. "12:00"
+  amenities: string[];         // e.g. ["Điều hòa", "Wifi", "Bồn tắm"]
+  images: string[];            // Firebase Storage URLs
+  totalUnits: number;          // total number of this room type available
+}
+
+/** A property (ship, resort, or homestay) managed in the system */
+export interface Property {
+  id: string;
+  name: string;                // e.g. "Du thuyền Daiichi 01"
+  ownerId: string;             // linked user/owner ID
+  country: string;             // e.g. "Việt Nam", "Úc"
+  type: 'cruise' | 'homestay' | 'resort';
+  address: string;             // detailed address
+  description: string;        // detailed property description
+  images: string[];            // property main images
+  createdAt: any;              // Firestore Timestamp
+}
+
 // Customer profile stored in Firestore customers collection
 export interface CustomerProfile {
   id: string;

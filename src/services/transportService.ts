@@ -18,7 +18,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment } from '../types';
+import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment, Property, PropertyRoomType } from '../types';
 import { getFareForStops as _getFareForStops, upsertFare as _upsertFare, buildSeatFareDocId, type GetFareParams } from './fareService';
 
 interface TourRoomTypeData {
@@ -1386,5 +1386,93 @@ export const transportService = {
     } catch (err) {
       console.error('[pendingPayment] delete error:', err);
     }
+  },
+
+  // ─── Property Management (Quản lý tài sản) ─────────────────────────────────
+
+  /** Subscribe to all properties in real-time (ordered by createdAt desc). */
+  subscribeToProperties: (callback: (properties: Property[]) => void): (() => void) => {
+    if (!db) return () => {};
+    const q = query(collection(db, 'properties'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const properties = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Property[];
+      callback(properties);
+    }, (err) => {
+      console.error('[properties] subscription error:', err);
+      callback([]);
+    });
+  },
+
+  /** Add a new property document. */
+  addProperty: async (data: Omit<Property, 'id' | 'createdAt'>): Promise<string> => {
+    if (!db) throw new Error('Firebase not configured');
+    const ref = await addDoc(collection(db, 'properties'), {
+      ...data,
+      createdAt: Timestamp.now(),
+    });
+    return ref.id;
+  },
+
+  /** Update an existing property document. */
+  updateProperty: async (propertyId: string, updates: Partial<Omit<Property, 'id' | 'createdAt'>>): Promise<void> => {
+    if (!db) return;
+    await updateDoc(doc(db, 'properties', propertyId), updates as Record<string, unknown>);
+  },
+
+  /** Delete a property document (does NOT delete its room_types subcollection). */
+  deleteProperty: async (propertyId: string): Promise<void> => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'properties', propertyId));
+  },
+
+  /** Subscribe to room_types subcollection of a property in real-time. */
+  subscribeToPropertyRoomTypes: (
+    propertyId: string,
+    callback: (roomTypes: PropertyRoomType[]) => void
+  ): (() => void) => {
+    if (!db) return () => {};
+    const q = query(
+      collection(db, 'properties', propertyId, 'room_types'),
+      orderBy('name', 'asc')
+    );
+    return onSnapshot(q, (snapshot) => {
+      const roomTypes = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as PropertyRoomType[];
+      callback(roomTypes);
+    }, (err) => {
+      console.error('[room_types] subscription error:', err);
+      callback([]);
+    });
+  },
+
+  /** Add a room type to a property's room_types subcollection. */
+  addPropertyRoomType: async (
+    propertyId: string,
+    data: Omit<PropertyRoomType, 'id'>
+  ): Promise<string> => {
+    if (!db) throw new Error('Firebase not configured');
+    const ref = await addDoc(
+      collection(db, 'properties', propertyId, 'room_types'),
+      data
+    );
+    return ref.id;
+  },
+
+  /** Update a room type document in the subcollection. */
+  updatePropertyRoomType: async (
+    propertyId: string,
+    roomTypeId: string,
+    updates: Partial<Omit<PropertyRoomType, 'id'>>
+  ): Promise<void> => {
+    if (!db) return;
+    await updateDoc(
+      doc(db, 'properties', propertyId, 'room_types', roomTypeId),
+      updates as Record<string, unknown>
+    );
+  },
+
+  /** Delete a room type document from the subcollection. */
+  deletePropertyRoomType: async (propertyId: string, roomTypeId: string): Promise<void> => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'properties', propertyId, 'room_types', roomTypeId));
   },
 };
