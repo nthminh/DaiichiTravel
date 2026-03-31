@@ -346,6 +346,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       bedsAcross: 'Giường mỗi hàng',
       create: 'Tạo',
       cancel: 'Hủy',
+      roomSummary: (rooms: number, beds: number) => `→ ${rooms} phòng × ${beds} giường = ${rooms * beds} giường`,
     },
     en: {
       title: 'Seat Diagram',
@@ -391,6 +392,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       bedsAcross: 'Beds per row',
       create: 'Create',
       cancel: 'Cancel',
+      roomSummary: (rooms: number, beds: number) => `→ ${rooms} rooms × ${beds} beds = ${rooms * beds} beds`,
     },
     ja: {
       title: '座席図',
@@ -436,6 +438,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       bedsAcross: '横並びベッド数',
       create: '作成',
       cancel: 'キャンセル',
+      roomSummary: (rooms: number, beds: number) => `→ ${rooms} 部屋 × ${beds} ベッド = ${rooms * beds} ベッド`,
     },
   };
   const label = t[language] ?? t.vi;
@@ -648,7 +651,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
               </button>
             </div>
             <p className="text-[11px] text-teal-600 mt-2">
-              → {roomDialogRooms} phòng × {roomDialogBeds} giường = {roomDialogRooms * roomDialogBeds} giường
+              {label.roomSummary(roomDialogRooms, roomDialogBeds)}
             </p>
           </div>
         )}
