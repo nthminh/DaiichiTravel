@@ -1200,11 +1200,15 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="font-bold text-daiichi-red">{fromPrice.toLocaleString()}đ</p>
-                        {tour.discountPercent && tour.discountPercent > 0 && (
-                          <p className="text-[10px] text-gray-400 line-through">
-                            {Math.round(fromPrice / (1 - tour.discountPercent / 100)).toLocaleString()}đ
-                          </p>
+                        {tour.discountPercent && tour.discountPercent > 0 ? (
+                          <>
+                            <p className="font-bold text-daiichi-red">
+                              {Math.round(fromPrice * (1 - tour.discountPercent / 100)).toLocaleString()}đ
+                            </p>
+                            <p className="text-[10px] text-gray-400 line-through">{fromPrice.toLocaleString()}đ</p>
+                          </>
+                        ) : (
+                          <p className="font-bold text-daiichi-red">{fromPrice.toLocaleString()}đ</p>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
