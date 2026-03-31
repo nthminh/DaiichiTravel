@@ -7,7 +7,7 @@
     "lint": "tsc --noEmit"
   },
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/index.js",
   "dependencies": {
