@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee, Search, Youtube, Copy, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee,
+  Search, Youtube, Copy, Calendar, ChevronDown, ChevronRight,
+  MapPin, Clock, BedDouble, Users
+} from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
@@ -12,6 +16,17 @@ interface TourAddon {
   name: string;
   price: number;
   description?: string;
+}
+
+interface TourRoomType {
+  id: string;
+  name: string;
+  capacity: number;
+  pricingMode: 'PER_ROOM' | 'PER_PERSON';
+  price: number;
+  totalRooms: number;
+  description: string;
+  images: string[];
 }
 
 interface Tour {
@@ -38,6 +53,11 @@ interface Tour {
   endDate?: string;
   itinerary?: { day: number; content: string }[];
   addons?: TourAddon[];
+  roomTypes?: TourRoomType[];
+  departureTime?: string;
+  departureLocation?: string;
+  returnTime?: string;
+  returnLocation?: string;
 }
 
 interface TourManagementProps {
@@ -45,12 +65,53 @@ interface TourManagementProps {
   currentUser?: User | null;
 }
 
-const emptyForm = {
+const emptyRoomType = (): TourRoomType => ({
+  id: `room_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+  name: '',
+  capacity: 2,
+  pricingMode: 'PER_PERSON',
+  price: 0,
+  totalRooms: 1,
+  description: '',
+  images: [],
+});
+
+type FormState = {
+  title: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  images: string[];
+  discountPercent: number;
+  priceAdult: number;
+  priceChild: number;
+  numAdults: number;
+  numChildren: number;
+  duration: string;
+  nights: number;
+  pricePerNight: number;
+  breakfastCount: number;
+  pricePerBreakfast: number;
+  surcharge: number;
+  surchargeNote: string;
+  youtubeUrl: string;
+  startDate: string;
+  endDate: string;
+  itinerary: { day: number; content: string }[];
+  addons: TourAddon[];
+  roomTypes: TourRoomType[];
+  departureTime: string;
+  departureLocation: string;
+  returnTime: string;
+  returnLocation: string;
+};
+
+const emptyForm: FormState = {
   title: '',
   description: '',
   price: 0,
   imageUrl: '',
-  images: [] as string[],
+  images: [],
   discountPercent: 0,
   priceAdult: 0,
   priceChild: 0,
@@ -66,8 +127,13 @@ const emptyForm = {
   youtubeUrl: '',
   startDate: '',
   endDate: '',
-  itinerary: [] as { day: number; content: string }[],
-  addons: [] as TourAddon[],
+  itinerary: [],
+  addons: [],
+  roomTypes: [],
+  departureTime: '',
+  departureLocation: '',
+  returnTime: '',
+  returnLocation: '',
 };
 
 // Computes the total tour price by summing all cost components for the defined group
@@ -94,8 +160,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const [isAdding, setIsAdding] = useState(false);
   const [editingTour, setEditingTour] = useState<Tour | null>(null);
   const [expandedTourId, setExpandedTourId] = useState<string | null>(null);
-  const [newTour, setNewTour] = useState(emptyForm);
-  const [editForm, setEditForm] = useState(emptyForm);
+  const [newTour, setNewTour] = useState<FormState>(emptyForm);
+  const [editForm, setEditForm] = useState<FormState>(emptyForm);
   const [uploading, setUploading] = useState(false);
   const [editUploading, setEditUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -104,6 +170,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const [durationFilter, setDurationFilter] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [uploadingRoomIdx, setUploadingRoomIdx] = useState<number | null>(null);
 
   const filteredTours = useMemo(() => {
     return tours.filter(tour => {
@@ -113,13 +180,12 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
         (tour.description || '').toLowerCase().includes(q) ||
         (tour.duration || '').toLowerCase().includes(q)
       )) return false;
-
       if (durationFilter.trim() && !(tour.duration || '').toLowerCase().includes(durationFilter.toLowerCase())) return false;
-
-      const effectivePrice = tour.priceAdult || tour.price;
+      const effectivePrice = tour.roomTypes && tour.roomTypes.length > 0
+        ? Math.min(...tour.roomTypes.map(r => r.price))
+        : (tour.priceAdult || tour.price);
       if (priceMin !== '' && effectivePrice < Number(priceMin)) return false;
       if (priceMax !== '' && effectivePrice > Number(priceMax)) return false;
-
       return true;
     });
   }, [tours, searchTerm, durationFilter, priceMin, priceMax]);
@@ -132,13 +198,11 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !storage) {
-      if (!storage) alert('Firebase Storage is not configured. Please check your environment variables.');
+      if (!storage) alert('Firebase Storage is not configured.');
       return;
     }
-
     if (isEdit) setEditUploading(true);
     else setUploading(true);
-
     try {
       const urls: string[] = [];
       for (let i = 0; i < files.length; i++) {
@@ -146,7 +210,6 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
         const compressed = await compressImage(file, 0.75, 1280);
         const storageRef = ref(storage, `tours/${Date.now()}_${compressed.name}`);
         const uploadTask = uploadBytesResumable(storageRef, compressed);
-
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
             (snapshot) => {
@@ -155,19 +218,11 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                 setUploadProgress(progress);
               }
             },
-            (error) => {
-              console.error('Upload failed:', error);
-              reject(error);
-            },
-            async () => {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              urls.push(url);
-              resolve();
-            }
+            (error) => { console.error('Upload failed:', error); reject(error); },
+            async () => { urls.push(await getDownloadURL(uploadTask.snapshot.ref)); resolve(); }
           );
         });
       }
-
       if (isEdit) {
         setEditForm(prev => {
           const combined = [...(prev.images || []), ...urls];
@@ -191,41 +246,85 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     e.target.value = '';
   };
 
+  const handleRoomImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    roomIdx: number,
+    isEdit: boolean
+  ) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !storage) return;
+    setUploadingRoomIdx(roomIdx);
+    try {
+      const urls: string[] = [];
+      for (const file of files) {
+        const compressed = await compressImage(file, 0.75, 1280);
+        const storageRef = ref(storage, `tours/rooms/${Date.now()}_${compressed.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, compressed);
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on('state_changed', null,
+            (error) => { console.error('Room upload failed:', error); reject(error); },
+            async () => { urls.push(await getDownloadURL(uploadTask.snapshot.ref)); resolve(); }
+          );
+        });
+      }
+      const setter = isEdit ? setEditForm : setNewTour;
+      setter(prev => {
+        const updated = prev.roomTypes.map((rt, idx) =>
+          idx === roomIdx ? { ...rt, images: [...rt.images, ...urls] } : rt
+        );
+        return { ...prev, roomTypes: updated };
+      });
+    } catch (error) {
+      console.error('Room image upload failed:', error);
+    }
+    setUploadingRoomIdx(null);
+    e.target.value = '';
+  };
+
+  const buildTourPayload = (form: FormState) => {
+    const computedPrice = computeTourPrice(
+      form.priceAdult, form.numAdults || 1,
+      form.priceChild || 0, form.numChildren || 0,
+      form.nights || 0, form.pricePerNight || 0,
+      form.breakfastCount || 0, form.pricePerBreakfast || 0,
+      form.surcharge || 0,
+    );
+    return {
+      title: form.title,
+      description: form.description,
+      price: computedPrice,
+      imageUrl: form.images[0] || form.imageUrl,
+      images: form.images.length > 0 ? form.images : undefined,
+      discountPercent: form.discountPercent || 0,
+      priceAdult: form.priceAdult || undefined,
+      priceChild: form.priceChild || undefined,
+      numAdults: form.numAdults || undefined,
+      numChildren: form.numChildren || undefined,
+      duration: form.duration || undefined,
+      nights: form.nights || undefined,
+      pricePerNight: form.pricePerNight || undefined,
+      breakfastCount: form.breakfastCount || undefined,
+      pricePerBreakfast: form.pricePerBreakfast || undefined,
+      surcharge: form.surcharge || undefined,
+      surchargeNote: form.surchargeNote || undefined,
+      youtubeUrl: form.youtubeUrl || undefined,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+      itinerary: form.itinerary.length > 0 ? form.itinerary : undefined,
+      addons: form.addons.length > 0 ? form.addons : undefined,
+      roomTypes: form.roomTypes.length > 0 ? form.roomTypes : undefined,
+      departureTime: form.departureTime || undefined,
+      departureLocation: form.departureLocation || undefined,
+      returnTime: form.returnTime || undefined,
+      returnLocation: form.returnLocation || undefined,
+    };
+  };
+
   const handleAddTour = async () => {
     if (!newTour.title || !newTour.imageUrl) return;
     setSaving(true);
-    const computedPrice = computeTourPrice(
-      newTour.priceAdult, newTour.numAdults || 1,
-      newTour.priceChild || 0, newTour.numChildren || 0,
-      newTour.nights || 0, newTour.pricePerNight || 0,
-      newTour.breakfastCount || 0, newTour.pricePerBreakfast || 0,
-      newTour.surcharge || 0,
-    );
     try {
-      await transportService.addTour({
-        title: newTour.title,
-        description: newTour.description,
-        price: computedPrice,
-        imageUrl: newTour.imageUrl,
-        images: newTour.images.length > 0 ? newTour.images : undefined,
-        discountPercent: newTour.discountPercent || 0,
-        priceAdult: newTour.priceAdult || undefined,
-        priceChild: newTour.priceChild || undefined,
-        numAdults: newTour.numAdults || undefined,
-        numChildren: newTour.numChildren || undefined,
-        duration: newTour.duration || undefined,
-        nights: newTour.nights || undefined,
-        pricePerNight: newTour.pricePerNight || undefined,
-        breakfastCount: newTour.breakfastCount || undefined,
-        pricePerBreakfast: newTour.pricePerBreakfast || undefined,
-        surcharge: newTour.surcharge || undefined,
-        surchargeNote: newTour.surchargeNote || undefined,
-        youtubeUrl: newTour.youtubeUrl || undefined,
-        startDate: newTour.startDate || undefined,
-        endDate: newTour.endDate || undefined,
-        itinerary: newTour.itinerary.length > 0 ? newTour.itinerary : undefined,
-        addons: newTour.addons.length > 0 ? newTour.addons : undefined,
-      });
+      await transportService.addTour(buildTourPayload(newTour));
       setNewTour(emptyForm);
       setIsAdding(false);
     } catch (err) {
@@ -260,6 +359,11 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       endDate: tour.endDate || '',
       itinerary: tour.itinerary || [],
       addons: tour.addons || [],
+      roomTypes: tour.roomTypes || [],
+      departureTime: tour.departureTime || '',
+      departureLocation: tour.departureLocation || '',
+      returnTime: tour.returnTime || '',
+      returnLocation: tour.returnLocation || '',
     });
     setIsAdding(false);
   };
@@ -267,38 +371,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const handleUpdateTour = async () => {
     if (!editingTour || !editForm.title || !editForm.imageUrl) return;
     setSaving(true);
-    const computedPrice = computeTourPrice(
-      editForm.priceAdult, editForm.numAdults || 1,
-      editForm.priceChild || 0, editForm.numChildren || 0,
-      editForm.nights || 0, editForm.pricePerNight || 0,
-      editForm.breakfastCount || 0, editForm.pricePerBreakfast || 0,
-      editForm.surcharge || 0,
-    );
     try {
-      await transportService.updateTour(editingTour.id, {
-        title: editForm.title,
-        description: editForm.description,
-        price: computedPrice,
-        imageUrl: editForm.images[0] || editForm.imageUrl,
-        images: editForm.images.length > 0 ? editForm.images : undefined,
-        discountPercent: editForm.discountPercent || 0,
-        priceAdult: editForm.priceAdult || undefined,
-        priceChild: editForm.priceChild || undefined,
-        numAdults: editForm.numAdults || undefined,
-        numChildren: editForm.numChildren || undefined,
-        duration: editForm.duration || undefined,
-        nights: editForm.nights || undefined,
-        pricePerNight: editForm.pricePerNight || undefined,
-        breakfastCount: editForm.breakfastCount || undefined,
-        pricePerBreakfast: editForm.pricePerBreakfast || undefined,
-        surcharge: editForm.surcharge || undefined,
-        surchargeNote: editForm.surchargeNote || undefined,
-        youtubeUrl: editForm.youtubeUrl || undefined,
-        startDate: editForm.startDate || undefined,
-        endDate: editForm.endDate || undefined,
-        itinerary: editForm.itinerary.length > 0 ? editForm.itinerary : undefined,
-        addons: editForm.addons.length > 0 ? editForm.addons : undefined,
-      });
+      await transportService.updateTour(editingTour.id, buildTourPayload(editForm));
       setEditingTour(null);
       setEditForm(emptyForm);
       setExpandedTourId(null);
@@ -349,6 +423,11 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       endDate: tour.endDate || '',
       itinerary: tour.itinerary ? tour.itinerary.map(i => ({ ...i })) : [],
       addons: tour.addons ? tour.addons.map(a => ({ ...a })) : [],
+      roomTypes: tour.roomTypes ? tour.roomTypes.map(r => ({ ...r, id: `room_${Date.now()}_${Math.random().toString(36).slice(2)}` })) : [],
+      departureTime: tour.departureTime || '',
+      departureLocation: tour.departureLocation || '',
+      returnTime: tour.returnTime || '',
+      returnLocation: tour.returnLocation || '',
     });
     setIsAdding(true);
     setExpandedTourId(null);
@@ -365,12 +444,188 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     setIsAdding(false);
   };
 
+  const renderRoomTypesSection = (
+    form: FormState,
+    setForm: React.Dispatch<React.SetStateAction<FormState>>,
+    isNew: boolean
+  ) => (
+    <div className="p-4 bg-teal-50 rounded-2xl border border-teal-100 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BedDouble size={16} className="text-teal-600" />
+          <p className="text-xs font-bold text-teal-700 uppercase tracking-widest">
+            {language === 'vi' ? 'Loại phòng / Cabin' : 'Room / Cabin Types'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setForm(prev => ({ ...prev, roomTypes: [...prev.roomTypes, emptyRoomType()] }))}
+          className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700 transition-colors"
+        >
+          <Plus size={13} />
+          {language === 'vi' ? 'Thêm loại phòng' : 'Add Room Type'}
+        </button>
+      </div>
+
+      {form.roomTypes.length === 0 ? (
+        <p className="text-xs text-teal-500 text-center py-3">
+          {language === 'vi' ? 'Chưa có loại phòng nào. Nhấn "+ Thêm loại phòng" để thêm.' : 'No room types yet. Click "+ Add Room Type" to add.'}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {form.roomTypes.map((rt, idx) => (
+            <div key={rt.id} className="bg-white rounded-xl border border-teal-100 p-3 space-y-2 relative">
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.filter((_, i) => i !== idx) }))}
+                className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title={language === 'vi' ? 'Xóa loại phòng' : 'Delete room type'}
+              >
+                <X size={14} />
+              </button>
+
+              {/* Row 1: Name + Capacity */}
+              <div className="grid grid-cols-2 gap-2 pr-6">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                    {language === 'vi' ? 'Tên phòng' : 'Room Name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={rt.name}
+                    onChange={e => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, name: e.target.value } : r) }))}
+                    className="w-full mt-0.5 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-teal-200 focus:outline-none"
+                    placeholder={language === 'vi' ? 'Cabin Deluxe' : 'Cabin Deluxe'}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                    {language === 'vi' ? 'Sức chứa (người)' : 'Capacity (guests)'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={rt.capacity}
+                    onChange={e => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, capacity: parseInt(e.target.value) || 1 } : r) }))}
+                    className="w-full mt-0.5 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-teal-200 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Pricing mode toggle */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {language === 'vi' ? 'Hình thức tính giá' : 'Pricing Mode'}
+                </label>
+                <div className="flex gap-1 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, pricingMode: 'PER_ROOM' } : r) }))}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-colors ${rt.pricingMode === 'PER_ROOM' ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-500 border-gray-200 hover:border-teal-300'}`}
+                  >
+                    {language === 'vi' ? 'Theo phòng' : 'Per Room'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, pricingMode: 'PER_PERSON' } : r) }))}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-colors ${rt.pricingMode === 'PER_PERSON' ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-500 border-gray-200 hover:border-teal-300'}`}
+                  >
+                    {language === 'vi' ? 'Theo người' : 'Per Person'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 3: Price + Total rooms */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                    {rt.pricingMode === 'PER_ROOM'
+                      ? (language === 'vi' ? 'Giá / phòng (đ)' : 'Price / room (VND)')
+                      : (language === 'vi' ? 'Giá / người (đ)' : 'Price / person (VND)')}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={rt.price}
+                    onChange={e => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, price: parseInt(e.target.value) || 0 } : r) }))}
+                    className="w-full mt-0.5 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-teal-200 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                    {language === 'vi' ? 'Tổng số phòng' : 'Total Rooms'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={rt.totalRooms}
+                    onChange={e => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, totalRooms: parseInt(e.target.value) || 1 } : r) }))}
+                    className="w-full mt-0.5 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-teal-200 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Description */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {language === 'vi' ? 'Mô tả tiện nghi' : 'Amenities Description'}
+                </label>
+                <textarea
+                  value={rt.description}
+                  onChange={e => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, description: e.target.value } : r) }))}
+                  rows={2}
+                  className="w-full mt-0.5 px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-teal-200 focus:outline-none resize-none"
+                  placeholder={language === 'vi' ? 'Mô tả tiện nghi, thiết bị...' : 'Describe amenities, equipment...'}
+                />
+              </div>
+
+              {/* Row 5: Room images */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                  {language === 'vi' ? 'Ảnh phòng' : 'Room Images'}
+                </label>
+                <div className="mt-1 flex flex-wrap gap-1.5 items-center">
+                  {rt.images.map((imgUrl, imgIdx) => (
+                    <div key={imgIdx} className="relative w-14 h-14 rounded-lg overflow-hidden group">
+                      <img src={imgUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, roomTypes: prev.roomTypes.map((r, i) => i === idx ? { ...r, images: r.images.filter((_, ii) => ii !== imgIdx) } : r) }))}
+                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                      >
+                        <X size={12} className="text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className={`w-14 h-14 rounded-lg border-2 border-dashed border-teal-200 flex flex-col items-center justify-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors ${uploadingRoomIdx === idx ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {uploadingRoomIdx === idx
+                      ? <Loader2 size={14} className="text-teal-500 animate-spin" />
+                      : <><ImageIcon size={14} className="text-teal-400" /><span className="text-[9px] text-teal-400 mt-0.5">{language === 'vi' ? 'Thêm' : 'Add'}</span></>
+                    }
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={e => handleRoomImageUpload(e, idx, !isNew)}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const renderFormFields = (
-    form: typeof emptyForm,
-    setForm: React.Dispatch<React.SetStateAction<typeof emptyForm>>,
+    form: FormState,
+    setForm: React.Dispatch<React.SetStateAction<FormState>>,
     isNew: boolean,
   ) => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* LEFT COLUMN */}
       <div className="space-y-4">
         <div>
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tên Tour' : 'Tour Title'}</label>
@@ -386,6 +641,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none"
             placeholder={language === 'vi' ? 'Ví dụ: 3 ngày 2 đêm' : 'e.g. 3 days 2 nights'} />
         </div>
+
+        {/* Schedule section */}
         <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 space-y-3">
           <div className="flex items-center gap-2">
             <Calendar size={16} className="text-orange-500" />
@@ -406,6 +663,44 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             </div>
           </div>
         </div>
+
+        {/* Departure section */}
+        <div className="p-4 bg-teal-50 rounded-2xl border border-teal-100 space-y-3">
+          <div className="flex items-center gap-2">
+            <MapPin size={16} className="text-teal-600" />
+            <p className="text-xs font-bold text-teal-700 uppercase tracking-widest">🚌 {language === 'vi' ? 'Thông tin xuất phát' : 'Departure Info'}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giờ khởi hành' : 'Departure Time'}</label>
+              <input type="time" value={form.departureTime}
+                onChange={e => setForm(prev => ({ ...prev, departureTime: e.target.value }))}
+                className="w-full mt-1 px-3 py-2 bg-white border border-teal-100 rounded-xl focus:ring-2 focus:ring-teal-200 focus:outline-none text-sm" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giờ kết thúc' : 'Return Time'}</label>
+              <input type="time" value={form.returnTime}
+                onChange={e => setForm(prev => ({ ...prev, returnTime: e.target.value }))}
+                className="w-full mt-1 px-3 py-2 bg-white border border-teal-100 rounded-xl focus:ring-2 focus:ring-teal-200 focus:outline-none text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm xuất phát' : 'Departure Location'}</label>
+            <input type="text" value={form.departureLocation}
+              onChange={e => setForm(prev => ({ ...prev, departureLocation: e.target.value }))}
+              className="w-full mt-1 px-3 py-2 bg-white border border-teal-100 rounded-xl focus:ring-2 focus:ring-teal-200 focus:outline-none text-sm"
+              placeholder={language === 'vi' ? 'Bến xe Mỹ Đình, Hà Nội' : 'e.g. My Dinh Bus Station, Hanoi'} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Điểm kết thúc / trả khách' : 'Return Location'}</label>
+            <input type="text" value={form.returnLocation}
+              onChange={e => setForm(prev => ({ ...prev, returnLocation: e.target.value }))}
+              className="w-full mt-1 px-3 py-2 bg-white border border-teal-100 rounded-xl focus:ring-2 focus:ring-teal-200 focus:outline-none text-sm"
+              placeholder={language === 'vi' ? 'Điểm trả khách...' : 'Drop-off point...'} />
+          </div>
+        </div>
+
+        {/* Group size */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số người lớn' : 'Number of Adults'}</label>
@@ -420,6 +715,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
               className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
           </div>
         </div>
+
+        {/* Adult/child pricing */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá người lớn (đ)' : 'Adult Price (VND)'}</label>
@@ -434,6 +731,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
               className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
           </div>
         </div>
+
+        {/* Auto-calculated price + discount */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá tour (đ)' : 'Tour Price (VND)'}</label>
@@ -454,6 +753,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             )}
           </div>
         </div>
+
+        {/* Overnight stays */}
         <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3">
           <div className="flex items-center gap-2">
             <Moon size={16} className="text-indigo-500" />
@@ -474,6 +775,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             </div>
           </div>
         </div>
+
+        {/* Breakfast */}
         <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-3">
           <div className="flex items-center gap-2">
             <Coffee size={16} className="text-amber-500" />
@@ -494,6 +797,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             </div>
           </div>
         </div>
+
+        {/* Surcharge */}
         <div className="p-4 bg-green-50 rounded-2xl border border-green-100 space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-green-500 font-bold text-base">+</span>
@@ -507,194 +812,195 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                 className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none" />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Nội dung phụ phí' : 'Surcharge Description'}</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ghi chú phụ phí' : 'Surcharge Note'}</label>
               <input type="text" value={form.surchargeNote}
                 onChange={e => setForm(prev => ({ ...prev, surchargeNote: e.target.value }))}
-                className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none"
-                placeholder={language === 'vi' ? 'Ví dụ: Phụ phí xăng dầu' : 'e.g. Fuel surcharge'} />
+                className="w-full mt-1 px-3 py-2 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-200 focus:outline-none text-sm"
+                placeholder={language === 'vi' ? 'Lý do phụ phí...' : 'Reason for surcharge...'} />
             </div>
           </div>
         </div>
+
+        {/* Description */}
         <div>
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Mô tả' : 'Description'}</label>
-          <textarea value={form.description}
+          <textarea rows={3} value={form.description}
             onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-            className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none h-28 resize-none" />
+            className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none resize-none"
+            placeholder={language === 'vi' ? 'Mô tả chi tiết về tour...' : 'Detailed description of the tour...'} />
         </div>
+
+        {/* YouTube URL */}
         <div className="p-4 bg-red-50 rounded-2xl border border-red-100 space-y-2">
           <div className="flex items-center gap-2">
             <Youtube size={16} className="text-red-500" />
-            <p className="text-xs font-bold text-red-600 uppercase tracking-widest">{language === 'vi' ? 'Video YouTube (tuỳ chọn)' : 'YouTube Video (optional)'}</p>
+            <p className="text-xs font-bold text-red-600 uppercase tracking-widest">YouTube</p>
           </div>
           <input type="url" value={form.youtubeUrl}
             onChange={e => setForm(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-            className="w-full px-4 py-3 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-200 focus:outline-none text-sm"
-            placeholder="https://www.youtube.com/watch?v=..." />
+            className="w-full px-3 py-2 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-200 focus:outline-none text-sm"
+            placeholder="https://youtu.be/..." />
         </div>
+
+        {/* Itinerary */}
         <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-blue-500 font-bold">📋</span>
-              <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">{language === 'vi' ? 'Lịch trình (tuỳ chọn)' : 'Itinerary (optional)'}</p>
+              <Calendar size={16} className="text-blue-500" />
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">{language === 'vi' ? 'Lịch trình' : 'Itinerary'}</p>
             </div>
             <button
               type="button"
-              onClick={() => setForm(prev => ({
-                ...prev,
-                itinerary: [...prev.itinerary, { day: prev.itinerary.length + 1, content: '' }]
-              }))}
-              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              onClick={() => setForm(prev => ({ ...prev, itinerary: [...prev.itinerary, { day: prev.itinerary.length + 1, content: '' }] }))}
+              className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Plus size={12} /> {language === 'vi' ? 'Thêm ngày' : 'Add day'}
+              <Plus size={12} />
+              {language === 'vi' ? 'Thêm ngày' : 'Add Day'}
             </button>
           </div>
-          {form.itinerary.map((item, idx) => (
-            <div key={idx} className="flex gap-2 items-start">
-              <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-2">{item.day}</span>
-              <input
-                type="text"
-                value={item.content}
-                onChange={e => setForm(prev => {
-                  const it = [...prev.itinerary];
-                  it[idx] = { ...it[idx], content: e.target.value };
-                  return { ...prev, itinerary: it };
-                })}
-                className="flex-1 px-3 py-2 bg-white border border-blue-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                placeholder={language === 'vi' ? `Nội dung ngày ${item.day}...` : `Day ${item.day} activities...`}
-              />
-              <button
-                type="button"
-                onClick={() => setForm(prev => ({
-                  ...prev,
-                  itinerary: prev.itinerary.filter((_, i) => i !== idx).map((it, i) => ({ ...it, day: i + 1 }))
-                }))}
-                className="p-2 text-gray-400 hover:text-red-500 mt-1"
-              >
-                <X size={14} />
-              </button>
+          {form.itinerary.length === 0 ? (
+            <p className="text-xs text-blue-400 text-center py-1">{language === 'vi' ? 'Chưa có lịch trình' : 'No itinerary yet'}</p>
+          ) : (
+            <div className="space-y-2">
+              {form.itinerary.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <span className="text-xs font-bold text-blue-600 bg-blue-100 rounded-lg px-2 py-2 min-w-[52px] text-center mt-0.5">
+                    {language === 'vi' ? `Ngày ${item.day}` : `Day ${item.day}`}
+                  </span>
+                  <textarea
+                    value={item.content}
+                    onChange={e => setForm(prev => ({ ...prev, itinerary: prev.itinerary.map((it, i) => i === idx ? { ...it, content: e.target.value } : it) }))}
+                    rows={2}
+                    className="flex-1 px-3 py-2 bg-white border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-200 focus:outline-none text-sm resize-none"
+                    placeholder={language === 'vi' ? 'Hoạt động trong ngày...' : 'Activities for the day...'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, itinerary: prev.itinerary.filter((_, i) => i !== idx).map((it, i) => ({ ...it, day: i + 1 })) }))}
+                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-0.5"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-          {form.itinerary.length === 0 && (
-            <p className="text-xs text-blue-400">{language === 'vi' ? 'Chưa có lịch trình. Nhấn "+ Thêm ngày" để bắt đầu.' : 'No itinerary yet. Click "+ Add day" to start.'}</p>
           )}
         </div>
+
+        {/* Add-ons */}
         <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-purple-500 font-bold">⭐</span>
-              <p className="text-xs font-bold text-purple-700 uppercase tracking-widest">{language === 'vi' ? 'Dịch vụ thêm (tuỳ chọn)' : 'Optional Add-on Services'}</p>
+              <span className="text-purple-500 font-bold">✦</span>
+              <p className="text-xs font-bold text-purple-700 uppercase tracking-widest">{language === 'vi' ? 'Dịch vụ thêm' : 'Add-on Services'}</p>
             </div>
             <button
               type="button"
-              onClick={() => setForm(prev => ({
-                ...prev,
-                addons: [...prev.addons, { id: crypto.randomUUID(), name: '', price: 0, description: '' }]
-              }))}
-              className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+              onClick={() => setForm(prev => ({ ...prev, addons: [...prev.addons, { id: `addon_${Date.now()}`, name: '', price: 0, description: '' }] }))}
+              className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors"
             >
-              <Plus size={12} /> {language === 'vi' ? 'Thêm dịch vụ' : 'Add service'}
+              <Plus size={12} />
+              {language === 'vi' ? 'Thêm dịch vụ' : 'Add Service'}
             </button>
           </div>
-          {form.addons.map((addon, idx) => (
-            <div key={addon.id} className="bg-white rounded-xl border border-purple-100 p-3 space-y-2">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={addon.name}
-                  onChange={e => setForm(prev => {
-                    const ads = [...prev.addons];
-                    ads[idx] = { ...ads[idx], name: e.target.value };
-                    return { ...prev, addons: ads };
-                  })}
-                  className="flex-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                  placeholder={language === 'vi' ? 'Tên dịch vụ...' : 'Service name...'}
-                />
-                <input
-                  type="number"
-                  min="0"
-                  value={addon.price}
-                  onChange={e => setForm(prev => {
-                    const ads = [...prev.addons];
-                    ads[idx] = { ...ads[idx], price: parseInt(e.target.value) || 0 };
-                    return { ...prev, addons: ads };
-                  })}
-                  className="w-28 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                  placeholder={language === 'vi' ? 'Giá đ/người' : 'Price/person'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setForm(prev => ({ ...prev, addons: prev.addons.filter((_, i) => i !== idx) }))}
-                  className="p-2 text-gray-400 hover:text-red-500"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <input
-                type="text"
-                value={addon.description || ''}
-                onChange={e => setForm(prev => {
-                  const ads = [...prev.addons];
-                  ads[idx] = { ...ads[idx], description: e.target.value };
-                  return { ...prev, addons: ads };
-                })}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                placeholder={language === 'vi' ? 'Mô tả ngắn (tuỳ chọn)...' : 'Short description (optional)...'}
-              />
+          {form.addons.length === 0 ? (
+            <p className="text-xs text-purple-400 text-center py-1">{language === 'vi' ? 'Chưa có dịch vụ thêm' : 'No add-ons yet'}</p>
+          ) : (
+            <div className="space-y-2">
+              {form.addons.map((addon, idx) => (
+                <div key={addon.id} className="bg-white rounded-xl border border-purple-100 p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={addon.name}
+                        onChange={e => setForm(prev => ({ ...prev, addons: prev.addons.map((a, i) => i === idx ? { ...a, name: e.target.value } : a) }))}
+                        className="px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        placeholder={language === 'vi' ? 'Tên dịch vụ' : 'Service name'}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={addon.price}
+                        onChange={e => setForm(prev => ({ ...prev, addons: prev.addons.map((a, i) => i === idx ? { ...a, price: parseInt(e.target.value) || 0 } : a) }))}
+                        className="px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        placeholder={language === 'vi' ? 'Giá (đ)' : 'Price (VND)'}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, addons: prev.addons.filter((_, i) => i !== idx) }))}
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <textarea
+                    value={addon.description || ''}
+                    onChange={e => setForm(prev => ({ ...prev, addons: prev.addons.map((a, i) => i === idx ? { ...a, description: e.target.value } : a) }))}
+                    rows={1}
+                    className="w-full px-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
+                    placeholder={language === 'vi' ? 'Mô tả dịch vụ...' : 'Service description...'}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-          {form.addons.length === 0 && (
-            <p className="text-xs text-purple-400">{language === 'vi' ? 'Chưa có dịch vụ thêm. Ví dụ: Thuê xe đạp, Tham quan hang động...' : 'No add-ons yet. E.g. Bike rental, Cave tour...'}</p>
           )}
         </div>
       </div>
+
+      {/* RIGHT COLUMN */}
       <div className="space-y-4">
-        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Hình ảnh Tour (có thể tải nhiều ảnh)' : 'Tour Images (multiple allowed)'}</label>
-        {form.images.length > 0 && (
-          <div className="grid grid-cols-3 gap-2">
-            {form.images.map((url, idx) => (
-              <div key={idx} className="relative h-24 rounded-2xl overflow-hidden group">
-                <img src={url} alt={`Tour ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                <button
-                  onClick={() => setForm(prev => {
-                    const imgs = prev.images.filter((_, i) => i !== idx);
-                    return { ...prev, images: imgs, imageUrl: imgs[0] || '' };
-                  })}
-                  className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X size={12} />
-                </button>
+        {/* Main tour images */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ảnh tour (đầu tiên = thumbnail)' : 'Tour Images (first = thumbnail)'}</label>
+          <div className="mt-2 flex flex-wrap gap-2 items-center">
+            {form.images.map((imgUrl, idx) => (
+              <div key={idx} className="relative w-20 h-20 rounded-xl overflow-hidden group">
+                <img src={imgUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 {idx === 0 && (
-                  <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-daiichi-red text-white px-1.5 py-0.5 rounded-full">{language === 'vi' ? 'Chính' : 'Main'}</span>
+                  <span className="absolute bottom-0 left-0 right-0 bg-daiichi-red/80 text-white text-[9px] text-center py-0.5 font-bold">
+                    {language === 'vi' ? 'Thumbnail' : 'Thumb'}
+                  </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = form.images.filter((_, i) => i !== idx);
+                    setForm(prev => ({ ...prev, images: updated, imageUrl: updated[0] || '' }));
+                  }}
+                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={10} />
+                </button>
               </div>
             ))}
+            <label className={`w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:border-daiichi-red hover:bg-red-50 transition-colors ${(isNew ? uploading : editUploading) ? 'opacity-50 pointer-events-none' : ''}`}>
+              {(isNew ? uploading : editUploading)
+                ? <Loader2 size={20} className="text-daiichi-red animate-spin" />
+                : <><ImageIcon size={20} className="text-gray-300" /><span className="text-[10px] text-gray-400 mt-1">{language === 'vi' ? 'Thêm ảnh' : 'Add photo'}</span></>
+              }
+              <input type="file" accept="image/*" multiple className="hidden" onChange={e => handleImageUpload(e, !isNew)} />
+            </label>
           </div>
-        )}
-        <div className="relative h-36 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center overflow-hidden">
-          {(isNew ? uploading : editUploading) ? (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="animate-spin text-daiichi-red" size={28} />
-              <p className="text-sm font-bold text-gray-500">{isNew ? `${Math.round(uploadProgress)}%` : (language === 'vi' ? 'Đang tải & nén...' : 'Compressing & uploading...')}</p>
+          {isNew && uploading && uploadProgress > 0 && (
+            <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
+              <div className="bg-daiichi-red h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
             </div>
-          ) : (
-            <>
-              <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-400 mx-auto mb-2">
-                <ImageIcon size={24} />
-              </div>
-              <p className="text-xs text-gray-500 mb-2">{language === 'vi' ? 'Chọn nhiều ảnh (sẽ nén trước khi tải lên)' : 'Select images (compressed before upload)'}</p>
-              <input type="file" accept="image/*" multiple onChange={e => handleImageUpload(e, !isNew)} className="absolute inset-0 opacity-0 cursor-pointer" />
-              <button className="px-5 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all">
-                {language === 'vi' ? 'Chọn ảnh' : 'Select Images'}
-              </button>
-            </>
+          )}
+          {form.images.length === 0 && (
+            <p className="text-xs text-red-400 mt-1 ml-1">{language === 'vi' ? 'Bắt buộc: cần ít nhất 1 ảnh' : 'Required: at least 1 image'}</p>
           )}
         </div>
+
+        {/* Room Types */}
+        {renderRoomTypesSection(form, setForm, isNew)}
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{language === 'vi' ? 'Quản lý Tour' : 'Tour Management'}</h2>
@@ -709,6 +1015,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
         </button>
       </div>
 
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -760,6 +1067,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
         )}
       </div>
 
+      {/* Add new tour form */}
       {isAdding && (
         <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm space-y-6">
           <div className="flex justify-between items-center">
@@ -780,6 +1088,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
         </div>
       )}
 
+      {/* Tours table */}
       {tours.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="font-medium">{language === 'vi' ? 'Chưa có tour nào. Nhấn "Thêm Tour mới" để bắt đầu.' : 'No tours yet. Click "Add New Tour" to get started.'}</p>
@@ -798,9 +1107,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                 <th className="px-4 py-3 text-left w-14">{language === 'vi' ? 'Ảnh' : 'Img'}</th>
                 <th className="px-4 py-3 text-left">{language === 'vi' ? 'Tên tour' : 'Tour Name'}</th>
                 <th className="px-4 py-3 text-left whitespace-nowrap">{language === 'vi' ? 'Thời gian' : 'Duration'}</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">{language === 'vi' ? 'Lịch hoạt động' : 'Schedule'}</th>
-                <th className="px-4 py-3 text-right whitespace-nowrap">{language === 'vi' ? 'Giá NL' : 'Adult Price'}</th>
-                <th className="px-4 py-3 text-right whitespace-nowrap">{language === 'vi' ? 'Giá tour' : 'Tour Price'}</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">{language === 'vi' ? 'Xuất phát' : 'Departure'}</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">{language === 'vi' ? 'Loại phòng' : 'Room Types'}</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">{language === 'vi' ? 'Giá từ' : 'From Price'}</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">{language === 'vi' ? 'Giảm giá' : 'Discount'}</th>
                 <th className="px-4 py-3 text-center">{language === 'vi' ? 'Thao tác' : 'Actions'}</th>
               </tr>
@@ -808,18 +1117,22 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
             <tbody>
               {filteredTours.map(tour => {
                 const thumb = (tour.images && tour.images.length > 0) ? tour.images[0] : tour.imageUrl;
-                const effectivePrice = tour.priceAdult || tour.price;
-                const discountedPrice = tour.discountPercent && tour.discountPercent > 0
-                  ? Math.round(effectivePrice * (1 - tour.discountPercent / 100))
-                  : null;
+                const fromPrice = tour.roomTypes && tour.roomTypes.length > 0
+                  ? Math.min(...tour.roomTypes.map(r => r.price))
+                  : (tour.priceAdult || tour.price);
                 const isExpanded = expandedTourId === tour.id;
-                const schedule = (tour.startDate && tour.endDate)
-                  ? `${tour.startDate} → ${tour.endDate}`
-                  : tour.startDate
-                    ? `${tour.startDate} →`
-                    : tour.endDate
-                      ? `→ ${tour.endDate}`
-                      : '—';
+                const departureDisplay = tour.departureTime
+                  ? `${tour.departureTime}${tour.startDate ? ` · ${tour.startDate}` : ''}`
+                  : tour.startDate || '—';
+                const roomTypesDisplay = tour.roomTypes && tour.roomTypes.length > 0
+                  ? (() => {
+                      const capacities = tour.roomTypes.map(r => r.capacity);
+                      const minCap = Math.min(...capacities);
+                      const maxCap = Math.max(...capacities);
+                      const capRange = minCap === maxCap ? `${minCap}` : `${minCap}-${maxCap}`;
+                      return `${tour.roomTypes.length} ${language === 'vi' ? 'loại' : 'types'} · ${capRange} ${language === 'vi' ? 'người' : 'guests'}`;
+                    })()
+                  : '—';
 
                 return (
                   <React.Fragment key={tour.id}>
@@ -853,18 +1166,44 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                         )}
                       </td>
                       <td className="px-4 py-3 text-indigo-600 text-xs font-medium">{tour.duration || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500">{schedule}</td>
-                      <td className="px-4 py-3 text-right">
-                        <p className="font-bold text-gray-700">{effectivePrice.toLocaleString()}đ</p>
+                      <td className="px-4 py-3">
+                        <div className="text-xs text-gray-600">
+                          {tour.departureTime && (
+                            <span className="flex items-center gap-1 text-teal-700 font-medium">
+                              <Clock size={10} />
+                              {tour.departureTime}
+                            </span>
+                          )}
+                          {(tour.startDate || tour.endDate) && (
+                            <span className="text-gray-400 text-[10px]">
+                              {tour.startDate}{tour.startDate && tour.endDate ? ' → ' : ''}{tour.endDate}
+                            </span>
+                          )}
+                          {!tour.departureTime && !tour.startDate && !tour.endDate && '—'}
+                        </div>
+                        {tour.departureLocation && (
+                          <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+                            <MapPin size={9} />
+                            <span className="truncate max-w-[120px]">{tour.departureLocation}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {tour.roomTypes && tour.roomTypes.length > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full font-medium">
+                            <BedDouble size={10} />
+                            {roomTypesDisplay}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {discountedPrice ? (
-                          <div>
-                            <p className="font-bold text-daiichi-red">{Math.round((tour.price || 0) * (1 - (tour.discountPercent ?? 0) / 100)).toLocaleString()}đ</p>
-                            <p className="text-[10px] text-gray-400 line-through">{(tour.price || 0).toLocaleString()}đ</p>
-                          </div>
-                        ) : (
-                          <p className="font-bold text-daiichi-red">{(tour.price || 0).toLocaleString()}đ</p>
+                        <p className="font-bold text-daiichi-red">{fromPrice.toLocaleString()}đ</p>
+                        {tour.discountPercent && tour.discountPercent > 0 && (
+                          <p className="text-[10px] text-gray-400 line-through">
+                            {Math.round(fromPrice / (1 - tour.discountPercent / 100)).toLocaleString()}đ
+                          </p>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -891,13 +1230,13 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                             <Copy size={15} />
                           </button>
                           {isAdmin && (
-                          <button
-                            onClick={e => { e.stopPropagation(); handleDeleteTour(tour.id); }}
-                            className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                            title={language === 'vi' ? 'Xóa' : 'Delete'}
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); handleDeleteTour(tour.id); }}
+                              className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                              title={language === 'vi' ? 'Xóa' : 'Delete'}
+                            >
+                              <Trash2 size={15} />
+                            </button>
                           )}
                         </div>
                       </td>
