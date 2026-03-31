@@ -13,6 +13,8 @@ export interface SeatCell {
   booked?: boolean;
   /** true = sleeper/lying berth; false/undefined = sitting seat */
   isSleeper?: boolean;
+  /** true = visual section header for room/cabin grouping (not a bookable seat) */
+  isRoomHeader?: boolean;
 }
 
 export type DeckLayout = SeatCell[][];
@@ -30,6 +32,8 @@ export interface SerializedSeat {
   discounted: boolean;
   booked: boolean;
   isSleeper?: boolean;
+  /** true = room/cabin section header (not a bookable seat) */
+  isRoomHeader?: boolean;
 }
 
 // ─── Layout generators ──────────────────────────────────────────────────────
@@ -218,7 +222,19 @@ export function serializeLayout(layout: VehicleLayout): SerializedSeat[] {
   layout.decks.forEach((deck, deckIdx) => {
     deck.forEach((row, rowIdx) => {
       row.forEach((cell, colIdx) => {
-        if (!cell.isAisle && !cell.isDriver) {
+        if (cell.isRoomHeader && colIdx === 0) {
+          // Include only the first cell of room-header rows (carries the label)
+          result.push({
+            id: `${deckIdx}-${rowIdx}-${colIdx}`,
+            label: cell.label,
+            row: rowIdx,
+            col: colIdx,
+            deck: deckIdx,
+            discounted: false,
+            booked: false,
+            isRoomHeader: true,
+          });
+        } else if (!cell.isAisle && !cell.isDriver && !cell.isRoomHeader) {
           result.push({
             id: `${deckIdx}-${rowIdx}-${colIdx}`,
             label: cell.label,
@@ -238,3 +254,49 @@ export function serializeLayout(layout: VehicleLayout): SerializedSeat[] {
 
 // Keep busRow exported for consumers that might use it
 export { busRow };
+
+// ─── Room / cabin layout generator ─────────────────────────────────────────
+
+/**
+ * Generate a room-based layout where each room is introduced by a section
+ * header row followed by rows of beds.
+ *
+ * @param roomCount   Number of rooms / cabins
+ * @param bedsPerRoom Number of beds inside each room
+ * @param bedsAcross  How many beds to place side-by-side per row (default 2)
+ */
+export function roomLayoutGenerator(
+  roomCount: number,
+  bedsPerRoom: number,
+  bedsAcross: number = 2,
+): VehicleLayout {
+  const rows: SeatCell[][] = [];
+  let bedNumber = 1;
+  const bedRowsPerRoom = Math.ceil(bedsPerRoom / bedsAcross);
+
+  for (let room = 0; room < roomCount; room++) {
+    // Section header row
+    const headerRow: SeatCell[] = Array.from({ length: bedsAcross }, (_, c) =>
+      c === 0
+        ? { label: `Phòng ${room + 1}`, isRoomHeader: true }
+        : { label: '', isAisle: true }
+    );
+    rows.push(headerRow);
+
+    // Bed rows inside the room
+    for (let r = 0; r < bedRowsPerRoom; r++) {
+      const bedRow: SeatCell[] = [];
+      for (let c = 0; c < bedsAcross; c++) {
+        const n = room * bedsPerRoom + r * bedsAcross + c + 1;
+        if (n <= (room + 1) * bedsPerRoom) {
+          bedRow.push({ label: String(bedNumber++), isSleeper: true });
+        } else {
+          bedRow.push({ label: '', isAisle: true });
+        }
+      }
+      rows.push(bedRow);
+    }
+  }
+
+  return { decks: [rows] };
+}
