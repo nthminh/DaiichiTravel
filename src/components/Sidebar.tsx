@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'customers', label: TRANSLATIONS[language].customers || 'Khách hàng', icon: Users },
     { id: 'audit-log', label: TRANSLATIONS[language].audit_log || 'Nhật ký hoạt động', icon: BookOpen },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', icon: CheckCircle },
-    { id: 'tour-management', label: language === 'vi' ? 'Tour du thuyền' : language === 'ja' ? 'クルーズツアー管理' : 'Cruise Tours', icon: Star },
+    { id: 'tour-management', label: language === 'vi' ? 'Tour du thuyền' : language === 'ja' ? 'クルーズツアー管理' : 'Cruise Tours', icon: Anchor },
     { id: 'pickup-dropoff', label: TRANSLATIONS[language].pickup_dropoff_management || 'Điểm đón/Trả', icon: MapPin },
     { id: 'stop-management', label: TRANSLATIONS[language].stop_management, icon: MapPin },
     { id: 'agents', label: t.agents, icon: Users },

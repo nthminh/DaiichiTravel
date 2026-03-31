@@ -60,7 +60,7 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Anchor className="text-cyan-600" size={26} />
-            {isVi ? 'Tour Du Thuyền' : isJa ? 'クルーズツアー' : 'Cruise Tours'}
+            {isVi ? 'Tour du thuyền' : isJa ? 'クルーズツアー' : 'Cruise Tours'}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             {isVi
