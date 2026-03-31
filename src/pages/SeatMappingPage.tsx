@@ -397,21 +397,33 @@ export function SeatMappingPage({
   const tripSeatsWithLayout = selectedTrip.seats.filter((s: any) => s.row !== undefined && s.row !== null);
   const selectedVehicle = vehicles.find(v => v.licensePlate === selectedTrip.licensePlate);
   const savedVehicleLayout = selectedVehicle?.layout as SerializedSeat[] | null | undefined;
+  // Room headers from vehicle layout (used to overlay section dividers on the trip grid)
+  const vehicleRoomHeaders = savedVehicleLayout ? savedVehicleLayout.filter(s => s.isRoomHeader) : [];
 
   // Build the layout grid to render
   let layoutGrid: (SerializedSeat | null)[][][] = [];
   if (tripSeatsWithLayout.length > 0) {
-    // Use trip seats' row/col/deck info
-    const deckCount = Math.max(...selectedTrip.seats.map((s: any) => s.deck || 0)) + 1;
-    const rowCount = Math.max(...selectedTrip.seats.map((s: any) => s.row ?? 0)) + 1;
-    const colCount = Math.max(...selectedTrip.seats.map((s: any) => s.col ?? 0)) + 1;
+    // Use trip seats' row/col/deck info; also include room headers from vehicle layout in dimensions
+    const allPositions = [
+      ...selectedTrip.seats.map((s: any) => ({ deck: s.deck || 0, row: s.row ?? 0, col: s.col ?? 0 })),
+      ...vehicleRoomHeaders.map(s => ({ deck: s.deck, row: s.row, col: s.col })),
+    ];
+    const deckCount = Math.max(...allPositions.map(p => p.deck)) + 1;
+    const rowCount = Math.max(...allPositions.map(p => p.row)) + 1;
+    const colCount = Math.max(...allPositions.map(p => p.col)) + 1;
     for (let d = 0; d < deckCount; d++) {
       const deck: (SerializedSeat | null)[][] = [];
       for (let r = 0; r < rowCount; r++) {
         const row: (SerializedSeat | null)[] = [];
         for (let c = 0; c < colCount; c++) {
-          const seat = selectedTrip.seats.find((s: any) => (s.deck || 0) === d && (s.row ?? -1) === r && (s.col ?? -1) === c);
-          row.push(seat ? { id: `${d}-${r}-${c}`, label: seat.id, row: r, col: c, deck: d, discounted: false, booked: false } : null);
+          // Room headers take priority over trip seats at the same position
+          const roomHeader = vehicleRoomHeaders.find(h => h.deck === d && h.row === r && h.col === c);
+          if (roomHeader) {
+            row.push(roomHeader);
+          } else {
+            const seat = selectedTrip.seats.find((s: any) => (s.deck || 0) === d && (s.row ?? -1) === r && (s.col ?? -1) === c);
+            row.push(seat ? { id: `${d}-${r}-${c}`, label: seat.id, row: r, col: c, deck: d, discounted: false, booked: false } : null);
+          }
         }
         deck.push(row);
       }
@@ -873,7 +885,23 @@ export function SeatMappingPage({
           {hasLayoutGrid && currentGrid ? (
             // Render proper bus layout grid
             <div className="space-y-1">
-              {currentGrid.map((row, rowIdx) => (
+              {currentGrid.map((row, rowIdx) => {
+                // Room-header row: render as a full-width section divider
+                if (row[0]?.isRoomHeader) {
+                  const colCount = row.length;
+                  const headerPx = colCount * 32 + Math.max(0, colCount - 1) * 4;
+                  return (
+                    <div key={rowIdx} className="flex gap-1 justify-center">
+                      <div
+                        style={{ width: `${headerPx}px` }}
+                        className="h-6 rounded bg-gray-100 border border-gray-300 text-[10px] font-bold text-gray-600 text-center flex items-center justify-center"
+                      >
+                        {row[0].label}
+                      </div>
+                    </div>
+                  );
+                }
+                return (
                 <div key={rowIdx} className="flex gap-1 justify-center">
                   {row.map((cell, colIdx) => {
                     if (!cell) {
@@ -887,7 +915,8 @@ export function SeatMappingPage({
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             // Fallback: flat grid (old behaviour)

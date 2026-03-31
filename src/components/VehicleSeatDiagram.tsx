@@ -1,14 +1,14 @@
-import React, { useState, useCallback } from 'react';
-import { X, Save, RotateCcw } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { X, Save, RotateCcw, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Re-export all types and utility functions from the shared utility module so
 // that existing imports of `VehicleSeatDiagram` continue to work unchanged.
 export type { SeatCell, DeckLayout, VehicleLayout, SerializedSeat } from '../lib/vehicleSeatUtils';
-export { generateVehicleLayout, serializeLayout } from '../lib/vehicleSeatUtils';
+export { generateVehicleLayout, serializeLayout, roomLayoutGenerator } from '../lib/vehicleSeatUtils';
 
 import type { SeatCell, DeckLayout, VehicleLayout, SerializedSeat } from '../lib/vehicleSeatUtils';
-import { generateVehicleLayout, serializeLayout } from '../lib/vehicleSeatUtils';
+import { generateVehicleLayout, serializeLayout, roomLayoutGenerator } from '../lib/vehicleSeatUtils';
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -53,6 +53,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
           discounted: s.discounted,
           booked: s.booked,
           isSleeper: s.isSleeper,
+          isRoomHeader: s.isRoomHeader,
         };
       });
       return { decks };
@@ -62,9 +63,26 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
 
   const [layout, setLayout] = useState<VehicleLayout>(buildLayout);
   const [activeDeck, setActiveDeck] = useState(0);
-  const [editMode, setEditMode] = useState<'view' | 'discount' | 'position' | 'type'>('view');
+  const [editMode, setEditMode] = useState<'view' | 'discount' | 'position' | 'type' | 'rename'>('view');
   const [isDirty, setIsDirty] = useState(() => !savedSeats || savedSeats.length === 0);
   const [showLabels, setShowLabels] = useState(true);
+  // Rename mode state
+  const [editingCell, setEditingCell] = useState<{ deck: number; row: number; col: number } | null>(null);
+  const [editingLabel, setEditingLabel] = useState('');
+  // Room layout creation dialog state
+  const [showRoomDialog, setShowRoomDialog] = useState(false);
+  const [roomDialogRooms, setRoomDialogRooms] = useState(5);
+  const [roomDialogBeds, setRoomDialogBeds] = useState(4);
+  const [roomDialogAcross, setRoomDialogAcross] = useState(2);
+
+  // Cancel in-progress rename when switching edit mode
+  const prevEditModeRef = useRef(editMode);
+  useEffect(() => {
+    if (prevEditModeRef.current === 'rename' && editMode !== 'rename') {
+      setEditingCell(null);
+    }
+    prevEditModeRef.current = editMode;
+  }, [editMode]);
 
   const isMultiDeck = layout.decks.length > 1;
 
@@ -86,7 +104,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
     setLayout(prev => {
       const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
       const cell = next.decks[deckIdx][rowIdx][colIdx];
-      if (cell.isDriver) return prev; // never toggle driver cell
+      if (cell.isDriver || cell.isRoomHeader) return prev; // never toggle driver or room-header cells
       if (cell.isAisle) {
         // Aisle → seat: auto-assign the next available label
         const allLabels = next.decks.flatMap(d => d.flatMap(r => r))
@@ -112,6 +130,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
     if (editMode === 'discount') toggleDiscount(deckIdx, rowIdx, colIdx);
     else if (editMode === 'position') togglePosition(deckIdx, rowIdx, colIdx);
     else if (editMode === 'type') toggleSeatType(deckIdx, rowIdx, colIdx);
+    else if (editMode === 'rename') startRename(deckIdx, rowIdx, colIdx);
   };
 
   const toggleSeatType = (deckIdx: number, rowIdx: number, colIdx: number) => {
@@ -127,15 +146,53 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
     setIsDirty(true);
   };
 
+  // ─── Rename helpers ────────────────────────────────────────────────────────
+
+  const startRename = (deckIdx: number, rowIdx: number, colIdx: number) => {
+    const cell = layout.decks[deckIdx]?.[rowIdx]?.[colIdx];
+    if (!cell || cell.isDriver || cell.isAisle) return;
+    setEditingCell({ deck: deckIdx, row: rowIdx, col: colIdx });
+    setEditingLabel(cell.label);
+  };
+
+  const commitRename = () => {
+    if (!editingCell) return;
+    const newLabel = editingLabel.trim();
+    if (newLabel) {
+      setLayout(prev => {
+        const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
+        next.decks[editingCell.deck][editingCell.row][editingCell.col].label = newLabel;
+        return next;
+      });
+      setIsDirty(true);
+    }
+    setEditingCell(null);
+  };
+
+  const cancelRename = () => setEditingCell(null);
+
+  // ─── Room layout creation ──────────────────────────────────────────────────
+
+  const applyRoomLayout = () => {
+    const newLayout = roomLayoutGenerator(
+      Math.max(1, roomDialogRooms),
+      Math.max(1, roomDialogBeds),
+      Math.max(1, roomDialogAcross),
+    );
+    setLayout(newLayout);
+    setIsDirty(true);
+    setShowRoomDialog(false);
+  };
+
   const toggleAllSeats = () => {
     setLayout(prev => {
       const next = JSON.parse(JSON.stringify(prev)) as VehicleLayout;
-      const hasAnySeats = next.decks.some(d => d.some(r => r.some(c => !c.isAisle && !c.isDriver)));
+      const hasAnySeats = next.decks.some(d => d.some(r => r.some(c => !c.isAisle && !c.isDriver && !c.isRoomHeader)));
       let seatCounter = 1;
       next.decks.forEach(deck => {
         deck.forEach(row => {
           row.forEach(cell => {
-            if (cell.isDriver) return;
+            if (cell.isDriver || cell.isRoomHeader) return;
             if (hasAnySeats) {
               // Turn all seats into aisles
               cell.label = '';
@@ -236,8 +293,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
 
   const currentDeck = layout.decks[activeDeck] ?? [];
 
-  // Passenger seat = not aisle, not driver
-  const allPassengerSeats = layout.decks.flatMap(d => d.flatMap(r => r)).filter(c => !c.isAisle && !c.isDriver);
+  // Passenger seat = not aisle, not driver, not room-header
+  const allPassengerSeats = layout.decks.flatMap(d => d.flatMap(r => r)).filter(c => !c.isAisle && !c.isDriver && !c.isRoomHeader);
   const totalSeats = allPassengerSeats.length;
   const bookedSeats = allPassengerSeats.filter(c => c.booked).length;
   const discountedSeats = allPassengerSeats.filter(c => c.discounted).length;
@@ -256,7 +313,9 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       editDiscount: 'Đánh dấu ghế giảm giá',
       editPosition: 'Chỉnh sửa vị trí ghế',
       editType: 'Đổi loại ghế (ngồi/nằm)',
+      editRename: 'Đặt tên ghế',
       tipType: 'Nhấp vào ghế để chuyển đổi ngồi ↔ nằm',
+      tipRename: 'Nhấp vào ghế để đặt tên tuỳ chỉnh',
       view: 'Chế độ xem',
       reset: 'Khôi phục mặc định',
       save: 'Lưu sơ đồ',
@@ -280,6 +339,13 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       removeDeck: '− Tầng',
       deck: 'Tầng',
       grid: 'Lưới',
+      roomLayout: 'Sơ đồ phòng',
+      roomLayoutTitle: 'Tạo sơ đồ phòng',
+      roomCount: 'Số phòng',
+      bedsPerRoom: 'Giường/phòng',
+      bedsAcross: 'Giường mỗi hàng',
+      create: 'Tạo',
+      cancel: 'Hủy',
     },
     en: {
       title: 'Seat Diagram',
@@ -292,7 +358,9 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       editDiscount: 'Mark Discounted Seats',
       editPosition: 'Edit Seat Positions',
       editType: 'Toggle Seat Type (sit/sleep)',
+      editRename: 'Rename Seats',
       tipType: 'Click a seat to toggle sitting ↔ sleeper',
+      tipRename: 'Click a seat to give it a custom name',
       view: 'View Mode',
       reset: 'Reset Layout',
       save: 'Save Layout',
@@ -316,6 +384,13 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       removeDeck: '− Deck',
       deck: 'Deck',
       grid: 'Grid',
+      roomLayout: 'Room Layout',
+      roomLayoutTitle: 'Create Room Layout',
+      roomCount: 'Rooms',
+      bedsPerRoom: 'Beds/room',
+      bedsAcross: 'Beds per row',
+      create: 'Create',
+      cancel: 'Cancel',
     },
     ja: {
       title: '座席図',
@@ -328,7 +403,9 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       editDiscount: '割引席をマーク',
       editPosition: '座席位置を編集',
       editType: '座席タイプを変更（座席/寝台）',
+      editRename: '座席名を変更',
       tipType: '座席をクリックして座席 ↔ 寝台を切り替え',
+      tipRename: '座席をクリックしてカスタム名を設定',
       view: '表示モード',
       reset: 'デフォルトに戻す',
       save: '保存',
@@ -352,6 +429,13 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
       removeDeck: '− フロア',
       deck: 'フロア',
       grid: 'グリッド',
+      roomLayout: '部屋レイアウト',
+      roomLayoutTitle: '部屋レイアウトを作成',
+      roomCount: '部屋数',
+      bedsPerRoom: 'ベッド/部屋',
+      bedsAcross: '横並びベッド数',
+      create: '作成',
+      cancel: 'キャンセル',
     },
   };
   const label = t[language] ?? t.vi;
@@ -450,6 +534,19 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
               <span className="w-3 h-3 rounded-sm bg-indigo-400 inline-block" />
               {editMode === 'type' ? label.tipType : label.editType}
             </button>
+            {/* Rename mode */}
+            <button
+              onClick={() => setEditMode(editMode === 'rename' ? 'view' : 'rename')}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all',
+                editMode === 'rename'
+                  ? 'bg-violet-100 text-violet-700 ring-2 ring-violet-400'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <Pencil size={11} />
+              {editMode === 'rename' ? label.tipRename : label.editRename}
+            </button>
             {/* Toggle seat number labels */}
             <button
               onClick={() => setShowLabels(v => !v)}
@@ -490,6 +587,69 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mr-1">{label.deck}:</span>
             <button onClick={addDeck} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">{label.addDeck}</button>
             <button onClick={removeDeck} disabled={layout.decks.length <= 1} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40">{label.removeDeck}</button>
+            {/* Room layout button */}
+            <button
+              onClick={() => setShowRoomDialog(v => !v)}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-xs font-bold transition-all ml-2',
+                showRoomDialog
+                  ? 'bg-teal-100 text-teal-700 ring-2 ring-teal-400'
+                  : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-300'
+              )}
+            >
+              {label.roomLayout}
+            </button>
+          </div>
+        )}
+
+        {/* Room layout creation dialog */}
+        {editable && showRoomDialog && (
+          <div className="mx-7 mt-2 p-4 bg-teal-50 border border-teal-200 rounded-xl">
+            <p className="text-sm font-bold text-teal-800 mb-3">{label.roomLayoutTitle}</p>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">{label.roomCount}</label>
+                <input
+                  type="number" min="1" max="100"
+                  value={roomDialogRooms}
+                  onChange={e => setRoomDialogRooms(Number(e.target.value))}
+                  className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">{label.bedsPerRoom}</label>
+                <input
+                  type="number" min="1" max="50"
+                  value={roomDialogBeds}
+                  onChange={e => setRoomDialogBeds(Number(e.target.value))}
+                  className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">{label.bedsAcross}</label>
+                <input
+                  type="number" min="1" max="8"
+                  value={roomDialogAcross}
+                  onChange={e => setRoomDialogAcross(Number(e.target.value))}
+                  className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
+                />
+              </div>
+              <button
+                onClick={applyRoomLayout}
+                className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 transition-colors"
+              >
+                {label.create}
+              </button>
+              <button
+                onClick={() => setShowRoomDialog(false)}
+                className="px-4 py-1.5 bg-gray-200 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-300 transition-colors"
+              >
+                {label.cancel}
+              </button>
+            </div>
+            <p className="text-[11px] text-teal-600 mt-2">
+              → {roomDialogRooms} phòng × {roomDialogBeds} giường = {roomDialogRooms * roomDialogBeds} giường
+            </p>
           </div>
         )}
 
@@ -501,7 +661,53 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
         {/* Seat grid */}
         <div className="px-7 pb-4 overflow-x-auto">
           <div className="inline-block min-w-full">
-            {currentDeck.map((row, rowIdx) => (
+            {currentDeck.map((row, rowIdx) => {
+              // Room-header row: render as a full-width section divider
+              if (row[0]?.isRoomHeader) {
+                const colCount = row.length;
+                const headerPx = colCount * 40 + Math.max(0, colCount - 1) * 6;
+                const isRenaming =
+                  editable && editMode === 'rename' &&
+                  editingCell?.deck === activeDeck &&
+                  editingCell?.row === rowIdx &&
+                  editingCell?.col === 0;
+                return (
+                  <div key={rowIdx} className="flex gap-1.5 mb-1 justify-center">
+                    {isRenaming ? (
+                      <input
+                        autoFocus
+                        value={editingLabel}
+                        onChange={e => setEditingLabel(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') commitRename();
+                          if (e.key === 'Escape') cancelRename();
+                        }}
+                        style={{ width: `${headerPx}px` }}
+                        className="h-7 rounded-lg border-2 border-violet-400 text-xs font-bold text-center bg-violet-50 outline-none px-2"
+                      />
+                    ) : (
+                      <button
+                        style={{ width: `${headerPx}px` }}
+                        onClick={() => editable && editMode === 'rename' && startRename(activeDeck, rowIdx, 0)}
+                        disabled={!editable || editMode !== 'rename'}
+                        className={cn(
+                          'h-7 rounded-lg text-xs font-bold text-center border flex items-center justify-center',
+                          'bg-gray-100 border-gray-300 text-gray-700',
+                          editable && editMode === 'rename'
+                            ? 'cursor-pointer hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700'
+                            : 'cursor-default'
+                        )}
+                      >
+                        {row[0].label}
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              // Regular seat row
+              return (
               <div key={rowIdx} className="flex gap-1.5 mb-1.5 justify-center">
                 {row.map((cell, colIdx) => {
                   if (cell.isAisle) {
@@ -533,7 +739,29 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                     ? `${label.sleeper} (${cell.label})`
                     : `${label.available} (${cell.label})`;
                   const isInteractive = editable && !isDriver &&
-                    (editMode === 'discount' || editMode === 'position' || editMode === 'type');
+                    (editMode === 'discount' || editMode === 'position' || editMode === 'type' || editMode === 'rename');
+                  const isBeingRenamed =
+                    editable && editMode === 'rename' &&
+                    editingCell?.deck === activeDeck &&
+                    editingCell?.row === rowIdx &&
+                    editingCell?.col === colIdx;
+                  // Render inline input when this cell is being renamed
+                  if (isBeingRenamed) {
+                    return (
+                      <input
+                        key={colIdx}
+                        autoFocus
+                        value={editingLabel}
+                        onChange={e => setEditingLabel(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') commitRename();
+                          if (e.key === 'Escape') cancelRename();
+                        }}
+                        className="w-10 h-10 rounded-lg border-2 border-violet-400 text-[10px] font-bold text-center bg-violet-50 outline-none flex-shrink-0 p-0 leading-tight"
+                      />
+                    );
+                  }
                   return (
                     <button
                       key={colIdx}
@@ -551,7 +779,7 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                           : isSleeper
                           ? 'bg-indigo-50 border-indigo-300 text-indigo-800'
                           : 'bg-green-50 border-green-300 text-green-800',
-                        isInteractive && !cell.booked
+                        isInteractive && !cell.booked && !isDriver
                           ? 'cursor-pointer hover:scale-110 hover:shadow-md'
                           : ''
                       )}
@@ -562,7 +790,8 @@ export const VehicleSeatDiagram: React.FC<Props> = ({
                   );
                 })}
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
 

@@ -102,7 +102,10 @@ export function useTrips(ctx: TripContext) {
     }
     const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
     if (savedLayout && savedLayout.length > 0) {
-      return savedLayout.map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
+      // Filter out non-bookable room-header cells before creating trip seats
+      return savedLayout
+        .filter(s => !s.isRoomHeader)
+        .map(s => ({ id: s.label, row: s.row, col: s.col, deck: s.deck, status: SeatStatus.EMPTY }));
     }
     const generatedLayout = generateVehicleLayout(vehicle?.type || 'Ghế ngồi', seatCount);
     return serializeLayout(generatedLayout).map(s => ({
@@ -328,7 +331,8 @@ export function useTrips(ctx: TripContext) {
   const handleTripVehicleSelect = (licensePlate: string) => {
     const vehicle = ctxRef.current.vehicles.find(v => v.licensePlate === licensePlate);
     const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
-    const layoutSeatCount = savedLayout && savedLayout.length > 0 ? savedLayout.length : null;
+    const bookableSeats = savedLayout ? savedLayout.filter(s => !s.isRoomHeader) : null;
+    const layoutSeatCount = bookableSeats && bookableSeats.length > 0 ? bookableSeats.length : null;
     setTripForm(p => ({
       ...p,
       licensePlate,
@@ -339,7 +343,8 @@ export function useTrips(ctx: TripContext) {
   const handleBatchVehicleSelect = (licensePlate: string) => {
     const vehicle = ctxRef.current.vehicles.find(v => v.licensePlate === licensePlate);
     const savedLayout = vehicle?.layout as SerializedSeat[] | null | undefined;
-    const layoutSeatCount = savedLayout && savedLayout.length > 0 ? savedLayout.length : null;
+    const bookableSeats = savedLayout ? savedLayout.filter(s => !s.isRoomHeader) : null;
+    const layoutSeatCount = bookableSeats && bookableSeats.length > 0 ? bookableSeats.length : null;
     setBatchTripForm(p => ({
       ...p,
       licensePlate,
