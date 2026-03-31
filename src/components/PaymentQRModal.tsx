@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { BANK_CONFIG, generatePaymentQrUrl, generatePaymentQrString } from '../constants/bankConfig';
+import { createOnepayPaymentUrl } from '../services/onepayService';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
 
@@ -103,13 +104,66 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
     return unsubscribe;
   }, [paymentRef, amount]);
 
+  // Load OnePay settings from Firestore and generate a properly-signed payment URL.
+  // When onepayEnabled=true with valid credentials (merchant, accessCode, hashKey),
+  // we use createOnepayPaymentUrl() which adds the required vpc_Access_Code,
+  // vpc_SecureHash, and vpc_ReturnURL parameters that OnePay's gateway demands.
+  // Without these the sandbox gateway rejects the request.
+  const [onepayQrString, setOnepayQrString] = useState<string | null>(null);
+  const [onepayEnabled, setOnepayEnabled] = useState(false);
+  const [onepayEnvironment, setOnepayEnvironment] = useState<'sandbox' | 'production'>('sandbox');
+
+  useEffect(() => {
+    const unsubscribe = transportService.subscribeToPaymentSettings((saved) => {
+      if (!saved || typeof saved !== 'object') return;
+      const enabled = saved.onepayEnabled === true;
+      const merchant = (saved.onepayMerchant as string) || '';
+      const accessCode = (saved.onepayAccessCode as string) || '';
+      const hashKey = (saved.onepayHashKey as string) || '';
+      const environment = ((saved.onepayEnvironment as string) === 'production' ? 'production' : 'sandbox') as 'sandbox' | 'production';
+      const gatewayType = ((saved.onepayGatewayType as string) === 'international' ? 'international' : 'domestic') as 'domestic' | 'international';
+      const returnUrl = (saved.onepayReturnUrl as string) || window.location.origin;
+
+      setOnepayEnabled(enabled);
+      setOnepayEnvironment(environment);
+
+      // Only generate a signed URL when all required credentials are present
+      if (enabled && merchant && accessCode && hashKey) {
+        createOnepayPaymentUrl(
+          { merchant, accessCode, hashKey, environment, gatewayType },
+          {
+            amount,
+            orderId: paymentRef,
+            orderInfo: paymentRef,
+            // Browser apps cannot determine the external client IP without a server call.
+            // '127.0.0.1' is the recommended placeholder per the onepayService docs.
+            customerIp: '127.0.0.1',
+            returnUrl,
+            locale: 'vn',
+          }
+        )
+          .then(url => setOnepayQrString(url))
+          .catch(err => {
+            console.error('[PaymentQRModal] Failed to generate OnePay URL:', err);
+            setOnepayQrString(null);
+          });
+      } else {
+        setOnepayQrString(null);
+      }
+    });
+    return unsubscribe;
+  }, [paymentRef, amount]);
+
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
   const timerIsUrgent = secondsLeft <= 60; // last 1 minute
 
   const description = `${paymentRef}${bookingLabel ? ' ' + bookingLabel : ''}`;
+  // Use the properly-signed OnePay URL when available; fall back to the demo URL.
   const qrImageUrl = generatePaymentQrUrl({ amount, description });
-  const qrString = generatePaymentQrString({ amount, description });
+  const qrString = onepayQrString ?? generatePaymentQrString({ amount, description });
+  // Show demo banner only when OnePay is not configured/enabled
+  const isDemo = !onepayEnabled || BANK_CONFIG.isDemoMode;
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(paymentRef).then(() => {
@@ -188,12 +242,23 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
           {!expired && (
           <div className="p-5 space-y-4">
-            {/* Demo mode banner */}
-            {BANK_CONFIG.isDemoMode && (
+            {/* Demo mode banner — shown when OnePay is not fully configured */}
+            {isDemo && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
                 <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-700 font-medium">
                   {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Thông tin ngân hàng là giả, KHÔNG chuyển tiền thật'}
+                </p>
+              </div>
+            )}
+            {/* Sandbox mode banner — shown when OnePay sandbox is active */}
+            {!isDemo && onepayEnvironment === 'sandbox' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
+                <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700 font-medium">
+                  {language === 'vi'
+                    ? '🔬 MÔI TRƯỜNG THỬ NGHIỆM (Sandbox) — Dùng thẻ test OnePay, KHÔNG dùng thẻ thật'
+                    : '🔬 SANDBOX ENVIRONMENT — Use OnePay test cards only, NOT real cards'}
                 </p>
               </div>
             )}
