@@ -1044,7 +1044,7 @@ function TripConfirmPanel({
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
               <MapPin size={14} className="text-daiichi-red flex-shrink-0" />
-              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_route_title || 'Hành trình xe sẽ đi qua'}</h3>
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{t.trip_confirm_route_title || 'Hành trình sẽ đi qua'}</h3>
             </div>
             <div className="p-4">
               {orderedItinerary.length <= 2 ? (

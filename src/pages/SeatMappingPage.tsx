@@ -712,7 +712,7 @@ export function SeatMappingPage({
         if (isRoundTrip) {
           // Round-trip: 6-step flow — seat selection first, then info entry for each leg
           if (language === 'vi') {
-            steps = ['Ghế đi', 'TT đi', 'Ghế về', 'TT về', 'Xác nhận', 'Thanh toán'];
+            steps = ['Vé đi', 'TT đi', 'Vé về', 'TT về', 'Xác nhận', 'Thanh toán'];
             hints = [
               '👆 Chọn ghế phù hợp cho chiều đi (đọc thông tin tuyến đường bên dưới)',
               '📋 Khai báo thông tin hành khách và điểm đón/trả cho chiều đi',
@@ -751,7 +751,7 @@ export function SeatMappingPage({
         } else {
           // ONE_WAY: seat selection first, then info entry, then confirmation
           if (language === 'vi') {
-            steps = ['Chọn ghế', 'Nhập thông tin', 'Xác nhận', 'Thanh toán'];
+            steps = ['Vé', 'Nhập thông tin', 'Xác nhận', 'Thanh toán'];
             hints = [
               '👆 Chọn ghế trống (màu trắng) — đọc thông tin tuyến đường bên dưới trước khi chọn',
               '📋 Khai báo thông tin hành khách, chọn điểm đón/trả và dịch vụ thêm',

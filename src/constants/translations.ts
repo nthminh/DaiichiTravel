@@ -92,7 +92,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     // Sidebar/Menu
     home: 'Trang chủ',
     book_ticket: 'Đặt vé xe',
-    tours: 'Tour ngày',
+    tours: 'Tour',
     consignments: 'Gửi hàng',
     agents: 'Đại lý',
     routes: 'Tuyến đường',
@@ -124,7 +124,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     customer_total_bookings_unit: 'đơn',
     
     // Booking
-    search_title: 'Tìm chuyến xe của bạn',
+    search_title: 'Tìm kiếm hành trình của bạn',
     trip_one_way: 'Một chiều',
     trip_round_trip: 'Khứ hồi',
     from: 'Điểm đi',
@@ -132,7 +132,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     departure_date: 'Ngày đi',
     return_date: 'Ngày về',
     passengers: 'Hành khách',
-    search_btn: 'Tìm kiếm chuyến xe',
+    search_btn: 'Tìm kiếm',
     num_adults: 'Người lớn',
     num_children: 'Trẻ em',
     available_trips: 'Chuyến xe khả dụng',
@@ -727,9 +727,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     not_selected_yet: 'Chưa chọn',
     step_select_trip: 'Chọn chuyến',
     step_pickup_dropoff: 'Điểm đón/trả',
-    step_select_seat: 'Chọn ghế',
+    step_select_seat: 'Vé',
     step_payment: 'Thanh toán',
-    trip_confirm_route_title: 'Hành trình xe sẽ đi qua',
+    trip_confirm_route_title: 'Hành trình sẽ đi qua',
     trip_confirm_pickup_title: 'Chọn điểm đón',
     trip_confirm_dropoff_title: 'Chọn điểm trả',
     trip_confirm_price_title: 'Chi tiết giá vé',
