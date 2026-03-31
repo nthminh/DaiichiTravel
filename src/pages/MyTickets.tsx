@@ -37,7 +37,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
 
   // Merge localStorage tickets and Firestore tickets (avoid duplicates by ticketCode/id)
   const firestoreTickets = customerPhone
-    ? bookings.filter(b => b.type === 'TRIP' && b.phone === customerPhone)
+    ? bookings.filter(b => (b.type === 'TRIP' || b.type === 'TOUR') && b.phone === customerPhone)
     : [];
 
   const allTickets = React.useMemo(() => {
@@ -147,7 +147,6 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
 const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] }> = ({ booking, language, routes = [] }) => {
   const isVi = language === 'vi';
   const isJa = language === 'ja';
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [addonDetail, setAddonDetail] = useState<{ trip: any; addons: TripAddon[] } | null>(null);
 
   const isFreeSeating = booking.freeSeating;
@@ -164,43 +163,8 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
     ? getJourneyStops(routes, booking.route, booking.pickupPoint || undefined, booking.dropoffPoint || undefined)
     : [];
 
-  // Find route image(s) for this booking
-  const bookingRoute = routes.find(r => r.name === booking.route);
-  const routeImages = bookingRoute?.images && bookingRoute.images.length > 0
-    ? bookingRoute.images
-    : bookingRoute?.imageUrl ? [bookingRoute.imageUrl] : [];
-
   return (
     <>
-    {/* Image lightbox overlay */}
-    {lightboxImage && (
-      <div
-        className="fixed inset-0 z-[500] bg-black/80 flex items-center justify-center p-4"
-        onClick={() => setLightboxImage(null)}
-        onKeyDown={e => e.key === 'Escape' && setLightboxImage(null)}
-        role="dialog"
-        aria-modal="true"
-        aria-label={isVi ? 'Ảnh tuyến đường' : isJa ? '路線画像' : 'Route image'}
-        tabIndex={-1}
-      >
-        <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
-          <button
-            onClick={() => setLightboxImage(null)}
-            className="absolute -top-10 right-0 text-white/80 hover:text-white font-bold text-sm flex items-center gap-1"
-            aria-label={isVi ? 'Đóng ảnh' : isJa ? '閉じる' : 'Close image'}
-          >
-            ✕ {isVi ? 'Đóng' : isJa ? '閉じる' : 'Close'}
-          </button>
-          <img
-            src={lightboxImage}
-            alt={booking.route}
-            className="w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      </div>
-    )}
-
     {/* Addon detail modal */}
     {addonDetail && (
       <div
@@ -261,29 +225,9 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
         </div>
       </div>
 
-      {/* Card body: image + info side by side (md+), stacked on mobile */}
-      <div className="flex flex-col sm:flex-row flex-1">
-        {/* Left: route image */}
-        {routeImages.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setLightboxImage(routeImages[0])}
-            className="sm:w-28 md:w-32 flex-shrink-0 relative overflow-hidden bg-gray-100 cursor-zoom-in aspect-video sm:aspect-auto"
-            aria-label={isVi ? 'Xem ảnh tuyến đường cỡ lớn' : isJa ? '路線画像を拡大表示' : 'View route image full size'}
-          >
-            <img
-              src={routeImages[0]}
-              alt={booking.route}
-              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute bottom-1 right-1 bg-black/40 rounded-full px-1.5 py-0.5 text-white text-[9px] font-bold">
-              🔍
-            </div>
-          </button>
-        )}
-
-        {/* Right: ticket info */}
+      {/* Card body: ticket info */}
+      <div className="flex flex-1">
+        {/* Ticket info */}
         <div className="flex-1 px-4 py-3 space-y-2 min-w-0">
           {/* Ticket code */}
           <div className="flex items-center gap-1">
