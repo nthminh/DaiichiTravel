@@ -69,7 +69,7 @@ const emptyRoomType = (): TourRoomType => ({
   id: crypto.randomUUID(),
   name: '',
   capacity: 2,
-  // PER_PERSON is the default as most tour packages price per traveller
+  // PER_PERSON is the default as most tour packages price per traveler
   pricingMode: 'PER_PERSON',
   price: 0,
   totalRooms: 1,
@@ -199,7 +199,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !storage) {
-      if (!storage) alert('Firebase Storage is not configured.');
+      if (!storage) alert('Firebase Storage is not configured. Please check your environment variables.');
       return;
     }
     if (isEdit) setEditUploading(true);
@@ -257,7 +257,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     setUploadingRoomIdx(roomIdx);
     try {
       const urls: string[] = [];
-      for (const file of files as File[]) {
+      for (const file of files) {
         const compressed = await compressImage(file, 0.75, 1280);
         const storageRef = ref(storage, `tours/rooms/${Date.now()}_${compressed.name}`);
         const uploadTask = uploadBytesResumable(storageRef, compressed);
