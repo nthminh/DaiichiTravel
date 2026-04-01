@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Anchor, Clock, MapPin, ChevronRight, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Language } from '../constants/translations';
 import type { TourItem } from '../components/TourBookingForm';
+import { transportService } from '../services/transportService';
 
 interface CruiseTourPageProps {
   tours: TourItem[];
@@ -18,7 +19,17 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
   const [durationFilter, setDurationFilter] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  // Map of tourId → { roomTypeId → booked count }
+  const [allRoomCounts, setAllRoomCounts] = useState<Record<string, Record<string, number>>>({});
 
+  // Load room booking counts for all tours whenever the tours list changes
+  useEffect(() => {
+    const ids = tours.map(t => t.id).filter(Boolean);
+    if (ids.length === 0) return;
+    transportService.getMultipleTourRoomBookingCounts(ids)
+      .then(counts => setAllRoomCounts(counts))
+      .catch(err => console.error('[CruiseTourPage] room counts error:', err));
+  }, [tours]);
   const filteredTours = useMemo(() => {
     return tours.filter(tour => {
       const q = searchTerm.toLowerCase();
@@ -221,22 +232,29 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
                     </p>
                   )}
 
-                  {/* Room types */}
+                  {/* Room types with availability */}
                   {tour.roomTypes && tour.roomTypes.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {tour.roomTypes.slice(0, 3).map((rt, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] font-medium px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-full border border-cyan-100"
-                        >
-                          {rt.name}
-                        </span>
-                      ))}
-                      {tour.roomTypes.length > 3 && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                          +{tour.roomTypes.length - 3}
-                        </span>
-                      )}
+                    <div className="space-y-1">
+                      {tour.roomTypes.map((rt) => {
+                        const bookedCount = allRoomCounts[tour.id]?.[rt.id] ?? 0;
+                        const available = rt.totalRooms > 0 ? Math.max(0, rt.totalRooms - bookedCount) : null;
+                        const isFullyBooked = available !== null && available <= 0;
+                        return (
+                          <div
+                            key={rt.id}
+                            className="flex items-center justify-between text-[10px] px-2 py-1 bg-cyan-50 rounded-lg border border-cyan-100"
+                          >
+                            <span className="font-medium text-cyan-700">{rt.name}</span>
+                            {available !== null && (
+                              <span className={`font-semibold ${isFullyBooked ? 'text-red-500' : available <= 2 ? 'text-amber-500' : 'text-green-600'}`}>
+                                {isFullyBooked
+                                  ? (isVi ? 'Hết phòng' : isJa ? '満室' : 'Full')
+                                  : (isVi ? `Còn ${available} phòng` : isJa ? `残り${available}室` : `${available} left`)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 

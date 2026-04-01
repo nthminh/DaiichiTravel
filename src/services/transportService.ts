@@ -546,6 +546,70 @@ export const transportService = {
     return counts;
   },
 
+  /**
+   * Real-time subscription for room booking counts (tourId + date).
+   * Invokes callback whenever bookings change. Returns unsubscribe function.
+   */
+  subscribeTourRoomBookingCounts: (
+    tourId: string,
+    date: string,
+    callback: (counts: Record<string, number>) => void
+  ): (() => void) => {
+    if (!db) { callback({}); return () => {}; }
+    const q = query(
+      collection(db, 'bookings'),
+      where('tourId', '==', tourId),
+      where('date', '==', date),
+      where('status', '!=', 'CANCELLED')
+    );
+    return onSnapshot(q, (snapshot) => {
+      const counts: Record<string, number> = {};
+      snapshot.docs.forEach(d => {
+        const data = d.data();
+        const roomTypeId: string | undefined = data.selectedRoomTypeId;
+        if (roomTypeId) {
+          counts[roomTypeId] = (counts[roomTypeId] ?? 0) + 1;
+        }
+      });
+      callback(counts);
+    }, () => callback({}));
+  },
+
+  /**
+   * Fetch room booking counts for multiple tours at once (for listing pages).
+   * Returns a map of tourId → { roomTypeId → count }.
+   * Queries all non-cancelled bookings for the given tour IDs (client-side status filter).
+   */
+  getMultipleTourRoomBookingCounts: async (
+    tourIds: string[]
+  ): Promise<Record<string, Record<string, number>>> => {
+    if (!db || tourIds.length === 0) return {};
+    const FIRESTORE_IN_QUERY_LIMIT = 30;
+    const result: Record<string, Record<string, number>> = {};
+    // Firestore 'in' supports up to FIRESTORE_IN_QUERY_LIMIT items; batch if needed
+    const batches: string[][] = [];
+    for (let i = 0; i < tourIds.length; i += FIRESTORE_IN_QUERY_LIMIT) {
+      batches.push(tourIds.slice(i, i + FIRESTORE_IN_QUERY_LIMIT));
+    }
+    for (const batch of batches) {
+      const q = query(
+        collection(db, 'bookings'),
+        where('tourId', 'in', batch)
+      );
+      const snapshot = await getDocs(q);
+      snapshot.docs.forEach(d => {
+        const data = d.data();
+        if (data.status === 'CANCELLED') return;
+        const tid: string | undefined = data.tourId;
+        const roomTypeId: string | undefined = data.selectedRoomTypeId;
+        if (!tid || !roomTypeId) return;
+        if (!result[tid]) result[tid] = {};
+        result[tid][roomTypeId] = (result[tid][roomTypeId] ?? 0) + 1;
+      });
+    }
+    return result;
+  },
+
   // ===== SETTINGS / PERMISSIONS METHODS =====
 
   // Get role permissions from Firestore
