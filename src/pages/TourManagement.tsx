@@ -155,6 +155,20 @@ const computeTourPrice = (
   breakfastCount * pricePerBreakfast +
   surcharge;
 
+const DEFAULT_BATCH_TOUR_FORM = {
+  templateId: '',
+  title: '',
+  duration: '',
+  nights: 0,
+  departureTime: '',
+  departureLocation: '',
+  returnTime: '',
+  returnLocation: '',
+  priceAdult: 0,
+  priceChild: 0,
+  propertyId: '',
+};
+
 export const TourManagement: React.FC<TourManagementProps> = ({ language, currentUser }) => {
   const isAdmin = currentUser?.role === UserRole.MANAGER;
   const [tours, setTours] = useState<Tour[]>([]);
@@ -177,24 +191,21 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const [showBatchAddTour, setShowBatchAddTour] = useState(false);
   const [batchTourLoading, setBatchTourLoading] = useState(false);
   const [batchProperties, setBatchProperties] = useState<Property[]>([]);
-  const [batchTourForm, setBatchTourForm] = useState({
-    templateId: '',       // source tour id (optional)
-    title: '',
-    duration: '',
-    nights: 0,
-    departureTime: '',
-    departureLocation: '',
-    returnTime: '',
-    returnLocation: '',
-    priceAdult: 0,
-    priceChild: 0,
-    propertyId: '',       // linked asset/property
-  });
+  const [batchTourForm, setBatchTourForm] = useState({ ...DEFAULT_BATCH_TOUR_FORM });
   // Each entry is a departure date (YYYY-MM-DD)
   const [batchDepartureDates, setBatchDepartureDates] = useState<string[]>(['']);
   // Date range helper state
   const [batchDateFrom, setBatchDateFrom] = useState('');
   const [batchDateTo, setBatchDateTo] = useState('');
+
+  /** Open batch modal with a clean initial state */
+  const handleOpenBatchModal = () => {
+    setBatchTourForm({ ...DEFAULT_BATCH_TOUR_FORM });
+    setBatchDepartureDates(['']);
+    setBatchDateFrom('');
+    setBatchDateTo('');
+    setShowBatchAddTour(true);
+  };
 
   /** Add consecutive dates from batchDateFrom → batchDateTo */
   const handleAddDateRange = () => {
@@ -286,7 +297,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       });
       await transportService.addToursBatch(toursToCreate);
       setShowBatchAddTour(false);
-      setBatchTourForm({ templateId: '', title: '', duration: '', nights: 0, departureTime: '', departureLocation: '', returnTime: '', returnLocation: '', priceAdult: 0, priceChild: 0, propertyId: '' });
+      setBatchTourForm({ ...DEFAULT_BATCH_TOUR_FORM });
       setBatchDepartureDates(['']);
       setBatchDateFrom('');
       setBatchDateTo('');
@@ -1140,7 +1151,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
         </div>
         <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
           <button
-            onClick={() => { setShowBatchAddTour(true); setBatchTourForm({ templateId: '', title: '', duration: '', nights: 0, departureTime: '', departureLocation: '', returnTime: '', returnLocation: '', priceAdult: 0, priceChild: 0, propertyId: '' }); setBatchDepartureDates(['']); setBatchDateFrom(''); setBatchDateTo(''); }}
+            onClick={handleOpenBatchModal}
             className="bg-blue-600 text-white px-4 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors"
           >
             <Zap size={18} />
