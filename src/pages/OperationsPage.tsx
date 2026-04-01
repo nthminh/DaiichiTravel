@@ -4,6 +4,7 @@ import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
 import { Trip, Route, Vehicle, Employee, PricePeriod, User, UserRole, TripAddon } from '../types';
+import type { SerializedSeat } from '../lib/vehicleSeatUtils';
 import { NotePopover } from '../components/NotePopover';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { ResizableTh } from '../components/ResizableTh';
@@ -354,6 +355,92 @@ export function OperationsPage({
           }
         };
         const lockedCount = trip.seats.filter(s => s.status === SeatStatus.LOCKED).length;
+
+        // Build seat status map for quick lookup
+        const lockSeatStatusMap: Record<string, SeatStatus> = {};
+        trip.seats.forEach(s => { lockSeatStatusMap[s.id] = s.status; });
+
+        // Build 2-D layout grid from trip seat positions (row/col/deck) + vehicle saved layout
+        const lockVehicle = vehicles.find(v => v.licensePlate === trip.licensePlate);
+        const lockSavedLayout = lockVehicle?.layout as SerializedSeat[] | null | undefined;
+        const lockTripSeatsWithLayout = trip.seats.filter(s => s.row !== undefined && s.row !== null);
+        const lockRoomHeaders = lockSavedLayout ? lockSavedLayout.filter(s => s.isRoomHeader) : [];
+        let lockLayoutGrid: (SerializedSeat | null)[][][] = [];
+        if (lockTripSeatsWithLayout.length > 0) {
+          const allPos = [
+            ...trip.seats.map(s => ({ deck: s.deck || 0, row: s.row ?? 0, col: s.col ?? 0 })),
+            ...lockRoomHeaders.map(s => ({ deck: s.deck, row: s.row, col: s.col })),
+          ];
+          const deckCount = Math.max(...allPos.map(p => p.deck)) + 1;
+          const rowCount = Math.max(...allPos.map(p => p.row)) + 1;
+          const colCount = Math.max(...allPos.map(p => p.col)) + 1;
+          for (let d = 0; d < deckCount; d++) {
+            const deckArr: (SerializedSeat | null)[][] = [];
+            for (let r = 0; r < rowCount; r++) {
+              const rowArr: (SerializedSeat | null)[] = [];
+              for (let c = 0; c < colCount; c++) {
+                const rh = lockRoomHeaders.find(h => h.deck === d && h.row === r && h.col === c);
+                if (rh) { rowArr.push(rh); continue; }
+                const seat = trip.seats.find(s => (s.deck || 0) === d && (s.row ?? -1) === r && (s.col ?? -1) === c);
+                rowArr.push(seat ? { label: seat.id, row: r, col: c, deck: d, discounted: false, booked: false } : null);
+              }
+              deckArr.push(rowArr);
+            }
+            lockLayoutGrid.push(deckArr);
+          }
+        } else if (lockSavedLayout && lockSavedLayout.length > 0) {
+          const nonHeaders = lockSavedLayout.filter(s => !s.isRoomHeader);
+          if (nonHeaders.length > 0) {
+            const deckCount = Math.max(...lockSavedLayout.map(s => s.deck)) + 1;
+            const rowCount = Math.max(...lockSavedLayout.map(s => s.row)) + 1;
+            const colCount = Math.max(...lockSavedLayout.map(s => s.col)) + 1;
+            for (let d = 0; d < deckCount; d++) {
+              const deckArr: (SerializedSeat | null)[][] = [];
+              for (let r = 0; r < rowCount; r++) {
+                const rowArr: (SerializedSeat | null)[] = [];
+                for (let c = 0; c < colCount; c++) {
+                  rowArr.push(lockSavedLayout.find(x => x.deck === d && x.row === r && x.col === c) ?? null);
+                }
+                deckArr.push(rowArr);
+              }
+              lockLayoutGrid.push(deckArr);
+            }
+          }
+        }
+        const hasLockGrid = lockLayoutGrid.length > 0;
+
+        const renderLockSeat = (seatId: string) => {
+          const status = lockSeatStatusMap[seatId] ?? SeatStatus.EMPTY;
+          const isLocked = status === SeatStatus.LOCKED;
+          const isBooked = status === SeatStatus.BOOKED;
+          const isPaid = status === SeatStatus.PAID;
+          const isEmpty = status === SeatStatus.EMPTY;
+          return (
+            <button
+              key={seatId}
+              disabled={lockSeatLoading || isBooked || isPaid}
+              onClick={() => handleToggle(seatId)}
+              title={
+                isLocked
+                  ? (language === 'vi' ? 'Nhấn để mở khóa' : 'Click to unlock')
+                  : isBooked || isPaid
+                    ? (language === 'vi' ? 'Ghế đã có khách, không thể khóa' : 'Seat occupied, cannot lock')
+                    : (language === 'vi' ? 'Nhấn để khóa ghế' : 'Click to lock seat')
+              }
+              className={cn(
+                'w-10 h-10 rounded-xl border-2 flex items-center justify-center text-[11px] font-bold transition-all relative flex-shrink-0',
+                isEmpty && 'bg-white border-gray-200 text-gray-600 hover:border-gray-500 hover:bg-gray-100 cursor-pointer',
+                isLocked && 'bg-gray-200 border-gray-400 text-gray-500 hover:bg-gray-300 cursor-pointer',
+                isBooked && 'bg-yellow-400 border-yellow-400 text-white cursor-not-allowed',
+                isPaid && 'bg-daiichi-red border-daiichi-red text-white cursor-not-allowed',
+              )}
+            >
+              {seatId}
+              {isLocked && <Lock size={8} className="absolute top-0.5 right-0.5 text-gray-500" />}
+            </button>
+          );
+        };
+
         return (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
@@ -389,38 +476,71 @@ export function OperationsPage({
                     <Loader2 size={20} className="animate-spin text-gray-400" />
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {trip.seats.map(seat => {
-                    const isLocked = seat.status === SeatStatus.LOCKED;
-                    const isBooked = seat.status === SeatStatus.BOOKED;
-                    const isPaid = seat.status === SeatStatus.PAID;
-                    const isEmpty = seat.status === SeatStatus.EMPTY;
-                    return (
-                      <button
-                        key={seat.id}
-                        disabled={lockSeatLoading || isBooked || isPaid}
-                        onClick={() => handleToggle(seat.id)}
-                        title={
-                          isLocked
-                            ? (language === 'vi' ? 'Nhấn để mở khóa' : 'Click to unlock')
-                            : isBooked || isPaid
-                              ? (language === 'vi' ? 'Ghế đã có khách, không thể khóa' : 'Seat occupied, cannot lock')
-                              : (language === 'vi' ? 'Nhấn để khóa ghế' : 'Click to lock seat')
+                {hasLockGrid ? (
+                  <div className="overflow-x-auto">
+                    <div className="text-[10px] text-gray-400 mb-2 text-center">
+                      ← {language === 'vi' ? 'Đầu xe' : 'Front'}
+                    </div>
+                    <div className="space-y-1">
+                      {(lockLayoutGrid[0] ?? []).map((row, rowIdx) => {
+                        if (row[0]?.isRoomHeader) {
+                          const headerPx = row.length * 40 + Math.max(0, row.length - 1) * 8;
+                          return (
+                            <div key={rowIdx} className="flex gap-2 justify-center">
+                              <div
+                                style={{ width: `${headerPx}px` }}
+                                className="h-5 rounded bg-gray-100 border border-gray-300 text-[10px] font-bold text-gray-600 text-center flex items-center justify-center"
+                              >
+                                {row[0].label}
+                              </div>
+                            </div>
+                          );
                         }
-                        className={cn(
-                          'w-10 h-10 rounded-xl border-2 flex items-center justify-center text-[11px] font-bold transition-all relative',
-                          isEmpty && 'bg-white border-gray-200 text-gray-600 hover:border-gray-500 hover:bg-gray-100 cursor-pointer',
-                          isLocked && 'bg-gray-200 border-gray-400 text-gray-500 hover:bg-gray-300 cursor-pointer',
-                          isBooked && 'bg-yellow-400 border-yellow-400 text-white cursor-not-allowed',
-                          isPaid && 'bg-daiichi-red border-daiichi-red text-white cursor-not-allowed',
-                        )}
-                      >
-                        {seat.id}
-                        {isLocked && <Lock size={8} className="absolute top-0.5 right-0.5 text-gray-500" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                        return (
+                          <div key={rowIdx} className="flex gap-2 justify-center">
+                            {row.map((cell, colIdx) =>
+                              !cell
+                                ? <div key={colIdx} className="w-10 h-10 flex-shrink-0" />
+                                : <div key={colIdx} className="flex-shrink-0">{renderLockSeat(cell.label)}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {lockLayoutGrid.length > 1 && (
+                      <div className="mt-4 space-y-1">
+                        <div className="text-[10px] font-bold text-gray-500 text-center uppercase tracking-widest">
+                          {language === 'vi' ? 'Tầng trên' : 'Upper deck'}
+                        </div>
+                        {(lockLayoutGrid[1] ?? []).map((row, rowIdx) => {
+                          if (row[0]?.isRoomHeader) {
+                            const headerPx = row.length * 40 + Math.max(0, row.length - 1) * 8;
+                            return (
+                              <div key={rowIdx} className="flex gap-2 justify-center">
+                                <div style={{ width: `${headerPx}px` }} className="h-5 rounded bg-gray-100 border border-gray-300 text-[10px] font-bold text-gray-600 text-center flex items-center justify-center">
+                                  {row[0].label}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div key={rowIdx} className="flex gap-2 justify-center">
+                              {row.map((cell, colIdx) =>
+                                !cell
+                                  ? <div key={colIdx} className="w-10 h-10 flex-shrink-0" />
+                                  : <div key={colIdx} className="flex-shrink-0">{renderLockSeat(cell.label)}</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {trip.seats.map(seat => renderLockSeat(seat.id))}
+                  </div>
+                )}
                 <div className="mt-4 flex flex-wrap gap-3 justify-center text-[10px] font-semibold">
                   <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border-2 border-gray-300 rounded" /> {language === 'vi' ? 'Trống' : 'Empty'}</div>
                   <div className="flex items-center gap-1"><div className="w-3 h-3 bg-gray-200 border-2 border-gray-400 rounded" /> {language === 'vi' ? 'Đã khóa' : 'Locked'}</div>

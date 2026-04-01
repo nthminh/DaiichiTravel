@@ -241,6 +241,8 @@ export interface Tour {
   returnTime?: string;             // expected return time
   returnLocation?: string;         // end-of-tour location
   linkedPropertyId?: string;       // optional link to a Property asset
+  /** Age-based child pricing rules for this tour. When absent, default applies: ≥4 yrs = adult fare, <4 yrs = free. */
+  childPricingRules?: ChildPricingRule[];
 }
 
 export interface Booking {

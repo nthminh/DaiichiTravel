@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, ChevronRight, CheckCircle2, BedDouble, Users, ImageIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { UserRole, Language, TRANSLATIONS } from '../constants/translations';
@@ -8,7 +8,7 @@ import {
   PAYMENT_METHOD_TRANSLATION_KEYS,
 } from '../constants/paymentMethods';
 import { transportService } from '../services/transportService';
-import type { Agent } from '../types';
+import type { Agent, ChildPricingRule } from '../types';
 import type { User } from '../App';
 
 // ─── Local types ──────────────────────────────────────────────────────────────
@@ -61,6 +61,8 @@ export interface TourItem {
   returnTime?: string;
   returnLocation?: string;
   linkedPropertyId?: string;
+  /** Age-based child pricing rules. When absent, default applies: ≥4 yrs = adult fare, <4 yrs = free. */
+  childPricingRules?: ChildPricingRule[];
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -179,6 +181,17 @@ export function TourBookingForm({
   // ── Room image carousel state ──────────────────────────────────────────────
   const [roomImageIdx, setRoomImageIdx] = useState<Record<string, number>>({});
 
+  // ── Per-child age tracking ─────────────────────────────────────────────────
+  const [childrenAges, setChildrenAges] = useState<(number | undefined)[]>([]);
+  // Keep the ages array in sync with the number of children
+  useEffect(() => {
+    setChildrenAges(prev => {
+      const updated = [...prev];
+      updated.length = tourBookingChildren;
+      return updated;
+    });
+  }, [tourBookingChildren]);
+
   // ── Price calculation ──────────────────────────────────────────────────────
 
   const totalPersons = tourBookingAdults + tourBookingChildren;
@@ -187,7 +200,50 @@ export function TourBookingForm({
 
   // When a room is selected, use its price as the base (overrides per-person pricing)
   const pricePerAdult = selectedTour?.priceAdult ?? selectedTour?.price ?? 0;
-  const pricePerChild = selectedTour?.priceChild ?? Math.round(pricePerAdult * 0.5);
+
+  // Age-based child pricing: default is ≥4 yrs → adult fare, <4 yrs → free.
+  // If the tour has explicit childPricingRules they override the default.
+  const childPricingRules = selectedTour?.childPricingRules ?? [];
+  const useChildAgePricing = childPricingRules.length > 0;
+
+  // Build per-age-group breakdown for children
+  const childAgeGroups: { label: string; count: number; farePer: number }[] = (() => {
+    if (tourBookingChildren === 0) return [];
+    if (useChildAgePricing) {
+      const groupMap = new Map<string, { label: string; count: number; farePer: number }>();
+      childrenAges.slice(0, tourBookingChildren).forEach((age) => {
+        const ageVal = age ?? 0;
+        const rule = childPricingRules.find(r => ageVal >= r.fromAge && ageVal <= r.toAge);
+        const farePer = rule ? Math.round(pricePerAdult * rule.percent / 100) : pricePerAdult;
+        const groupKey = rule ? rule.id : '__no_rule__';
+        const label = rule
+          ? (language === 'vi'
+              ? `Trẻ ${rule.fromAge}–${rule.toAge} tuổi (${rule.percent}%)`
+              : `Children ${rule.fromAge}–${rule.toAge} yrs (${rule.percent}%)`)
+          : (language === 'vi' ? 'Trẻ em' : 'Children');
+        if (!groupMap.has(groupKey)) groupMap.set(groupKey, { label, count: 0, farePer });
+        groupMap.get(groupKey)!.count++;
+      });
+      return Array.from(groupMap.values());
+    } else {
+      // Default: age ≥4 → adult fare, age <4 → free
+      const over4 = childrenAges.slice(0, tourBookingChildren).filter(a => (a ?? 0) >= 4).length;
+      const freeCount = tourBookingChildren - over4;
+      const groups: { label: string; count: number; farePer: number }[] = [];
+      if (over4 > 0) groups.push({
+        label: language === 'vi' ? 'Trẻ ≥4 tuổi (giá người lớn)' : 'Children ≥4 yrs (adult fare)',
+        count: over4,
+        farePer: pricePerAdult,
+      });
+      if (freeCount > 0) groups.push({
+        label: language === 'vi' ? 'Trẻ <4 tuổi (miễn phí)' : 'Children <4 yrs (free)',
+        count: freeCount,
+        farePer: 0,
+      });
+      return groups;
+    }
+  })();
+  const childrenTotalCost = childAgeGroups.reduce((s, g) => s + g.count * g.farePer, 0);
 
   // Room-based pricing: if a room type is selected and priced per-room, that is the base
   const roomBasedPrice = selectedRoomType
@@ -205,7 +261,7 @@ export function TourBookingForm({
 
   const baseTourPrice = roomBasedPrice !== null
     ? roomBasedPrice + extraPersonsCost
-    : (tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild);
+    : (tourBookingAdults * pricePerAdult + childrenTotalCost);
 
   // Overnight stays: unit price is fixed by admin, customer adjusts quantity.
   // When a room type is selected the room price already covers accommodation, so
@@ -737,12 +793,50 @@ export function TourBookingForm({
             </div>
           </div>
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">{t.children} <span className="text-gray-400 font-normal normal-case">{language === 'vi' ? '(từ 4 tuổi)' : '(4+ yrs)'}</span></label>
+            <label className="text-xs font-bold text-gray-500 uppercase">{t.children}</label>
             <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl">
               <button type="button" onClick={() => setTourBookingChildren(Math.max(0, tourBookingChildren - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none">−</button>
               <span className="flex-1 text-center font-bold text-gray-800">{tourBookingChildren}</span>
               <button type="button" onClick={() => setTourBookingChildren(tourBookingChildren + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-daiichi-red text-white font-bold text-lg leading-none">+</button>
             </div>
+            {tourBookingChildren > 0 && (
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                  {language === 'vi' ? 'Tuổi trẻ em (năm)' : 'Children ages (years)'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: tourBookingChildren }, (_, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <label className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+                        {language === 'vi' ? `Bé ${i + 1}:` : `Child ${i + 1}:`}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="17"
+                        placeholder={language === 'vi' ? 'tuổi' : 'age'}
+                        value={childrenAges[i] === undefined ? '' : childrenAges[i]}
+                        onChange={e => {
+                          const parsed = parseInt(e.target.value, 10);
+                          const age = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.max(0, Math.min(17, parsed)));
+                          setChildrenAges(prev => {
+                            const updated = [...prev];
+                            updated[i] = age;
+                            return updated;
+                          });
+                        }}
+                        className="w-16 px-2 py-1 text-center text-sm font-bold bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-amber-600">
+                  {language === 'vi'
+                    ? '• Trẻ dưới 4 tuổi: miễn phí. Trẻ từ 4 tuổi trở lên: tính giá người lớn.'
+                    : '• Under 4: free. Age 4+: adult fare.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -919,12 +1013,16 @@ export function TourBookingForm({
               <span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span>
               <span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span>
             </div>
-            {tourBookingChildren > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span>
-                <span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span>
+            {childAgeGroups.map((group, idx) => (
+              <div key={idx} className="flex justify-between text-sm">
+                <span className={group.farePer === 0 ? 'text-green-600' : 'text-gray-500'}>{group.label} × {group.count}</span>
+                <span className={`font-bold ${group.farePer === 0 ? 'text-green-600' : ''}`}>
+                  {group.farePer === 0
+                    ? (language === 'vi' ? 'Miễn phí' : 'Free')
+                    : `${(group.farePer * group.count).toLocaleString()}đ`}
+                </span>
               </div>
-            )}
+            ))}
           </>
         )}
         {accomCost > 0 && (
