@@ -114,6 +114,18 @@ export interface BookingContext {
   setSelectedTrip: React.Dispatch<React.SetStateAction<any>>;
 }
 
+/** A single line item in the price breakdown shown in PaymentQRModal */
+export interface PriceBreakdownItem {
+  label: string;
+  amount: number;
+  /** When true, amount is 0 and displayed as "Miễn phí" */
+  isFree?: boolean;
+  /** Marks this as the grand-total row (bold, highlighted) */
+  isTotal?: boolean;
+  /** Marks this as a section header row (e.g. "Chuyến đi", "Chuyến về") */
+  isSection?: boolean;
+}
+
 export interface PendingQrBooking {
   amount: number;
   ref: string;
@@ -121,6 +133,8 @@ export interface PendingQrBooking {
   execute: () => Promise<void>;
   /** Called when the user cancels or the 3-min timer expires – releases the reserved seats */
   cancel: () => Promise<void>;
+  /** Detailed price breakdown items to display in PaymentQRModal */
+  priceBreakdown?: PriceBreakdownItem[];
 }
 
 /**
@@ -891,12 +905,20 @@ export function usePayment(ctx: BookingContext) {
             resetFormState();
           };
 
+          const isVi2 = c.language === 'vi';
+          const roundTripBreakdown: PriceBreakdownItem[] = [
+            { label: isVi2 ? 'Chuyến đi' : 'Outbound trip', amount: outboundLeg.amount, isSection: true },
+            { label: isVi2 ? 'Chuyến về' : 'Return trip', amount: totalAmount, isSection: true },
+            { label: isVi2 ? 'Tổng thanh toán (khứ hồi)' : 'Total (round-trip)', amount: combinedAmount, isTotal: true },
+          ];
+
           setPendingQrBooking({
             amount: combinedAmount,
             ref: paymentReference,
             label: bookingData.customerName,
             execute: saveBothBookingsAfterReservation,
             cancel: releaseAllReservations,
+            priceBreakdown: roundTripBreakdown,
           });
           return;
         }
@@ -1145,12 +1167,38 @@ export function usePayment(ctx: BookingContext) {
         }
       };
 
+      // Build price breakdown items for display in the payment modal
+      const singleLegBreakdown: PriceBreakdownItem[] = [];
+      const isVi = c.language === 'vi';
+      const paxLabel = effectiveAdults === 1
+        ? (isVi ? '1 hành khách' : '1 passenger')
+        : (isVi ? `${effectiveAdults} hành khách` : `${effectiveAdults} passengers`);
+      singleLegBreakdown.push({ label: isVi ? `Vé (${paxLabel})` : `Ticket (${paxLabel})`, amount: totalBase });
+      if (effectiveChildren > 0) {
+        singleLegBreakdown.push({ label: isVi ? `Trẻ em <5 tuổi (${effectiveChildren} bé)` : `Children <5 yrs (${effectiveChildren})`, amount: 0, isFree: true });
+      }
+      if (pickupDropoffSurcharge > 0) {
+        singleLegBreakdown.push({ label: isVi ? 'Phụ phí điểm đón/trả' : 'Pickup/dropoff surcharge', amount: pickupDropoffSurcharge });
+      }
+      if (c.surchargeAmount > 0) {
+        singleLegBreakdown.push({ label: isVi ? 'Phụ phí khác' : 'Other surcharge', amount: c.surchargeAmount });
+      }
+      appliedRouteSurcharges.forEach((sc: any) => {
+        singleLegBreakdown.push({ label: (isVi ? 'Phụ phí tuyến: ' : 'Route surcharge: ') + sc.name, amount: sc.amount * effectiveAdults });
+      });
+      selectedAddons.forEach((a: TripAddon) => {
+        const qty = c.addonQuantities[a.id] || 1;
+        singleLegBreakdown.push({ label: `${a.name} × ${qty}`, amount: a.price * qty });
+      });
+      singleLegBreakdown.push({ label: isVi ? 'Tổng thanh toán' : 'Total', amount: totalAmount, isTotal: true });
+
       setPendingQrBooking({
         amount: totalAmount,
         ref: paymentReference,
         label: bookingData.customerName,
         execute: saveBookingAfterReservation,
         cancel: releaseReservation,
+        priceBreakdown: singleLegBreakdown,
       });
       return;
     }

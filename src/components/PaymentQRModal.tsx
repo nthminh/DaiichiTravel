@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap, CreditCard, Building2 } from 'lucide-react';
+import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap, CreditCard, Building2, List } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { BANK_CONFIG, generatePaymentQrUrl, generatePaymentQrString } from '../constants/bankConfig';
 import { createOnepayPaymentUrl } from '../services/onepayService';
 import { Language, TRANSLATIONS } from '../App';
 import { transportService } from '../services/transportService';
+import { PriceBreakdownItem } from '../hooks/usePayment';
 
 const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
@@ -76,6 +77,8 @@ interface PaymentQRModalProps {
   onCancel: () => void;
   /** Optional extra label shown on modal (e.g. customer name) */
   bookingLabel?: string;
+  /** Optional price breakdown items for the "Xem chi tiết giá" modal */
+  priceBreakdown?: PriceBreakdownItem[];
 }
 
 export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
@@ -85,6 +88,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   onConfirm,
   onCancel,
   bookingLabel,
+  priceBreakdown,
 }) => {
   const t = TRANSLATIONS[language];
   const [activeTab, setActiveTab] = useState<PaymentTab>('qr');
@@ -92,6 +96,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const [confirming, setConfirming] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [expired, setExpired] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   // Auto-payment detection state
   const [autoDetected, setAutoDetected] = useState(false);
   const [amountMismatch, setAmountMismatch] = useState(false);
@@ -400,11 +405,21 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
             {/* Amount */}
             <div className="text-center">
               <p className="text-xs text-gray-400 uppercase font-bold tracking-widest mb-1">
-                {t.qr_payment_amount || 'Số tiền'}
+                {t.qr_payment_amount || 'Số tiền cần thanh toán'}
               </p>
               <p className="text-4xl font-extrabold text-blue-600">
                 {amount.toLocaleString('vi-VN')}<span className="text-2xl ml-1">đ</span>
               </p>
+              {priceBreakdown && priceBreakdown.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBreakdown(true)}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-700 font-semibold transition-colors"
+                >
+                  <List size={13} />
+                  {language === 'vi' ? 'Xem chi tiết giá' : language === 'ja' ? '料金明細を見る' : 'View price details'}
+                </button>
+              )}
             </div>
 
             {/* ── QR Tab ── */}
@@ -774,6 +789,56 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
           )}
         </motion.div>
       </div>
+
+      {/* Price breakdown detail modal */}
+      {showBreakdown && priceBreakdown && priceBreakdown.length > 0 && (
+        <div className="fixed inset-0 z-[350] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowBreakdown(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
+              <h3 className="font-bold text-gray-800 text-sm">
+                {t.trip_confirm_price_title || 'Chi tiết giá vé'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowBreakdown(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-xl bg-gray-200 hover:bg-gray-300 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {priceBreakdown.map((item, idx) => (
+                item.isTotal ? (
+                  <div key={idx} className="flex items-center justify-between px-3 py-2.5 bg-blue-50 rounded-xl border border-blue-100 mt-2">
+                    <span className="font-bold text-gray-800 text-sm">{item.label}</span>
+                    <span className="text-lg font-extrabold text-blue-600">{item.amount.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                ) : item.isSection ? (
+                  <div key={idx} className="flex items-center justify-between py-1.5 border-b border-gray-100">
+                    <span className="font-semibold text-gray-700 text-sm">{item.label}</span>
+                    <span className="font-bold text-gray-800 text-sm">{item.amount.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                ) : (
+                  <div key={idx} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{item.label}</span>
+                    {item.isFree
+                      ? <span className="text-green-600 font-semibold">{language === 'vi' ? 'Miễn phí' : 'Free'}</span>
+                      : <span className="font-semibold text-gray-700">+{item.amount.toLocaleString('vi-VN')}đ</span>
+                    }
+                  </div>
+                )
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 };

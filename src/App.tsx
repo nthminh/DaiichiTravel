@@ -2323,6 +2323,7 @@ export default function App() {
             paymentRef={pendingQrBooking.ref}
             language={language}
             bookingLabel={pendingQrBooking.label}
+            priceBreakdown={pendingQrBooking.priceBreakdown}
             onConfirm={async () => {
               setTicketAutoDownload(true);
               await pendingQrBooking.execute();
