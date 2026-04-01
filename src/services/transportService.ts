@@ -60,6 +60,7 @@ interface TourData {
   roomTypes?: TourRoomTypeData[]; // overnight cabin/room options with per-room pricing
   itinerary?: { day: number; content: string }[];
   addons?: { id: string; name: string; price: number; description?: string }[]; // optional add-on services
+  linkedPropertyId?: string;  // optional link to a Property asset (Quản lý tài sản)
 }
 
 export const DEFAULT_VEHICLE_TYPES = ['Ghế ngồi', 'Ghế ngồi limousine', 'Giường nằm', 'Phòng VIP (cabin)'];
@@ -502,6 +503,47 @@ export const transportService = {
     refs.forEach((ref, i) => batch.set(ref, { ...tours[i], createdAt: Timestamp.now() }));
     await batch.commit();
     return refs;
+  },
+
+  /**
+   * Get a one-time snapshot of room types from a property's room_types subcollection.
+   * Used when linking a tour to a property to auto-populate room types.
+   */
+  getPropertyRoomTypes: async (propertyId: string): Promise<PropertyRoomType[]> => {
+    if (!db) return [];
+    const q = query(
+      collection(db, 'properties', propertyId, 'room_types'),
+      orderBy('name', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as PropertyRoomType[];
+  },
+
+  /**
+   * Count non-cancelled tour bookings per room type for a given tour + departure date.
+   * Returns a map of roomTypeId → booked count.
+   */
+  getTourRoomBookingCounts: async (
+    tourId: string,
+    date: string
+  ): Promise<Record<string, number>> => {
+    if (!db) return {};
+    const q = query(
+      collection(db, 'bookings'),
+      where('tourId', '==', tourId),
+      where('date', '==', date),
+      where('status', 'in', ['PENDING', 'CONFIRMED'])
+    );
+    const snapshot = await getDocs(q);
+    const counts: Record<string, number> = {};
+    snapshot.docs.forEach(d => {
+      const data = d.data();
+      const roomTypeId: string | undefined = data.selectedRoomTypeId;
+      if (roomTypeId) {
+        counts[roomTypeId] = (counts[roomTypeId] ?? 0) + 1;
+      }
+    });
+    return counts;
   },
 
   // ===== SETTINGS / PERMISSIONS METHODS =====

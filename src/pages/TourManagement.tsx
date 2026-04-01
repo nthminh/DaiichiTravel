@@ -58,6 +58,7 @@ interface Tour {
   departureLocation?: string;
   returnTime?: string;
   returnLocation?: string;
+  linkedPropertyId?: string;
 }
 
 interface TourManagementProps {
@@ -105,6 +106,7 @@ type FormState = {
   departureLocation: string;
   returnTime: string;
   returnLocation: string;
+  linkedPropertyId: string;
 };
 
 const emptyForm: FormState = {
@@ -135,6 +137,7 @@ const emptyForm: FormState = {
   departureLocation: '',
   returnTime: '',
   returnLocation: '',
+  linkedPropertyId: '',
 };
 
 // Computes the total tour price by summing all cost components for the defined group
@@ -186,6 +189,9 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const [uploadingRoomIdx, setUploadingRoomIdx] = useState<number | null>(null);
+
+  // ── Properties for asset linking ───────────────────────────────────────────
+  const [properties, setProperties] = useState<Property[]>([]);
 
   // ── Batch tour creation state ──────────────────────────────────────────────
   const [showBatchAddTour, setShowBatchAddTour] = useState(false);
@@ -338,6 +344,41 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     return unsubscribe;
   }, []);
 
+  // Subscribe to properties for the asset-link picker
+  useEffect(() => {
+    const unsub = transportService.subscribeToProperties(setProperties);
+    return unsub;
+  }, []);
+
+  /**
+   * When a property is selected for a form, load its room types and convert them
+   * to TourRoomType format so they can be managed within the tour.
+   */
+  const handleLinkProperty = async (
+    propertyId: string,
+    setForm: React.Dispatch<React.SetStateAction<FormState>>
+  ) => {
+    setForm(prev => ({ ...prev, linkedPropertyId: propertyId }));
+    if (!propertyId) return;
+    try {
+      const propRoomTypes = await transportService.getPropertyRoomTypes(propertyId);
+      if (propRoomTypes.length === 0) return;
+      const converted: TourRoomType[] = propRoomTypes.map(prt => ({
+        id: prt.id,
+        name: prt.name,
+        capacity: prt.capacityAdults + prt.capacityChildren,
+        pricingMode: 'PER_ROOM' as const,
+        price: prt.basePrice,
+        totalRooms: prt.totalUnits,
+        description: prt.amenities.join(', '),
+        images: prt.images,
+      }));
+      setForm(prev => ({ ...prev, roomTypes: converted }));
+    } catch (err) {
+      console.error('Failed to load property room types:', err);
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !storage) {
@@ -460,6 +501,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       departureLocation: form.departureLocation || undefined,
       returnTime: form.returnTime || undefined,
       returnLocation: form.returnLocation || undefined,
+      linkedPropertyId: form.linkedPropertyId || undefined,
     };
   };
 
@@ -507,6 +549,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       departureLocation: tour.departureLocation || '',
       returnTime: tour.returnTime || '',
       returnLocation: tour.returnLocation || '',
+      linkedPropertyId: tour.linkedPropertyId || '',
     });
     setIsAdding(false);
   };
@@ -571,6 +614,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       departureLocation: tour.departureLocation || '',
       returnTime: tour.returnTime || '',
       returnLocation: tour.returnLocation || '',
+      linkedPropertyId: tour.linkedPropertyId || '',
     });
     setIsAdding(true);
     setExpandedTourId(null);
@@ -608,6 +652,31 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
           <Plus size={13} />
           {language === 'vi' ? 'Thêm loại phòng' : 'Add Room Type'}
         </button>
+      </div>
+
+      {/* Property asset link */}
+      <div>
+        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+          <Building2 size={11} />
+          {language === 'vi' ? 'Liên kết tài sản (tự động lấy phòng)' : 'Link to Property Asset (auto-import rooms)'}
+        </label>
+        <select
+          value={form.linkedPropertyId}
+          onChange={e => handleLinkProperty(e.target.value, setForm)}
+          className="w-full mt-0.5 px-2 py-1.5 bg-white border border-teal-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-200 focus:outline-none"
+        >
+          <option value="">{language === 'vi' ? '— Không liên kết tài sản —' : '— No property linked —'}</option>
+          {properties.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        {form.linkedPropertyId && (
+          <p className="text-[10px] text-teal-600 mt-0.5 ml-1">
+            {language === 'vi'
+              ? '✓ Phòng được lấy từ tài sản. Bạn vẫn có thể chỉnh sửa số lượng/giá bên dưới.'
+              : '✓ Rooms imported from property. You can still adjust quantities/prices below.'}
+          </p>
+        )}
       </div>
 
       {form.roomTypes.length === 0 ? (
