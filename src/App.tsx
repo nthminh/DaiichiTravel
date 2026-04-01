@@ -308,6 +308,7 @@ export default function App() {
   const [tripSearch, setTripSearch] = useState('');
   const [showTripAdvancedFilter, setShowTripAdvancedFilter] = useState(false);
   const [tripFilterRoute, setTripFilterRoute] = useState('');
+  const [tripFilterDate, setTripFilterDate] = useState('');
   const [tripFilterStatus, setTripFilterStatus] = useState<string>('ALL');
   const [tripFilterDateFrom, setTripFilterDateFrom] = useState('');
   const [tripFilterDateTo, setTripFilterDateTo] = useState('');
@@ -1929,6 +1930,8 @@ export default function App() {
               setShowTripAdvancedFilter={setShowTripAdvancedFilter}
               tripFilterRoute={tripFilterRoute}
               setTripFilterRoute={setTripFilterRoute}
+              tripFilterDate={tripFilterDate}
+              setTripFilterDate={setTripFilterDate}
               tripFilterStatus={tripFilterStatus}
               setTripFilterStatus={setTripFilterStatus}
               tripFilterDateFrom={tripFilterDateFrom}
