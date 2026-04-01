@@ -120,6 +120,8 @@ export interface TourBookingFormProps {
   onViewTicket: (booking: any) => void;
   onGoHome: () => void;
   getLocalDateString: (offsetDays?: number) => string;
+  /** Called when a customer confirms payment – triggers the payment modal in App.tsx */
+  onInitiatePayment?: (amount: number, label: string, onComplete: () => Promise<void>, onCancel: () => void) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -170,6 +172,7 @@ export function TourBookingForm({
   onViewTicket,
   onGoHome,
   getLocalDateString: _getLocalDateString,
+  onInitiatePayment,
 }: TourBookingFormProps) {
   const t = TRANSLATIONS[language];
 
@@ -291,6 +294,42 @@ export function TourBookingForm({
       ...(selectedRoomType ? { selectedRoomTypeId: selectedRoomType.id, selectedRoomTypeName: selectedRoomType.name } : {}),
       status: bookStatus,
     };
+
+    // For direct customer "Pay Now": show payment modal before creating booking
+    const isDirectCustomerPayNow = bookStatus === 'CONFIRMED' && !isTourAgentBooking && onInitiatePayment;
+    if (isDirectCustomerPayNow) {
+      setIsTourBookingLoading(false);
+      const label = tourBookingName.trim();
+      onInitiatePayment(
+        finalTourTotal,
+        label,
+        async () => {
+          // Payment confirmed – create the booking
+          setIsTourBookingLoading(true);
+          try {
+            const result = await transportService.createBooking(bookingData);
+            const savedBooking = { ...bookingData, id: result.id || '', ticketCode: result.ticketCode || '' };
+            setTourBookingId(result.ticketCode || result.id || '');
+            setLastTourBooking(savedBooking);
+            setTourBookingSuccess(true);
+          } catch (err) {
+            console.error('Failed to save tour booking after payment:', err);
+            setTourBookingError(language === 'vi'
+              ? 'Đã xảy ra lỗi khi đặt tour. Vui lòng thử lại.'
+              : 'An error occurred while booking. Please try again.');
+          } finally {
+            setIsTourBookingLoading(false);
+          }
+        },
+        () => {
+          // Payment cancelled – do nothing, user stays on form
+          setTourBookingStatus('PENDING');
+          setIsTourBookingLoading(false);
+        }
+      );
+      return;
+    }
+
     try {
       const result = await transportService.createBooking(bookingData);
       const savedBooking = { ...bookingData, id: result.id || '', ticketCode: result.ticketCode || '' };

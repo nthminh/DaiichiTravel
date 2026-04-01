@@ -16,7 +16,7 @@ import {
   UserRole, TripStatus, SeatStatus, Language, TRANSLATIONS 
 } from './constants/translations';
 import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_PAYMENT_METHOD, PAYMENT_METHOD_TRANSLATION_KEYS } from './constants/paymentMethods';
-import { usePayment } from './hooks/usePayment';
+import { usePayment, type PendingQrBooking } from './hooks/usePayment';
 import { useRoutes } from './hooks/useRoutes';
 import { useTrips } from './hooks/useTrips';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -182,6 +182,7 @@ export default function App() {
   const [lastTourBooking, setLastTourBooking] = useState<any>(null);
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [tourBookingStatus, setTourBookingStatus] = useState<'PENDING' | 'CONFIRMED'>('PENDING');
+  const [pendingTourPayment, setPendingTourPayment] = useState<PendingQrBooking | null>(null);
   const [tourSelectedRoomTypeId, setTourSelectedRoomTypeId] = useState('');
   const [tourRoomBookingCounts, setTourRoomBookingCounts] = useState<Record<string, number>>({});
   const [searchFrom, setSearchFrom] = useState('');
@@ -1764,6 +1765,16 @@ export default function App() {
             onViewTicket={(booking) => { setLastBooking(booking); setIsTicketOpen(true); }}
             onGoHome={() => setActiveTab('home')}
             getLocalDateString={getLocalDateString}
+            onInitiatePayment={(amount, label, onComplete, onPaymentCancel) => {
+              const ref = `TOUR-${Date.now().toString(36).toUpperCase()}`;
+              setPendingTourPayment({
+                amount,
+                ref,
+                label,
+                execute: onComplete,
+                cancel: async () => onPaymentCancel(),
+              });
+            }}
           />
         );
 
@@ -2317,6 +2328,26 @@ export default function App() {
             onCancel={async () => {
               await pendingQrBooking.cancel();
               setPendingQrBooking(null);
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Payment Modal for tour bookings */}
+      {pendingTourPayment && (
+        <Suspense fallback={null}>
+          <PaymentQRModal
+            amount={pendingTourPayment.amount}
+            paymentRef={pendingTourPayment.ref}
+            language={language}
+            bookingLabel={pendingTourPayment.label}
+            onConfirm={async () => {
+              await pendingTourPayment.execute();
+              setPendingTourPayment(null);
+            }}
+            onCancel={async () => {
+              await pendingTourPayment.cancel();
+              setPendingTourPayment(null);
             }}
           />
         </Suspense>
