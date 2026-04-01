@@ -33,20 +33,26 @@ export function getSegmentInfo(
   language: Language,
 ): SegmentInfo {
   if (seat.segmentBookings?.length > 0) {
-    // A single segmentBooking that spans the entire route is still a full-route booking.
     const orderKeys = Object.keys(stopNameByOrder).map(Number);
     const minOrder = orderKeys.length > 0 ? Math.min(...orderKeys) : 1;
     const maxOrder = orderKeys.length > 0 ? Math.max(...orderKeys) : totalStops;
+    // Count unique (from, to) pairs — duplicate entries (data corruption) count as one segment
+    const uniquePairs = [...new Set((seat.segmentBookings as any[]).map((s: any) => `${s.fromStopOrder}-${s.toStopOrder}`))];
+    const firstSeg = (seat.segmentBookings as any[])[0];
+    // A single unique pair that spans the entire route is a full-route booking.
+    // maxOrder > 0 guards against the case where totalStops = 0 and stopNameByOrder is empty,
+    // which would set maxOrder = 0 — an unknown route extent should not be assumed full.
     if (
-      seat.segmentBookings.length === 1 &&
-      seat.segmentBookings[0].fromStopOrder === minOrder &&
-      seat.segmentBookings[0].toStopOrder === maxOrder
+      uniquePairs.length === 1 &&
+      firstSeg.fromStopOrder === minOrder &&
+      firstSeg.toStopOrder === maxOrder &&
+      maxOrder > 0
     ) {
       return { type: 'full', label: language === 'vi' ? 'Cả chặng' : 'Full route' };
     }
     return {
       type: 'multi',
-      label: `${seat.segmentBookings.length} ${language === 'vi' ? 'chặng' : 'seg.'}`,
+      label: `${uniquePairs.length} ${language === 'vi' ? 'chặng' : 'seg.'}`,
     };
   }
 

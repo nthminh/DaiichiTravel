@@ -85,11 +85,11 @@ const buildAddonUsersMap = (trip: any, passengerGroups: { booking: any; seats: a
 // If explicit address fields are present, they are used.
 // For partial-segment bookings (fromStopOrder/toStopOrder defined), the stop name is used as fallback.
 const getPickupDisplay = (seat: any): string =>
-  [seat.pickupAddressDetail, seat.pickupAddress, seat.pickupStopAddress].filter(Boolean).join(' & ')
+  [seat.pickupAddressDetail, seat.pickupAddress, seat.pickupStopAddress].filter(Boolean).join(' ')
   || (seat.fromStopOrder != null ? seat.pickupPoint || '' : '');
 
 const getDropoffDisplay = (seat: any): string =>
-  [seat.dropoffAddressDetail, seat.dropoffAddress, seat.dropoffStopAddress].filter(Boolean).join(' & ')
+  [seat.dropoffAddressDetail, seat.dropoffAddress, seat.dropoffStopAddress].filter(Boolean).join(' ')
   || (seat.toStopOrder != null ? seat.dropoffPoint || '' : '');
 
 /**
@@ -341,17 +341,37 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
     return stopSchedule.get(order)!;
   };
 
+  // Compute effective last stop order when routeStops data is unavailable.
+  // Used to determine whether a segment's dropoff is at the terminal stop (should not appear in alighting list).
+  let derivedTotalStops = totalStops;
+  if (derivedTotalStops === 0) {
+    for (const g of passengerGroups) {
+      for (const seat of g.seats) {
+        for (const seg of ((seat.segmentBookings as any[]) ?? [])) {
+          if (seg.toStopOrder > derivedTotalStops) derivedTotalStops = seg.toStopOrder;
+        }
+        if (seat.toStopOrder != null && seat.toStopOrder > derivedTotalStops) derivedTotalStops = seat.toStopOrder;
+      }
+    }
+  }
+  const effectiveTotalStops = derivedTotalStops;
+
   for (const g of passengerGroups) {
     for (const seat of g.seats) {
       if (seat.segmentBookings && (seat.segmentBookings as any[]).length > 0) {
         // Multi-segment seat: each segmentBooking is a different passenger on a different sub-segment
+        // Deduplicate by (seatId, fromOrder, toOrder) to avoid repeating identical entries
+        const seenSegKeys = new Set<string>();
         for (const seg of (seat.segmentBookings as any[])) {
+          const segKey = `${seat.id}-${seg.fromStopOrder}-${seg.toStopOrder}`;
+          if (seenSegKeys.has(segKey)) continue;
+          seenSegKeys.add(segKey);
           const fromOrder: number = seg.fromStopOrder;
           const toOrder: number = seg.toStopOrder;
           const label = `${seg.pickupPoint || stopNameByOrder[fromOrder] || `Trạm ${fromOrder}`} → ${seg.dropoffPoint || stopNameByOrder[toOrder] || `Trạm ${toOrder}`}`;
           const info: StopPassenger = { seatId: seat.id, name: seg.customerName || '—', phone: seg.customerPhone || '—', label };
           if (fromOrder > 1) ensureStop(fromOrder, stopNameByOrder[fromOrder] || seg.pickupPoint || `Trạm ${fromOrder}`).boarding.push(info);
-          if (totalStops === 0 || toOrder < totalStops) ensureStop(toOrder, stopNameByOrder[toOrder] || seg.dropoffPoint || `Trạm ${toOrder}`).alighting.push(info);
+          if (effectiveTotalStops === 0 || toOrder < effectiveTotalStops) ensureStop(toOrder, stopNameByOrder[toOrder] || seg.dropoffPoint || `Trạm ${toOrder}`).alighting.push(info);
         }
       } else {
         const fromOrder = seat.fromStopOrder as number | undefined;
