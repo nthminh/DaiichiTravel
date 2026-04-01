@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Activity, Search, X, Clock, ChevronDown, ChevronRight, LogIn, LogOut } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Activity, Search, X, Clock, ChevronDown, ChevronRight, LogIn, LogOut, ChevronLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { formatDateTimeVN } from '../lib/vnDate';
@@ -111,6 +111,8 @@ function summarizeActivities(activities: AuditLog[], language: Language): string
     .join(', ');
 }
 
+const PAGE_SIZE = 50;
+
 export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, currentUser }) => {
   const t = TRANSLATIONS[language];
 
@@ -119,6 +121,8 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
   const [roleFilter, setRoleFilter] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+  const [detailPage, setDetailPage] = useState(1);
+  const [sessionPage, setSessionPage] = useState(1);
 
   const uniqueRoles = useMemo(() => Array.from(new Set(logs.map(l => l.actorRole).filter(Boolean))).sort(), [logs]);
   const uniqueActions = useMemo(() => Array.from(new Set(logs.map(l => l.action).filter(Boolean))).sort(), [logs]);
@@ -155,6 +159,16 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
     if (roleFilter) s = s.filter(sess => sess.actorRole === roleFilter);
     return s;
   }, [logs, search, roleFilter]);
+
+  // Reset pages when filters/tab change
+  useEffect(() => { setDetailPage(1); }, [search, roleFilter, actionFilter]);
+  useEffect(() => { setSessionPage(1); }, [search, roleFilter]);
+  useEffect(() => { setDetailPage(1); setSessionPage(1); }, [activeTab]);
+
+  const detailTotalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sessionTotalPages = Math.max(1, Math.ceil(sessions.length / PAGE_SIZE));
+  const pagedFiltered = filtered.slice((detailPage - 1) * PAGE_SIZE, detailPage * PAGE_SIZE);
+  const pagedSessions = sessions.slice((sessionPage - 1) * PAGE_SIZE, sessionPage * PAGE_SIZE);
 
   const actionLabel = (action: string) => {
     if (language === 'vi') return ACTION_LABEL_VI[action] || action;
@@ -267,6 +281,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
         filtered.length === 0 ? (
           <div className="text-center text-gray-400 py-12 text-sm">{t.audit_no_logs}</div>
         ) : (
+          <>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Desktop table */}
             <div className="hidden sm:block overflow-x-auto">
@@ -281,7 +296,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filtered.map(log => (
+                  {pagedFiltered.map(log => (
                     <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTimeVN(log.createdAt)}</td>
                       <td className="px-4 py-3">
@@ -302,7 +317,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
 
             {/* Mobile cards */}
             <div className="sm:hidden divide-y divide-gray-50">
-              {filtered.map(log => (
+              {pagedFiltered.map(log => (
                 <div key={log.id} className="p-4 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -321,6 +336,28 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
               ))}
             </div>
           </div>
+          {detailTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                onClick={() => setDetailPage(p => Math.max(1, p - 1))}
+                disabled={detailPage === 1}
+                className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="text-xs text-gray-500 font-medium">
+                {language === 'vi' ? `Trang ${detailPage} / ${detailTotalPages}` : `Page ${detailPage} / ${detailTotalPages}`}
+              </span>
+              <button
+                onClick={() => setDetailPage(p => Math.min(detailTotalPages, p + 1))}
+                disabled={detailPage === detailTotalPages}
+                className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+          </>
         )
       )}
 
@@ -329,8 +366,9 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
         sessions.length === 0 ? (
           <div className="text-center text-gray-400 py-12 text-sm">{t.audit_no_logs}</div>
         ) : (
+          <>
           <div className="space-y-3">
-            {sessions.map(sess => {
+            {pagedSessions.map(sess => {
               const isExpanded = expandedSessions.has(sess.sessionKey);
               return (
                 <div key={sess.sessionKey} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -416,6 +454,28 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
               );
             })}
           </div>
+          {sessionTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                onClick={() => setSessionPage(p => Math.max(1, p - 1))}
+                disabled={sessionPage === 1}
+                className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="text-xs text-gray-500 font-medium">
+                {language === 'vi' ? `Trang ${sessionPage} / ${sessionTotalPages}` : `Page ${sessionPage} / ${sessionTotalPages}`}
+              </span>
+              <button
+                onClick={() => setSessionPage(p => Math.min(sessionTotalPages, p + 1))}
+                disabled={sessionPage === sessionTotalPages}
+                className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+          </>
         )
       )}
     </div>
