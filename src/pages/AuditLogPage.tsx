@@ -161,12 +161,13 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
   }, [logs, search, roleFilter]);
 
   // Reset pages when filters/tab change
-  useEffect(() => { setDetailPage(1); }, [search, roleFilter, actionFilter]);
-  useEffect(() => { setSessionPage(1); }, [search, roleFilter]);
-  useEffect(() => { setDetailPage(1); setSessionPage(1); }, [activeTab]);
+  useEffect(() => {
+    setDetailPage(1);
+    setSessionPage(1);
+  }, [search, roleFilter, actionFilter, activeTab]);
 
-  const detailTotalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const sessionTotalPages = Math.max(1, Math.ceil(sessions.length / PAGE_SIZE));
+  const detailTotalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const sessionTotalPages = Math.ceil(sessions.length / PAGE_SIZE);
   const pagedFiltered = filtered.slice((detailPage - 1) * PAGE_SIZE, detailPage * PAGE_SIZE);
   const pagedSessions = sessions.slice((sessionPage - 1) * PAGE_SIZE, sessionPage * PAGE_SIZE);
 
