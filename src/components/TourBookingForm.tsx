@@ -197,7 +197,9 @@ export function TourBookingForm({
     ? roomBasedPrice
     : (tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild);
 
-  // Overnight stays: unit price is fixed by admin, customer adjusts quantity
+  // Overnight stays: unit price is fixed by admin, customer adjusts quantity.
+  // When a room type is selected the room price already covers accommodation, so
+  // the legacy per-night option is hidden to avoid double-counting.
   const tourPricePerNight = selectedTour?.pricePerNight ?? 0;
   const hasNightsOption = (selectedTour?.nights ?? 0) > 0 && tourPricePerNight > 0 && !selectedRoomType;
   const nightsCost = tourBookingNights * tourPricePerNight;
@@ -614,7 +616,7 @@ export function TourBookingForm({
                     {rt.description && (
                       <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2">{rt.description}</p>
                     )}
-                    {roomImages.length > 0 && roomImages.length > 1 && (
+                    {roomImages.length > 1 && (
                       <div className="flex gap-1 mt-1">
                         {roomImages.slice(0, 6).map((img, i) => (
                           <button
@@ -847,7 +849,7 @@ export function TourBookingForm({
                 ? (language === 'vi' ? 'theo phòng' : 'per room')
                 : `${totalPersons} ${language === 'vi' ? 'người' : 'persons'}`})
             </span>
-            <span className="font-bold">{roomBasedPrice!.toLocaleString()}đ</span>
+            <span className="font-bold">{(roomBasedPrice ?? 0).toLocaleString()}đ</span>
           </div>
         ) : (
           <>

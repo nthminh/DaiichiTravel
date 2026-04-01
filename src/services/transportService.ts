@@ -532,7 +532,7 @@ export const transportService = {
       collection(db, 'bookings'),
       where('tourId', '==', tourId),
       where('date', '==', date),
-      where('status', 'in', ['PENDING', 'CONFIRMED'])
+      where('status', '!=', 'CANCELLED')
     );
     const snapshot = await getDocs(q);
     const counts: Record<string, number> = {};
