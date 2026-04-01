@@ -183,6 +183,8 @@ export default function App() {
   const [lastTourBooking, setLastTourBooking] = useState<any>(null);
   const [isTourBookingLoading, setIsTourBookingLoading] = useState(false);
   const [tourBookingStatus, setTourBookingStatus] = useState<'PENDING' | 'CONFIRMED'>('PENDING');
+  const [tourSelectedRoomTypeId, setTourSelectedRoomTypeId] = useState('');
+  const [tourRoomBookingCounts, setTourRoomBookingCounts] = useState<Record<string, number>>({});
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
   const [searchStationFrom, setSearchStationFrom] = useState('');
@@ -890,6 +892,18 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTrip?.id]);
+
+  // Load room booking counts when selected tour or departure date changes.
+  // Resets room selection when the tour or date changes.
+  useEffect(() => {
+    setTourSelectedRoomTypeId('');
+    setTourRoomBookingCounts({});
+    if (!selectedTour?.id || !tourBookingDate) return;
+    transportService.getTourRoomBookingCounts(selectedTour.id, tourBookingDate)
+      .then(counts => setTourRoomBookingCounts(counts))
+      .catch(err => console.error('[tourRoomBookingCounts] load error:', err));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTour?.id, tourBookingDate]);
 
   // Load per-seat fare overrides for the selected trip's route.
   // Re-fetched whenever the route changes (identified by route name → route id).
@@ -1727,6 +1741,9 @@ export default function App() {
             setTourNotes={setTourNotes}
             tourPaymentMethod={tourPaymentMethod}
             setTourPaymentMethod={setTourPaymentMethod}
+            selectedRoomTypeId={tourSelectedRoomTypeId}
+            setSelectedRoomTypeId={setTourSelectedRoomTypeId}
+            tourRoomBookingCounts={tourRoomBookingCounts}
             tourBookingSuccess={tourBookingSuccess}
             setTourBookingSuccess={setTourBookingSuccess}
             tourBookingError={tourBookingError}

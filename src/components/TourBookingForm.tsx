@@ -1,5 +1,5 @@
-import React from 'react';
-import { Calendar, ChevronRight, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, ChevronRight, CheckCircle2, BedDouble, Users, ImageIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { UserRole, Language, TRANSLATIONS } from '../constants/translations';
 import {
@@ -60,6 +60,7 @@ export interface TourItem {
   departureLocation?: string;
   returnTime?: string;
   returnLocation?: string;
+  linkedPropertyId?: string;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -94,6 +95,11 @@ export interface TourBookingFormProps {
   setTourNotes: (v: string) => void;
   tourPaymentMethod: PaymentMethod;
   setTourPaymentMethod: (v: PaymentMethod) => void;
+
+  // room selection
+  selectedRoomTypeId: string;
+  setSelectedRoomTypeId: (v: string) => void;
+  tourRoomBookingCounts: Record<string, number>;
 
   // booking result state
   tourBookingSuccess: boolean;
@@ -145,6 +151,9 @@ export function TourBookingForm({
   setTourNotes,
   tourPaymentMethod,
   setTourPaymentMethod,
+  selectedRoomTypeId,
+  setSelectedRoomTypeId,
+  tourRoomBookingCounts,
   tourBookingSuccess,
   setTourBookingSuccess,
   tourBookingError,
@@ -164,19 +173,35 @@ export function TourBookingForm({
 }: TourBookingFormProps) {
   const t = TRANSLATIONS[language];
 
+  // ── Room image carousel state ──────────────────────────────────────────────
+  const [roomImageIdx, setRoomImageIdx] = useState<Record<string, number>>({});
+
   // ── Price calculation ──────────────────────────────────────────────────────
 
   const totalPersons = tourBookingAdults + tourBookingChildren;
+  const hasRoomTypes = (selectedTour?.roomTypes?.length ?? 0) > 0;
+  const selectedRoomType = selectedTour?.roomTypes?.find(rt => rt.id === selectedRoomTypeId) ?? null;
 
-  // Use tour-specific priceAdult if defined, else fall back to stored price
+  // When a room is selected, use its price as the base (overrides per-person pricing)
   const pricePerAdult = selectedTour?.priceAdult ?? selectedTour?.price ?? 0;
-  // Use tour-specific priceChild if defined, else 50% of adult (for children >4 years old)
   const pricePerChild = selectedTour?.priceChild ?? Math.round(pricePerAdult * 0.5);
-  const baseTourPrice = tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild;
 
-  // Overnight stays: unit price is fixed by admin, customer adjusts quantity
+  // Room-based pricing: if a room type is selected and priced per-room, that is the base
+  const roomBasedPrice = selectedRoomType
+    ? (selectedRoomType.pricingMode === 'PER_ROOM'
+        ? selectedRoomType.price
+        : selectedRoomType.price * totalPersons)
+    : null;
+
+  const baseTourPrice = roomBasedPrice !== null
+    ? roomBasedPrice
+    : (tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild);
+
+  // Overnight stays: unit price is fixed by admin, customer adjusts quantity.
+  // When a room type is selected the room price already covers accommodation, so
+  // the legacy per-night option is hidden to avoid double-counting.
   const tourPricePerNight = selectedTour?.pricePerNight ?? 0;
-  const hasNightsOption = (selectedTour?.nights ?? 0) > 0 && tourPricePerNight > 0;
+  const hasNightsOption = (selectedTour?.nights ?? 0) > 0 && tourPricePerNight > 0 && !selectedRoomType;
   const nightsCost = tourBookingNights * tourPricePerNight;
 
   // Breakfasts: unit price is fixed by admin, customer adjusts quantity
@@ -216,6 +241,13 @@ export function TourBookingForm({
 
   const handleTourBooking = async (bookStatus: 'PENDING' | 'CONFIRMED') => {
     if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
+    // Require room selection when the tour has room types
+    if (hasRoomTypes && !selectedRoomTypeId) {
+      setTourBookingError(language === 'vi'
+        ? 'Vui lòng chọn loại phòng/cabin trước khi đặt tour.'
+        : 'Please select a room/cabin type before booking.');
+      return;
+    }
     setTourBookingStatus(bookStatus);
     setIsTourBookingLoading(true);
     setTourBookingError('');
@@ -249,6 +281,7 @@ export function TourBookingForm({
       agent: tourAgentName,
       agentId: isTourAgentBooking ? currentUser!.id : undefined,
       ...(agentCommissionAmount > 0 ? { agentCommissionRate, agentCommissionAmount } : {}),
+      ...(selectedRoomType ? { selectedRoomTypeId: selectedRoomType.id, selectedRoomTypeName: selectedRoomType.name } : {}),
       status: bookStatus,
     };
     try {
@@ -313,6 +346,12 @@ export function TourBookingForm({
             <span className="text-gray-400 font-medium">{language === 'vi' ? 'Ngày khởi hành' : 'Departure'}</span>
             <span className="font-bold text-gray-700">{tourBookingDate}</span>
           </div>
+          {selectedRoomType && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400 font-medium">{language === 'vi' ? 'Loại phòng' : 'Room Type'}</span>
+              <span className="font-bold text-gray-700">{selectedRoomType.name}</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-gray-400 font-medium">{language === 'vi' ? 'Khách hàng' : 'Customer'}</span>
             <span className="font-bold text-gray-700">{tourBookingName}</span>
@@ -473,6 +512,144 @@ export function TourBookingForm({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Room / Cabin selection ──────────────────────────────────────────── */}
+      {hasRoomTypes && selectedTour && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+            <BedDouble size={16} className="text-teal-600" />
+            {language === 'vi' ? 'Chọn loại phòng / Cabin' : 'Select Room / Cabin Type'}
+            <span className="text-red-500">*</span>
+          </h4>
+          <div className="space-y-3">
+            {(selectedTour.roomTypes ?? []).map((rt) => {
+              const bookedCount = tourRoomBookingCounts[rt.id] ?? 0;
+              const available = rt.totalRooms - bookedCount;
+              const isFullyBooked = available <= 0;
+              const isSelected = selectedRoomTypeId === rt.id;
+              const imgIdx = roomImageIdx[rt.id] ?? 0;
+              const roomImages = rt.images ?? [];
+              return (
+                <button
+                  key={rt.id}
+                  type="button"
+                  disabled={isFullyBooked}
+                  onClick={() => !isFullyBooked && setSelectedRoomTypeId(isSelected ? '' : rt.id)}
+                  className={`w-full text-left rounded-2xl border-2 transition-all overflow-hidden ${
+                    isFullyBooked
+                      ? 'opacity-50 cursor-not-allowed border-gray-100 bg-gray-50'
+                      : isSelected
+                        ? 'border-teal-500 bg-teal-50/40 shadow-md'
+                        : 'border-gray-100 bg-white hover:border-teal-300 hover:shadow-sm'
+                  }`}
+                >
+                  {/* Room image gallery */}
+                  {roomImages.length > 0 && (
+                    <div className="relative h-40 overflow-hidden bg-gray-100">
+                      <img
+                        src={roomImages[imgIdx]}
+                        alt={rt.name}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      {roomImages.length > 1 && (
+                        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                          {roomImages.map((_, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setRoomImageIdx(prev => ({ ...prev, [rt.id]: i }));
+                              }}
+                              className={`w-5 h-5 rounded text-[10px] font-bold transition-colors ${
+                                i === imgIdx ? 'bg-white text-gray-700' : 'bg-white/50 text-gray-500 hover:bg-white'
+                              }`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {isFullyBooked && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+                            {language === 'vi' ? 'Hết phòng' : 'Fully Booked'}
+                          </span>
+                        </div>
+                      )}
+                      {isSelected && !isFullyBooked && (
+                        <div className="absolute top-2 right-2 bg-teal-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                          ✓ {language === 'vi' ? 'Đã chọn' : 'Selected'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Room details */}
+                  <div className="p-3 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-bold text-gray-800 text-sm">{rt.name}</p>
+                      <p className="text-sm font-extrabold text-teal-700 whitespace-nowrap">
+                        {rt.price.toLocaleString('vi-VN')}đ
+                        <span className="text-[10px] font-semibold text-gray-400 ml-0.5">
+                          {rt.pricingMode === 'PER_ROOM'
+                            ? (language === 'vi' ? '/phòng' : '/room')
+                            : (language === 'vi' ? '/người' : '/person')}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                      <span className="flex items-center gap-0.5">
+                        <Users size={11} />
+                        {language === 'vi' ? `Tối đa ${rt.capacity} người` : `Max ${rt.capacity} guests`}
+                      </span>
+                      {rt.totalRooms > 0 && (
+                        <span className={`font-semibold ${isFullyBooked ? 'text-red-500' : available <= 2 ? 'text-amber-500' : 'text-green-600'}`}>
+                          {isFullyBooked
+                            ? (language === 'vi' ? 'Hết phòng' : 'Fully booked')
+                            : (language === 'vi' ? `Còn ${available} phòng` : `${available} left`)}
+                        </span>
+                      )}
+                    </div>
+                    {rt.description && (
+                      <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2">{rt.description}</p>
+                    )}
+                    {roomImages.length > 1 && (
+                      <div className="flex gap-1 mt-1">
+                        {roomImages.slice(0, 6).map((img, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setRoomImageIdx(prev => ({ ...prev, [rt.id]: i }));
+                            }}
+                            className={`w-10 h-10 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all ${
+                              i === imgIdx ? 'border-teal-400' : 'border-transparent opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </button>
+                        ))}
+                        {roomImages.length > 6 && (
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 border-2 border-transparent flex items-center justify-center">
+                            <ImageIcon size={14} className="text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {hasRoomTypes && !selectedRoomTypeId && (
+            <p className="text-[11px] text-amber-600 flex items-center gap-1">
+              ⚠️ {language === 'vi' ? 'Vui lòng chọn loại phòng để tiếp tục.' : 'Please select a room type to continue.'}
+            </p>
+          )}
         </div>
       )}
 
@@ -665,15 +842,28 @@ export function TourBookingForm({
       {/* Price summary */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-2">
         <p className="text-xs font-bold text-gray-500 uppercase mb-3">{language === 'vi' ? 'Chi tiết giá' : 'Price breakdown'}</p>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span>
-          <span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span>
-        </div>
-        {tourBookingChildren > 0 && (
+        {selectedRoomType ? (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span>
-            <span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span>
+            <span className="text-gray-500">
+              {selectedRoomType.name} ({selectedRoomType.pricingMode === 'PER_ROOM'
+                ? (language === 'vi' ? 'theo phòng' : 'per room')
+                : `${totalPersons} ${language === 'vi' ? 'người' : 'persons'}`})
+            </span>
+            <span className="font-bold">{(roomBasedPrice ?? 0).toLocaleString()}đ</span>
           </div>
+        ) : (
+          <>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">{t.tour_price_per_adult} × {tourBookingAdults}</span>
+              <span className="font-bold">{(pricePerAdult * tourBookingAdults).toLocaleString()}đ</span>
+            </div>
+            {tourBookingChildren > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">{t.tour_price_per_child} × {tourBookingChildren}</span>
+                <span className="font-bold">{(pricePerChild * tourBookingChildren).toLocaleString()}đ</span>
+              </div>
+            )}
+          </>
         )}
         {accomCost > 0 && (
           <div className="flex justify-between text-sm">
@@ -730,9 +920,11 @@ export function TourBookingForm({
       )}
 
       {/* Action buttons */}
-      {!tourBookingDate || !tourBookingName.trim() || !tourBookingPhone.trim() ? (
+      {(!tourBookingDate || !tourBookingName.trim() || !tourBookingPhone.trim() || (hasRoomTypes && !selectedRoomTypeId)) ? (
         <p className="text-center text-xs text-gray-400">
-          {language === 'vi' ? '* Vui lòng điền ngày khởi hành, tên và số điện thoại trước khi đặt.' : '* Please fill in departure date, name and phone before booking.'}
+          {!tourBookingDate || !tourBookingName.trim() || !tourBookingPhone.trim()
+            ? (language === 'vi' ? '* Vui lòng điền ngày khởi hành, tên và số điện thoại trước khi đặt.' : '* Please fill in departure date, name and phone before booking.')
+            : (language === 'vi' ? '* Vui lòng chọn loại phòng trước khi đặt.' : '* Please select a room type before booking.')}
         </p>
       ) : null}
       <div className={cn("grid gap-3 grid-cols-1", !(isTourAgentBooking && agentPaymentType === 'PREPAID') && "sm:grid-cols-2")}>
@@ -740,11 +932,11 @@ export function TourBookingForm({
         {!(isTourAgentBooking && agentPaymentType === 'PREPAID') && (
           <button
             type="button"
-            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
+            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour || (hasRoomTypes && !selectedRoomTypeId)}
             onClick={() => handleTourBooking('PENDING')}
             className={cn(
               "w-full py-4 rounded-xl font-bold border-2 flex items-center justify-center gap-2 transition-all",
-              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
+              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour && !(hasRoomTypes && !selectedRoomTypeId)
                 ? "border-daiichi-red text-daiichi-red hover:bg-daiichi-red/5"
                 : "border-gray-200 text-gray-300 cursor-not-allowed"
             )}
@@ -774,11 +966,11 @@ export function TourBookingForm({
           )}
           <button
             type="button"
-            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour}
+            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour || (hasRoomTypes && !selectedRoomTypeId)}
             onClick={() => handleTourBooking('CONFIRMED')}
             className={cn(
               "w-full py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all",
-              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour
+              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour && !(hasRoomTypes && !selectedRoomTypeId)
                 ? "bg-daiichi-red text-white shadow-daiichi-red/20 hover:scale-[1.01]"
                 : "bg-gray-300 text-white shadow-gray-200 cursor-not-allowed"
             )}

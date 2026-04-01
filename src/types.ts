@@ -240,6 +240,7 @@ export interface Tour {
   departureLocation?: string;      // meeting/boarding point
   returnTime?: string;             // expected return time
   returnLocation?: string;         // end-of-tour location
+  linkedPropertyId?: string;       // optional link to a Property asset
 }
 
 export interface Booking {
@@ -259,6 +260,8 @@ export interface Booking {
   adults: number;
   children: number;
   selectedAddons?: string[];
+  selectedRoomTypeId?: string;    // room type chosen by customer
+  selectedRoomTypeName?: string;  // denormalised name for display
 }
 
 export enum SeatStatus {
