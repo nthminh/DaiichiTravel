@@ -766,9 +766,9 @@ function TripConfirmPanel({
   const effectiveTo = isReturnPhase ? (searchStationFrom || searchFrom) : (searchStationTo || searchTo);
 
   // ---- Passenger count summary ----
-  const childrenOver5Count = searchChildrenAges.filter(age => age !== undefined && age >= 5).length;
-  const childrenUnder5Count = searchChildren - childrenOver5Count;
-  const billablePassengers = searchAdults + childrenOver5Count;
+  const childrenOver4Count = searchChildrenAges.filter(age => age !== undefined && age >= 4).length;
+  const childrenUnder4Count = searchChildren - childrenOver4Count;
+  const billablePassengers = searchAdults + childrenOver4Count;
 
   // ---- helpers ----
   const getApplicableRouteSurcharges = (r: Route | undefined, tripDate: string): RouteSurcharge[] => {
@@ -919,10 +919,11 @@ function TripConfirmPanel({
   const totalPerPerson = discountedFare + routeSurchargeTotal;
   const grandTotal = totalPerPerson * billablePassengers;
 
-  // TOUR_SHORT: use childPricingRules for per-age-group pricing
-  const isTourShort = route?.routeCategory === 'TOUR_SHORT';
-  const childPricingRules = isTourShort ? (route?.childPricingRules ?? []) : [];
-  const useAgePricing = isTourShort && childPricingRules.length > 0;
+  // Apply childPricingRules for per-age-group pricing when the route has rules configured.
+  // This works for all route categories (BUS, TOUR_SHORT, etc.).
+  // Default behaviour (no rules): children ≥4 pay adult price, children <4 are free.
+  const childPricingRules = route?.childPricingRules ?? [];
+  const useAgePricing = childPricingRules.length > 0;
   const childAgeGroups: { label: string; count: number; farePer: number }[] = (() => {
     if (!useAgePricing || searchChildren === 0) return [];
     const groupMap = new Map<string, { label: string; count: number; farePer: number }>();
@@ -1116,22 +1117,22 @@ function TripConfirmPanel({
                       </div>
                     ))
                   ) : (
-                    /* BUS / default: simple over/under 5 logic */
+                    /* BUS / default: simple over/under 4 logic */
                     <>
-                      {childrenOver5Count > 0 && (
+                      {childrenOver4Count > 0 && (
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">
-                            {language === 'vi' ? `Trẻ em ≥5 tuổi (tính giá người lớn)` : language === 'ja' ? '5歳以上の子供（大人料金）' : 'Children ≥5 (adult price)'}
+                            {language === 'vi' ? `Trẻ em ≥4 tuổi (tính giá người lớn)` : language === 'ja' ? '4歳以上の子供（大人料金）' : 'Children ≥4 (adult price)'}
                           </span>
-                          <span className="font-bold text-daiichi-red">{childrenOver5Count}</span>
+                          <span className="font-bold text-daiichi-red">{childrenOver4Count}</span>
                         </div>
                       )}
-                      {childrenUnder5Count > 0 && (
+                      {childrenUnder4Count > 0 && (
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">
-                            {language === 'vi' ? 'Trẻ em <5 tuổi (miễn phí)' : language === 'ja' ? '5歳未満の子供（無料）' : 'Children <5 (free)'}
+                            {language === 'vi' ? 'Trẻ em <4 tuổi (miễn phí)' : language === 'ja' ? '4歳未満の子供（無料）' : 'Children <4 (free)'}
                           </span>
-                          <span className="font-bold text-green-600">{childrenUnder5Count}</span>
+                          <span className="font-bold text-green-600">{childrenUnder4Count}</span>
                         </div>
                       )}
                     </>
@@ -1521,7 +1522,22 @@ export function BookTicketPage({
   // Committed search parameters: set when the user clicks the Search button.
   // filterTrip() and segmentFares use these values so that the list only updates
   // when the button is explicitly clicked, not on every keystroke.
-  const [committedParams, setCommittedParams] = useState<CommittedSearchParams | null>(null);
+  // Lazily initialized from the current search props when hasSearched is already true
+  // (e.g. when the component remounts after returning from the seat-mapping tab for the
+  // return leg of a round trip).
+  const [committedParams, setCommittedParams] = useState<CommittedSearchParams | null>(() =>
+    hasSearched
+      ? {
+          from: searchFrom, to: searchTo,
+          stationFrom: searchStationFrom, stationTo: searchStationTo,
+          date: searchDate, returnDate: searchReturnDate,
+          adults: searchAdults, children: searchChildren,
+          priceMinVal: priceMin, priceMaxVal: priceMax,
+          timeFrom: searchTimeFrom, timeTo: searchTimeTo,
+          freeSearch: bookTicketSearch,
+        }
+      : null
+  );
 
   // Segment-based fare lookup: map from routeId → { price, agentPrice }
   // Updated whenever the customer's searchFrom / searchTo changes.
@@ -2851,7 +2867,7 @@ export function BookTicketPage({
                 ))}
               </div>
               <p className="text-[10px] text-amber-600">
-                {language === 'vi' ? '• Trẻ dưới 5 tuổi: miễn phí (không cần ghế). Trẻ từ 5 tuổi trở lên: tính giá người lớn.' : language === 'ja' ? '• 5歳未満：無料（座席不要）。5歳以上：大人料金。' : '• Under 5: free (no seat needed). Age 5+: adult fare.'}
+                {language === 'vi' ? '• Trẻ dưới 4 tuổi: miễn phí (không cần ghế). Trẻ từ 4 tuổi trở lên: tính giá người lớn.' : language === 'ja' ? '• 4歳未満：無料（座席不要）。4歳以上：大人料金。' : '• Under 4: free (no seat needed). Age 4+: adult fare.'}
               </p>
             </div>
           )}
