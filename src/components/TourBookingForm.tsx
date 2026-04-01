@@ -290,6 +290,8 @@ export function TourBookingForm({
         : (language === 'vi' ? 'Thanh toán sau' : 'Pay later'),
       agent: tourAgentName,
       agentId: isTourAgentBooking ? currentUser!.id : undefined,
+      bookedByName: currentUser?.name || currentUser?.username || (language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
+      bookedByRole: currentUser?.role || 'GUEST',
       ...(agentCommissionAmount > 0 ? { agentCommissionRate, agentCommissionAmount } : {}),
       ...(selectedRoomType ? { selectedRoomTypeId: selectedRoomType.id, selectedRoomTypeName: selectedRoomType.name } : {}),
       status: bookStatus,
