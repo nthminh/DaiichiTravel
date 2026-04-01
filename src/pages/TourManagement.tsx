@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee,
   Search, Youtube, Copy, Calendar, ChevronDown, ChevronRight,
-  MapPin, Clock, BedDouble
+  MapPin, Clock, BedDouble, Zap, Building2
 } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
-import { User, UserRole } from '../types';
+import { User, UserRole, Property } from '../types';
 import { transportService } from '../services/transportService';
 import { compressImage } from '../lib/imageUtils';
 
@@ -172,6 +172,137 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const [uploadingRoomIdx, setUploadingRoomIdx] = useState<number | null>(null);
+
+  // ── Batch tour creation state ──────────────────────────────────────────────
+  const [showBatchAddTour, setShowBatchAddTour] = useState(false);
+  const [batchTourLoading, setBatchTourLoading] = useState(false);
+  const [batchProperties, setBatchProperties] = useState<Property[]>([]);
+  const [batchTourForm, setBatchTourForm] = useState({
+    templateId: '',       // source tour id (optional)
+    title: '',
+    duration: '',
+    nights: 0,
+    departureTime: '',
+    departureLocation: '',
+    returnTime: '',
+    returnLocation: '',
+    priceAdult: 0,
+    priceChild: 0,
+    propertyId: '',       // linked asset/property
+  });
+  // Each entry is a departure date (YYYY-MM-DD)
+  const [batchDepartureDates, setBatchDepartureDates] = useState<string[]>(['']);
+  // Date range helper state
+  const [batchDateFrom, setBatchDateFrom] = useState('');
+  const [batchDateTo, setBatchDateTo] = useState('');
+
+  /** Add consecutive dates from batchDateFrom → batchDateTo */
+  const handleAddDateRange = () => {
+    if (!batchDateFrom || !batchDateTo || batchDateFrom > batchDateTo) return;
+    const result: string[] = [];
+    const cur = new Date(batchDateFrom + 'T00:00:00');
+    const end = new Date(batchDateTo + 'T00:00:00');
+    while (cur <= end) {
+      const d = cur.toISOString().split('T')[0];
+      if (!batchDepartureDates.includes(d)) result.push(d);
+      cur.setDate(cur.getDate() + 1);
+    }
+    setBatchDepartureDates(prev => {
+      const merged = [...prev.filter(d => d !== ''), ...result];
+      return merged.length ? merged : [''];
+    });
+    setBatchDateFrom('');
+    setBatchDateTo('');
+  };
+
+  /** Apply template tour fields when user picks a template */
+  const applyBatchTemplate = (tourId: string) => {
+    const t = tours.find(t => t.id === tourId);
+    if (!t) {
+      setBatchTourForm(p => ({ ...p, templateId: '' }));
+      return;
+    }
+    setBatchTourForm(p => ({
+      ...p,
+      templateId: tourId,
+      title: t.title,
+      duration: t.duration || '',
+      nights: t.nights || 0,
+      departureTime: t.departureTime || '',
+      departureLocation: t.departureLocation || '',
+      returnTime: t.returnTime || '',
+      returnLocation: t.returnLocation || '',
+      priceAdult: t.priceAdult || t.price || 0,
+      priceChild: t.priceChild || 0,
+    }));
+  };
+
+  /** Submit batch tour creation */
+  const handleBatchAddTours = async () => {
+    const validDates = batchDepartureDates.filter(d => d.trim() !== '');
+    if (validDates.length === 0 || !batchTourForm.title) return;
+    setBatchTourLoading(true);
+    try {
+      // Build the template data (from selected tour or form values)
+      const template = tours.find(t => t.id === batchTourForm.templateId);
+      const toursToCreate = validDates.map(startDate => {
+        // Compute endDate from startDate + nights
+        let endDate = startDate;
+        if (batchTourForm.nights > 0) {
+          const d = new Date(startDate + 'T00:00:00');
+          d.setDate(d.getDate() + batchTourForm.nights);
+          endDate = d.toISOString().split('T')[0];
+        }
+        return {
+          title: batchTourForm.title,
+          description: template?.description || '',
+          price: batchTourForm.priceAdult,
+          imageUrl: template?.imageUrl || '',
+          images: template?.images || [],
+          discountPercent: template?.discountPercent || 0,
+          priceAdult: batchTourForm.priceAdult,
+          priceChild: batchTourForm.priceChild,
+          numAdults: template?.numAdults || 1,
+          numChildren: template?.numChildren || 0,
+          duration: batchTourForm.duration,
+          nights: batchTourForm.nights,
+          pricePerNight: template?.pricePerNight || 0,
+          breakfastCount: template?.breakfastCount || 0,
+          pricePerBreakfast: template?.pricePerBreakfast || 0,
+          surcharge: template?.surcharge || 0,
+          surchargeNote: template?.surchargeNote || '',
+          youtubeUrl: template?.youtubeUrl || '',
+          startDate,
+          endDate,
+          departureTime: batchTourForm.departureTime,
+          departureLocation: batchTourForm.departureLocation,
+          returnTime: batchTourForm.returnTime,
+          returnLocation: batchTourForm.returnLocation,
+          itinerary: template?.itinerary || [],
+          addons: template?.addons || [],
+          roomTypes: template?.roomTypes || [],
+          ...(batchTourForm.propertyId ? { linkedPropertyId: batchTourForm.propertyId } : {}),
+        };
+      });
+      await transportService.addToursBatch(toursToCreate);
+      setShowBatchAddTour(false);
+      setBatchTourForm({ templateId: '', title: '', duration: '', nights: 0, departureTime: '', departureLocation: '', returnTime: '', returnLocation: '', priceAdult: 0, priceChild: 0, propertyId: '' });
+      setBatchDepartureDates(['']);
+      setBatchDateFrom('');
+      setBatchDateTo('');
+    } catch (err) {
+      console.error('Failed to batch create tours:', err);
+    } finally {
+      setBatchTourLoading(false);
+    }
+  };
+
+  // Load properties for the asset-link picker whenever batch modal opens
+  useEffect(() => {
+    if (!showBatchAddTour) return;
+    const unsub = transportService.subscribeToProperties(setBatchProperties);
+    return unsub;
+  }, [showBatchAddTour]);
 
   const filteredTours = useMemo(() => {
     return tours.filter(tour => {
@@ -1007,14 +1138,322 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
           <h2 className="text-2xl font-bold">{language === 'vi' ? 'Quản lý Tour' : 'Tour Management'}</h2>
           <p className="text-sm text-gray-500">{language === 'vi' ? 'Thiết kế và đăng tải các tour du lịch mới' : 'Design and publish new tours'}</p>
         </div>
-        <button
-          onClick={() => { setIsAdding(true); setExpandedTourId(null); setEditingTour(null); }}
-          className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 flex items-center gap-2 self-start md:self-auto"
-        >
-          <Plus size={20} />
-          {language === 'vi' ? 'Thêm Tour mới' : 'Add New Tour'}
-        </button>
+        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+          <button
+            onClick={() => { setShowBatchAddTour(true); setBatchTourForm({ templateId: '', title: '', duration: '', nights: 0, departureTime: '', departureLocation: '', returnTime: '', returnLocation: '', priceAdult: 0, priceChild: 0, propertyId: '' }); setBatchDepartureDates(['']); setBatchDateFrom(''); setBatchDateTo(''); }}
+            className="bg-blue-600 text-white px-4 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors"
+          >
+            <Zap size={18} />
+            {language === 'vi' ? 'Tạo nhiều tour' : 'Batch Create Tours'}
+          </button>
+          <button
+            onClick={() => { setIsAdding(true); setExpandedTourId(null); setEditingTour(null); }}
+            className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20 flex items-center gap-2"
+          >
+            <Plus size={20} />
+            {language === 'vi' ? 'Thêm Tour mới' : 'Add New Tour'}
+          </button>
+        </div>
       </div>
+
+      {/* Batch Create Tours Modal */}
+      {showBatchAddTour && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[32px] p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Zap size={22} className="text-blue-500" />
+                  {language === 'vi' ? 'Tạo nhiều tour cùng lúc' : 'Batch Create Tours'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {language === 'vi'
+                    ? 'Chọn tour mẫu và nhiều ngày khởi hành để tạo nhiều tour cùng lúc'
+                    : 'Select a tour template and multiple departure dates to create tours at once'}
+                </p>
+              </div>
+              <button onClick={() => setShowBatchAddTour(false)} className="p-2 hover:bg-gray-50 rounded-xl"><X size={20} /></button>
+            </div>
+
+            {/* Template selector */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                {language === 'vi' ? 'Tour mẫu (tuỳ chọn)' : 'Template Tour (optional)'}
+              </label>
+              <select
+                value={batchTourForm.templateId}
+                onChange={e => applyBatchTemplate(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="">{language === 'vi' ? '-- Không dùng mẫu --' : '-- No template --'}</option>
+                {tours.map(t => (
+                  <option key={t.id} value={t.id}>{t.title}{t.duration ? ` (${t.duration})` : ''}</option>
+                ))}
+              </select>
+              {batchTourForm.templateId && (
+                <p className="text-xs text-blue-600 mt-1 ml-1">
+                  {language === 'vi' ? '✓ Đã áp dụng thông tin từ tour mẫu. Bạn có thể điều chỉnh bên dưới.' : '✓ Template applied. You can adjust fields below.'}
+                </p>
+              )}
+            </div>
+
+            {/* Tour name */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                {language === 'vi' ? 'Tên tour *' : 'Tour Name *'}
+              </label>
+              <input
+                type="text"
+                value={batchTourForm.title}
+                onChange={e => setBatchTourForm(p => ({ ...p, title: e.target.value }))}
+                placeholder={language === 'vi' ? 'VD: Tour Hà Nội - Hạ Long 3N2Đ' : 'e.g. Hanoi - Ha Long Bay 3D2N'}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            {/* Duration & Nights */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  {language === 'vi' ? 'Thời lượng' : 'Duration'}
+                </label>
+                <input
+                  type="text"
+                  value={batchTourForm.duration}
+                  onChange={e => setBatchTourForm(p => ({ ...p, duration: e.target.value }))}
+                  placeholder={language === 'vi' ? 'VD: 3 ngày 2 đêm' : 'e.g. 3 days 2 nights'}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  {language === 'vi' ? 'Số đêm (để tính ngày về)' : 'Nights (for end date)'}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={batchTourForm.nights}
+                  onChange={e => setBatchTourForm(p => ({ ...p, nights: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+            </div>
+
+            {/* Departure & Return */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  <Clock size={10} className="inline mr-1" />{language === 'vi' ? 'Giờ khởi hành' : 'Departure Time'}
+                </label>
+                <input
+                  type="time"
+                  value={batchTourForm.departureTime}
+                  onChange={e => setBatchTourForm(p => ({ ...p, departureTime: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  <Clock size={10} className="inline mr-1" />{language === 'vi' ? 'Giờ trở về' : 'Return Time'}
+                </label>
+                <input
+                  type="time"
+                  value={batchTourForm.returnTime}
+                  onChange={e => setBatchTourForm(p => ({ ...p, returnTime: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  <MapPin size={10} className="inline mr-1" />{language === 'vi' ? 'Điểm xuất phát' : 'Departure Location'}
+                </label>
+                <input
+                  type="text"
+                  value={batchTourForm.departureLocation}
+                  onChange={e => setBatchTourForm(p => ({ ...p, departureLocation: e.target.value }))}
+                  placeholder={language === 'vi' ? 'VD: 123 Lê Lợi, Hà Nội' : 'e.g. 123 Le Loi St, Hanoi'}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  <MapPin size={10} className="inline mr-1" />{language === 'vi' ? 'Điểm trả khách' : 'Return Location'}
+                </label>
+                <input
+                  type="text"
+                  value={batchTourForm.returnLocation}
+                  onChange={e => setBatchTourForm(p => ({ ...p, returnLocation: e.target.value }))}
+                  placeholder={language === 'vi' ? 'VD: Bến xe Hà Nội' : 'e.g. Hanoi Bus Terminal'}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+            </div>
+
+            {/* Pricing */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  {language === 'vi' ? 'Giá người lớn (đ)' : 'Adult Price (đ)'}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={batchTourForm.priceAdult}
+                  onChange={e => setBatchTourForm(p => ({ ...p, priceAdult: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1">
+                  {language === 'vi' ? 'Giá trẻ em (đ)' : 'Child Price (đ)'}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={batchTourForm.priceChild}
+                  onChange={e => setBatchTourForm(p => ({ ...p, priceChild: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+            </div>
+
+            {/* Property / Asset link */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-1 flex items-center gap-1">
+                <Building2 size={10} />
+                {language === 'vi' ? 'Liên kết tài sản (cơ sở lưu trú)' : 'Link to Asset (Accommodation)'}
+              </label>
+              <select
+                value={batchTourForm.propertyId}
+                onChange={e => setBatchTourForm(p => ({ ...p, propertyId: e.target.value }))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="">{language === 'vi' ? '-- Không liên kết --' : '-- None --'}</option>
+                {batchProperties.map(prop => (
+                  <option key={prop.id} value={prop.id}>
+                    {prop.name} ({prop.type === 'cruise' ? (language === 'vi' ? 'Du thuyền' : 'Cruise') : prop.type === 'homestay' ? 'Homestay' : 'Resort'})
+                  </option>
+                ))}
+              </select>
+              {batchProperties.length === 0 && (
+                <p className="text-xs text-gray-400 mt-1 ml-1">
+                  {language === 'vi' ? 'Chưa có tài sản nào. Thêm tài sản trong "Quản lý tài sản".' : 'No properties found. Add one in Asset Management.'}
+                </p>
+              )}
+            </div>
+
+            {/* Departure date slots */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 block mb-2">
+                {language === 'vi' ? 'Ngày khởi hành *' : 'Departure Dates *'}
+              </label>
+              <div className="space-y-2">
+                {batchDepartureDates.map((date, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={e => {
+                        const updated = [...batchDepartureDates];
+                        updated[idx] = e.target.value;
+                        setBatchDepartureDates(updated);
+                      }}
+                      className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                    {batchDepartureDates.length > 1 && (
+                      <button
+                        onClick={() => setBatchDepartureDates(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => setBatchDepartureDates(prev => [...prev, ''])}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-xl border border-dashed border-blue-200"
+                >
+                  <Plus size={14} />
+                  {language === 'vi' ? 'Thêm ngày' : 'Add date'}
+                </button>
+              </div>
+
+              {/* Date range helper */}
+              <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+                  {language === 'vi' ? 'Hoặc thêm nhiều ngày theo khoảng' : 'Or add a date range'}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">{language === 'vi' ? 'Từ ngày' : 'From'}</label>
+                    <input
+                      type="date"
+                      value={batchDateFrom}
+                      onChange={e => setBatchDateFrom(e.target.value)}
+                      className="px-3 py-2 bg-white border border-blue-100 rounded-lg text-sm focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">{language === 'vi' ? 'Đến ngày' : 'To'}</label>
+                    <input
+                      type="date"
+                      value={batchDateTo}
+                      min={batchDateFrom}
+                      onChange={e => setBatchDateTo(e.target.value)}
+                      className="px-3 py-2 bg-white border border-blue-100 rounded-lg text-sm focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddDateRange}
+                    disabled={!batchDateFrom || !batchDateTo || batchDateFrom > batchDateTo}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 hover:bg-blue-700 transition-colors"
+                  >
+                    {language === 'vi' ? 'Thêm khoảng' : 'Add Range'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary */}
+            {batchDepartureDates.filter(d => d !== '').length > 0 && batchTourForm.title && (
+              <div className="p-4 bg-green-50 rounded-xl border border-green-100 text-sm text-green-800">
+                <p className="font-bold">
+                  {language === 'vi'
+                    ? `✓ Sẽ tạo ${batchDepartureDates.filter(d => d !== '').length} tour "${batchTourForm.title}"`
+                    : `✓ Will create ${batchDepartureDates.filter(d => d !== '').length} tours for "${batchTourForm.title}"`}
+                </p>
+                <p className="text-xs mt-1 text-green-700">
+                  {language === 'vi' ? 'Các ngày: ' : 'Dates: '}
+                  {batchDepartureDates.filter(d => d !== '').sort().join(', ')}
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowBatchAddTour(false)}
+                className="flex-1 border border-gray-200 text-gray-700 py-3 rounded-2xl font-bold hover:bg-gray-50"
+              >
+                {language === 'vi' ? 'Hủy' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleBatchAddTours}
+                disabled={batchTourLoading || batchDepartureDates.filter(d => d !== '').length === 0 || !batchTourForm.title}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-bold hover:bg-blue-700 disabled:opacity-40 flex items-center justify-center gap-2 transition-colors"
+              >
+                {batchTourLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                {language === 'vi'
+                  ? `Tạo ${batchDepartureDates.filter(d => d !== '').length} tour`
+                  : `Create ${batchDepartureDates.filter(d => d !== '').length} tours`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
