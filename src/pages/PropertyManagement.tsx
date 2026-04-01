@@ -151,6 +151,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   const [editRoomTypeSaving, setEditRoomTypeSaving] = useState<Record<string, boolean>>({});
   const [uploadingEditRoomTypeImages, setUploadingEditRoomTypeImages] = useState<Record<string, boolean>>({});
 
+  // Error feedback
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   // ── subscribe to properties ────────────────────────────────────────────────
   useEffect(() => {
     const unsub = transportService.subscribeToProperties((data) => {
@@ -201,6 +204,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     try {
       const urls = await uploadImages(e.target.files, 'properties');
       setAddForm(prev => ({ ...prev, images: [...prev.images, ...urls] }));
+    } catch (err) {
+      console.error('[PropertyManagement] add property image upload failed:', err);
+      setErrorMsg(language === 'vi' ? 'Tải ảnh thất bại. Vui lòng thử lại.' : 'Image upload failed. Please try again.');
     } finally { setUploadingAddImages(false); e.target.value = ''; }
   };
 
@@ -210,6 +216,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     try {
       const urls = await uploadImages(e.target.files, 'properties');
       setEditForms(prev => ({ ...prev, [propId]: { ...prev[propId], images: [...(prev[propId].images ?? []), ...urls] } }));
+    } catch (err) {
+      console.error('[PropertyManagement] edit property image upload failed:', err);
+      setErrorMsg(language === 'vi' ? 'Tải ảnh thất bại. Vui lòng thử lại.' : 'Image upload failed. Please try again.');
     } finally { setUploadingEditImages(prev => ({ ...prev, [propId]: false })); e.target.value = ''; }
   };
 
@@ -219,6 +228,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     try {
       const urls = await uploadImages(e.target.files, 'room_types');
       setAddRoomTypeForm(prev => ({ ...prev, images: [...prev.images, ...urls] }));
+    } catch (err) {
+      console.error('[PropertyManagement] add room type image upload failed:', err);
+      setErrorMsg(language === 'vi' ? 'Tải ảnh thất bại. Vui lòng thử lại.' : 'Image upload failed. Please try again.');
     } finally { setUploadingRoomTypeImages(false); e.target.value = ''; }
   };
 
@@ -228,6 +240,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     try {
       const urls = await uploadImages(e.target.files, 'room_types');
       setEditRoomTypeForms(prev => ({ ...prev, [rtId]: { ...prev[rtId], images: [...(prev[rtId].images ?? []), ...urls] } }));
+    } catch (err) {
+      console.error('[PropertyManagement] edit room type image upload failed:', err);
+      setErrorMsg(language === 'vi' ? 'Tải ảnh thất bại. Vui lòng thử lại.' : 'Image upload failed. Please try again.');
     } finally { setUploadingEditRoomTypeImages(prev => ({ ...prev, [rtId]: false })); e.target.value = ''; }
   };
 
@@ -239,6 +254,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
       await transportService.addProperty(addForm);
       setAddForm(emptyPropertyForm());
       setShowAddForm(false);
+    } catch (err) {
+      console.error('[PropertyManagement] add property failed:', err);
+      setErrorMsg(language === 'vi' ? 'Lưu thất bại. Vui lòng thử lại.' : 'Save failed. Please try again.');
     } finally { setAddSaving(false); }
   };
 
@@ -248,6 +266,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     try {
       await transportService.updateProperty(propId, editForms[propId]);
       setExpandedPropertyId(null);
+    } catch (err) {
+      console.error('[PropertyManagement] update property failed:', err);
+      setErrorMsg(language === 'vi' ? 'Cập nhật thất bại. Vui lòng thử lại.' : 'Update failed. Please try again.');
     } finally { setEditSaving(prev => ({ ...prev, [propId]: false })); }
   };
 
@@ -273,6 +294,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
       await transportService.addPropertyRoomType(propertyId, addRoomTypeForm);
       setAddRoomTypeForm(emptyRoomTypeForm());
       setShowAddRoomTypeForm(null);
+    } catch (err) {
+      console.error('[PropertyManagement] add room type failed:', err);
+      setErrorMsg(language === 'vi' ? 'Lưu thất bại. Vui lòng thử lại.' : 'Save failed. Please try again.');
     } finally { setAddRoomTypeSaving(false); }
   };
 
@@ -287,6 +311,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     try {
       await transportService.updatePropertyRoomType(propertyId, rtId, editRoomTypeForms[rtId]);
       setEditRoomTypeForms(prev => { const next = { ...prev }; delete next[rtId]; return next; });
+    } catch (err) {
+      console.error('[PropertyManagement] update room type failed:', err);
+      setErrorMsg(language === 'vi' ? 'Cập nhật thất bại. Vui lòng thử lại.' : 'Update failed. Please try again.');
     } finally { setEditRoomTypeSaving(prev => ({ ...prev, [rtId]: false })); }
   };
 
@@ -752,6 +779,16 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   // ── main render ────────────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Error banner */}
+      {errorMsg && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+          <span>{errorMsg}</span>
+          <button type="button" onClick={() => setErrorMsg(null)} className="flex-shrink-0 text-red-400 hover:text-red-600">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
