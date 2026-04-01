@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { transportService } from '../services/transportService';
-import { Trip, TripStatus, Booking, Vehicle, SeatStatus, TripAddon } from '../types';
+import { Trip, TripStatus, Booking, Vehicle, SeatStatus, TripAddon, User } from '../types';
 import { generateVehicleLayout, serializeLayout, SerializedSeat } from '../lib/vehicleSeatUtils';
 
 /** External dependencies that useTrips needs from App.tsx */
@@ -10,6 +10,7 @@ export interface TripContext {
   vehicles: Vehicle[];
   trips: Trip[];
   language: 'vi' | 'en' | 'ja';
+  currentUser?: User | null;
 }
 
 export const DEFAULT_TRIP_FORM = {
@@ -186,6 +187,17 @@ export function useTrips(ctx: TripContext) {
           status: tripForm.status,
           ...(updatedSeats ? { seats: updatedSeats } : {}),
         });
+        const actor = ctxRef.current.currentUser;
+        if (actor) {
+          await transportService.logAudit({
+            actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+            action: 'EDIT_TRIP', targetType: 'trip',
+            targetId: editingTrip.id,
+            targetLabel: `${tripForm.route} ${tripForm.date} ${tripForm.time}`,
+            detail: `Cập nhật chuyến: ${tripForm.route} ngày ${tripForm.date} ${tripForm.time}`,
+            createdAt: new Date().toISOString(),
+          });
+        }
       } else {
         await transportService.addTrip({
           time: tripForm.time,
@@ -201,6 +213,16 @@ export function useTrips(ctx: TripContext) {
           addons: [...tripAddonServices] as TripAddon[],
           seatType,
         });
+        const actor = ctxRef.current.currentUser;
+        if (actor) {
+          await transportService.logAudit({
+            actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+            action: 'ADD_TRIP', targetType: 'trip',
+            targetLabel: `${tripForm.route} ${tripForm.date} ${tripForm.time}`,
+            detail: `Thêm chuyến mới: ${tripForm.route} ngày ${tripForm.date} ${tripForm.time}`,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
       setShowAddTrip(false);
       setEditingTrip(null);
@@ -288,7 +310,19 @@ export function useTrips(ctx: TripContext) {
     )
       return;
     try {
+      const deletedTrip = ctxRef.current.trips.find(t => t.id === tripId);
       await transportService.deleteTrip(tripId);
+      const actor = ctxRef.current.currentUser;
+      if (actor) {
+        await transportService.logAudit({
+          actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+          action: 'DELETE_TRIP', targetType: 'trip',
+          targetId: tripId,
+          targetLabel: deletedTrip ? `${deletedTrip.route} ${deletedTrip.date} ${deletedTrip.time}` : tripId,
+          detail: `Xóa chuyến: ${deletedTrip ? `${deletedTrip.route} ngày ${deletedTrip.date} ${deletedTrip.time}` : tripId}`,
+          createdAt: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       console.error('Failed to delete trip:', err);
     }
