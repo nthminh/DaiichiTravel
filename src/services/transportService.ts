@@ -610,6 +610,21 @@ export const transportService = {
     return result;
   },
 
+  /**
+   * Fetch all non-cancelled tour bookings for a given tour.
+   * Used for generating passenger lists / PDF exports.
+   */
+  getTourBookings: async (tourId: string): Promise<Booking[]> => {
+    if (!db) return [];
+    const q = query(
+      collection(db, 'bookings'),
+      where('tourId', '==', tourId),
+      orderBy('createdAt', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Booking[];
+  },
+
   // ===== SETTINGS / PERMISSIONS METHODS =====
 
   // Get role permissions from Firestore

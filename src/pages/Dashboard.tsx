@@ -980,9 +980,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
               }).slice(0, 4).map((trip, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-transparent hover:border-daiichi-red/10 hover:bg-white hover:shadow-md transition-all group">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-white rounded-2xl flex flex-col items-center justify-center font-bold text-daiichi-red border border-gray-100 shadow-sm group-hover:bg-daiichi-red group-hover:text-white transition-colors">
-                      <Clock size={16} className="mb-1" />
+                    <div className="w-14 h-16 bg-white rounded-2xl flex flex-col items-center justify-center font-bold text-daiichi-red border border-gray-100 shadow-sm group-hover:bg-daiichi-red group-hover:text-white transition-colors">
+                      <Clock size={16} className="mb-0.5" />
                       <span className="text-xs">{trip.time}</span>
+                      {trip.date && <span className="text-[9px] font-medium opacity-70 leading-tight">{trip.date.split('-').reverse().join('/')}</span>}
                     </div>
                     <div>
                       <p className="font-bold text-gray-800">{trip.licensePlate}</p>
