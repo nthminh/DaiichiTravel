@@ -309,7 +309,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
                         {log.targetLabel && <div>{log.targetLabel}</div>}
                         {log.targetType && <div className="text-[10px] text-gray-400 uppercase">{log.targetType}</div>}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate" title={log.detail}>{log.detail}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 min-w-[220px]" title={log.detail}>{log.detail}</td>
                     </tr>
                   ))}
                 </tbody>

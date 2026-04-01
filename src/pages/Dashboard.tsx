@@ -91,7 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       [language === 'vi' ? 'Ngày' : 'Date']: b.date || '',
       [language === 'vi' ? 'Giá vé (đ)' : 'Amount']: b.amount ?? 0,
       [language === 'vi' ? 'Trạng thái' : 'Status']: b.status || '',
-      [language === 'vi' ? 'Đại lý' : 'Agent']: b.agent || '',
+      [language === 'vi' ? 'Người thực hiện' : 'Performed By']: b.bookedByName || b.agent || '',
       [language === 'vi' ? 'Mã vé' : 'Ticket Code']: b.ticketCode || '',
       [language === 'vi' ? 'Phương thức thanh toán' : 'Payment Method']: b.paymentMethod || '',
       [language === 'vi' ? 'Ghi chú' : 'Notes']: b.note || '',
@@ -817,7 +817,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       onResize={(w: number) => setColWidths(prev => ({ ...prev, agent: w }))}
                       className="pb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest"
                     >
-                      {language === 'vi' ? 'Đại lý' : 'Agent'}
+                      {language === 'vi' ? 'Người thực hiện' : 'Performed By'}
                     </ResizableTh>
                     <ResizableTh 
                       width={colWidths.price} 
@@ -860,7 +860,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <p className="text-[10px] text-gray-400 mt-0.5">{formatBookingDate(booking.date)}{booking.time ? ` · ${booking.time}` : ''}</p>
                       </td>
                       <td className="py-5">
-                        {booking.agentId ? (
+                        {booking.bookedByName ? (
+                          <div className="overflow-hidden">
+                            <p className="text-sm font-bold text-gray-700 truncate">{booking.bookedByName}</p>
+                            <p className="text-[10px] text-gray-400 uppercase">{booking.bookedByRole || ''}</p>
+                          </div>
+                        ) : booking.agentId ? (
                           <div className="overflow-hidden">
                             <p className="text-sm font-bold text-gray-700 truncate">{booking.agent}</p>
                             <p className="text-[10px] text-gray-400 truncate font-mono">{String(booking.agentId).slice(-6).toUpperCase()}</p>
@@ -1205,9 +1210,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                     <div className="p-4 bg-gray-50 rounded-2xl">
                       <div className="flex items-center gap-2 text-gray-400 mb-1">
                         <Tag size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Đại lý' : 'Agent'}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{language === 'vi' ? 'Người thực hiện' : 'Performed By'}</span>
                       </div>
-                      <p className="font-bold text-gray-800">{viewingBooking.agent || '—'}</p>
+                      <p className="font-bold text-gray-800">{viewingBooking.bookedByName || viewingBooking.agent || '—'}</p>
+                      {viewingBooking.bookedByRole && <p className="text-xs text-gray-400 uppercase">{viewingBooking.bookedByRole}</p>}
                     </div>
                   </div>
                 </div>
