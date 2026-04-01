@@ -355,7 +355,7 @@ export default function App() {
   const [routeColWidths, setRouteColWidths] = useState({ stt: 80, name: 200, departure: 200, arrival: 200, price: 150, agentPrice: 150, duration: 140, options: 120 });
   // vehicleColWidths managed by VehiclesPage
   const [tripColWidths, setTripColWidths] = useState({ time: 180, licensePlate: 150, route: 220, driver: 180, status: 150, options: 180 });
-  const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, seats: true, passengers: true, addons: true });
+  const [tripColVisibility, setTripColVisibility] = useState({ time: true, licensePlate: true, route: true, driver: true, status: true, passengers: true, addons: true });
   const [showTripColPanel, setShowTripColPanel] = useState(false);
 
   // Persist user session to localStorage so F5 doesn't log out

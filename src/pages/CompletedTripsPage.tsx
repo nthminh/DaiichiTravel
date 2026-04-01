@@ -41,7 +41,7 @@ interface CompletedTripsPageProps {
   setShowAddTripAddon: (v: boolean) => void;
   tripAddonForm: { name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] };
   setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] }>>;
-  tripColVisibility: { time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; seats: boolean; passengers: boolean; addons: boolean };
+  tripColVisibility: { time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; passengers: boolean; addons: boolean };
   tripColWidths: { time: number; licensePlate: number; route: number; driver: number; status: number; options: number };
   setTripColWidths: React.Dispatch<React.SetStateAction<{ time: number; licensePlate: number; route: number; driver: number; status: number; options: number }>>;
   formatTripDisplayTime: (trip: { time: string; date?: string }) => string;
@@ -588,8 +588,7 @@ export function CompletedTripsPage({
                 {tripColVisibility.licensePlate && <ResizableTh width={tripColWidths.licensePlate} onResize={(w) => setTripColWidths(p => ({ ...p, licensePlate: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.license_plate}</ResizableTh>}
                 {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
                 {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
-                {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế đã đặt' : 'Booked'}</th>}
-                {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách' : 'Passengers'}</th>}
+                {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách/Ghế' : 'Passengers/Seats'}</th>}
                 {tripColVisibility.addons && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>}
                 <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
               </tr>
@@ -616,16 +615,10 @@ export function CompletedTripsPage({
                       })()}
                     </td>}
                     {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600 whitespace-nowrap" onClick={openPassengerList}>{trip.driverName}</td>}
-                    {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold text-gray-700">{bookedCount}</span>
-                        <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
-                      </div>
-                    </td>}
                     {tripColVisibility.passengers && <td className="px-6 py-4">
                       <button onClick={openPassengerList} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors">
                         <Users size={12} />
-                        <span>{bookedCount}</span>
+                        <span>{bookedCount}/{totalSeats}</span>
                       </button>
                     </td>}
                     {tripColVisibility.addons && <td className="px-6 py-4">
