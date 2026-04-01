@@ -259,9 +259,9 @@ export function SeatMappingPage({
 
   if (!selectedTrip) return null;
 
-  const childrenOver5Count = childrenAges.filter(age => age >= 5).length;
-  const extraSeatsNeeded = (adults - 1) + childrenOver5Count;
-  const totalSeatsNeeded = adults + childrenOver5Count;
+  const childrenOver4Count = childrenAges.filter(age => age >= 4).length;
+  const extraSeatsNeeded = (adults - 1) + childrenOver4Count;
+  const totalSeatsNeeded = adults + childrenOver4Count;
   // All children must have their age entered before proceeding to step 2
   const childAgesComplete = children === 0 || Array.from({ length: children }).every((_, i) => childrenAges[i] !== undefined);
   // Look up route once for this render block (used for surcharges, fare table, and blocker check)
@@ -272,7 +272,7 @@ export function SeatMappingPage({
   const canConfirmBooking = isFreeSeatingTrip
     ? !hasFareBlocker
     : (extraSeatsNeeded === 0 || extraSeatIds.length >= extraSeatsNeeded) && !hasFareBlocker;
-  const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver5Count > 0);
+  const isSelectingExtraSeats = !isFreeSeatingTrip && !!showBookingForm && (adults > 1 || childrenOver4Count > 0);
   const shouldShowSeatCountBanner = !isFreeSeatingTrip && !showBookingForm && totalSeatsNeeded > 1;
 
   // Route-level surcharges
@@ -294,13 +294,14 @@ export function SeatMappingPage({
   const priceDropoffSurchargeTotal = (dropoffSurcharge || 0) + (dropoffAddressSurcharge || 0);
   const priceRouteSurchargeTotal = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount, 0);
   const priceTotalPerPerson = priceDiscounted + pricePickupSurchargeTotal + priceDropoffSurchargeTotal + priceRouteSurchargeTotal;
-  const priceChildrenOver5 = childrenAges.filter(age => (age ?? 0) >= 5).length;
-  const priceFreeChildren = children - priceChildrenOver5;
-  const priceBillablePassengers = adults + priceChildrenOver5;
-  // TOUR_SHORT: use childPricingRules for per-age-group pricing (same logic as BookTicketPage)
+  const priceChildrenOver4 = childrenAges.filter(age => (age ?? 0) >= 4).length;
+  const priceFreeChildren = children - priceChildrenOver4;
+  const priceBillablePassengers = adults + priceChildrenOver4;
+  // Apply childPricingRules for per-age-group pricing when the route has rules configured.
+  // This works for all route categories (BUS, TOUR_SHORT, etc.).
   const priceIsTourShort = tripRoute?.routeCategory === 'TOUR_SHORT';
-  const priceChildPricingRules = priceIsTourShort ? (tripRoute?.childPricingRules ?? []) : [];
-  const priceUseAgePricing = priceIsTourShort && priceChildPricingRules.length > 0;
+  const priceChildPricingRules = tripRoute?.childPricingRules ?? [];
+  const priceUseAgePricing = priceChildPricingRules.length > 0;
   const priceChildAgeGroups: { label: string; count: number; farePer: number }[] = (() => {
     if (!priceUseAgePricing || children === 0) return [];
     const groupMap = new Map<string, { label: string; count: number; farePer: number }>();
@@ -1131,8 +1132,8 @@ export function SeatMappingPage({
                       <button type="button" onClick={() => {
                         const newAdults = Math.max(1, adults - 1);
                         setAdults(newAdults);
-                        const currentOver5Count = childrenAges.filter(age => age >= 5).length;
-                        const newExtraSeatsNeeded = (newAdults - 1) + currentOver5Count;
+                        const currentOver4Count = childrenAges.filter(age => age >= 4).length;
+                        const newExtraSeatsNeeded = (newAdults - 1) + currentOver4Count;
                         setExtraSeatIds(prev => prev.slice(0, newExtraSeatsNeeded));
                       }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                       <span className="flex-1 text-center font-bold text-gray-800">{adults}</span>
@@ -1147,8 +1148,8 @@ export function SeatMappingPage({
                         setChildren(count);
                         setChildrenAges(prev => prev.slice(0, count));
                         const newAges = childrenAges.slice(0, count);
-                        const newOver5Count = newAges.filter(age => age >= 5).length;
-                        setExtraSeatIds(prev => prev.slice(0, newOver5Count));
+                        const newOver4Count = newAges.filter(age => age >= 4).length;
+                        setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                       }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-lg leading-none flex-shrink-0">−</button>
                       <span className="flex-1 text-center font-bold text-gray-800">{children}</span>
                       <button type="button" onClick={() => {
@@ -1592,11 +1593,11 @@ export function SeatMappingPage({
                       : (isAgentBookingForm
                           ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
                           : Math.round((selectedTrip.price || 0) * tripDiscountMul));
-                    const { childrenOver5 } = childrenAges.reduce(
-                      (acc, age) => age >= 5 ? { ...acc, childrenOver5: acc.childrenOver5 + 1 } : { ...acc, childrenUnder5: acc.childrenUnder5 + 1 },
-                      { childrenOver5: 0, childrenUnder5: 0 }
+                    const { childrenOver4 } = childrenAges.reduce(
+                      (acc, age) => age >= 4 ? { ...acc, childrenOver4: acc.childrenOver4 + 1 } : { ...acc, childrenUnder4: acc.childrenUnder4 + 1 },
+                      { childrenOver4: 0, childrenUnder4: 0 }
                     );
-                    const effectiveAdults = adults + childrenOver5;
+                    const effectiveAdults = adults + childrenOver4;
 
                     // Build the list of all selected seat IDs (primary + extra)
                     const primarySeat = showBookingForm && showBookingForm !== 'FREE' ? showBookingForm : null;
@@ -1871,8 +1872,8 @@ export function SeatMappingPage({
                     : (isAgentConfirm
                         ? Math.round(((selectedTrip.agentPrice || selectedTrip.price || 0)) * tripDiscountMul)
                         : Math.round((selectedTrip.price || 0) * tripDiscountMul));
-                  const childrenOver5Confirm = childrenAges.filter(age => (age ?? 0) >= 5).length;
-                  const effectiveAdultsConfirm = adults + childrenOver5Confirm;
+                  const childrenOver4Confirm = childrenAges.filter(age => (age ?? 0) >= 4).length;
+                  const effectiveAdultsConfirm = adults + childrenOver4Confirm;
                   const routeSurchargeConfirm = applicableRouteSurcharges.reduce((sum, sc) => sum + sc.amount * effectiveAdultsConfirm, 0);
                   const pickupDropoffSurchargeConfirm = (pickupSurcharge + dropoffSurcharge + pickupAddressSurcharge + dropoffAddressSurcharge) * effectiveAdultsConfirm;
                   const addonsTotalConfirm = (selectedTrip.addons || []).filter((a: any) => (addonQuantities[a.id] || 0) > 0).reduce((sum: number, a: any) => sum + a.price * (addonQuantities[a.id] || 1), 0);
@@ -1999,21 +2000,21 @@ export function SeatMappingPage({
               ))
             ) : (
               <>
-                {priceChildrenOver5 > 0 && (
+                {priceChildrenOver4 > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">
-                      {priceChildrenOver5}{' '}
-                      {language === 'vi' ? 'trẻ em (≥5 tuổi)' : language === 'ja' ? '子ども（5歳以上）' : 'child(ren) (≥5 yrs)'}
+                      {priceChildrenOver4}{' '}
+                      {language === 'vi' ? 'trẻ em (≥4 tuổi)' : language === 'ja' ? '子ども（4歳以上）' : 'child(ren) (≥4 yrs)'}
                       {' '}× {priceTotalPerPerson.toLocaleString()}đ
                     </span>
-                    <span className="font-semibold text-gray-800">{(priceChildrenOver5 * priceTotalPerPerson).toLocaleString()}đ</span>
+                    <span className="font-semibold text-gray-800">{(priceChildrenOver4 * priceTotalPerPerson).toLocaleString()}đ</span>
                   </div>
                 )}
                 {priceFreeChildren > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">
                       {priceFreeChildren}{' '}
-                      {language === 'vi' ? 'trẻ em (<5 tuổi, miễn phí)' : language === 'ja' ? '子ども（5歳未満、無料）' : 'child(ren) (<5 yrs, free)'}
+                      {language === 'vi' ? 'trẻ em (<4 tuổi, miễn phí)' : language === 'ja' ? '子ども（4歳未満、無料）' : 'child(ren) (<4 yrs, free)'}
                     </span>
                     <span className="text-gray-400">0đ</span>
                   </div>
