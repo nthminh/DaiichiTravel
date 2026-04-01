@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, Image as ImageIcon, Loader2, Edit3, X, Moon, Coffee,
   Search, Youtube, Copy, Calendar, ChevronDown, ChevronRight,
-  MapPin, Clock, BedDouble, Zap, Building2
+  MapPin, Clock, BedDouble, Zap, Building2, FileText
 } from 'lucide-react';
 import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
-import { User, UserRole, Property } from '../types';
+import { User, UserRole, Property, Booking } from '../types';
 import { transportService } from '../services/transportService';
 import { compressImage } from '../lib/imageUtils';
 
@@ -629,6 +629,54 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       handleStartEdit(tour);
     }
     setIsAdding(false);
+  };
+
+  const handleExportPdf = async (tour: Tour) => {
+    const bookings = await transportService.getTourBookings(tour.id);
+    const statusLabel = (s: string) => {
+      if (s === 'CONFIRMED') return language === 'vi' ? 'Đã xác nhận' : 'Confirmed';
+      if (s === 'CANCELLED') return language === 'vi' ? 'Đã hủy' : 'Cancelled';
+      return language === 'vi' ? 'Chờ xác nhận' : 'Pending';
+    };
+    const rows = bookings.map((b: Booking, i: number) => `
+      <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${i + 1}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">${b.customerName || ''}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">${b.customerPhone || ''}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">${b.selectedRoomTypeName || ''}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${b.adults ?? ''}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${b.children ?? ''}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:right">${b.totalAmount ? Number(b.totalAmount).toLocaleString('vi-VN') + 'đ' : ''}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${statusLabel(b.status)}</td>
+      </tr>`).join('');
+    const departureLine = [tour.departureTime, tour.startDate ? tour.startDate.split('-').reverse().join('/') : '', tour.departureLocation].filter(Boolean).join(' – ');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>${tour.title}</title>
+      <style>body{font-family:Arial,sans-serif;font-size:13px;padding:24px;color:#111}
+      h2{margin:0 0 4px}p{margin:2px 0;color:#555}
+      table{border-collapse:collapse;width:100%;margin-top:16px}
+      th{background:#c0392b;color:#fff;padding:8px 12px;border:1px solid #c0392b;text-align:left}
+      @media print{button{display:none}}</style></head><body>
+      <h2>${tour.title}</h2>
+      ${departureLine ? `<p>${language === 'vi' ? 'Khởi hành' : 'Departure'}: ${departureLine}</p>` : ''}
+      <p>${language === 'vi' ? 'Tổng số đặt chỗ' : 'Total bookings'}: ${bookings.length}</p>
+      <table>
+        <thead><tr>
+          <th style="width:40px">#</th>
+          <th>${language === 'vi' ? 'Họ tên' : 'Name'}</th>
+          <th>${language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>
+          <th>${language === 'vi' ? 'Loại phòng' : 'Room type'}</th>
+          <th style="width:60px">${language === 'vi' ? 'NL' : 'Adults'}</th>
+          <th style="width:60px">${language === 'vi' ? 'TE' : 'Children'}</th>
+          <th>${language === 'vi' ? 'Tổng tiền' : 'Total'}</th>
+          <th>${language === 'vi' ? 'Trạng thái' : 'Status'}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <script>window.onload=function(){window.print()}<\/script>
+    </body></html>`;
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
   };
 
   const renderRoomTypesSection = (
@@ -1752,6 +1800,13 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                             title={language === 'vi' ? 'Sao chép' : 'Copy'}
                           >
                             <Copy size={15} />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleExportPdf(tour); }}
+                            className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors"
+                            title={language === 'vi' ? 'Xuất PDF danh sách khách' : 'Export passenger list PDF'}
+                          >
+                            <FileText size={15} />
                           </button>
                           {isAdmin && (
                             <button
