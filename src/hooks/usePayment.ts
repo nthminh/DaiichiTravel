@@ -420,8 +420,7 @@ export function usePayment(ctx: BookingContext) {
       seatIds: allSeatIds,
       amount: totalAmount,
       agent: effectiveAgentName,
-      bookedByName: c.currentUser?.name || c.currentUser?.username || (c.language === 'vi' ? 'Khách lẻ' : 'Walk-in'),
-      bookedByRole: c.currentUser?.role || 'GUEST',
+      ...(c.currentUser?.name || c.currentUser?.username ? { bookedByName: c.currentUser.name || c.currentUser.username, bookedByRole: c.currentUser.role } : {}),
       ...(isAgentBooking ? { agentId: c.currentUser!.id } : {}),
       // Commission tracking for agent bookings
       ...(isAgentBooking && effectiveCommissionRate > 0 ? {

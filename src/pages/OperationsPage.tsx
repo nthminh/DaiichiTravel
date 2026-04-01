@@ -75,8 +75,8 @@ interface OperationsPageProps {
   setTripAddonForm: React.Dispatch<React.SetStateAction<{ name: string; price: number; description: string; type: 'SIGHTSEEING' | 'TRANSPORT' | 'FOOD' | 'OTHER'; images: string[] }>>;
   tripColWidths: { time: number; licensePlate: number; route: number; driver: number; status: number; options: number };
   setTripColWidths: React.Dispatch<React.SetStateAction<{ time: number; licensePlate: number; route: number; driver: number; status: number; options: number }>>;
-  tripColVisibility: { time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; seats: boolean; passengers: boolean; addons: boolean };
-  setTripColVisibility: React.Dispatch<React.SetStateAction<{ time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; seats: boolean; passengers: boolean; addons: boolean }>>;
+  tripColVisibility: { time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; passengers: boolean; addons: boolean };
+  setTripColVisibility: React.Dispatch<React.SetStateAction<{ time: boolean; licensePlate: boolean; route: boolean; driver: boolean; status: boolean; passengers: boolean; addons: boolean }>>;
   showTripColPanel: boolean;
   setShowTripColPanel: React.Dispatch<React.SetStateAction<boolean>>;
   showTripPassengers: Trip | null;
@@ -974,8 +974,7 @@ export function OperationsPage({
               { key: 'route', label: language === 'vi' ? 'Tuyến' : 'Route' },
               { key: 'driver', label: language === 'vi' ? 'Tài xế' : 'Driver' },
               { key: 'status', label: language === 'vi' ? 'Trạng thái' : 'Status' },
-              { key: 'seats', label: language === 'vi' ? 'Ghế còn' : 'Avail. Seats' },
-              { key: 'passengers', label: language === 'vi' ? 'Hành khách' : 'Passengers' },
+              { key: 'passengers', label: language === 'vi' ? 'Hành khách/Ghế' : 'Passengers/Seats' },
               { key: 'addons', label: language === 'vi' ? 'Dịch vụ thêm' : 'Add-ons' },
             ] as { key: keyof typeof tripColVisibility; label: string }[]).map(({ key, label }) => (
               <button
@@ -1367,17 +1366,14 @@ export function OperationsPage({
               {tripColVisibility.route && <ResizableTh width={tripColWidths.route} onResize={(w) => setTripColWidths(p => ({ ...p, route: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.route_column}</ResizableTh>}
               {tripColVisibility.driver && <ResizableTh width={tripColWidths.driver} onResize={(w) => setTripColWidths(p => ({ ...p, driver: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.driver}</ResizableTh>}
               {tripColVisibility.status && <ResizableTh width={tripColWidths.status} onResize={(w) => setTripColWidths(p => ({ ...p, status: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.status}</ResizableTh>}
-              {tripColVisibility.seats && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Ghế còn' : 'Avail.'}</th>}
-              {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách' : 'Passengers'}</th>}
+              {tripColVisibility.passengers && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{language === 'vi' ? 'Hành khách/Ghế' : 'Passengers/Seats'}</th>}
               {tripColVisibility.addons && <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.trip_addons}</th>}
               <ResizableTh width={tripColWidths.options} onResize={(w) => setTripColWidths(p => ({ ...p, options: w }))} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{t.options}</ResizableTh>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {paginatedTrips.map((trip) => {
-              const emptySeats = (trip.seats || []).filter((s: any) => s.status === SeatStatus.EMPTY).length;
               const bookedCount = (trip.seats || []).filter((s: any) => s.status !== SeatStatus.EMPTY && s.status !== SeatStatus.LOCKED).length;
-              const lockedCount = (trip.seats || []).filter((s: any) => s.status === SeatStatus.LOCKED).length;
               const totalSeats = (trip.seats || []).length;
               const goToSeatMap = () => { setSelectedTrip(trip); setPreviousTab('operations'); setActiveTab('seat-mapping'); };
               const openPassengerList = () => { setShowTripPassengers(trip); setEditingPassengerSeatId(null); };
@@ -1443,20 +1439,13 @@ export function OperationsPage({
                   </td>}
                   {tripColVisibility.driver && <td className="px-6 py-4 text-gray-600 whitespace-nowrap" onClick={openPassengerList}>{trip.driverName}</td>}
                   {tripColVisibility.status && <td className="px-6 py-4" onClick={openPassengerList}><StatusBadge status={trip.status} language={language} /></td>}
-                  {tripColVisibility.seats && <td className="px-6 py-4" onClick={openPassengerList}>
-                    <div className="flex flex-col gap-0.5">
-                      <span className={cn('text-sm font-bold', emptySeats === 0 ? 'text-red-500' : emptySeats <= 3 ? 'text-orange-500' : 'text-green-600')}>{emptySeats}</span>
-                      <span className="text-[10px] text-gray-400">{language === 'vi' ? `/${totalSeats} ghế` : `/${totalSeats} seats`}</span>
-                      {lockedCount > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-0.5"><Lock size={8} />{lockedCount}</span>}
-                    </div>
-                  </td>}
                   {tripColVisibility.passengers && <td className="px-6 py-4">
                     <button
                       onClick={openPassengerList}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors"
                     >
                       <Users size={12} />
-                      <span>{bookedCount}</span>
+                      <span>{bookedCount}/{totalSeats}</span>
                     </button>
                   </td>}
                   {tripColVisibility.addons && <td className="px-6 py-4">
