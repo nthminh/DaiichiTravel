@@ -893,17 +893,22 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTrip?.id]);
 
-  // Load room booking counts when selected tour or departure date changes.
-  // Resets room selection when the tour or date changes.
+  // Subscribe to room booking counts in real-time when selected tour changes.
+  // Resets room selection when the tour changes.
   useEffect(() => {
     setTourSelectedRoomTypeId('');
     setTourRoomBookingCounts({});
-    if (!selectedTour?.id || !tourBookingDate) return;
-    transportService.getTourRoomBookingCounts(selectedTour.id, tourBookingDate)
-      .then(counts => setTourRoomBookingCounts(counts))
-      .catch(err => console.error('[tourRoomBookingCounts] load error:', err));
+    if (!selectedTour?.id) return;
+    const date = selectedTour.startDate || '';
+    if (!date) return;
+    const unsub = transportService.subscribeTourRoomBookingCounts(
+      selectedTour.id,
+      date,
+      (counts) => setTourRoomBookingCounts(counts)
+    );
+    return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTour?.id, tourBookingDate]);
+  }, [selectedTour?.id]);
 
   // Load per-seat fare overrides for the selected trip's route.
   // Re-fetched whenever the route changes (identified by route name → route id).
@@ -2043,7 +2048,7 @@ export default function App() {
             <CruiseTourPage
               tours={tours}
               language={language}
-              onSelectTour={(tour) => { setSelectedTour(tour); setActiveTab('book-tour'); }}
+              onSelectTour={(tour) => { setSelectedTour(tour); setTourBookingDate(tour.startDate || ''); setActiveTab('book-tour'); }}
             />
           </Suspense>
         );

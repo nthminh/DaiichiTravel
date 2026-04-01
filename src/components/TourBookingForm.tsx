@@ -136,7 +136,7 @@ export function TourBookingForm({
   tourBookingEmail,
   setTourBookingEmail,
   tourBookingDate,
-  setTourBookingDate,
+  setTourBookingDate: _setTourBookingDate,
   tourBookingAdults,
   setTourBookingAdults,
   tourBookingChildren,
@@ -169,7 +169,7 @@ export function TourBookingForm({
   onBackToTours,
   onViewTicket,
   onGoHome,
-  getLocalDateString,
+  getLocalDateString: _getLocalDateString,
 }: TourBookingFormProps) {
   const t = TRANSLATIONS[language];
 
@@ -193,8 +193,15 @@ export function TourBookingForm({
         : selectedRoomType.price * totalPersons)
     : null;
 
+  // Extra-people surcharge: applies when PER_ROOM pricing and guests exceed room capacity.
+  // capacity defaults to 0 if undefined (no extra charge in that edge case).
+  const extraPersonsCount = (selectedRoomType && selectedRoomType.pricingMode === 'PER_ROOM' && totalPersons > (selectedRoomType.capacity || 0))
+    ? totalPersons - (selectedRoomType.capacity || 0)
+    : 0;
+  const extraPersonsCost = extraPersonsCount > 0 ? extraPersonsCount * pricePerAdult : 0;
+
   const baseTourPrice = roomBasedPrice !== null
-    ? roomBasedPrice
+    ? roomBasedPrice + extraPersonsCost
     : (tourBookingAdults * pricePerAdult + tourBookingChildren * pricePerChild);
 
   // Overnight stays: unit price is fixed by admin, customer adjusts quantity.
@@ -240,7 +247,7 @@ export function TourBookingForm({
   // ── Booking handler ────────────────────────────────────────────────────────
 
   const handleTourBooking = async (bookStatus: 'PENDING' | 'CONFIRMED') => {
-    if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate) return;
+    if (!selectedTour || !tourBookingName.trim() || !tourBookingPhone.trim()) return;
     // Require room selection when the tour has room types
     if (hasRoomTypes && !selectedRoomTypeId) {
       setTourBookingError(language === 'vi'
@@ -659,25 +666,23 @@ export function TourBookingForm({
           ✈️ {t.tour_configure_trip || (language === 'vi' ? 'Tùy chỉnh chuyến đi' : 'Customize your trip')}
         </h4>
 
-        {/* Departure date */}
+        {/* Departure date — fixed by the tour (read-only) */}
         <div>
           <label className="text-xs font-bold text-gray-500 uppercase">{t.tour_departure_date}</label>
-          {(selectedTour?.startDate || selectedTour?.endDate) && (
-            <p className="text-[11px] text-indigo-500 mt-0.5 mb-1">
-              {language === 'vi' ? '📅 Tour hoạt động' : '📅 Tour operates'}:{' '}
-              {selectedTour.startDate ? selectedTour.startDate : '?'} → {selectedTour.endDate ? selectedTour.endDate : '?'}
-            </p>
-          )}
-          <div className="relative mt-1">
-            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="date"
-              value={tourBookingDate}
-              min={(() => { const today = getLocalDateString(0); return selectedTour?.startDate && selectedTour.startDate > today ? selectedTour.startDate : today; })()}
-              max={selectedTour?.endDate || undefined}
-              onChange={(e) => setTourBookingDate(e.target.value)}
-              className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
-            />
+          <div className="mt-1 flex items-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl">
+            <Calendar className="text-gray-400 shrink-0" size={18} />
+            {selectedTour?.startDate ? (
+              <span className="font-semibold text-gray-700">
+                {selectedTour.startDate}
+                {selectedTour.endDate && selectedTour.endDate !== selectedTour.startDate && (
+                  <span className="text-gray-400"> → {selectedTour.endDate}</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-gray-400 text-sm">
+                {language === 'vi' ? 'Chưa xác định' : 'To be confirmed'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -843,14 +848,31 @@ export function TourBookingForm({
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-2">
         <p className="text-xs font-bold text-gray-500 uppercase mb-3">{language === 'vi' ? 'Chi tiết giá' : 'Price breakdown'}</p>
         {selectedRoomType ? (
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">
-              {selectedRoomType.name} ({selectedRoomType.pricingMode === 'PER_ROOM'
-                ? (language === 'vi' ? 'theo phòng' : 'per room')
-                : `${totalPersons} ${language === 'vi' ? 'người' : 'persons'}`})
-            </span>
-            <span className="font-bold">{(roomBasedPrice ?? 0).toLocaleString()}đ</span>
-          </div>
+          <>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">
+                {selectedRoomType.name} ({selectedRoomType.pricingMode === 'PER_ROOM'
+                  ? (language === 'vi' ? 'theo phòng' : 'per room')
+                  : `${totalPersons} ${language === 'vi' ? 'người' : 'persons'}`})
+              </span>
+              <span className="font-bold">{(roomBasedPrice ?? 0).toLocaleString()}đ</span>
+            </div>
+            {extraPersonsCount > 0 && (
+              <div className="flex justify-between text-sm text-amber-700">
+                <span>
+                  {language === 'vi'
+                    ? `Phụ phí ${extraPersonsCount} người vượt sức chứa`
+                    : `Extra ${extraPersonsCount} person${extraPersonsCount > 1 ? 's' : ''} (over capacity)`}
+                  <span className="block text-[10px] font-normal text-amber-500">
+                    {language === 'vi'
+                      ? `Phòng tối đa ${selectedRoomType.capacity} người`
+                      : `Room capacity: ${selectedRoomType.capacity} guests`}
+                  </span>
+                </span>
+                <span className="font-bold">+{extraPersonsCost.toLocaleString()}đ</span>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <div className="flex justify-between text-sm">
@@ -920,10 +942,10 @@ export function TourBookingForm({
       )}
 
       {/* Action buttons */}
-      {(!tourBookingDate || !tourBookingName.trim() || !tourBookingPhone.trim() || (hasRoomTypes && !selectedRoomTypeId)) ? (
+      {(!tourBookingName.trim() || !tourBookingPhone.trim() || (hasRoomTypes && !selectedRoomTypeId)) ? (
         <p className="text-center text-xs text-gray-400">
-          {!tourBookingDate || !tourBookingName.trim() || !tourBookingPhone.trim()
-            ? (language === 'vi' ? '* Vui lòng điền ngày khởi hành, tên và số điện thoại trước khi đặt.' : '* Please fill in departure date, name and phone before booking.')
+          {!tourBookingName.trim() || !tourBookingPhone.trim()
+            ? (language === 'vi' ? '* Vui lòng điền tên và số điện thoại trước khi đặt.' : '* Please fill in name and phone before booking.')
             : (language === 'vi' ? '* Vui lòng chọn loại phòng trước khi đặt.' : '* Please select a room type before booking.')}
         </p>
       ) : null}
@@ -932,11 +954,11 @@ export function TourBookingForm({
         {!(isTourAgentBooking && agentPaymentType === 'PREPAID') && (
           <button
             type="button"
-            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour || (hasRoomTypes && !selectedRoomTypeId)}
+            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !selectedTour || (hasRoomTypes && !selectedRoomTypeId)}
             onClick={() => handleTourBooking('PENDING')}
             className={cn(
               "w-full py-4 rounded-xl font-bold border-2 flex items-center justify-center gap-2 transition-all",
-              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour && !(hasRoomTypes && !selectedRoomTypeId)
+              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && selectedTour && !(hasRoomTypes && !selectedRoomTypeId)
                 ? "border-daiichi-red text-daiichi-red hover:bg-daiichi-red/5"
                 : "border-gray-200 text-gray-300 cursor-not-allowed"
             )}
@@ -966,11 +988,11 @@ export function TourBookingForm({
           )}
           <button
             type="button"
-            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !tourBookingDate || !selectedTour || (hasRoomTypes && !selectedRoomTypeId)}
+            disabled={isTourBookingLoading || !tourBookingName.trim() || !tourBookingPhone.trim() || !selectedTour || (hasRoomTypes && !selectedRoomTypeId)}
             onClick={() => handleTourBooking('CONFIRMED')}
             className={cn(
               "w-full py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all",
-              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && tourBookingDate && selectedTour && !(hasRoomTypes && !selectedRoomTypeId)
+              !isTourBookingLoading && tourBookingName.trim() && tourBookingPhone.trim() && selectedTour && !(hasRoomTypes && !selectedRoomTypeId)
                 ? "bg-daiichi-red text-white shadow-daiichi-red/20 hover:scale-[1.01]"
                 : "bg-gray-300 text-white shadow-gray-200 cursor-not-allowed"
             )}
