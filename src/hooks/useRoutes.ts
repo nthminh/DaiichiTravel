@@ -3,7 +3,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { FirebaseStorage } from 'firebase/storage';
 import { transportService } from '../services/transportService';
 import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
-import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare, TripAddon } from '../types';
+import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare, TripAddon, User } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
 /** External dependencies that useRoutes needs from App.tsx */
@@ -11,6 +11,7 @@ export interface RouteContext {
   routes: Route[];
   language: 'vi' | 'en' | 'ja';
   storage: FirebaseStorage | null;
+  currentUser?: User | null;
 }
 
 const STOP_ID_DEPARTURE = '__departure__';
@@ -352,6 +353,20 @@ export function useRoutes(ctx: RouteContext) {
       setEditingRoute(null);
       setIsCopyingRoute(false);
       setRouteForm({ ...DEFAULT_ROUTE_FORM });
+      const actor = ctxRef.current.currentUser;
+      if (actor) {
+        await transportService.logAudit({
+          actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+          action: editingRoute ? 'EDIT_ROUTE' : 'ADD_ROUTE',
+          targetType: 'route',
+          targetId: routeId,
+          targetLabel: currentForm.name,
+          detail: editingRoute
+            ? `Cập nhật tuyến: ${currentForm.name}`
+            : `Thêm tuyến mới: ${currentForm.name}`,
+          createdAt: new Date().toISOString(),
+        });
+      }
     } catch (err: any) {
       console.error('Failed to save route:', err);
       const lang = ctxRef.current.language;
@@ -419,7 +434,18 @@ export function useRoutes(ctx: RouteContext) {
     )
       return;
     try {
+      const deletedRoute = ctxRef.current.routes.find(r => r.id === routeId);
       await transportService.deleteRoute(routeId);
+      const actor = ctxRef.current.currentUser;
+      if (actor) {
+        await transportService.logAudit({
+          actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+          action: 'DELETE_ROUTE', targetType: 'route',
+          targetId: routeId, targetLabel: deletedRoute?.name || routeId,
+          detail: `Xóa tuyến: ${deletedRoute?.name || routeId}`,
+          createdAt: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       console.error('Failed to delete route:', err);
     }

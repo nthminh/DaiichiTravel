@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { transportService } from '../services/transportService';
-import type { Employee, Agent } from '../types';
+import type { Employee, Agent, User } from '../types';
 import type { Language } from '../constants/translations';
 
 /** External dependencies that useEmployees needs from App.tsx */
@@ -8,6 +8,7 @@ export interface EmployeeContext {
   language: Language;
   agents: Agent[];
   employees: Employee[];
+  currentUser?: User | null;
 }
 
 export const DEFAULT_EMPLOYEE_FORM = {
@@ -90,8 +91,28 @@ export function useEmployees(ctx: EmployeeContext) {
       setEmployeeConflictWarning(false);
       if (editingEmployee) {
         await transportService.updateEmployee(editingEmployee.id, employeeForm);
+        const actor = ctxRef.current.currentUser;
+        if (actor) {
+          await transportService.logAudit({
+            actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+            action: 'EDIT_EMPLOYEE', targetType: 'employee',
+            targetId: editingEmployee.id, targetLabel: employeeForm.name || editingEmployee.id,
+            detail: `Cập nhật nhân viên: ${employeeForm.name}`,
+            createdAt: new Date().toISOString(),
+          });
+        }
       } else {
         await transportService.addEmployee(employeeForm);
+        const actor = ctxRef.current.currentUser;
+        if (actor) {
+          await transportService.logAudit({
+            actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+            action: 'ADD_EMPLOYEE', targetType: 'employee',
+            targetLabel: employeeForm.name,
+            detail: `Thêm nhân viên mới: ${employeeForm.name}`,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
       setShowAddEmployee(false);
       setEditingEmployee(null);
@@ -109,6 +130,17 @@ export function useEmployees(ctx: EmployeeContext) {
     if (!window.confirm(msg)) return;
     try {
       await transportService.deleteEmployee(employeeId);
+      const actor = ctxRef.current.currentUser;
+      const deletedEmployee = ctxRef.current.employees.find(e => e.id === employeeId);
+      if (actor) {
+        await transportService.logAudit({
+          actorId: actor.id, actorName: actor.name, actorRole: actor.role,
+          action: 'DELETE_EMPLOYEE', targetType: 'employee',
+          targetId: employeeId, targetLabel: deletedEmployee?.name || employeeId,
+          detail: `Xóa nhân viên: ${deletedEmployee?.name || employeeId}`,
+          createdAt: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       console.error('Failed to delete employee:', err);
     }

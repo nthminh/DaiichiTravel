@@ -76,7 +76,6 @@ const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then(m => ({ de
 const CompletedTripsPage = lazy(() => import('./pages/CompletedTripsPage').then(m => ({ default: m.CompletedTripsPage })));
 const RouteManagementPage = lazy(() => import('./pages/RouteManagementPage').then(m => ({ default: m.RouteManagementPage })));
 const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
-const TourOperationsPage = lazy(() => import('./pages/TourOperationsPage').then(m => ({ default: m.TourOperationsPage })));
 const BookTicketPage = lazy(() => import('./pages/BookTicketPage').then(m => ({ default: m.BookTicketPage })));
 const SeatMappingPage = lazy(() => import('./pages/SeatMappingPage').then(m => ({ default: m.SeatMappingPage })));
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
@@ -412,7 +411,7 @@ export default function App() {
     handleForceSaveEmployee,
     handleDeleteEmployee,
     handleStartEditEmployee,
-  } = useEmployees({ language, agents, employees });
+  } = useEmployees({ language, agents, employees, currentUser });
 
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
@@ -493,7 +492,7 @@ export default function App() {
     handleStartEditRoute,
     handleCopyRoute,
     handleSaveRouteNote,
-  } = useRoutes({ routes, language, storage });
+  } = useRoutes({ routes, language, storage, currentUser });
 
   // ─── Trip CRUD (logic extracted to useTrips hook) ────────────────────────────
   const {
@@ -547,7 +546,7 @@ export default function App() {
     setMergeError,
     handleToggleTripForMerge,
     handleMergeTrips,
-  } = useTrips({ vehicles, trips, language });
+  } = useTrips({ vehicles, trips, language, currentUser });
 
   // ─── Auth helpers (logic extracted to useAuth hook) ──────────────────────────
   const { handleRegisterMember, handleOtpMemberLogin } = useAuth({ language, customers });
@@ -2026,18 +2025,6 @@ export default function App() {
 
       case 'tour-management':
         return <TourManagement language={language} currentUser={currentUser} />;
-
-      case 'tour-operations':
-        return (
-          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" size={32} /></div>}>
-            <TourOperationsPage
-              bookings={bookings}
-              tours={tours}
-              language={language}
-              currentUser={currentUser}
-            />
-          </Suspense>
-        );
 
       case 'property-management':
         return <PropertyManagement language={language} currentUser={currentUser} />;
