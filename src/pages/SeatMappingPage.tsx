@@ -7,6 +7,7 @@ import { Trip, Route, Stop, Agent, Vehicle, TripAddon, RouteSurcharge, RouteSeat
 import { SerializedSeat } from '../lib/vehicleSeatUtils'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { motion } from 'motion/react'
+import { formatBookingDate } from '../lib/vnDate'
 
 interface SeatMappingPageProps {
   // Data
@@ -1789,7 +1790,7 @@ export function SeatMappingPage({
                 <div className="p-3 bg-gray-50 rounded-xl space-y-1">
                   <p className="font-bold text-gray-700 text-xs uppercase">{language === 'vi' ? '🚌 Chuyến xe' : language === 'ja' ? '🚌 乗車便' : '🚌 Trip'}</p>
                   <p className="text-gray-800">{selectedTrip.route}</p>
-                  <p className="text-gray-500 text-xs">{selectedTrip.date} {selectedTrip.departureTime && `· ${selectedTrip.departureTime}`} {selectedTrip.licensePlate && `· ${selectedTrip.licensePlate}`}</p>
+                  <p className="text-gray-500 text-xs">{formatBookingDate(selectedTrip.date)} {selectedTrip.departureTime && `· ${selectedTrip.departureTime}`} {selectedTrip.licensePlate && `· ${selectedTrip.licensePlate}`}</p>
                 </div>
                 {/* Seats */}
                 {!isFreeSeatingTrip && showBookingForm && (
