@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap } from 'lucide-react';
+import { X, Copy, CheckCircle, AlertTriangle, Info, Smartphone, Clock, Zap, CreditCard, Building2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { BANK_CONFIG, generatePaymentQrUrl, generatePaymentQrString } from '../constants/bankConfig';
 import { createOnepayPaymentUrl } from '../services/onepayService';
@@ -12,6 +12,56 @@ const PAYMENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 const EXPIRED_AUTO_CLOSE_MS = 3000; // 3 seconds after expiry, auto-close
 const AUTO_CONFIRM_DELAY_MS = 1200; // brief visual feedback before auto-confirming from Firestore
 const MANUAL_CONFIRM_DELAY_MS = 600; // simulated processing delay for manual confirm button
+const CARD_PROCESSING_DELAY_MS = 2000; // simulated card processing delay
+
+type PaymentTab = 'qr' | 'atm' | 'card';
+
+const DOMESTIC_BANKS = [
+  'Vietcombank (VCB)',
+  'BIDV',
+  'Agribank',
+  'Techcombank',
+  'MB Bank',
+  'VPBank',
+  'ACB',
+  'SHB',
+  'TPBank',
+  'HDBank',
+  'SeABank',
+  'OCB',
+  'ABBank (ABB)',
+  'VietinBank',
+  'Sacombank',
+  'Eximbank',
+  'MSB',
+  'NamABank',
+  'LienVietPostBank',
+  'PVcomBank',
+];
+
+/** Format card number with spaces every 4 digits */
+function formatCardNumber(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 16);
+  return digits.replace(/(.{4})/g, '$1 ').trim();
+}
+
+/** Format expiry as MM/YY */
+function formatExpiry(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length >= 3) return digits.slice(0, 2) + '/' + digits.slice(2);
+  return digits;
+}
+
+/** Validate that expiry MM/YY is in the future */
+function isExpiryValid(value: string): boolean {
+  if (!value.match(/^\d{2}\/\d{2}$/)) return false;
+  const [mm, yy] = value.split('/').map(Number);
+  if (mm < 1 || mm > 12) return false;
+  const now = new Date();
+  const expYear = 2000 + yy;
+  const expMonth = mm; // 1-based
+  return expYear > now.getFullYear() || (expYear === now.getFullYear() && expMonth >= now.getMonth() + 1);
+}
 
 interface PaymentQRModalProps {
   /** Total amount to pay in VND */
@@ -37,6 +87,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   bookingLabel,
 }) => {
   const t = TRANSLATIONS[language];
+  const [activeTab, setActiveTab] = useState<PaymentTab>('qr');
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
@@ -51,6 +102,19 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   onConfirmRef.current = onConfirm;
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
+
+  // ── Domestic ATM card state ────────────────────────────────────────────────
+  const [atmCardNumber, setAtmCardNumber] = useState('');
+  const [atmExpiry, setAtmExpiry] = useState('');
+  const [atmBank, setAtmBank] = useState('');
+  const [atmError, setAtmError] = useState('');
+
+  // ── International card (Visa/Master) state ────────────────────────────────
+  const [intlCardNumber, setIntlCardNumber] = useState('');
+  const [intlExpiry, setIntlExpiry] = useState('');
+  const [intlCvv, setIntlCvv] = useState('');
+  const [intlCardName, setIntlCardName] = useState('');
+  const [intlError, setIntlError] = useState('');
 
   // 30-minute countdown timer
   useEffect(() => {
@@ -181,6 +245,54 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
     onConfirmRef.current();
   };
 
+  const handleAtmPay = async () => {
+    setAtmError('');
+    const rawNumber = atmCardNumber.replace(/\s/g, '');
+    if (rawNumber.length < 13 || rawNumber.length > 19) {
+      setAtmError(language === 'vi' ? 'Số thẻ không hợp lệ.' : 'Invalid card number.');
+      return;
+    }
+    if (!isExpiryValid(atmExpiry)) {
+      setAtmError(language === 'vi' ? 'Ngày hết hạn không hợp lệ hoặc đã hết hạn.' : 'Invalid or expired expiry date.');
+      return;
+    }
+    if (!atmBank) {
+      setAtmError(language === 'vi' ? 'Vui lòng chọn ngân hàng.' : 'Please select a bank.');
+      return;
+    }
+    if (autoConfirmCalledRef.current) return;
+    autoConfirmCalledRef.current = true;
+    setConfirming(true);
+    await new Promise(r => setTimeout(r, CARD_PROCESSING_DELAY_MS));
+    onConfirmRef.current();
+  };
+
+  const handleIntlPay = async () => {
+    setIntlError('');
+    const rawNumber = intlCardNumber.replace(/\s/g, '');
+    if (rawNumber.length < 13 || rawNumber.length > 19) {
+      setIntlError(language === 'vi' ? 'Số thẻ không hợp lệ.' : 'Invalid card number.');
+      return;
+    }
+    if (!isExpiryValid(intlExpiry)) {
+      setIntlError(language === 'vi' ? 'Ngày hết hạn không hợp lệ hoặc đã hết hạn.' : 'Invalid or expired expiry date.');
+      return;
+    }
+    if (intlCvv.length < 3) {
+      setIntlError(language === 'vi' ? 'Mã CVV không hợp lệ.' : 'Invalid CVV code.');
+      return;
+    }
+    if (!intlCardName.trim()) {
+      setIntlError(language === 'vi' ? 'Vui lòng nhập tên chủ thẻ.' : 'Please enter cardholder name.');
+      return;
+    }
+    if (autoConfirmCalledRef.current) return;
+    autoConfirmCalledRef.current = true;
+    setConfirming(true);
+    await new Promise(r => setTimeout(r, CARD_PROCESSING_DELAY_MS));
+    onConfirmRef.current();
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -201,16 +313,16 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
             </button>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <Smartphone size={20} />
+                {activeTab === 'qr' ? <Smartphone size={20} /> : <CreditCard size={20} />}
               </div>
               <div>
                 <p className="font-bold text-lg leading-tight">
                   {expired
                     ? (t.qr_payment_expired_title || 'Hết thời gian thanh toán')
-                    : (t.qr_payment_title || 'Thanh toán QR')}
+                    : (language === 'vi' ? 'Thanh toán' : language === 'ja' ? '支払い' : 'Payment')}
                 </p>
                 <p className="text-blue-100 text-xs">
-                  {t.qr_payment_subtitle || 'Quét mã QR để thanh toán'}
+                  {language === 'vi' ? 'Chọn phương thức thanh toán' : language === 'ja' ? '支払い方法を選択' : 'Select payment method'}
                 </p>
               </div>
             </div>
@@ -242,54 +354,48 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
           {!expired && (
           <div className="p-5 space-y-4">
-            {/* Demo mode banner — shown when OnePay is not fully configured */}
-            {isDemo && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
-                <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700 font-medium">
-                  {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Thông tin ngân hàng là giả, KHÔNG chuyển tiền thật'}
-                </p>
-              </div>
-            )}
-            {/* Sandbox mode banner — shown when OnePay sandbox is active */}
-            {!isDemo && onepayEnvironment === 'sandbox' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
-                <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-blue-700 font-medium">
-                  {language === 'vi'
-                    ? '🔬 MÔI TRƯỜNG THỬ NGHIỆM (Sandbox) — Dùng thẻ test OnePay, KHÔNG dùng thẻ thật'
-                    : '🔬 SANDBOX ENVIRONMENT — Use OnePay test cards only, NOT real cards'}
-                </p>
-              </div>
-            )}
-
-            {/* Auto-detected success */}
-            {autoDetected && (
-              <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
-                <Zap size={18} className="text-green-600 shrink-0" />
-                <p className="text-sm text-green-700 font-bold">
-                  {language === 'vi'
-                    ? '✅ Đã nhận thanh toán! Đang xác nhận đơn hàng...'
-                    : language === 'ja'
-                    ? '✅ 支払いを受領しました！注文を確認中...'
-                    : '✅ Payment received! Confirming your order...'}
-                </p>
-              </div>
-            )}
-
-            {/* Amount mismatch warning */}
-            {amountMismatch && !autoDetected && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-start gap-2">
-                <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-red-700 font-medium">
-                  {language === 'vi'
-                    ? '⚠️ Số tiền hoặc nội dung chuyển khoản không khớp. Vui lòng kiểm tra lại.'
-                    : language === 'ja'
-                    ? '⚠️ 金額または振込内容が一致しません。ご確認ください。'
-                    : '⚠️ Payment amount or content does not match. Please check again.'}
-                </p>
-              </div>
-            )}
+            {/* Payment method tabs */}
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setActiveTab('qr')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all',
+                  activeTab === 'qr'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <Smartphone size={13} />
+                {language === 'vi' ? 'QR / CK' : 'QR'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('atm')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all',
+                  activeTab === 'atm'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <Building2 size={13} />
+                {language === 'vi' ? 'ATM nội địa' : 'ATM'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('card')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all',
+                  activeTab === 'card'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <CreditCard size={13} />
+                Visa / Master
+              </button>
+            </div>
 
             {/* Amount */}
             <div className="text-center">
@@ -301,118 +407,369 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
               </p>
             </div>
 
-            {/* QR code */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="p-4 bg-white border-2 border-blue-100 rounded-2xl shadow-sm relative">
-                {/* Try VietQR image first, fallback to QRCodeSVG */}
-                <img
-                  src={qrImageUrl}
-                  alt="OnePay payment QR code"
-                  className="w-48 h-48 object-contain"
-                  onError={(e) => {
-                    // On error (network or API unavailable), hide the image
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
-                    if (fallback) fallback.style.display = 'block';
-                  }}
-                />
-                {/* SVG fallback — hidden by default, shown if img fails */}
-                <div style={{ display: 'none' }}>
-                  <QRCodeSVG
-                    value={qrString}
-                    size={192}
-                    includeMargin={false}
-                    level="M"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-gray-400 font-medium text-center">
-                {t.qr_payment_instruction ||
-                  'Mở app ngân hàng → Quét QR → Kiểm tra số tiền → Xác nhận'}
-              </p>
-            </div>
-
-            {/* Bank info */}
-            <div className="bg-gray-50 rounded-2xl p-3 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_bank || 'Ngân hàng'}</span>
-                <span className="font-bold text-gray-700">{BANK_CONFIG.bankName}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_account || 'Số TK'}</span>
-                <span className="font-bold text-gray-700 font-mono">{BANK_CONFIG.accountNumber}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_account_name || 'Chủ TK'}</span>
-                <span className="font-bold text-gray-700 text-right max-w-[60%]">{BANK_CONFIG.accountName}</span>
-              </div>
-              {/* Payment reference */}
-              <div className="pt-1 border-t border-gray-200">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_ref || 'Nội dung CK'}</p>
-                    <p className="font-bold text-blue-700 text-sm font-mono">{paymentRef}</p>
+            {/* ── QR Tab ── */}
+            {activeTab === 'qr' && (
+              <>
+                {/* Demo mode banner — shown when OnePay is not fully configured */}
+                {isDemo && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
+                    <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-700 font-medium">
+                      {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Thông tin ngân hàng là giả, KHÔNG chuyển tiền thật'}
+                    </p>
                   </div>
+                )}
+                {/* Sandbox mode banner */}
+                {!isDemo && onepayEnvironment === 'sandbox' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-2.5 flex items-start gap-2">
+                    <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-blue-700 font-medium">
+                      {language === 'vi'
+                        ? '🔬 MÔI TRƯỜNG THỬ NGHIỆM (Sandbox) — Dùng thẻ test OnePay, KHÔNG dùng thẻ thật'
+                        : '🔬 SANDBOX ENVIRONMENT — Use OnePay test cards only, NOT real cards'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Auto-detected success */}
+                {autoDetected && (
+                  <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <Zap size={18} className="text-green-600 shrink-0" />
+                    <p className="text-sm text-green-700 font-bold">
+                      {language === 'vi'
+                        ? '✅ Đã nhận thanh toán! Đang xác nhận đơn hàng...'
+                        : language === 'ja'
+                        ? '✅ 支払いを受領しました！注文を確認中...'
+                        : '✅ Payment received! Confirming your order...'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Amount mismatch warning */}
+                {amountMismatch && !autoDetected && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-start gap-2">
+                    <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-red-700 font-medium">
+                      {language === 'vi'
+                        ? '⚠️ Số tiền hoặc nội dung chuyển khoản không khớp. Vui lòng kiểm tra lại.'
+                        : language === 'ja'
+                        ? '⚠️ 金額または振込内容が一致しません。ご確認ください。'
+                        : '⚠️ Payment amount or content does not match. Please check again.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* QR code */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="p-4 bg-white border-2 border-blue-100 rounded-2xl shadow-sm relative">
+                    <img
+                      src={qrImageUrl}
+                      alt="OnePay payment QR code"
+                      className="w-48 h-48 object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                        if (fallback) fallback.style.display = 'block';
+                      }}
+                    />
+                    <div style={{ display: 'none' }}>
+                      <QRCodeSVG value={qrString} size={192} includeMargin={false} level="M" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-medium text-center">
+                    {t.qr_payment_instruction || 'Mở app ngân hàng → Quét QR → Kiểm tra số tiền → Xác nhận'}
+                  </p>
+                </div>
+
+                {/* Bank info */}
+                <div className="bg-gray-50 rounded-2xl p-3 space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_bank || 'Ngân hàng'}</span>
+                    <span className="font-bold text-gray-700">{BANK_CONFIG.bankName}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_account || 'Số TK'}</span>
+                    <span className="font-bold text-gray-700 font-mono">{BANK_CONFIG.accountNumber}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_account_name || 'Chủ TK'}</span>
+                    <span className="font-bold text-gray-700 text-right max-w-[60%]">{BANK_CONFIG.accountName}</span>
+                  </div>
+                  <div className="pt-1 border-t border-gray-200">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_ref || 'Nội dung CK'}</p>
+                        <p className="font-bold text-blue-700 text-sm font-mono">{paymentRef}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+                          copied
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                        )}
+                      >
+                        {copied ? <CheckCircle size={13} /> : <Copy size={13} />}
+                        {copied ? (t.qr_payment_copied || 'Đã sao chép!') : (t.qr_payment_copy_ref || 'Sao chép')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 text-xs text-gray-500">
+                  <Info size={13} className="shrink-0 mt-0.5 text-blue-400" />
+                  <span>
+                    {language === 'vi'
+                      ? 'Nhập đúng nội dung chuyển khoản để vé được xác nhận tự động.'
+                      : language === 'ja'
+                      ? '自動確認のため、振込内容を正確に入力してください。'
+                      : 'Enter the exact payment reference for automatic ticket confirmation.'}
+                  </span>
+                </div>
+
+                {/* QR action buttons */}
+                <div className="flex gap-3 pt-1">
                   <button
                     type="button"
-                    onClick={handleCopy}
+                    onClick={onCancel}
+                    disabled={confirming}
+                    className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t.qr_payment_cancel || 'Huỷ'}
+                  </button>
+                  <motion.button
+                    type="button"
+                    onClick={handleConfirm}
+                    disabled={confirming || expired || autoDetected}
+                    whileTap={{ scale: 0.97 }}
                     className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
-                      copied
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      'flex-[2] py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-all',
+                      (confirming || autoDetected)
+                        ? 'bg-green-400 shadow-green-200 cursor-not-allowed'
+                        : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
                     )}
                   >
-                    {copied ? <CheckCircle size={13} /> : <Copy size={13} />}
-                    {copied
-                      ? (t.qr_payment_copied || 'Đã sao chép!')
-                      : (t.qr_payment_copy_ref || 'Sao chép')}
+                    {autoDetected
+                      ? (language === 'vi' ? 'Đang xác nhận...' : 'Confirming...')
+                      : confirming
+                      ? (t.qr_payment_pending || 'Đang xử lý...')
+                      : (t.qr_payment_confirm || 'Tôi đã thanh toán xong')}
+                  </motion.button>
+                </div>
+              </>
+            )}
+
+            {/* ── ATM Nội địa Tab ── */}
+            {activeTab === 'atm' && (
+              <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-start gap-2">
+                  <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-blue-700 font-medium">
+                    {language === 'vi'
+                      ? 'Thanh toán bằng thẻ ATM nội địa (VCB, ABBank, BIDV, Techcombank...)'
+                      : 'Pay with domestic ATM card (VCB, ABBank, BIDV, Techcombank...)'}
+                  </p>
+                </div>
+
+                {/* Bank select */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                    {language === 'vi' ? 'Ngân hàng phát hành thẻ' : 'Issuing bank'}
+                  </label>
+                  <select
+                    value={atmBank}
+                    onChange={e => setAtmBank(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  >
+                    <option value="">{language === 'vi' ? '-- Chọn ngân hàng --' : '-- Select bank --'}</option>
+                    {DOMESTIC_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+
+                {/* Card number */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                    {language === 'vi' ? 'Số thẻ ATM' : 'ATM card number'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={atmCardNumber}
+                    onChange={e => setAtmCardNumber(formatCardNumber(e.target.value))}
+                    placeholder="0000 0000 0000 0000"
+                    maxLength={19}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  />
+                </div>
+
+                {/* Expiry */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                    {language === 'vi' ? 'Ngày hết hạn' : 'Expiry date'} (MM/YY)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={atmExpiry}
+                    onChange={e => setAtmExpiry(formatExpiry(e.target.value))}
+                    placeholder="MM/YY"
+                    maxLength={5}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  />
+                </div>
+
+                {atmError && (
+                  <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                    <AlertTriangle size={12} /> {atmError}
+                  </p>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    disabled={confirming}
+                    className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {language === 'vi' ? 'Huỷ' : 'Cancel'}
                   </button>
+                  <motion.button
+                    type="button"
+                    onClick={handleAtmPay}
+                    disabled={confirming}
+                    whileTap={{ scale: 0.97 }}
+                    className={cn(
+                      'flex-[2] py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-all',
+                      confirming
+                        ? 'bg-green-400 shadow-green-200 cursor-not-allowed'
+                        : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
+                    )}
+                  >
+                    {confirming
+                      ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                      : (language === 'vi' ? '💳 Thanh toán ngay' : '💳 Pay Now')}
+                  </motion.button>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Auto-detection info note */}
-            <div className="flex items-start gap-2 text-xs text-gray-500">
-              <Info size={13} className="shrink-0 mt-0.5 text-blue-400" />
-              <span>
-                {language === 'vi'
-                  ? 'Nhập đúng nội dung chuyển khoản để vé được xác nhận tự động.'
-                  : language === 'ja'
-                  ? '自動確認のため、振込内容を正確に入力してください。'
-                  : 'Enter the exact payment reference for automatic ticket confirmation.'}
-              </span>
-            </div>
+            {/* ── Visa / Mastercard Tab ── */}
+            {activeTab === 'card' && (
+              <div className="space-y-3">
+                <div className="bg-purple-50 border border-purple-100 rounded-2xl px-4 py-3 flex items-start gap-2">
+                  <CreditCard size={14} className="text-purple-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-purple-700 font-medium">
+                    {language === 'vi'
+                      ? 'Thanh toán bằng thẻ quốc tế Visa hoặc Mastercard'
+                      : 'Pay with international Visa or Mastercard'}
+                  </p>
+                </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={onCancel}
-                disabled={confirming}
-                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {t.qr_payment_cancel || 'Huỷ'}
-              </button>
-              <motion.button
-                type="button"
-                onClick={handleConfirm}
-                disabled={confirming || expired || autoDetected}
-                whileTap={{ scale: 0.97 }}
-                className={cn(
-                  'flex-[2] py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-all',
-                  (confirming || autoDetected)
-                    ? 'bg-green-400 shadow-green-200 cursor-not-allowed'
-                    : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
+                {/* Card number */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                    {language === 'vi' ? 'Số thẻ' : 'Card number'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={intlCardNumber}
+                    onChange={e => setIntlCardNumber(formatCardNumber(e.target.value))}
+                    placeholder="0000 0000 0000 0000"
+                    maxLength={19}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                  />
+                </div>
+
+                {/* Cardholder name */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                    {language === 'vi' ? 'Tên chủ thẻ' : 'Cardholder name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={intlCardName}
+                    onChange={e => setIntlCardName(e.target.value.toUpperCase())}
+                    placeholder={language === 'vi' ? 'NGUYEN VAN A' : 'JOHN DOE'}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                  />
+                </div>
+
+                {/* Expiry + CVV */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                      {language === 'vi' ? 'Hết hạn' : 'Expiry'} (MM/YY)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={intlExpiry}
+                      onChange={e => setIntlExpiry(formatExpiry(e.target.value))}
+                      placeholder="MM/YY"
+                      maxLength={5}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
+                      CVV / CVC
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      value={intlCvv}
+                      onChange={e => setIntlCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="•••"
+                      maxLength={4}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    />
+                  </div>
+                </div>
+
+                {intlError && (
+                  <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                    <AlertTriangle size={12} /> {intlError}
+                  </p>
                 )}
-              >
-                {autoDetected
-                  ? (language === 'vi' ? 'Đang xác nhận...' : 'Confirming...')
-                  : confirming
-                  ? (t.qr_payment_pending || 'Đang xử lý...')
-                  : (t.qr_payment_confirm || 'Tôi đã thanh toán xong')}
-              </motion.button>
-            </div>
+
+                <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                  <Info size={11} className="shrink-0" />
+                  {language === 'vi'
+                    ? 'Thông tin thẻ được mã hoá an toàn. Chúng tôi không lưu trữ dữ liệu thẻ của bạn.'
+                    : 'Card details are securely encrypted. We do not store your card data.'}
+                </p>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    disabled={confirming}
+                    className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {language === 'vi' ? 'Huỷ' : 'Cancel'}
+                  </button>
+                  <motion.button
+                    type="button"
+                    onClick={handleIntlPay}
+                    disabled={confirming}
+                    whileTap={{ scale: 0.97 }}
+                    className={cn(
+                      'flex-[2] py-3 rounded-xl font-bold text-sm text-white shadow-lg transition-all',
+                      confirming
+                        ? 'bg-green-400 shadow-green-200 cursor-not-allowed'
+                        : 'bg-purple-600 shadow-purple-200 hover:bg-purple-700'
+                    )}
+                  >
+                    {confirming
+                      ? (language === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                      : (language === 'vi' ? '💳 Thanh toán ngay' : '💳 Pay Now')}
+                  </motion.button>
+                </div>
+              </div>
+            )}
           </div>
           )}
         </motion.div>
