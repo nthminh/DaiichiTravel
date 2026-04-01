@@ -1,4 +1,5 @@
 import { Route, RouteFare, SeatStatus } from '../types';
+import { getSegmentInfo } from '../lib/segmentUtils';
 
 const COMPANY_LOGO_URL =
   'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
@@ -109,19 +110,6 @@ const buildSegmentLabel = (seat: any, stopNameByOrder: Record<number, string>): 
   return `${fromName} → ${toName}`;
 };
 
-/**
- * Returns true when the seat occupies only a partial segment of the route
- * (i.e. the passenger boards or alights mid-route).
- */
-const isSeatSegment = (seat: any, totalStops: number): boolean => {
-  if (seat.segmentBookings && (seat.segmentBookings as any[]).length > 0) return true;
-  const fromOrder = seat.fromStopOrder as number | undefined;
-  const toOrder = seat.toStopOrder as number | undefined;
-  if (fromOrder != null && fromOrder > 1) return true;
-  if (toOrder != null && totalStops > 0 && toOrder < totalStops) return true;
-  return false;
-};
-
 // --- Public export functions ---
 
 // --- Excel download helper ---
@@ -179,7 +167,7 @@ export const exportTripToExcel = async (trip: any, bookings: any[], routes: any[
     [`Ngày giờ chạy: ${formatTripDisplayTime(trip)}`],
     [`Trạng thái: ${trip.status || '—'}`],
     [],
-    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Chặng đi', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
+    ['STT', 'Mã vé', 'Số ghế', 'Tên khách hàng', 'Số điện thoại', 'Điểm đón', 'Điểm trả', 'Loại chặng', 'Trạng thái', 'Giá vé (đ)', 'Ghi chú'],
   ];
 
   const dataRows = passengerGroups.map((g, idx) => {
@@ -188,8 +176,7 @@ export const exportTripToExcel = async (trip: any, bookings: any[], routes: any[
     const ticketCode = g.booking?.ticketCode || '—';
     const allPaid = g.seats.every((s: any) => s.status === SeatStatus.PAID);
     const totalAmount: number = g.booking?.amount ?? (trip.price || 0) * g.seats.length;
-    const segLabel = buildSegmentLabel(primarySeat, stopNameByOrder);
-    const isSeg = g.seats.some((s: any) => isSeatSegment(s, totalStops));
+    const segInfo = getSegmentInfo(primarySeat, totalStops, stopNameByOrder, 'vi');
     return [
       idx + 1,
       ticketCode,
@@ -198,7 +185,7 @@ export const exportTripToExcel = async (trip: any, bookings: any[], routes: any[
       primarySeat?.customerPhone || '—',
       getPickupDisplay(primarySeat) || '—',
       getDropoffDisplay(primarySeat) || '—',
-      isSeg ? (segLabel || 'Chặng lẻ') : 'Toàn tuyến',
+      segInfo.label,
       allPaid ? 'Đã thanh toán' : 'Đã đặt',
       totalAmount.toLocaleString(),
       primarySeat?.bookingNote || '',
@@ -210,13 +197,13 @@ export const exportTripToExcel = async (trip: any, bookings: any[], routes: any[
     0,
   );
   const segmentCount = passengerGroups.filter(g =>
-    g.seats.some((s: any) => isSeatSegment(s, totalStops)),
+    g.seats.some((s: any) => getSegmentInfo(s, totalStops, stopNameByOrder, 'vi').type !== 'full'),
   ).length;
 
   const summaryRows: (string | number)[][] = [
     [],
     [`Tổng số đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)`],
-    [`Khách chặng lẻ: ${segmentCount}`],
+    [`Nửa chặng: ${segmentCount}`],
     [`Tổng doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ`],
   ];
 
@@ -377,7 +364,7 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
     }
   }
   const sortedStopEntries = Array.from(stopSchedule.entries()).sort((a, b) => a[0] - b[0]);
-  const segmentGroupCount = passengerGroups.filter(g => g.seats.some((s: any) => isSeatSegment(s, totalStops))).length;
+  const segmentGroupCount = passengerGroups.filter(g => g.seats.some((s: any) => getSegmentInfo(s, totalStops, stopNameByOrder, 'vi').type !== 'full')).length;
 
   // Build addon → users map for the services section
   const pdfAddonMap = buildAddonUsersMap(trip, passengerGroups);
@@ -448,7 +435,10 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
     tr:nth-child(even) { background: #f9f9f9; }
     .group-row { background: #fff8e1 !important; }
     .segment-row { background: #e3f2fd !important; }
-    .segment-badge { font-size: 10px; color: #1565c0; background: #bbdefb; border-radius: 3px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
+    .badge { font-size: 10px; border-radius: 3px; padding: 2px 6px; white-space: nowrap; font-weight: bold; }
+    .badge-full { color: #15803d; background: #dcfce7; }
+    .badge-multi { color: #7e22ce; background: #f3e8ff; }
+    .badge-partial { color: #c2410c; background: #ffedd5; }
     .summary { margin-top: 16px; font-weight: bold; color: #cc2222; }
     @media print { button { display: none; } }
   </style>
@@ -468,7 +458,7 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
   <table>
     <thead>
       <tr>
-        <th>STT</th><th>Mã vé</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Điểm trả</th><th>Chặng đi</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
+        <th>STT</th><th>Mã vé</th><th>Số ghế</th><th>Tên khách</th><th>Số điện thoại</th><th>Điểm đón</th><th>Điểm trả</th><th>Loại chặng</th><th>Trạng thái</th><th>Giá vé</th><th>Ghi chú</th>
       </tr>
     </thead>
     <tbody>
@@ -479,19 +469,19 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
         const allPaid = g.seats.every((s: any) => s.status === 'PAID');
         const totalAmount = g.booking?.amount ?? (trip.price || 0) * g.seats.length;
         const isGroup = g.seats.length > 1;
-        const isSeg = g.seats.some((s: any) => isSeatSegment(s, totalStops));
-        const segLabel = isSeg ? buildSegmentLabel(primarySeat, stopNameByOrder) : '';
-        const rowClass = isSeg ? 'segment-row' : (isGroup ? 'group-row' : '');
+        const segInfo = getSegmentInfo(primarySeat, totalStops, stopNameByOrder, 'vi');
+        const rowClass = segInfo.type !== 'full' ? 'segment-row' : (isGroup ? 'group-row' : '');
+        const badgeClass = segInfo.type === 'full' ? 'badge-full' : segInfo.type === 'multi' ? 'badge-multi' : 'badge-partial';
         return `
         <tr${rowClass ? ` class="${rowClass}"` : ''}>
           <td>${i + 1}</td>
           <td>${escapeHtml(ticketCode)}</td>
           <td>${escapeHtml(seatIds)}${isGroup ? ' 👥' : ''}</td>
-          <td>${escapeHtml(primarySeat.customerName) || '—'}${isSeg ? '<br><span class="segment-badge">🚏 Chặng lẻ</span>' : ''}</td>
+          <td>${escapeHtml(primarySeat.customerName) || '—'}</td>
           <td>${escapeHtml(primarySeat.customerPhone) || '—'}</td>
           <td>${escapeHtml(getPickupDisplay(primarySeat)) || '—'}</td>
           <td>${escapeHtml(getDropoffDisplay(primarySeat)) || '—'}</td>
-          <td>${segLabel ? escapeHtml(segLabel) : '<span style="color:#bbb;font-size:11px;">Toàn tuyến</span>'}</td>
+          <td><span class="badge ${badgeClass}">${escapeHtml(segInfo.label)}</span></td>
           <td>${allPaid ? 'Đã TT' : 'Đã đặt'}</td>
           <td>${totalAmount.toLocaleString()}đ</td>
           <td>${escapeHtml(primarySeat.bookingNote) || ''}</td>
@@ -500,7 +490,7 @@ export const exportTripToPDF = (trip: any, bookings: any[], routes: Route[]) => 
     </tbody>
   </table>
   <div class="summary">
-    <p>Tổng đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)${segmentGroupCount > 0 ? ` | <span style="color:#1565c0;">Khách chặng lẻ: ${segmentGroupCount}</span>` : ''} | Doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ</p>
+    <p>Tổng đặt chỗ: ${passengerGroups.length} (${bookedSeats.length} ghế)${segmentGroupCount > 0 ? ` | <span style="color:#c2410c;">Nửa chặng: ${segmentGroupCount}</span>` : ''} | Doanh thu dự kiến: ${totalRevenue.toLocaleString()}đ</p>
   </div>
   ${stopScheduleSection}
   ${addonsSection}
