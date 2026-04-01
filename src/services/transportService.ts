@@ -494,6 +494,16 @@ export const transportService = {
     await updateDoc(ref, updates as Record<string, unknown>);
   },
 
+  // Batch create multiple tours at once (e.g. same template, different departure dates)
+  addToursBatch: async (tours: TourData[]) => {
+    if (!db) throw new Error('Firebase not configured');
+    const batch = writeBatch(db);
+    const refs = tours.map(() => doc(collection(db, 'tours')));
+    refs.forEach((ref, i) => batch.set(ref, { ...tours[i], createdAt: Timestamp.now() }));
+    await batch.commit();
+    return refs;
+  },
+
   // ===== SETTINGS / PERMISSIONS METHODS =====
 
   // Get role permissions from Firestore
