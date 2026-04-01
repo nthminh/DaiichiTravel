@@ -13,7 +13,7 @@ import { transportService } from '../services/transportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ToastContainer';
 import { exportRowsToExcel } from '../utils/exportUtils';
-import { nowVN } from '../lib/vnDate';
+import { nowVN, formatBookingDate } from '../lib/vnDate';
 
 interface BookingRow {
   bookingId: string;          // booking document id, or synthetic key for unmatched seats
@@ -479,7 +479,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       rows.map(r => ({
         [language === 'vi' ? 'Loại' : 'Type']: section,
         [language === 'vi' ? 'Tuyến' : 'Route']: r.tripRoute,
-        [language === 'vi' ? 'Ngày' : 'Date']: r.tripDate,
+        [language === 'vi' ? 'Ngày' : 'Date']: formatBookingDate(r.tripDate),
         [language === 'vi' ? 'Giờ' : 'Time']: r.tripTime,
         [language === 'vi' ? 'Biển số' : 'Plate']: r.licensePlate,
         [language === 'vi' ? 'Ghế' : 'Seat']: r.seatLabels,
@@ -577,7 +577,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                     <td className="px-5 py-4">
                       <p className="font-bold text-gray-800">{row.tripRoute}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {row.tripDate}{row.tripTime && ` • ${row.tripTime}`}
+                        {formatBookingDate(row.tripDate)}{row.tripTime && ` • ${row.tripTime}`}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <Bus size={11} className="text-gray-400" />
@@ -625,12 +625,12 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
                         </div>
                       ) : (
                         <div>
+                          {(isPickup ? row.pickupAddressDetail : row.dropoffAddressDetail) && (
+                            <p className="text-[11px] text-gray-400 mb-0.5">{isPickup ? row.pickupAddressDetail : row.dropoffAddressDetail}</p>
+                          )}
                           <span className={cn('text-sm', (isPickup ? row.pickupAddress : row.dropoffAddress) ? 'text-gray-700' : 'text-gray-300')}>
                             {(isPickup ? row.pickupAddress : row.dropoffAddress) || '—'}
                           </span>
-                          {(isPickup ? row.pickupAddressDetail : row.dropoffAddressDetail) && (
-                            <p className="text-[11px] text-gray-400 mt-0.5">{isPickup ? row.pickupAddressDetail : row.dropoffAddressDetail}</p>
-                          )}
                         </div>
                       )}
                     </td>
@@ -906,7 +906,7 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
               {/* Task summary */}
               <div className="bg-gray-50 rounded-2xl p-4 space-y-1.5 text-sm">
                 <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Tuyến:' : 'Route:'}</span><span className="font-semibold">{assignRow.tripRoute}</span></div>
-                <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Ngày/Giờ:' : 'Date/Time:'}</span><span>{assignRow.tripDate} {assignRow.tripTime}</span></div>
+                <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Ngày/Giờ:' : 'Date/Time:'}</span><span>{formatBookingDate(assignRow.tripDate)} {assignRow.tripTime}</span></div>
                 <div className="flex gap-2"><span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Khách:' : 'Customer:'}</span><span>{assignRow.customerName} {assignRow.customerPhone}</span></div>
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-20 shrink-0">{language === 'vi' ? 'Số khách:' : 'Pax:'}</span>

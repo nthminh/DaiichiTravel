@@ -6,6 +6,7 @@ import { TRANSLATIONS } from '../constants/translations';
 import type { Language } from '../constants/translations';
 import { DriverAssignment } from '../types';
 import { transportService } from '../services/transportService';
+import { formatBookingDate } from '../lib/vnDate';
 
 interface DriverTaskPanelProps {
   language: Language;
@@ -119,7 +120,7 @@ export const DriverTaskPanel: React.FC<DriverTaskPanelProps> = ({
             <Bus size={11} />
             <span>{a.licensePlate || '—'}</span>
             <span>•</span>
-            <span>{a.tripDate} {a.tripTime}</span>
+            <span>{formatBookingDate(a.tripDate)} {a.tripTime}</span>
           </div>
         </div>
       </div>

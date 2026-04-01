@@ -476,7 +476,7 @@ export const TourOperationsPage: React.FC<TourOperationsPageProps> = ({
                       </p>
                       <p className="text-xs text-gray-400">{b.duration}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{b.date}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatBookingDate(b.date)}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-gray-700 font-medium">{(b.adults || 0) + (b.children || 0)}</span>
                       <span className="text-xs text-gray-400 ml-1">({b.adults || 0}+{b.children || 0})</span>
