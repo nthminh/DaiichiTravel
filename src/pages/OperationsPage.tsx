@@ -27,6 +27,8 @@ interface OperationsPageProps {
   setShowTripAdvancedFilter: React.Dispatch<React.SetStateAction<boolean>>;
   tripFilterRoute: string;
   setTripFilterRoute: (v: string) => void;
+  tripFilterDate: string;
+  setTripFilterDate: (v: string) => void;
   tripFilterStatus: string;
   setTripFilterStatus: (v: string) => void;
   tripFilterDateFrom: string;
@@ -144,6 +146,8 @@ export function OperationsPage({
   setShowTripAdvancedFilter,
   tripFilterRoute,
   setTripFilterRoute,
+  tripFilterDate,
+  setTripFilterDate,
   tripFilterStatus,
   setTripFilterStatus,
   tripFilterDateFrom,
@@ -296,6 +300,7 @@ export function OperationsPage({
     // Quick dropdown filters
     if (tripFilterStatus !== 'ALL' && trip.status !== tripFilterStatus) return false;
     if (tripFilterRoute && trip.route !== tripFilterRoute) return false;
+    if (tripFilterDate && trip.date !== tripFilterDate) return false;
     if (tripFilterTime && trip.time !== tripFilterTime) return false;
     if (tripFilterVehicle && trip.licensePlate !== tripFilterVehicle) return false;
     if (tripFilterDriver && trip.driverName !== tripFilterDriver) return false;
@@ -321,12 +326,12 @@ export function OperationsPage({
   // dependencies) defined without useCallback in App.tsx, so excluding it avoids
   // unnecessary memoization invalidations on every App render.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [trips, tripFilterStatus, tripFilterRoute, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripFilterDaysOfWeek, tripSearch]);
+  [trips, tripFilterStatus, tripFilterRoute, tripFilterDate, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripFilterDaysOfWeek, tripSearch]);
 
   // Reset to page 1 whenever active filters change
   React.useEffect(() => {
     setCurrentTripPage(1);
-  }, [tripSearch, tripFilterStatus, tripFilterRoute, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDaysOfWeek]);
+  }, [tripSearch, tripFilterStatus, tripFilterRoute, tripFilterDate, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDaysOfWeek]);
 
   const totalTripPages = Math.max(1, Math.ceil(filteredTrips.length / TRIPS_PER_PAGE));
   const safeTripPage = Math.min(currentTripPage, totalTripPages);
@@ -884,6 +889,12 @@ export function OperationsPage({
           <option value="">{t.all_routes}</option>
           {routes.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
         </select>
+        <input
+          type="date"
+          value={tripFilterDate}
+          onChange={e => setTripFilterDate(e.target.value)}
+          className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterDate ? 'bg-daiichi-red text-white border-daiichi-red [color-scheme:dark]' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+        />
         <select
           value={tripFilterTime}
           onChange={e => setTripFilterTime(e.target.value)}
@@ -920,9 +931,9 @@ export function OperationsPage({
             <option key={count} value={count}>{count} {language === 'vi' ? 'ghế' : 'seats'}</option>
           ))}
         </select>
-        {(tripFilterRoute || tripFilterTime || tripFilterVehicle || tripFilterDriver || tripFilterSeatCount) && (
+        {(tripFilterRoute || tripFilterDate || tripFilterTime || tripFilterVehicle || tripFilterDriver || tripFilterSeatCount) && (
           <button
-            onClick={() => { setTripFilterRoute(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterSeatCount(''); }}
+            onClick={() => { setTripFilterRoute(''); setTripFilterDate(''); setTripFilterTime(''); setTripFilterVehicle(''); setTripFilterDriver(''); setTripFilterSeatCount(''); }}
             className="px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1"
           >
             <X size={12} /> {language === 'vi' ? 'Xóa lọc' : 'Clear'}
