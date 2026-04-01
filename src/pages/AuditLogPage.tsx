@@ -42,14 +42,21 @@ interface Session {
   activities: AuditLog[];
 }
 
+/**
+ * Groups audit log entries into sessions based on LOGIN/LOGOUT pairs.
+ * Each session represents a login-to-logout period for a given user.
+ * Activities occurring between LOGIN and LOGOUT are associated with that session.
+ */
 function buildSessions(logs: AuditLog[]): Session[] {
   const chronological = [...logs].reverse();
   const sessions: Session[] = [];
+  // Maps actorId → the most recently opened session for that actor
   const openSessions: Record<string, Session> = {};
 
   for (const log of chronological) {
     if (log.action === 'LOGIN') {
-      const key = `${log.actorId}_${log.createdAt}`;
+      // Use log.id as the unique session key to avoid collisions
+      const key = log.id;
       const session: Session = {
         sessionKey: key,
         actorId: log.actorId,
