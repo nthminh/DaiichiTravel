@@ -30,6 +30,20 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Property images (cruise, resort, homestay): public read, validated write (images only, max 5 MB)
+    match /properties/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size <= 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Room-type images: public read, validated write (images only, max 5 MB)
+    match /room_types/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size <= 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     // All other paths: public read only; no unauthenticated writes
     match /{allPaths=**} {
       allow read: if true;

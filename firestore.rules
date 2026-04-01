@@ -269,6 +269,17 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Properties (cruise ships, resorts, homestays): public read, authenticated write
+    match /properties/{property} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+    // Room types subcollection of each property
+    match /properties/{property}/room_types/{roomType} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // Block all other paths not explicitly listed above (recursive wildcard)
     match /{path=**} {
       allow read, write: if false;
