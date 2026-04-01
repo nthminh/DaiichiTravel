@@ -1312,8 +1312,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       const effectiveDropoffDetail = viewingBooking.dropoffAddressDetail || seatLookup?.dropoffAddressDetail;
                       const effectivePickupStopAddress = viewingBooking.pickupStopAddress || seatLookup?.pickupStopAddress;
                       const effectiveDropoffStopAddress = viewingBooking.dropoffStopAddress || seatLookup?.dropoffStopAddress;
-                      const fullPickup = [effectivePickupDetail, effectivePickupAddress, effectivePickupStopAddress].filter(Boolean).join(' & ');
-                      const fullDropoff = [effectiveDropoffDetail, effectiveDropoffAddress, effectiveDropoffStopAddress].filter(Boolean).join(' & ');
+                      const fullPickup = [effectivePickupDetail, effectivePickupAddress, effectivePickupStopAddress].filter(Boolean).join(' ');
+                      const fullDropoff = [effectiveDropoffDetail, effectiveDropoffAddress, effectiveDropoffStopAddress].filter(Boolean).join(' ');
                       return <>
                         {viewingBooking.type !== 'TOUR' && viewingBooking.pickupPoint && (
                           <div className="p-4 bg-blue-50 rounded-2xl">

@@ -1332,8 +1332,8 @@ export function OperationsPage({
                         {passengerColVisibility.name && <td className="px-4 py-3 font-medium">{primarySeat.customerName || '—'}</td>}
                         {passengerColVisibility.phone && <td className="px-4 py-3 text-gray-600">{primarySeat.customerPhone || '—'}</td>}
                         {passengerColVisibility.segment && <td className="px-4 py-3"><span className={cn('px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap', segInfo.type === 'full' ? 'bg-green-100 text-green-700' : segInfo.type === 'multi' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700')} title={segInfo.label}>{segInfo.label}</span></td>}
-                        {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{[primarySeat.pickupAddressDetail, primarySeat.pickupAddress, primarySeat.pickupStopAddress].filter(Boolean).join(' & ') || '—'}</td>}
-                        {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{[primarySeat.dropoffAddressDetail, primarySeat.dropoffAddress, primarySeat.dropoffStopAddress].filter(Boolean).join(' & ') || '—'}</td>}
+                        {passengerColVisibility.pickup && <td className="px-4 py-3 text-gray-600">{[primarySeat.pickupAddressDetail, primarySeat.pickupAddress, primarySeat.pickupStopAddress].filter(Boolean).join(' ') || '—'}</td>}
+                        {passengerColVisibility.dropoff && <td className="px-4 py-3 text-gray-600">{[primarySeat.dropoffAddressDetail, primarySeat.dropoffAddress, primarySeat.dropoffStopAddress].filter(Boolean).join(' ') || '—'}</td>}
                         {passengerColVisibility.status && <td className="px-4 py-3">
                           <span className={cn('px-2 py-1 rounded-full text-xs font-bold', rowStatus === SeatStatus.PAID ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
                             {rowStatus === SeatStatus.PAID ? (language === 'vi' ? 'Đã TT' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
