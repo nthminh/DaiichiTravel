@@ -1098,7 +1098,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
               className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số trẻ em (>4 tuổi)' : 'Children (>4 yrs)'}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Số trẻ em (từ 4 tuổi)' : 'Children (age 4+)'}</label>
             <input type="number" min="0" value={form.numChildren}
               onChange={e => setForm(prev => ({ ...prev, numChildren: parseInt(e.target.value) || 0 }))}
               className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-daiichi-red/10 focus:outline-none" />

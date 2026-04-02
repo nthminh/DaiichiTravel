@@ -1168,7 +1168,7 @@ export function SeatMappingPage({
                 {children > 0 && (
                   <div className="p-2 bg-blue-50 rounded-xl border border-blue-100 space-y-1.5">
                     <p className="text-xs font-bold text-blue-600 uppercase">{t.enter_child_ages || "Enter each child's age"}</p>
-                    <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 5 and above are charged ticket price; aged 4 and below are free'}</p>
+                    <p className="text-[10px] text-blue-400">{t.child_age_note || 'Children aged 4 and above are charged ticket price; children under 4 are free'}</p>
                     <div className="grid grid-cols-3 gap-2">
                       {Array.from({ length: children }).map((_, i) => (
                         <div key={i} className="relative">
@@ -1183,12 +1183,12 @@ export function SeatMappingPage({
                               const parsed = parseInt(e.target.value);
                               ages[i] = e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : Math.min(17, Math.max(0, parsed)));
                               setChildrenAges(ages);
-                              const newOver5Count = ages.filter(age => (age ?? 0) >= 5).length;
-                              setExtraSeatIds(prev => prev.slice(0, newOver5Count));
+                              const newOver4Count = ages.filter(age => (age ?? 0) >= 4).length;
+                              setExtraSeatIds(prev => prev.slice(0, newOver4Count));
                             }}
                             className="w-full px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 text-center"
                           />
-                          {(childrenAges[i] ?? 0) >= 5 && (
+                          {(childrenAges[i] ?? 0) >= 4 && (
                             <span className="absolute -top-2 -right-1 bg-daiichi-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                               {t.child_counted_as_adult || 'Adult'}
                             </span>
