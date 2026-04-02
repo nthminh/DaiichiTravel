@@ -618,11 +618,15 @@ export const transportService = {
     if (!db) return [];
     const q = query(
       collection(db, 'bookings'),
-      where('tourId', '==', tourId),
-      orderBy('createdAt', 'asc')
+      where('tourId', '==', tourId)
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Booking[];
+    const bookings = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Booking[];
+    return bookings.sort((a, b) => {
+      const aTime = (a.createdAt as any)?.toMillis?.() ?? (a.createdAt as any)?.seconds * 1000 ?? 0;
+      const bTime = (b.createdAt as any)?.toMillis?.() ?? (b.createdAt as any)?.seconds * 1000 ?? 0;
+      return aTime - bTime;
+    });
   },
 
   // ===== SETTINGS / PERMISSIONS METHODS =====

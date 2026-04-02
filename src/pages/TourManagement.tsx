@@ -1886,7 +1886,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                                   <BedDouble size={10} />
                                   <span className="truncate max-w-[100px]" title={rt.name}>{rt.name}</span>
                                   <span className={`ml-0.5 font-bold ${remaining <= 0 ? 'text-red-500' : remaining <= 2 ? 'text-amber-600' : 'text-teal-700'}`}>
-                                    ({remaining > 0 ? (language === 'vi' ? `còn ${remaining}` : `${remaining} left`) : (language === 'vi' ? 'hết phòng' : 'full')})
+                                    ({booked}/{rt.totalRooms})
                                   </span>
                                 </span>
                               );
