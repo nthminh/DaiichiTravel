@@ -192,6 +192,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
       const environment = ((saved.onepayEnvironment as string) === 'production' ? 'production' : 'sandbox') as 'sandbox' | 'production';
       const gatewayType = ((saved.onepayGatewayType as string) === 'international' ? 'international' : 'domestic') as 'domestic' | 'international';
       const returnUrl = (saved.onepayReturnUrl as string) || window.location.origin;
+      const ipnUrl = (saved.onepayIpnUrl as string) || '';
 
       setOnepayEnabled(enabled);
       setOnepayEnvironment(environment);
@@ -209,6 +210,9 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
             customerIp: '127.0.0.1',
             returnUrl,
             locale: 'vn',
+            // Pass the IPN URL so OnePay knows where to deliver payment notifications.
+            // Without this, the onepayIpn Cloud Function is never called.
+            callbackUrl: ipnUrl || undefined,
           }
         )
           .then(url => setOnepayQrString(url))

@@ -39,6 +39,7 @@ Hiện không có lỗ hổng bảo mật đang mở. Tất cả đã được k
 | `functions/package.json` | `xlsx` HIGH CVE (không có bản vá) | `xlsx` vẫn còn trong Cloud Functions | Thay thế hoàn toàn bằng `exceljs` (không có CVE). `xlsx` đã bị xóa khỏi toàn bộ dự án. |
 | `functions/package.json` | Xung đột peer dependency `firebase-admin` / `firebase-functions` | `firebase-admin@^13.7.0` không tương thích với `firebase-functions@^4.9.0` (chỉ hỗ trợ admin v10–v12); `firebase deploy` thất bại ở bước `npm install` | Cập nhật sang `firebase-admin@^12.1.1` + `firebase-functions@^5.0.1`. Xem: [`docs/firebase-deploy-guide.md`](./firebase-deploy-guide.md). |
 | `functions/node_modules/@tootallnate/once` | Low – GHSA-vpq2-c234-7xj6 | Incorrect Control Flow Scoping (qua chuỗi `firebase-functions` → `firebase-admin` → `@google-cloud/storage` → `teeny-request` → `http-proxy-agent`) | Nâng cấp `firebase-functions` lên `^5.0.1` loại bỏ phụ thuộc này. Không còn xuất hiện trong `npm audit`. |
+| `src/services/onepayService.ts`, `src/components/PaymentQRModal.tsx`, `src/pages/Settings.tsx` | **IPN (onepayIpn) không bao giờ được gọi** | `createOnepayPaymentUrl()` không bao giờ thêm `vpc_CallbackURL` vào request → OnePay không biết phải gửi IPN về đâu. Đồng thời Settings không có trường `onepayIpnUrl` để cấu hình. Docs hướng dẫn sai URL Cloud Function (v1 format `cloudfunctions.net` thay vì v2 Cloud Run `*.a.run.app`). | Thêm trường `callbackUrl?` vào `OnepayPaymentParams`; thêm `onepayIpnUrl` vào Settings; `PaymentQRModal` đọc và truyền URL vào `vpc_CallbackURL`. Cập nhật docs với URL đúng và checklist mới. |
 
 ---
 
@@ -56,4 +57,5 @@ Hiện không có lỗ hổng bảo mật đang mở. Tất cả đã được k
 | **xlsx client-side (HIGH CVE)** | 1 | ✅ Đã khắc phục – chuyển sang Cloud Functions + thay bằng `exceljs` |
 | **Xung đột peer dependency `firebase-admin` / `firebase-functions`** | 1 | ✅ Đã khắc phục – `firebase-admin@^12.1.1` + `firebase-functions@^5.0.1` |
 | **Lỗ hổng `@tootallnate/once`** | 1 (Low) | ✅ Đã khắc phục – giải quyết khi nâng `firebase-functions` lên v5 |
+| **IPN onepayIpn không bao giờ được gọi** | 1 (3 files + 2 docs) | ✅ Đã khắc phục – thêm `vpc_CallbackURL`, trường IPN URL trong Settings, cập nhật docs |
 

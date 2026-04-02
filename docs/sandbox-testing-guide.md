@@ -89,25 +89,30 @@ Dùng phương pháp này để kiểm thử mã QR thực sự được quét b
 
 ---
 
-### Bước 2 – Đăng Ký IPN URL Tại OnePay Portal
+### Bước 2 – Cấu Hình IPN URL Trong Ứng Dụng
 
-IPN (Instant Payment Notification) là URL mà OnePay gọi sau khi giao dịch hoàn tất.
+> ⚠️ **Quan trọng:** Đây là bước thường bị bỏ qua nhất và là nguyên nhân chính khiến `onepayIpn` không bao giờ hoạt động (0 requests).
 
-1. Xác định URL của Cloud Function:
-   ```
-   https://asia-southeast1-{PROJECT_ID}.cloudfunctions.net/onepayIpn
-   ```
-   Thay `{PROJECT_ID}` bằng ID Firebase project của bạn.
+1. Xác định URL của Cloud Function `onepayIpn`:
+   - Vào [Firebase Console](https://console.firebase.google.com) → **Functions**
+   - Tìm hàng `onepayIpn` → click link dưới cột **Trigger** (dạng `https://onepayipn-xxxxxxxx-as.a.run.app`)
+   - **⚠️ Dùng URL này (Cloud Run, `*.a.run.app`), KHÔNG dùng dạng cũ** `https://asia-southeast1-{PROJECT_ID}.cloudfunctions.net/onepayIpn`
 
-2. Đăng nhập vào OnePay Merchant Portal Sandbox:
+2. Điền URL vào Settings ứng dụng:
+   - Đăng nhập MANAGER → Sidebar → **Cài đặt** → OnePay Vietnam
+   - Điền vào trường **IPN URL — Cloud Function onepayIpn (vpc_CallbackURL)**
+   - Bấm **Lưu cài đặt**
+   - URL này sẽ được tự động thêm vào mỗi yêu cầu thanh toán dưới dạng `vpc_CallbackURL`
+
+3. (Khuyến nghị thêm) Đăng nhập vào OnePay Merchant Portal Sandbox:
    `https://mtf.onepay.vn/merchant`
-
-3. Trong phần cấu hình merchant, đăng ký **IPN URL** với địa chỉ trên.
+   - Đăng ký URL trên làm **Static IPN URL** để OnePay luôn gọi đúng URL
+   - Đây là lớp bảo vệ thứ hai phòng khi tham số `vpc_CallbackURL` bị mất
 
 4. Đảm bảo Firebase Secret `ONEPAY_HASH_KEY` đã được set:
    ```bash
    firebase functions:secrets:set ONEPAY_HASH_KEY
-   # Nhập Hash Key dạng hex khi được hỏi
+   # Nhập Hash Key dạng hex khi được hỏi (phải khớp với Hash Key trong Settings)
    firebase deploy --only functions
    ```
 
@@ -162,11 +167,12 @@ Sau khi OnePay xử lý thanh toán:
 ### Phương Pháp 2 (OnePay Sandbox)
 - [ ] Đã có tài khoản merchant sandbox từ OnePay
 - [ ] Đã cấu hình OnePay trong Settings (bước 1 phía trên)
-- [ ] Firebase Secret `ONEPAY_HASH_KEY` đã được set và deploy
-- [ ] IPN URL đã đăng ký tại OnePay portal
+- [ ] **Đã điền IPN URL** (`onepayIpn` Cloud Function URL dạng `*.a.run.app`) vào trường IPN URL trong Settings ← quan trọng nhất
+- [ ] Firebase Secret `ONEPAY_HASH_KEY` đã được set và deploy (phải khớp với Hash Key trong Settings)
+- [ ] (Khuyến nghị) IPN URL đã đăng ký tại OnePay portal
 - [ ] Đã kiểm tra URL Cloud Function hoạt động:
   ```bash
-  curl -X GET "https://asia-southeast1-{PROJECT_ID}.cloudfunctions.net/onepayIpn?test=1"
+  curl -X GET "https://onepayipn-xxxxxxxx-as.a.run.app?test=1"
   # Kết quả mong đợi: HTTP 400 (missing vpc_SecureHash – chứng tỏ function đang chạy)
   ```
 
@@ -193,6 +199,11 @@ Sau khi OnePay xử lý thanh toán:
   - Nếu hiện banner **vàng**: chưa cấu hình OnePay → dùng Phương pháp 1.
   - Nếu hiện banner **xanh**: đã cấu hình nhưng URL QR vẫn lỗi → kiểm tra credentials.
 - Mở URL QR trong trình duyệt để xem thông báo lỗi từ OnePay.
+
+### OnePay Sandbox thanh toán xong nhưng vé không được tạo tự động (IPN không gọi đến)
+- **Nguyên nhân chính:** Trường **IPN URL** trong Settings chưa được điền → mỗi request thanh toán thiếu tham số `vpc_CallbackURL` → OnePay không biết phải gọi IPN về đâu.
+- **Kiểm tra:** Mở DevTools → tab Network → tìm URL thanh toán OnePay được tạo ra. URL phải chứa `vpc_CallbackURL=https%3A%2F%2Fonepayipn...`. Nếu không có tham số này, vào Settings → OnePay Vietnam → điền IPN URL.
+- **Kiểm tra thứ hai:** Vào Firebase Console → Functions → xem cột "Requests (24 hrs)" của hàm `onepayIpn`. Nếu vẫn là 0 sau khi điền IPN URL và thanh toán thử, kiểm tra URL Cloud Function có chính xác không (dạng `https://onepayipn-xxxxxxxx-as.a.run.app`).
 
 ### OnePay trả về lỗi "Chữ ký không hợp lệ"
 - Hash Key trong Settings phải là chuỗi **hex** (chỉ ký tự 0-9, A-F), không phải Base64.
