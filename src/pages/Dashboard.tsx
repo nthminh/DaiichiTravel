@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Bus, Users, ChevronRight,
+  Bus, Users,
   Download, Filter, Calendar as CalendarIcon, Search,
   User,
   MapPin, Clock, CreditCard, Tag, Edit3, Trash2, X, Check,
@@ -42,6 +42,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   // Consignment filter state
   const [consignmentSearch, setConsignmentSearch] = useState('');
   const [consignmentStatusFilter, setConsignmentStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'DELIVERED'>('ALL');
+  const [consignmentPage, setConsignmentPage] = useState(1);
+  const CONSIGNMENTS_PER_PAGE = 50;
 
   // Column widths state
   const [colWidths, setColWidths] = useState({
@@ -267,6 +269,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     return searchMatches && matchesStatus;
   });
 
+  const consignmentTotalPages = Math.max(1, Math.ceil(filteredConsignments.length / CONSIGNMENTS_PER_PAGE));
+  const pagedConsignments = filteredConsignments.slice((consignmentPage - 1) * CONSIGNMENTS_PER_PAGE, consignmentPage * CONSIGNMENTS_PER_PAGE);
+
   // For agents: stats are scoped to their own data; for managers: show all
   const scopedBookings = isAgent
     ? bookings.filter(b =>
@@ -305,13 +310,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     }
   };
 
-  const recentActivities = sortedScopedBookings.slice(0, 3).map(b => ({
-    msg: language === 'vi'
-      ? `Đặt chỗ mới: ${b.customerName || ''} - ${b.route || ''}`
-      : `New booking: ${b.customerName || ''} - ${b.route || ''}`,
-    time: formatActivityTime(b.createdAt),
-    type: 'info' as 'info' | 'success' | 'error',
-  }));
 
   // ── Statistics computations ──────────────────────────────────────────────
   const totalTrips = trips.length;
@@ -968,59 +966,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
         </div>
 
         {/* Stats Section - horizontal grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          {/* Upcoming Trips */}
-          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">{t.upcoming_trips}</h3>
-            <div className="space-y-4">
-              {trips.filter(t => t.status === TripStatus.WAITING).sort((a, b) => {
-                const aKey = `${a.date || ''}T${a.time || ''}`;
-                const bKey = `${b.date || ''}T${b.time || ''}`;
-                return aKey.localeCompare(bKey);
-              }).slice(0, 4).map((trip, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-transparent hover:border-daiichi-red/10 hover:bg-white hover:shadow-md transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-16 bg-white rounded-2xl flex flex-col items-center justify-center font-bold text-daiichi-red border border-gray-100 shadow-sm group-hover:bg-daiichi-red group-hover:text-white transition-colors">
-                      <Clock size={16} className="mb-0.5" />
-                      <span className="text-xs">{trip.time}</span>
-                      {trip.date && <span className="text-[9px] font-medium opacity-70 leading-tight">{trip.date.split('-').reverse().join('/')}</span>}
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-800">{trip.licensePlate}</p>
-                      <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                        <User size={12} />
-                        <span>{trip.driverName}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="text-gray-300 group-hover:text-daiichi-red transition-colors" size={20} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">{t.recent_activity}</h3>
-            <div className="space-y-6">
-              {recentActivities.length === 0 ? (
-                <p className="text-sm text-gray-400">{language === 'vi' ? 'Chưa có hoạt động nào' : 'No recent activity'}</p>
-              ) : recentActivities.map((log, i) => (
-                <div key={i} className="flex gap-4 relative">
-                  {i !== recentActivities.length - 1 && <div className="absolute left-[7px] top-6 w-[2px] h-10 bg-gray-100" />}
-                  <div className={cn(
-                    "w-4 h-4 mt-1.5 rounded-full border-4 border-white shadow-sm ring-1 ring-gray-100",
-                    log.type === 'success' ? 'bg-green-500' : log.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-                  )} />
-                  <div>
-                    <p className="text-sm font-bold text-gray-700 leading-tight">{log.msg}</p>
-                    <p className="text-xs text-gray-400 mt-1">{log.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Consignment / Shipping Table */}
@@ -1040,7 +985,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
               {(['ALL', 'PENDING', 'PICKED_UP', 'DELIVERED'] as const).map(s => (
                 <button
                   key={s}
-                  onClick={() => setConsignmentStatusFilter(s)}
+                  onClick={() => { setConsignmentStatusFilter(s); setConsignmentPage(1); }}
                   className={cn(
                     "px-3 py-1 rounded-lg text-[10px] font-bold transition-all",
                     consignmentStatusFilter === s ? "bg-daiichi-red text-white" : "text-gray-500"
@@ -1063,7 +1008,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 type="text"
                 placeholder={language === 'vi' ? 'Tìm theo tên, SĐT...' : 'Search by name, phone...'}
                 value={consignmentSearch}
-                onChange={e => setConsignmentSearch(e.target.value)}
+                onChange={e => { setConsignmentSearch(e.target.value); setConsignmentPage(1); }}
                 className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10 w-56"
               />
             </div>
@@ -1113,7 +1058,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                     {language === 'vi' ? 'Chưa có đơn hàng nào' : 'No consignments found'}
                   </td>
                 </tr>
-              ) : filteredConsignments.map(c => (
+              ) : pagedConsignments.map(c => (
                 <tr key={c.id} className="group hover:bg-gray-50/50 transition-colors">
                   <td className="py-4">
                     <p className="font-bold text-gray-800 text-sm">{c.senderName || c.sender || '—'}</p>
@@ -1152,9 +1097,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
             </tbody>
           </table>
         </div>
+        {consignmentTotalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t border-gray-50 mt-4">
+            <span className="text-xs text-gray-400">
+              {language === 'vi'
+                ? `${(consignmentPage - 1) * CONSIGNMENTS_PER_PAGE + 1}–${Math.min(consignmentPage * CONSIGNMENTS_PER_PAGE, filteredConsignments.length)} / ${filteredConsignments.length} đơn hàng`
+                : `${(consignmentPage - 1) * CONSIGNMENTS_PER_PAGE + 1}–${Math.min(consignmentPage * CONSIGNMENTS_PER_PAGE, filteredConsignments.length)} of ${filteredConsignments.length} orders`}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setConsignmentPage(p => Math.max(1, p - 1))}
+                disabled={consignmentPage === 1}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {language === 'vi' ? '← Trước' : '← Prev'}
+              </button>
+              {getPaginationPages(consignmentPage, consignmentTotalPages).map((item, idx) =>
+                item === '...' ? (
+                  <span key={`dots-${idx}`} className="px-2 text-gray-400 text-xs">…</span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => setConsignmentPage(item as number)}
+                    className={cn(
+                      "w-8 h-8 text-xs font-bold rounded-lg transition-all",
+                      consignmentPage === item
+                        ? "bg-daiichi-red text-white"
+                        : "text-gray-600 hover:bg-gray-50 border border-gray-200"
+                    )}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+              <button
+                onClick={() => setConsignmentPage(p => Math.min(consignmentTotalPages, p + 1))}
+                disabled={consignmentPage === consignmentTotalPages}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {language === 'vi' ? 'Sau →' : 'Next →'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Detail View Modal */}
       <AnimatePresence>
         {viewingBooking && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
