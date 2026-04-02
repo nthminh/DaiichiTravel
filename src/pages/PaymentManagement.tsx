@@ -4,7 +4,7 @@ import {
   CreditCard, Search, Filter, Download, CheckCircle,
   Clock, XCircle, Users, TrendingUp, Wallet, QrCode,
   ChevronDown, ChevronUp, Pencil, X, ChevronLeft, ChevronRight,
-  Zap, AlertTriangle, FlaskConical,
+  Zap, AlertTriangle, FlaskConical, Trash2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatDateVN } from '../lib/vnDate';
@@ -82,8 +82,10 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
   // ── Transaction table state ────────────────────────────────────────────────
   const [topUpAgent, setTopUpAgent] = useState<Agent | null>(null);
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
-  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [txPage, setTxPage] = useState(1);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deletingBooking, setDeletingBooking] = useState<string | null>(null);
+  const [changingStatus, setChangingStatus] = useState<string | null>(null);
 
   // ── Agent balance section state ────────────────────────────────────────────
   const [agentSectionOpen, setAgentSectionOpen] = useState(true);
@@ -185,16 +187,33 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
     return { paid, pending, agentCount: agentBookings.length, retailCount: retailBookings.length };
   }, [bookings]);
 
-  // ── Mark a booking as PAID ─────────────────────────────────────────────────
-  const handleMarkPaid = async (bookingId: string) => {
+  // ── Change booking status ──────────────────────────────────────────────────
+  const handleChangeStatus = async (bookingId: string, newStatus: string) => {
     if (!isAdmin) return;
-    setMarkingPaid(bookingId);
+    setChangingStatus(bookingId);
     try {
-      await transportService.updateBooking(bookingId, { status: 'PAID', paidAt: new Date().toISOString() });
+      const updates: Record<string, unknown> = { status: newStatus };
+      if (newStatus === 'PAID') updates.paidAt = new Date().toISOString();
+      await transportService.updateBooking(bookingId, updates);
     } catch (err) {
-      console.error('Failed to update booking status:', err);
+      console.error('Failed to change booking status:', err);
     } finally {
-      setMarkingPaid(null);
+      setChangingStatus(null);
+    }
+  };
+
+  // ── Delete booking ─────────────────────────────────────────────────────────
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!isAdmin) return;
+    setDeletingBooking(bookingId);
+    try {
+      await transportService.deleteBooking(bookingId);
+      setConfirmDelete(null);
+      if (expandedBooking === bookingId) setExpandedBooking(null);
+    } catch (err) {
+      console.error('Failed to delete booking:', err);
+    } finally {
+      setDeletingBooking(null);
     }
   };
 
@@ -715,18 +734,29 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                           </td>
                           {isAdmin && (
                             <td className="px-5 py-3" onClick={e => e.stopPropagation()}>
-                              {(PAYABLE_STATUSES as readonly string[]).includes(b.status) && (
-                                <button
-                                  onClick={() => handleMarkPaid(b.id)}
-                                  disabled={markingPaid === b.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-xl text-xs font-bold hover:bg-green-100 transition-colors disabled:opacity-50"
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={b.status}
+                                  disabled={changingStatus === b.id}
+                                  onChange={e => handleChangeStatus(b.id, e.target.value)}
+                                  aria-label={language === 'vi' ? 'Thay đổi trạng thái' : 'Change status'}
+                                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 cursor-pointer"
                                 >
-                                  <CheckCircle size={12} />
-                                  {markingPaid === b.id
-                                    ? (language === 'vi' ? 'Đang lưu...' : 'Saving...')
-                                    : (t.payment_mark_paid || 'Đánh dấu ĐT')}
+                                  <option value="PENDING">{language === 'vi' ? 'Chờ TT' : 'Pending'}</option>
+                                  <option value="BOOKED">{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
+                                  <option value="CONFIRMED">{language === 'vi' ? 'Đã xác nhận' : 'Confirmed'}</option>
+                                  <option value="PAID">{language === 'vi' ? 'Đã thanh toán' : 'Paid'}</option>
+                                  <option value="CANCELLED">{language === 'vi' ? 'Đã huỷ' : 'Cancelled'}</option>
+                                </select>
+                                <button
+                                  onClick={() => setConfirmDelete(b.id)}
+                                  className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                  title={language === 'vi' ? 'Xoá giao dịch' : 'Delete booking'}
+                                  aria-label={language === 'vi' ? 'Xoá giao dịch' : 'Delete booking'}
+                                >
+                                  <Trash2 size={13} />
                                 </button>
-                              )}
+                              </div>
                             </td>
                           )}
                           <td className="pr-3">
@@ -839,6 +869,47 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                 className="px-4 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
                 {language === 'vi' ? 'Lưu' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Trash2 size={18} className="text-red-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-800 text-base">
+                  {language === 'vi' ? 'Xoá giao dịch?' : 'Delete booking?'}
+                </h4>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {language === 'vi' ? 'Thao tác này không thể hoàn tác.' : 'This action cannot be undone.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                {language === 'vi' ? 'Huỷ' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => handleDeleteBooking(confirmDelete)}
+                disabled={deletingBooking === confirmDelete}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deletingBooking === confirmDelete
+                  ? (language === 'vi' ? 'Đang xoá...' : 'Deleting...')
+                  : (language === 'vi' ? 'Xoá' : 'Delete')}
               </button>
             </div>
           </div>
