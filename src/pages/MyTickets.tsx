@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Ticket, Calendar, Clock, User, Phone, QrCode, AlertCircle, Mail, Gift, X } from 'lucide-react';
+import { Ticket, Calendar, Clock, User, Phone, QrCode, AlertCircle, Mail, Gift, X, Pencil, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Language, TRANSLATIONS, UserRole } from '../App';
 import { Route, TripAddon } from '../types';
 import { cn } from '../lib/utils';
 import { getJourneyStops } from '../lib/routeUtils';
 import { formatBookingDate } from '../lib/vnDate';
+import { transportService } from '../services/transportService';
 
 const MY_TICKETS_KEY = 'daiichi_my_tickets';
 
@@ -16,18 +17,40 @@ interface MyTicketsProps {
   routes?: Route[];
 }
 
+interface EditForm {
+  customerName: string;
+  phone: string;
+  bookingNote: string;
+}
+
+function saveLocalTickets(tickets: any[]) {
+  try {
+    localStorage.setItem(MY_TICKETS_KEY, JSON.stringify(tickets));
+  } catch (err) {
+    console.error('[MyTickets] Failed to save tickets to localStorage:', err);
+  }
+}
+
+function loadLocalTickets(): any[] {
+  try {
+    return JSON.parse(localStorage.getItem(MY_TICKETS_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
 export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, bookings, routes = [] }) => {
   const t = TRANSLATIONS[language];
   const [localTickets, setLocalTickets] = useState<any[]>([]);
+  const [editingBooking, setEditingBooking] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ customerName: '', phone: '', bookingNote: '' });
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<any | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Load tickets from localStorage on mount
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(MY_TICKETS_KEY) || '[]');
-      setLocalTickets(stored);
-    } catch {
-      setLocalTickets([]);
-    }
+    setLocalTickets(loadLocalTickets());
   }, []);
 
   // For logged-in customers, also fetch tickets from Firestore by phone
@@ -64,8 +87,202 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
   const isVi = language === 'vi';
   const isJa = language === 'ja';
 
+  // ── Edit handler ──────────────────────────────────────────────────────────
+  const openEdit = (booking: any) => {
+    setEditingBooking(booking);
+    setEditForm({
+      customerName: booking.customerName || '',
+      phone: booking.phone || '',
+      bookingNote: booking.bookingNote || '',
+    });
+  };
+
+  const closeEdit = () => {
+    setEditingBooking(null);
+    setEditLoading(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingBooking) return;
+    setEditLoading(true);
+    try {
+      const updates: any = {
+        customerName: editForm.customerName.trim(),
+        phone: editForm.phone.trim(),
+        bookingNote: editForm.bookingNote.trim(),
+      };
+      // Update in Firestore if this is a cloud booking (has a real id)
+      if (editingBooking.id && !editingBooking._localOnly) {
+        await transportService.updateBooking(editingBooking.id, updates);
+      }
+      // Update in localStorage
+      const stored: any[] = loadLocalTickets();
+      const key = editingBooking.ticketCode || editingBooking.id;
+      const updatedLocal = stored.map((item: any) => {
+        const itemKey = item.ticketCode || item.id;
+        return itemKey === key ? { ...item, ...updates } : item;
+      });
+      saveLocalTickets(updatedLocal);
+      setLocalTickets(updatedLocal);
+      closeEdit();
+    } catch (err) {
+      console.error('Failed to update booking:', err);
+      alert(isVi ? 'Cập nhật thất bại. Vui lòng thử lại.' : 'Update failed. Please try again.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // ── Delete handler ────────────────────────────────────────────────────────
+  const handleDelete = async (booking: any) => {
+    setDeleteLoading(true);
+    try {
+      // Delete from Firestore if cloud booking
+      if (booking.id && !booking._localOnly) {
+        await transportService.deleteBooking(booking.id);
+      }
+      // Remove from localStorage
+      const stored: any[] = loadLocalTickets();
+      const key = booking.ticketCode || booking.id;
+      const filtered = stored.filter((item: any) => {
+        const itemKey = item.ticketCode || item.id;
+        return itemKey !== key;
+      });
+      saveLocalTickets(filtered);
+      setLocalTickets(filtered);
+      setDeleteConfirm(null);
+    } catch (err) {
+      console.error('Failed to delete booking:', err);
+      alert(isVi ? 'Xóa vé thất bại. Vui lòng thử lại.' : 'Delete failed. Please try again.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Edit modal */}
+      {editingBooking && (
+        <div
+          className="fixed inset-0 z-[500] bg-black/50 flex items-center justify-center p-4"
+          onClick={closeEdit}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-[28px] p-6 max-w-md w-full space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Pencil size={18} className="text-daiichi-red" />
+                <h3 className="text-lg font-bold text-gray-800">
+                  {isVi ? 'Chỉnh sửa vé' : isJa ? 'チケットを編集' : 'Edit Ticket'}
+                </h3>
+              </div>
+              <button onClick={closeEdit} className="p-2 hover:bg-gray-50 rounded-xl" aria-label={isVi ? 'Đóng' : 'Close'}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {isVi ? 'Tên khách hàng' : isJa ? 'お客様名' : 'Customer Name'}
+                </label>
+                <input
+                  type="text"
+                  value={editForm.customerName}
+                  onChange={e => setEditForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/30 focus:border-daiichi-red"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {isVi ? 'Số điện thoại' : isJa ? '電話番号' : 'Phone'}
+                </label>
+                <input
+                  type="text"
+                  value={editForm.phone}
+                  onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/30 focus:border-daiichi-red"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {isVi ? 'Ghi chú' : isJa ? '備考' : 'Note'}
+                </label>
+                <textarea
+                  value={editForm.bookingNote}
+                  onChange={e => setEditForm(prev => ({ ...prev, bookingNote: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/30 focus:border-daiichi-red resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={closeEdit}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                {isVi ? 'Hủy' : isJa ? 'キャンセル' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={editLoading}
+                className="flex-1 px-4 py-2 bg-daiichi-red text-white rounded-xl text-sm font-bold hover:bg-daiichi-red/90 disabled:opacity-60 transition-colors"
+              >
+                {editLoading ? (isVi ? 'Đang lưu...' : isJa ? '保存中...' : 'Saving...') : (isVi ? 'Lưu' : isJa ? '保存' : 'Save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-[500] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => !deleteLoading && setDeleteConfirm(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-[28px] p-6 max-w-sm w-full space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">
+                  {isVi ? 'Xóa vé?' : isJa ? 'チケットを削除しますか？' : 'Delete ticket?'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {isVi ? 'Thao tác này không thể hoàn tác.' : isJa ? 'この操作は取り消せません。' : 'This action cannot be undone.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+              >
+                {isVi ? 'Hủy' : isJa ? 'キャンセル' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 disabled:opacity-60 transition-colors"
+              >
+                {deleteLoading ? (isVi ? 'Đang xóa...' : isJa ? '削除中...' : 'Deleting...') : (isVi ? 'Xóa' : isJa ? '削除' : 'Delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 bg-daiichi-red/10 rounded-2xl flex items-center justify-center">
@@ -92,7 +309,14 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
       {/* Ticket cards grid – compact on desktop like BookTicketPage */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {allTickets.map((booking, idx) => (
-          <TicketCard key={booking.id || booking.ticketCode || idx} booking={booking} language={language} routes={routes} />
+          <TicketCard
+            key={booking.id || booking.ticketCode || idx}
+            booking={booking}
+            language={language}
+            routes={routes}
+            onEdit={openEdit}
+            onDelete={b => setDeleteConfirm(b)}
+          />
         ))}
       </div>
 
@@ -144,7 +368,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
 
 // ── Individual ticket card ──────────────────────────────────────────────────
 
-const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] }> = ({ booking, language, routes = [] }) => {
+const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[]; onEdit: (b: any) => void; onDelete: (b: any) => void }> = ({ booking, language, routes = [], onEdit, onDelete }) => {
   const isVi = language === 'vi';
   const isJa = language === 'ja';
   const [addonDetail, setAddonDetail] = useState<{ trip: any; addons: TripAddon[] } | null>(null);
@@ -220,8 +444,26 @@ const TicketCard: React.FC<{ booking: any; language: Language; routes?: Route[] 
       {/* Route name header */}
       <div className="px-3 pt-2.5 pb-1.5 flex items-center justify-between gap-2 bg-gradient-to-r from-daiichi-red to-rose-500">
         <span className="text-white/90 font-bold text-xs truncate flex-1">{booking.route}</span>
-        <div className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex-shrink-0 ${statusColor}`}>
-          {statusLabel}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor}`}>
+            {statusLabel}
+          </div>
+          <button
+            type="button"
+            onClick={() => onEdit(booking)}
+            className="p-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+            aria-label={isVi ? 'Chỉnh sửa' : 'Edit'}
+          >
+            <Pencil size={11} className="text-white" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(booking)}
+            className="p-1 rounded-lg bg-white/20 hover:bg-red-400/60 transition-colors"
+            aria-label={isVi ? 'Xóa' : 'Delete'}
+          >
+            <Trash2 size={11} className="text-white" />
+          </button>
         </div>
       </div>
 
