@@ -1774,20 +1774,20 @@ export default function App() {
                 customerName: label,
                 routeInfo: selectedTour?.name ?? 'Tour',
                 tripId: selectedTour?.id ?? '',
-              }).catch(err => console.error('[pendingTourPayment] create error:', err));
+              }).catch(err => console.error(`[pendingTourPayment] Failed to create pending payment for ref ${ref}:`, err));
               setPendingTourPayment({
                 amount,
                 ref,
                 label,
                 execute: async () => {
-                  transportService.deletePendingPayment(ref)
-                    .catch(err => console.error('[pendingTourPayment] delete error:', err));
                   await onComplete();
+                  transportService.deletePendingPayment(ref)
+                    .catch(err => console.error(`[pendingTourPayment] Failed to delete pending payment for ref ${ref}:`, err));
                 },
                 cancel: async () => {
-                  transportService.deletePendingPayment(ref)
-                    .catch(err => console.error('[pendingTourPayment] delete error:', err));
                   onPaymentCancel();
+                  transportService.deletePendingPayment(ref)
+                    .catch(err => console.error(`[pendingTourPayment] Failed to delete pending payment for ref ${ref}:`, err));
                 },
               });
             }}
