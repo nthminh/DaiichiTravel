@@ -148,6 +148,7 @@ export const Settings: React.FC<SettingsProps> = ({
     onepayAccessCode: '',
     onepayHashKey: '',
     onepayReturnUrl: '',
+    onepayIpnUrl: '',
     onepayEnvironment: 'sandbox' as 'sandbox' | 'production',
     onepayGatewayType: 'domestic' as 'domestic' | 'international',
   };
@@ -1160,6 +1161,23 @@ export const Settings: React.FC<SettingsProps> = ({
                             placeholder="https://example.com/payment/return"
                             className="w-full mt-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
                           />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {language === 'vi' ? 'IPN URL — Cloud Function onepayIpn (vpc_CallbackURL)' : 'IPN URL — onepayIpn Cloud Function (vpc_CallbackURL)'}
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentConfig.onepayIpnUrl}
+                            onChange={e => setPaymentConfig(p => ({ ...p, onepayIpnUrl: e.target.value }))}
+                            placeholder="https://onepayipn-xxxxxxxx-as.a.run.app"
+                            className="w-full mt-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+                          />
+                          <p className="text-[10px] text-orange-500 mt-1">
+                            {language === 'vi'
+                              ? 'URL của Cloud Function onepayIpn (Firebase Console → Functions). Bắt buộc để OnePay gửi IPN về tự động.'
+                              : 'onepayIpn Cloud Function URL (Firebase Console → Functions). Required for OnePay to deliver IPN automatically.'}
+                          </p>
                         </div>
                       </div>
 

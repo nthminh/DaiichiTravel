@@ -58,6 +58,14 @@ export interface OnepayPaymentParams {
   returnUrl: string;
   /** Ngôn ngữ hiển thị trên trang OnePay: 'vn' (mặc định) hoặc 'en' */
   locale?: 'vn' | 'en';
+  /**
+   * URL nhận IPN (Instant Payment Notification) từ OnePay sau khi giao dịch hoàn tất.
+   * Khi được cung cấp, sẽ được thêm vào tham số `vpc_CallbackURL` trong URL thanh toán,
+   * cho phép OnePay gọi trực tiếp đến endpoint này thay vì chỉ dựa vào URL đã đăng ký
+   * tĩnh trong portal. Đây là trường bắt buộc để hàm `onepayIpn` Cloud Function hoạt động.
+   * Ví dụ: 'https://onepayipn-xxxxxxxx-as.a.run.app'
+   */
+  callbackUrl?: string;
 }
 
 /** Dữ liệu IPN (Instant Payment Notification) / Webhook nhận từ OnePay */
@@ -282,6 +290,13 @@ export async function createOnepayPaymentUrl(
     vpc_Amount:      vpcAmount,                   // Số tiền (đã nhân 100)
     vpc_TicketNo:    params.customerIp,           // IP khách hàng (chống gian lận)
   };
+
+  // Thêm vpc_CallbackURL khi được cung cấp.
+  // Đây là URL mà OnePay sẽ gọi (server-to-server) sau khi giao dịch hoàn tất.
+  // Nếu thiếu, OnePay chỉ dùng URL đã đăng ký tĩnh trong portal (nếu có).
+  if (params.callbackUrl) {
+    vpcParams['vpc_CallbackURL'] = params.callbackUrl;
+  }
 
   // Tạo chuỗi dữ liệu đã sắp xếp ABC để tính chữ ký
   const hashData = buildHashData(vpcParams);
