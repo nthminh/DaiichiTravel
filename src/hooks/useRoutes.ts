@@ -289,15 +289,15 @@ export function useRoutes(ctx: RouteContext) {
               fare.endDate || undefined,
               fareIdx,
               fareDocId,
-            );
+            ).catch(err => {
+              console.error(`Failed to save fare (${fare.fromStopId} → ${fare.toStopId}):`, err);
+              throw err;
+            });
           })
         );
         const savedFareDocIds = new Set<string>(
           fareResults
-            .filter((r): r is PromiseFulfilledResult<string> => {
-              if (r.status === 'rejected') { console.error('Failed to save fare:', r.reason); return false; }
-              return true;
-            })
+            .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
             .map(r => r.value)
         );
         // Delete fares that existed before editing but are no longer in the list, in parallel.
@@ -330,15 +330,15 @@ export function useRoutes(ctx: RouteContext) {
                 active: true,
               },
               seatFareDocId,
-            );
+            ).catch(err => {
+              console.error(`Failed to save seat fare (seatId: ${seatFare.seatId}):`, err);
+              throw err;
+            });
           })
         );
         const savedSeatFareDocIds = new Set<string>(
           seatFareResults
-            .filter((r): r is PromiseFulfilledResult<string> => {
-              if (r.status === 'rejected') { console.error('Failed to save seat fare:', r.reason); return false; }
-              return true;
-            })
+            .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
             .map(r => r.value)
         );
         // Delete seat fares removed during this edit session, in parallel
