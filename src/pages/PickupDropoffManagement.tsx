@@ -300,8 +300,9 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
     return result;
   };
 
-  const pickupRows  = useMemo(() => applyFilters(allRows.filter(r => !!r.pickupAddress)),  [allRows, filterRoute, filterPlate, filterEmployee, dateFilter, statusFilter]);
-  const dropoffRows = useMemo(() => applyFilters(allRows.filter(r => !!r.dropoffAddress)), [allRows, filterRoute, filterPlate, filterEmployee, dateFilter, statusFilter]);
+  const filteredRows = useMemo(() => applyFilters(allRows), [allRows, filterRoute, filterPlate, filterEmployee, dateFilter, statusFilter]);
+  const pickupRows  = useMemo(() => filteredRows.filter(r => !!r.pickupAddress),  [filteredRows]);
+  const dropoffRows = useMemo(() => filteredRows.filter(r => !!r.dropoffAddress), [filteredRows]);
 
   // ── Drivers list ───────────────────────────────────────────────────────────
   const drivers = employees.filter(e => e.role === 'DRIVER' && e.status === 'ACTIVE');
@@ -763,9 +764,9 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: language === 'vi' ? 'Tổng mục' : 'Total', value: allRows.length, icon: MapPin, color: 'text-blue-600 bg-blue-50' },
-          { label: language === 'vi' ? 'Có tài xế đón/trả' : 'With assignment', value: allRows.filter(r => !!r.pickupAssignment || !!r.dropoffAssignment).length, icon: UserPlus, color: 'text-green-600 bg-green-50' },
-          { label: language === 'vi' ? 'Chưa phân công' : 'Unassigned', value: allRows.filter(r => !r.pickupAssignment && !r.dropoffAssignment).length, icon: Clock, color: 'text-amber-600 bg-amber-50' },
+          { label: language === 'vi' ? 'Tổng mục' : 'Total', value: filteredRows.length, icon: MapPin, color: 'text-blue-600 bg-blue-50' },
+          { label: language === 'vi' ? 'Có tài xế đón/trả' : 'With assignment', value: filteredRows.filter(r => !!r.pickupAssignment || !!r.dropoffAssignment).length, icon: UserPlus, color: 'text-green-600 bg-green-50' },
+          { label: language === 'vi' ? 'Chưa phân công' : 'Unassigned', value: filteredRows.filter(r => !r.pickupAssignment && !r.dropoffAssignment).length, icon: Clock, color: 'text-amber-600 bg-amber-50' },
         ].map((s, i) => (
           <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
             <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', s.color)}>
