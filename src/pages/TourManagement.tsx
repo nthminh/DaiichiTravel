@@ -643,6 +643,10 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
 
   const handleExportPdf = async (tour: Tour) => {
     const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${tour.title}</title></head><body><p style="font-family:Arial,sans-serif;padding:24px">Đang tải danh sách khách...</p></body></html>`);
+      win.document.close();
+    }
     const bookings = await transportService.getTourBookings(tour.id);
     const statusLabel = (s: string) => {
       if (s === 'CONFIRMED') return language === 'vi' ? 'Đã xác nhận' : 'Confirmed';
@@ -686,7 +690,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       </table>
       <script>window.onload=function(){window.print()}<\/script>
     </body></html>`;
-    if (win) { win.document.write(html); win.document.close(); }
+    if (win) { win.document.open(); win.document.write(html); win.document.close(); }
     else { alert(language === 'vi' ? 'Trình duyệt đã chặn cửa sổ bật lên. Vui lòng cho phép pop-up và thử lại.' : 'Pop-up blocked. Please allow pop-ups and try again.'); }
   };
 
