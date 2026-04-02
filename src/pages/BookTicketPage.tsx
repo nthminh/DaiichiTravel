@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info, ZoomIn } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info, ZoomIn, SlidersHorizontal } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle, RouteSurcharge } from '../types'
@@ -1492,6 +1492,53 @@ export function BookTicketPage({
   // Local filter state: combined vehicle type + seat count (e.g. "Limousine 11 ghế")
   const [localVehicleCombo, setLocalVehicleCombo] = useState('');
 
+  // Advanced filter state
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  type AdvSortBy = 'default' | 'price_asc' | 'price_desc' | 'time_asc' | 'time_desc' | 'duration_asc';
+  const [advSortBy, setAdvSortBy] = useState<AdvSortBy>('default');
+  const [advTimeSlots, setAdvTimeSlots] = useState<Set<string>>(new Set());
+
+  const advHasFilters = advSortBy !== 'default' || advTimeSlots.size > 0;
+
+  // Returns true if trip's departure time falls in the given slot name
+  const tripInTimeSlot = (time: string, slot: string): boolean => {
+    if (!time) return false;
+    const h = parseInt(time.split(':')[0], 10);
+    if (isNaN(h)) return false;
+    switch (slot) {
+      case 'morning': return h >= 5 && h < 12;
+      case 'noon': return h >= 12 && h < 14;
+      case 'afternoon': return h >= 14 && h < 18;
+      case 'evening': return h >= 18 && h < 22;
+      case 'night': return h >= 22 || h < 5;
+      default: return true;
+    }
+  };
+
+  // Apply a date quick-select option: update searchDate and committedParams
+  const applyDateQuickOption = (option: string) => {
+    const today = getLocalDateString();
+    const offsetFromToday = (days: number) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+    const offsetFromCommitted = (days: number) => {
+      const base = committedParams?.date || searchDate || today;
+      const d = new Date(base);
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+    let newDate = today;
+    if (option === 'today') newDate = today;
+    else if (option === 'tomorrow') newDate = offsetFromToday(1);
+    else if (option === 'day_after') newDate = offsetFromToday(2);
+    else if (option === 'minus1') newDate = offsetFromCommitted(-1);
+    else if (option === 'minus2') newDate = offsetFromCommitted(-2);
+    setSearchDate(newDate);
+    setCommittedParams(prev => prev ? { ...prev, date: newDate } : prev);
+  };
+
   // Compute unique vehicle type+seat combinations from active trips for the combined filter
   const availableCombinations = useMemo(() => {
     const activePlates = new Set(
@@ -2899,10 +2946,24 @@ export function BookTicketPage({
             )}
           </div>
           {/* Search button – full width on mobile, auto on sm+ */}
-          <div className="sm:shrink-0 sm:ml-auto sm:flex sm:mt-4">
+          <div className="sm:shrink-0 sm:ml-auto sm:flex sm:mt-4 flex gap-2">
+            <button
+              onClick={() => setShowAdvancedFilter(true)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-3 sm:py-4 rounded-2xl text-sm font-bold transition-all border-2",
+                advHasFilters
+                  ? "bg-daiichi-red/10 text-daiichi-red border-daiichi-red/40"
+                  : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-400"
+              )}
+              title={language === 'vi' ? 'Lọc nâng cao' : 'Advanced filter'}
+            >
+              <SlidersHorizontal size={16} />
+              <span className="hidden sm:inline whitespace-nowrap">{language === 'vi' ? 'Lọc nâng cao' : 'Advanced filter'}</span>
+              {advHasFilters && <span className="w-2 h-2 rounded-full bg-daiichi-red flex-shrink-0" />}
+            </button>
             <button
               onClick={handleSearch}
-              className="w-full sm:w-auto px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]"
+              className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-daiichi-red shadow-daiichi-red/20 hover:scale-[1.02]"
             >
               <Search size={18} />
               <span>{t.search_btn}</span>
@@ -2986,15 +3047,41 @@ export function BookTicketPage({
 
           const filteredBookingTrips = (() => {
             const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
-            return trips.filter(tr => {
+            let result = trips.filter(tr => {
               if (!filterTrip(tr, true)) return false;
               if (localVehicleCombo) {
                 const v = vehicleMap.get(tr.licensePlate);
                 if (comboType && v?.type !== comboType) return false;
                 if (comboSeats > 0 && v?.seats !== comboSeats) return false;
               }
+              // Advanced time slot filter
+              if (advTimeSlots.size > 0) {
+                const inAnySlot = [...advTimeSlots].some((slot: string) => tripInTimeSlot(tr.time || '', slot));
+                if (!inAnySlot) return false;
+              }
               return true;
-            }).sort((a, b) => compareTripDateTime(a, b));
+            });
+            // Advanced sort
+            if (advSortBy === 'price_asc') {
+              result = result.sort((a, b) => (a.price || 0) - (b.price || 0));
+            } else if (advSortBy === 'price_desc') {
+              result = result.sort((a, b) => (b.price || 0) - (a.price || 0));
+            } else if (advSortBy === 'time_asc') {
+              result = result.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            } else if (advSortBy === 'time_desc') {
+              result = result.sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+            } else if (advSortBy === 'duration_asc') {
+              result = result.sort((a, b) => {
+                const rA = routeByName.get(a.route);
+                const rB = routeByName.get(b.route);
+                const dA = rA?.duration ? (parseDurationToMinutes(rA.duration) ?? 99999) : 99999;
+                const dB = rB?.duration ? (parseDurationToMinutes(rB.duration) ?? 99999) : 99999;
+                return dA - dB;
+              });
+            } else {
+              result = result.sort((a, b) => compareTripDateTime(a, b));
+            }
+            return result;
           })();
 
           // Nearest trips: same route/direction but without date restriction, sorted by date proximity
@@ -3205,6 +3292,164 @@ export function BookTicketPage({
         </div>
       )}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Advanced Filter Modal */}
+      {showAdvancedFilter && (
+        <div
+          className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowAdvancedFilter(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal size={18} className="text-daiichi-red" />
+                <h3 className="text-lg font-bold">{language === 'vi' ? 'Lọc nâng cao' : 'Advanced filter'}</h3>
+                {advHasFilters && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-daiichi-red/10 text-daiichi-red">
+                    {language === 'vi' ? 'Đang bật' : 'Active'}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowAdvancedFilter(false)}
+                className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-6">
+              {/* Time slots */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <Clock size={14} className="text-daiichi-red" />
+                  {language === 'vi' ? 'Lọc theo giờ khởi hành' : 'Filter by departure time'}
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'morning',   label: language === 'vi' ? '🌅 Buổi sáng'  : '🌅 Morning',    desc: '05:00 – 11:59' },
+                    { id: 'noon',      label: language === 'vi' ? '☀️ Buổi trưa'  : '☀️ Midday',     desc: '12:00 – 13:59' },
+                    { id: 'afternoon', label: language === 'vi' ? '🌤 Buổi chiều' : '🌤 Afternoon',  desc: '14:00 – 17:59' },
+                    { id: 'evening',   label: language === 'vi' ? '🌆 Buổi tối'   : '🌆 Evening',    desc: '18:00 – 21:59' },
+                    { id: 'night',     label: language === 'vi' ? '🌙 Đêm khuya'  : '🌙 Late night', desc: '22:00 – 04:59' },
+                  ].map(slot => (
+                    <label
+                      key={slot.id}
+                      className={cn(
+                        'flex flex-col gap-0.5 p-3 rounded-2xl border-2 cursor-pointer transition-all select-none',
+                        advTimeSlots.has(slot.id)
+                          ? 'border-daiichi-red bg-daiichi-red/5'
+                          : 'border-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={advTimeSlots.has(slot.id)}
+                        onChange={() => {
+                          setAdvTimeSlots(prev => {
+                            const next = new Set(prev);
+                            if (next.has(slot.id)) next.delete(slot.id); else next.add(slot.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="text-sm font-bold">{slot.label}</span>
+                      <span className="text-xs text-gray-400">{slot.desc}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date quick select */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-daiichi-red" />
+                  {language === 'vi' ? 'Chọn ngày nhanh' : 'Quick date select'}
+                </h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'today',     label: language === 'vi' ? 'Hôm nay'          : 'Today' },
+                    { id: 'tomorrow',  label: language === 'vi' ? 'Ngày mai'          : 'Tomorrow' },
+                    { id: 'day_after', label: language === 'vi' ? 'Ngày kia'          : 'In 2 days' },
+                    { id: 'minus1',    label: language === 'vi' ? 'Sớm hơn 1 ngày'   : '1 day earlier' },
+                    { id: 'minus2',    label: language === 'vi' ? 'Sớm hơn 2 ngày'   : '2 days earlier' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => applyDateQuickOption(opt.id)}
+                      className="py-2.5 px-2 rounded-xl text-xs font-bold border-2 border-gray-200 hover:border-daiichi-red hover:bg-daiichi-red/5 transition-all text-center"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sort */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-700 mb-3">
+                  {language === 'vi' ? '↕️ Sắp xếp theo' : '↕️ Sort by'}
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: 'default',      label: language === 'vi' ? '🔄 Mặc định'    : '🔄 Default' },
+                    { id: 'price_asc',    label: language === 'vi' ? '💰 Rẻ nhất'     : '💰 Cheapest' },
+                    { id: 'price_desc',   label: language === 'vi' ? '💎 Đắt nhất'    : '💎 Most expensive' },
+                    { id: 'time_asc',     label: language === 'vi' ? '⏰ Sớm nhất'    : '⏰ Earliest' },
+                    { id: 'time_desc',    label: language === 'vi' ? '🌙 Muộn nhất'   : '🌙 Latest' },
+                    { id: 'duration_asc', label: language === 'vi' ? '⚡ Nhanh nhất'  : '⚡ Fastest' },
+                  ] as { id: AdvSortBy; label: string }[]).map(opt => (
+                    <label
+                      key={opt.id}
+                      className={cn(
+                        'flex items-center gap-2 p-3 rounded-2xl border-2 cursor-pointer transition-all select-none',
+                        advSortBy === opt.id
+                          ? 'border-daiichi-red bg-daiichi-red/5'
+                          : 'border-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="advSortBy"
+                        className="sr-only"
+                        checked={advSortBy === opt.id}
+                        onChange={() => setAdvSortBy(opt.id)}
+                      />
+                      <div className={cn(
+                        'w-4 h-4 rounded-full border-2 flex-shrink-0',
+                        advSortBy === opt.id ? 'border-daiichi-red bg-daiichi-red' : 'border-gray-300'
+                      )} />
+                      <span className="text-sm font-bold">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-5 py-4 border-t border-gray-100">
+              <button
+                onClick={() => { setAdvSortBy('default'); setAdvTimeSlots(new Set()); }}
+                className="flex-1 py-3 rounded-2xl font-bold text-sm border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                {language === 'vi' ? 'Đặt lại' : 'Reset'}
+              </button>
+              <button
+                onClick={() => setShowAdvancedFilter(false)}
+                className="flex-1 py-3 rounded-2xl font-bold text-sm bg-daiichi-red text-white hover:bg-daiichi-red/90 transition-colors"
+              >
+                {language === 'vi' ? 'Áp dụng' : 'Apply'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </>
   );
