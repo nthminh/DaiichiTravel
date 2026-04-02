@@ -265,21 +265,20 @@ export function useRoutes(ctx: RouteContext) {
       if (routeId) {
         // Capture fare list at save time (avoid closure issues with async loops)
         const faresSnapshot = routeFormFares.slice();
-        const savedFareDocIds = new Set<string>();
-        for (let fareIdx = 0; fareIdx < faresSnapshot.length; fareIdx++) {
-          const fare = faresSnapshot[fareIdx];
-          // Use the existing Firestore doc ID for fares loaded from the DB, or
-          // derive a deterministic new ID for fares added in the current session.
-          const fareDocId =
-            fare.fareId ??
-            buildFareDocId(
-              fare.fromStopId,
-              fare.toStopId,
-              fare.startDate || undefined,
-              fare.endDate || undefined,
-            );
-          try {
-            const savedId = await transportService.upsertFare(
+        // Save all fares in parallel to avoid N sequential round-trips
+        const fareResults = await Promise.allSettled(
+          faresSnapshot.map((fare, fareIdx) => {
+            // Use the existing Firestore doc ID for fares loaded from the DB, or
+            // derive a deterministic new ID for fares added in the current session.
+            const fareDocId =
+              fare.fareId ??
+              buildFareDocId(
+                fare.fromStopId,
+                fare.toStopId,
+                fare.startDate || undefined,
+                fare.endDate || undefined,
+              );
+            return transportService.upsertFare(
               routeId,
               fare.fromStopId,
               fare.toStopId,
@@ -290,35 +289,35 @@ export function useRoutes(ctx: RouteContext) {
               fare.endDate || undefined,
               fareIdx,
               fareDocId,
-            );
-            savedFareDocIds.add(savedId);
-          } catch (err) {
-            console.error('Failed to save fare:', fare, err);
-          }
-        }
-        // Delete fares that existed before editing but are no longer in the list.
-        for (const originalId of originalFareDocIdsRef.current) {
-          if (!savedFareDocIds.has(originalId)) {
-            try {
-              await transportService.deleteFare(routeId, originalId);
-            } catch (err) {
-              console.error('Failed to delete fare:', originalId, err);
-            }
-          }
-        }
+            ).catch(err => {
+              console.error(`Failed to save fare (${fare.fromStopId} → ${fare.toStopId}):`, err);
+              throw err;
+            });
+          })
+        );
+        const savedFareDocIds = new Set<string>(
+          fareResults
+            .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+            .map(r => r.value)
+        );
+        // Delete fares that existed before editing but are no longer in the list, in parallel.
+        await Promise.allSettled(
+          Array.from(originalFareDocIdsRef.current)
+            .filter(id => !savedFareDocIds.has(id))
+            .map(id => transportService.deleteFare(routeId, id).catch(err => console.error('Failed to delete fare:', id, err)))
+        );
         originalFareDocIdsRef.current = new Set();
 
-        // Save seat-specific fare overrides
+        // Save seat-specific fare overrides in parallel
         const seatFaresSnapshot = routeFormSeatFares.slice();
-        const savedSeatFareDocIds = new Set<string>();
-        for (const seatFare of seatFaresSnapshot) {
-          const seatFareDocId = seatFare.fareId ?? buildSeatFareDocId(
-            seatFare.seatId,
-            seatFare.startDate || undefined,
-            seatFare.endDate || undefined,
-          );
-          try {
-            const savedId = await transportService.upsertRouteSeatFare(
+        const seatFareResults = await Promise.allSettled(
+          seatFaresSnapshot.map((seatFare) => {
+            const seatFareDocId = seatFare.fareId ?? buildSeatFareDocId(
+              seatFare.seatId,
+              seatFare.startDate || undefined,
+              seatFare.endDate || undefined,
+            );
+            return transportService.upsertRouteSeatFare(
               routeId,
               {
                 routeId,
@@ -331,22 +330,23 @@ export function useRoutes(ctx: RouteContext) {
                 active: true,
               },
               seatFareDocId,
-            );
-            savedSeatFareDocIds.add(savedId);
-          } catch (err) {
-            console.error('Failed to save seat fare:', seatFare, err);
-          }
-        }
-        // Delete seat fares removed during this edit session
-        for (const originalId of originalSeatFareDocIdsRef.current) {
-          if (!savedSeatFareDocIds.has(originalId)) {
-            try {
-              await transportService.deleteRouteSeatFare(routeId, originalId);
-            } catch (err) {
-              console.error('Failed to delete seat fare:', originalId, err);
-            }
-          }
-        }
+            ).catch(err => {
+              console.error(`Failed to save seat fare (seatId: ${seatFare.seatId}):`, err);
+              throw err;
+            });
+          })
+        );
+        const savedSeatFareDocIds = new Set<string>(
+          seatFareResults
+            .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+            .map(r => r.value)
+        );
+        // Delete seat fares removed during this edit session, in parallel
+        await Promise.allSettled(
+          Array.from(originalSeatFareDocIdsRef.current)
+            .filter(id => !savedSeatFareDocIds.has(id))
+            .map(id => transportService.deleteRouteSeatFare(routeId, id).catch(err => console.error('Failed to delete seat fare:', id, err)))
+        );
         originalSeatFareDocIdsRef.current = new Set();
       }
       setShowAddRoute(false);

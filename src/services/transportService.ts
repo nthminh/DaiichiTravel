@@ -227,7 +227,7 @@ export const transportService = {
 
   subscribeToConsignments: (callback: (consignments: Consignment[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'consignments'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'consignments'), orderBy('createdAt', 'desc'), limit(500));
     return onSnapshot(q, (snapshot) => {
       const consignments = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -340,7 +340,7 @@ export const transportService = {
   // Listen to bookings
   subscribeToBookings: (callback: (bookings: any[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(500));
     return onSnapshot(q, (snapshot) => {
       const bookings = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -420,7 +420,7 @@ export const transportService = {
   // Listen to invoices
   subscribeToInvoices: (callback: (invoices: Invoice[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'invoices'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'invoices'), orderBy('createdAt', 'desc'), limit(500));
     return onSnapshot(q, (snapshot) => {
       const invoices = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -848,9 +848,11 @@ export const transportService = {
     if (!db) throw new Error('Firebase not configured');
     const snap = await getDocs(collection(db, 'vehicleTypes'));
     if (!snap.empty) return 0;
-    for (let i = 0; i < DEFAULT_VEHICLE_TYPES.length; i++) {
-      await addDoc(collection(db, 'vehicleTypes'), { name: DEFAULT_VEHICLE_TYPES[i], order: i });
-    }
+    const batch = writeBatch(db);
+    DEFAULT_VEHICLE_TYPES.forEach((name, i) => {
+      batch.set(doc(collection(db, 'vehicleTypes')), { name, order: i });
+    });
+    await batch.commit();
     return DEFAULT_VEHICLE_TYPES.length;
   },
 
@@ -1214,7 +1216,7 @@ export const transportService = {
 
   subscribeToCustomers: (callback: (customers: CustomerProfile[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'customers'), orderBy('registeredAt', 'desc'));
+    const q = query(collection(db, 'customers'), orderBy('registeredAt', 'desc'), limit(500));
     return onSnapshot(q, (snapshot) => {
       const customers = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as CustomerProfile[];
       callback(customers);
@@ -1340,7 +1342,7 @@ export const transportService = {
 
   subscribeToDriverAssignments: (callback: (assignments: DriverAssignment[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'driverAssignments'), orderBy('assignedAt', 'desc'));
+    const q = query(collection(db, 'driverAssignments'), orderBy('assignedAt', 'desc'), limit(200));
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as DriverAssignment[]);
     }, (err) => { console.error('[driverAssignments] subscription error:', err); callback([]); });
@@ -1405,7 +1407,7 @@ export const transportService = {
 
   subscribeToCategoryRequests: (callback: (requests: CategoryVerificationRequest[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'categoryRequests'), orderBy('submittedAt', 'desc'));
+    const q = query(collection(db, 'categoryRequests'), orderBy('submittedAt', 'desc'), limit(200));
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as CategoryVerificationRequest[]);
     }, (err) => { console.error('[categoryRequests] subscription error:', err); callback([]); });
