@@ -450,6 +450,23 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                   </div>
                 )}
 
+                {/* Payment URL — only shown in test/sandbox/demo mode, hidden in production */}
+                {(isDemo || onepayEnvironment === 'sandbox') && qrString && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5">
+                    <p className="text-xs text-gray-500 font-medium mb-1">
+                      {language === 'vi' ? '🔗 URL thanh toán (chỉ hiện khi thử nghiệm)' : '🔗 Payment URL (test only)'}
+                    </p>
+                    <a
+                      href={qrString}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 break-all hover:underline"
+                    >
+                      {qrString}
+                    </a>
+                  </div>
+                )}
+
                 {/* Auto-detected success */}
                 {autoDetected && (
                   <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center gap-3">
