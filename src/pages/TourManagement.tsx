@@ -189,6 +189,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const [uploadingRoomIdx, setUploadingRoomIdx] = useState<number | null>(null);
+  // tourId → { roomTypeId → bookedCount }
+  const [roomBookingCounts, setRoomBookingCounts] = useState<Record<string, Record<string, number>>>({});
 
   // ── Properties for asset linking ───────────────────────────────────────────
   const [properties, setProperties] = useState<Property[]>([]);
@@ -343,6 +345,14 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     const unsubscribe = transportService.subscribeToTours(setTours);
     return unsubscribe;
   }, []);
+
+  // Fetch room booking counts whenever the tours list changes
+  useEffect(() => {
+    if (tours.length === 0) { setRoomBookingCounts({}); return; }
+    transportService.getMultipleTourRoomBookingCounts(tours.map(t => t.id)).then(counts => {
+      setRoomBookingCounts(counts);
+    }).catch(err => { console.error('Failed to load room booking counts:', err); });
+  }, [tours]);
 
   // Subscribe to properties for the asset-link picker
   useEffect(() => {
@@ -632,6 +642,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   };
 
   const handleExportPdf = async (tour: Tour) => {
+    const win = window.open('', '_blank');
     const bookings = await transportService.getTourBookings(tour.id);
     const statusLabel = (s: string) => {
       if (s === 'CONFIRMED') return language === 'vi' ? 'Đã xác nhận' : 'Confirmed';
@@ -675,8 +686,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       </table>
       <script>window.onload=function(){window.print()}<\/script>
     </body></html>`;
-    const win = window.open('', '_blank');
     if (win) { win.document.write(html); win.document.close(); }
+    else { alert(language === 'vi' ? 'Trình duyệt đã chặn cửa sổ bật lên. Vui lòng cho phép pop-up và thử lại.' : 'Pop-up blocked. Please allow pop-ups and try again.'); }
   };
 
   const renderRoomTypesSection = (
@@ -1692,16 +1703,6 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                 const departureDisplay = tour.departureTime
                   ? `${tour.departureTime}${tour.startDate ? ` · ${tour.startDate}` : ''}`
                   : tour.startDate || '—';
-                const roomTypesDisplay = tour.roomTypes && tour.roomTypes.length > 0
-                  ? (() => {
-                      const capacities = tour.roomTypes.map(r => r.capacity);
-                      const minCap = Math.min(...capacities);
-                      const maxCap = Math.max(...capacities);
-                      const capRange = minCap === maxCap ? `${minCap}` : `${minCap}-${maxCap}`;
-                      return `${tour.roomTypes.length} ${language === 'vi' ? 'loại' : 'types'} · ${capRange} ${language === 'vi' ? 'người' : 'guests'}`;
-                    })()
-                  : '—';
-
                 return (
                   <React.Fragment key={tour.id}>
                     <tr
@@ -1758,10 +1759,21 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                       </td>
                       <td className="px-4 py-3">
                         {tour.roomTypes && tour.roomTypes.length > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full font-medium">
-                            <BedDouble size={10} />
-                            {roomTypesDisplay}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            {tour.roomTypes.map(rt => {
+                              const booked = roomBookingCounts[tour.id]?.[rt.id] ?? 0;
+                              const remaining = rt.totalRooms - booked;
+                              return (
+                                <span key={rt.id} className="inline-flex items-center gap-1 text-xs text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full font-medium">
+                                  <BedDouble size={10} />
+                                  <span className="truncate max-w-[100px]" title={rt.name}>{rt.name}</span>
+                                  <span className={`ml-0.5 font-bold ${remaining <= 0 ? 'text-red-500' : remaining <= 2 ? 'text-amber-600' : 'text-teal-700'}`}>
+                                    ({remaining > 0 ? (language === 'vi' ? `còn ${remaining}` : `${remaining} left`) : (language === 'vi' ? 'hết phòng' : 'full')})
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <span className="text-xs text-gray-300">—</span>
                         )}
