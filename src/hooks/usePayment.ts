@@ -240,18 +240,18 @@ export function usePayment(ctx: BookingContext) {
           ? (agentPriceFromCommissionChild ?? discountedAgentPriceChild ?? discountedAgentPriceAdult ?? retailPriceChild ?? basePriceAdult)
           : retailPriceChild);
 
-    // Children aged 5 and above are charged adult price and need their own seat
-    // Children aged 4 and below are free
-    const { childrenOver5, childrenUnder5 } = c.childrenAges.reduce(
+    // Children aged 4 and above are charged adult price and need their own seat
+    // Children under 4 are free
+    const { childrenOver4, childrenUnder4 } = c.childrenAges.reduce(
       (acc, age) => {
-        if ((age ?? 0) >= 5) acc.childrenOver5++;
-        else acc.childrenUnder5++;
+        if ((age ?? 0) >= 4) acc.childrenOver4++;
+        else acc.childrenUnder4++;
         return acc;
       },
-      { childrenOver5: 0, childrenUnder5: 0 }
+      { childrenOver4: 0, childrenUnder4: 0 }
     );
-    const effectiveAdults = c.adults + childrenOver5;
-    const effectiveChildren = childrenUnder5 + Math.max(0, c.children - c.childrenAges.length);
+    const effectiveAdults = c.adults + childrenOver4;
+    const effectiveChildren = childrenUnder4 + Math.max(0, c.children - c.childrenAges.length);
 
     // Calculate route-level surcharges (fuel, holiday, etc.)
     const tripDate = c.selectedTrip.date || '';
@@ -259,12 +259,12 @@ export function usePayment(ctx: BookingContext) {
     const routeSurchargeTotal = appliedRouteSurcharges.reduce((sum: number, sc: any) => sum + sc.amount * effectiveAdults, 0);
 
     // Determine all seat IDs upfront so we can compute per-seat fares.
-    // Extra seats for all passengers beyond first adult (adults - 1) and children over 5
+    // Extra seats for all passengers beyond first adult (adults - 1) and children over 4
     const isFreeSeating = c.selectedTrip.seatType === 'free';
     let allSeatIds: string[];
     let effectiveSeatId: string;
     if (isFreeSeating) {
-      const seatsNeeded = c.adults + childrenOver5;
+      const seatsNeeded = c.adults + childrenOver4;
       const availableSeats = c.selectedTrip.seats
         .filter((s: any) => s.status === SeatStatus.EMPTY)
         .slice(0, seatsNeeded);
@@ -275,7 +275,7 @@ export function usePayment(ctx: BookingContext) {
       allSeatIds = availableSeats.map((s: any) => s.id);
       effectiveSeatId = allSeatIds[0] || '1';
     } else {
-      const extraSeatsForBooking = c.extraSeatIds.slice(0, (c.adults - 1) + childrenOver5);
+      const extraSeatsForBooking = c.extraSeatIds.slice(0, (c.adults - 1) + childrenOver4);
       allSeatIds = [seatId, ...extraSeatsForBooking];
       effectiveSeatId = seatId;
     }
@@ -1175,7 +1175,7 @@ export function usePayment(ctx: BookingContext) {
         : (isVi ? `${effectiveAdults} hành khách` : `${effectiveAdults} passengers`);
       singleLegBreakdown.push({ label: isVi ? `Vé (${paxLabel})` : `Ticket (${paxLabel})`, amount: totalBase });
       if (effectiveChildren > 0) {
-        singleLegBreakdown.push({ label: isVi ? `Trẻ em <5 tuổi (${effectiveChildren} bé)` : `Children <5 yrs (${effectiveChildren})`, amount: 0, isFree: true });
+        singleLegBreakdown.push({ label: isVi ? `Trẻ em <4 tuổi (${effectiveChildren} bé)` : `Children <4 yrs (${effectiveChildren})`, amount: 0, isFree: true });
       }
       if (pickupDropoffSurcharge > 0) {
         singleLegBreakdown.push({ label: isVi ? 'Phụ phí điểm đón/trả' : 'Pickup/dropoff surcharge', amount: pickupDropoffSurcharge });
