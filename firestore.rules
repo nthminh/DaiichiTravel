@@ -280,6 +280,18 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // Pending payments (QR payment sessions): anyone can create/read/delete (guest booking flow),
+    // signed-in users can update (admin confirmation or OnePay IPN).
+    match /pendingPayments/{paymentRef} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().size() <= 15
+                    && isShortString(request.resource.data.paymentRef)
+                    && isNonNegativeNumber(request.resource.data.expectedAmount)
+                    && isShortString(request.resource.data.customerName);
+      allow update: if isSignedIn() && request.resource.data.keys().size() <= 15;
+      allow delete: if true;
+    }
+
     // Block all other paths not explicitly listed above (recursive wildcard)
     match /{path=**} {
       allow read, write: if false;
