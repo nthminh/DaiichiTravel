@@ -642,56 +642,170 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   };
 
   const handleExportPdf = async (tour: Tour) => {
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${tour.title}</title></head><body><p style="font-family:Arial,sans-serif;padding:24px">Đang tải danh sách khách...</p></body></html>`);
+    const win = window.open('', '_blank', 'width=1100,height=750');
+    if (!win) {
+      alert(language === 'vi' ? 'Trình duyệt đã chặn cửa sổ bật lên. Vui lòng cho phép pop-up và thử lại.' : 'Pop-up blocked. Please allow pop-ups and try again.');
+      return;
+    }
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${tour.title}</title></head><body style="font-family:Arial,sans-serif;padding:24px;color:#555"><p>⏳ Đang tải danh sách khách...</p></body></html>`);
+    win.document.close();
+
+    const esc = (v: unknown) => {
+      if (v == null) return '';
+      return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+    };
+
+    try {
+      const bookings = await transportService.getTourBookings(tour.id);
+      const statusLabel = (s: string) => {
+        if (s === 'CONFIRMED') return language === 'vi' ? 'Đã xác nhận' : 'Confirmed';
+        if (s === 'CANCELLED') return language === 'vi' ? 'Đã hủy' : 'Cancelled';
+        return language === 'vi' ? 'Chờ xác nhận' : 'Pending';
+      };
+      const statusColor = (s: string) => {
+        if (s === 'CONFIRMED') return '#15803d';
+        if (s === 'CANCELLED') return '#dc2626';
+        return '#d97706';
+      };
+      const statusBg = (s: string) => {
+        if (s === 'CONFIRMED') return '#dcfce7';
+        if (s === 'CANCELLED') return '#fee2e2';
+        return '#fef3c7';
+      };
+      const confirmedCount = bookings.filter((b: Booking) => b.status === 'CONFIRMED').length;
+      const cancelledCount = bookings.filter((b: Booking) => b.status === 'CANCELLED').length;
+      const pendingCount = bookings.length - confirmedCount - cancelledCount;
+      const totalPax = bookings.reduce((s: number, b: Booking) => s + (b.adults ?? 0) + (b.children ?? 0), 0);
+
+      const rows = bookings.map((b: Booking, i: number) => {
+        const phone = esc((b as any).phone || b.customerPhone);
+        const email = esc((b as any).email || (b as any).customerEmail);
+        const amount = (b as any).amount ?? b.totalAmount;
+        const ticketCode = esc((b as any).ticketCode);
+        const notes = esc((b as any).notes);
+        const agent = esc((b as any).agent || (b as any).bookedByName);
+        return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:center;color:#6b7280">${i + 1}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;font-family:monospace;font-size:11px;color:#7c3aed">${ticketCode}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;font-weight:600">${esc(b.customerName)}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb">${phone}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;color:#2563eb">${email}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb">${esc(b.selectedRoomTypeName)}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:center">${b.adults ?? 0}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:center">${b.children ?? 0}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:right;font-weight:600">${amount ? Number(amount).toLocaleString('vi-VN') + 'đ' : ''}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:center"><span style="padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;color:${statusColor(b.status)};background:${statusBg(b.status)}">${statusLabel(b.status)}</span></td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;color:#6b7280;font-size:11px">${agent}</td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb;color:#6b7280;font-size:11px">${notes}</td>
+        </tr>`;
+      }).join('');
+
+      const departureLine = [tour.departureTime, tour.startDate ? tour.startDate.split('-').reverse().join('/') : '', tour.departureLocation].filter(Boolean).join(' – ');
+      const returnLine = [tour.returnTime, tour.endDate ? tour.endDate.split('-').reverse().join('/') : '', tour.returnLocation].filter(Boolean).join(' – ');
+      const printedAt = new Date().toLocaleString('vi-VN');
+      const logoUrl = 'https://firebasestorage.googleapis.com/v0/b/daiichitravel-f49fd.firebasestorage.app/o/daiichilogo.png?alt=media&token=bcc9d130-5370-42e2-b0f6-d0b4a3b32724';
+
+      const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>${esc(tour.title)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; padding: 24px; color: #111; margin: 0; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #c0392b; padding-bottom: 12px; margin-bottom: 16px; }
+    .header img { height: 52px; object-fit: contain; }
+    .header-title { text-align: center; flex: 1; }
+    .header-title h1 { font-size: 18px; color: #c0392b; margin: 0 0 2px; text-transform: uppercase; letter-spacing: 1px; }
+    .header-title p { font-size: 12px; color: #6b7280; margin: 0; }
+    .header-meta { text-align: right; font-size: 11px; color: #6b7280; min-width: 160px; }
+    .tour-info { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+    .tour-info p { margin: 3px 0; font-size: 12px; color: #374151; }
+    .tour-info b { color: #111; }
+    .stats { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .stat-box { background: #f3f4f6; border-radius: 6px; padding: 8px 16px; text-align: center; min-width: 110px; }
+    .stat-box .val { font-size: 22px; font-weight: 700; color: #c0392b; }
+    .stat-box .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    h2 { font-size: 14px; color: #374151; margin: 20px 0 8px; border-left: 4px solid #c0392b; padding-left: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 8px; font-size: 12px; }
+    th { background: #c0392b; color: #fff; padding: 8px 10px; border: 1px solid #a93226; text-align: left; font-size: 12px; white-space: nowrap; }
+    td { padding: 7px 10px; border: 1px solid #e5e7eb; vertical-align: top; }
+    .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; }
+    @media print { button { display: none !important; } body { padding: 12px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="${logoUrl}" alt="Daiichi Travel" onerror="this.style.display='none'">
+    <div class="header-title">
+      <h1>DANH SÁCH HÀNH KHÁCH</h1>
+      <p>${esc(tour.title)}</p>
+    </div>
+    <div class="header-meta">
+      <div>In lúc: ${printedAt}</div>
+      <div>Tour ID: ${esc(tour.id)}</div>
+    </div>
+  </div>
+
+  <div class="tour-info">
+    ${departureLine ? `<p><b>🚀 Khởi hành:</b> ${esc(departureLine)}</p>` : ''}
+    ${returnLine ? `<p><b>🏁 Về:</b> ${esc(returnLine)}</p>` : ''}
+    ${tour.duration ? `<p><b>⏱ Thời gian:</b> ${esc(tour.duration)}</p>` : ''}
+    ${tour.departureLocation ? `<p><b>📍 Điểm xuất phát:</b> ${esc(tour.departureLocation)}</p>` : ''}
+  </div>
+
+  <div class="stats">
+    <div class="stat-box"><div class="val">${bookings.length}</div><div class="lbl">Tổng đặt chỗ</div></div>
+    <div class="stat-box"><div class="val" style="color:#15803d">${confirmedCount}</div><div class="lbl">Đã xác nhận</div></div>
+    <div class="stat-box"><div class="val" style="color:#d97706">${pendingCount}</div><div class="lbl">Chờ xác nhận</div></div>
+    <div class="stat-box"><div class="val" style="color:#dc2626">${cancelledCount}</div><div class="lbl">Đã hủy</div></div>
+    <div class="stat-box"><div class="val">${totalPax}</div><div class="lbl">Tổng hành khách</div></div>
+  </div>
+
+  <h2>📋 Danh sách hành khách</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th>Mã vé</th>
+        <th>Họ tên</th>
+        <th>Số điện thoại</th>
+        <th>Email</th>
+        <th>Loại phòng</th>
+        <th style="width:42px">NL</th>
+        <th style="width:42px">TE</th>
+        <th>Tổng tiền</th>
+        <th>Trạng thái</th>
+        <th>Đặt bởi</th>
+        <th>Ghi chú</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan="12" style="text-align:center;color:#9ca3af;padding:20px">Chưa có đặt chỗ nào</td></tr>`}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Daiichi Travel – daiichitravel.vn</span>
+    <span>In lúc: ${printedAt}</span>
+  </div>
+
+  <script>
+    /* Delay print to allow logo image to finish loading before dialog opens */
+    window.onload = function() { window.focus(); setTimeout(function(){ window.print(); }, 500); };
+  <\/script>
+</body>
+</html>`;
+
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+    } catch (err) {
+      win.document.open();
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial;padding:24px;color:#dc2626"><b>Lỗi tải dữ liệu:</b> ${esc(String(err))}</body></html>`);
       win.document.close();
     }
-    const bookings = await transportService.getTourBookings(tour.id);
-    const statusLabel = (s: string) => {
-      if (s === 'CONFIRMED') return language === 'vi' ? 'Đã xác nhận' : 'Confirmed';
-      if (s === 'CANCELLED') return language === 'vi' ? 'Đã hủy' : 'Cancelled';
-      return language === 'vi' ? 'Chờ xác nhận' : 'Pending';
-    };
-    const rows = bookings.map((b: Booking, i: number) => `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${i + 1}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb">${b.customerName || ''}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb">${b.customerPhone || ''}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb">${b.selectedRoomTypeName || ''}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${b.adults ?? ''}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${b.children ?? ''}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:right">${b.totalAmount ? Number(b.totalAmount).toLocaleString('vi-VN') + 'đ' : ''}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;text-align:center">${statusLabel(b.status)}</td>
-      </tr>`).join('');
-    const departureLine = [tour.departureTime, tour.startDate ? tour.startDate.split('-').reverse().join('/') : '', tour.departureLocation].filter(Boolean).join(' – ');
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>${tour.title}</title>
-      <style>body{font-family:Arial,sans-serif;font-size:13px;padding:24px;color:#111}
-      h2{margin:0 0 4px}p{margin:2px 0;color:#555}
-      table{border-collapse:collapse;width:100%;margin-top:16px}
-      th{background:#c0392b;color:#fff;padding:8px 12px;border:1px solid #c0392b;text-align:left}
-      @media print{button{display:none}}</style></head><body>
-      <h2>${tour.title}</h2>
-      ${departureLine ? `<p>${language === 'vi' ? 'Khởi hành' : 'Departure'}: ${departureLine}</p>` : ''}
-      <p>${language === 'vi' ? 'Tổng số đặt chỗ' : 'Total bookings'}: ${bookings.length}</p>
-      <table>
-        <thead><tr>
-          <th style="width:40px">#</th>
-          <th>${language === 'vi' ? 'Họ tên' : 'Name'}</th>
-          <th>${language === 'vi' ? 'Số điện thoại' : 'Phone'}</th>
-          <th>${language === 'vi' ? 'Loại phòng' : 'Room type'}</th>
-          <th style="width:60px">${language === 'vi' ? 'NL' : 'Adults'}</th>
-          <th style="width:60px">${language === 'vi' ? 'TE' : 'Children'}</th>
-          <th>${language === 'vi' ? 'Tổng tiền' : 'Total'}</th>
-          <th>${language === 'vi' ? 'Trạng thái' : 'Status'}</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <script>window.onload=function(){window.print()}<\/script>
-    </body></html>`;
-    if (win) { win.document.open(); win.document.write(html); win.document.close(); }
-    else { alert(language === 'vi' ? 'Trình duyệt đã chặn cửa sổ bật lên. Vui lòng cho phép pop-up và thử lại.' : 'Pop-up blocked. Please allow pop-ups and try again.'); }
   };
 
   const renderRoomTypesSection = (
