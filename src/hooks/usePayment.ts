@@ -823,7 +823,7 @@ export function usePayment(ctx: BookingContext) {
               .catch(err => console.error('[pendingPayment] delete error:', err));
 
             const savedOutbound = await saveSingleBooking(
-              { ...capturedLeg.bookingData, paymentStatus: 'PAID' },
+              { ...capturedLeg.bookingData, paymentStatus: 'PAID', status: 'PAID' },
               capturedLeg.seatUpdateData,
               capturedLeg.allSeatIds,
               capturedLeg.tripId,
@@ -837,7 +837,7 @@ export function usePayment(ctx: BookingContext) {
               return;
             }
 
-            const returnBookingData = { ...bookingData, paymentStatus: 'PAID' };
+            const returnBookingData = { ...bookingData, paymentStatus: 'PAID', status: 'PAID' };
             const savedReturn = await saveSingleBooking(
               returnBookingData,
               seatUpdateData,
@@ -1090,7 +1090,7 @@ export function usePayment(ctx: BookingContext) {
         transportService.deletePendingPayment(paymentReference)
           .catch(err => console.error('[pendingPayment] delete error:', err));
         try {
-          const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID' });
+          const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID', status: 'PAID' });
           const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
           ctx2.setLastBooking(savedBooking);
           // Fire-and-forget customer activity update (does not affect booking outcome on failure)
