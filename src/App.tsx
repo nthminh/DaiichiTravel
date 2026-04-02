@@ -1768,12 +1768,27 @@ export default function App() {
             getLocalDateString={getLocalDateString}
             onInitiatePayment={(amount, label, onComplete, onPaymentCancel) => {
               const ref = `TOUR-${Date.now().toString(36).toUpperCase()}`;
+              transportService.createPendingPayment({
+                paymentRef: ref,
+                expectedAmount: amount,
+                customerName: label,
+                routeInfo: selectedTour?.name ?? 'Tour',
+                tripId: selectedTour?.id ?? '',
+              }).catch(err => console.error('[pendingTourPayment] create error:', err));
               setPendingTourPayment({
                 amount,
                 ref,
                 label,
-                execute: onComplete,
-                cancel: async () => onPaymentCancel(),
+                execute: async () => {
+                  transportService.deletePendingPayment(ref)
+                    .catch(err => console.error('[pendingTourPayment] delete error:', err));
+                  await onComplete();
+                },
+                cancel: async () => {
+                  transportService.deletePendingPayment(ref)
+                    .catch(err => console.error('[pendingTourPayment] delete error:', err));
+                  onPaymentCancel();
+                },
               });
             }}
           />
