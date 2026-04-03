@@ -80,55 +80,36 @@ export const transportService = {
     }, (err) => { console.error('[trips] subscription error:', err); callback([]); });
   },
 
-  // Listen to trips for a date range by reading daily_schedules documents.
-  // Each document (ID = YYYY-MM-DD) stores a pre-aggregated `trips` array,
-  // limiting Firestore reads to exactly one document per day.
+  // Listen to trips for a date range by querying the trips collection directly.
+  // Uses a single-field range filter on 'date' (YYYY-MM-DD), which is covered by
+  // Firestore's automatically-generated single-field index – no composite index needed.
+  // Results are capped at 2000 trips to prevent runaway reads on very large ranges.
   subscribeToTripsByDateRange: (dateFrom: string, dateTo: string, callback: (trips: Trip[]) => void) => {
     if (!db) { callback([]); return () => {}; }
+    if (!dateFrom || !dateTo) { callback([]); return () => {}; }
 
-    // Build the list of dates in [dateFrom, dateTo] (capped at 31 days).
-    const dates: string[] = [];
-    const start = new Date(dateFrom + 'T00:00:00');
-    const end = new Date(dateTo + 'T00:00:00');
-    const MAX_DAYS = 31;
-    const toLocalDateStr = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    };
-    for (let d = new Date(start); d <= end && dates.length < MAX_DAYS; d.setDate(d.getDate() + 1)) {
-      dates.push(toLocalDateStr(d));
-    }
-    if (dates.length === 0) { callback([]); return () => {}; }
+    const q = query(
+      collection(db, 'trips'),
+      where('date', '>=', dateFrom),
+      where('date', '<=', dateTo),
+      limit(2000),
+    );
 
-    const tripsMap = new Map<string, Trip[]>();
-    const unsubscribers: (() => void)[] = [];
-
-    const emit = () => {
-      const all: Trip[] = [];
-      for (const date of dates) all.push(...(tripsMap.get(date) ?? []));
-      all.sort((a, b) => {
-        const dc = (a.date ?? '').localeCompare(b.date ?? '');
-        return dc !== 0 ? dc : (a.time ?? '').localeCompare(b.time ?? '');
-      });
-      callback(all);
-    };
-
-    for (const date of dates) {
-      tripsMap.set(date, []);
-      const unsub = onSnapshot(
-        doc(db, 'daily_schedules', date),
-        (snap: import('firebase/firestore').DocumentSnapshot) => {
-          tripsMap.set(date, snap.exists() ? ((snap.data()?.trips ?? []) as Trip[]) : []);
-          emit();
-        },
-        (err: Error) => { console.error(`[daily_schedules/${date}] error:`, err); },
-      );
-      unsubscribers.push(unsub);
-    }
-
-    return () => unsubscribers.forEach(u => u());
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const trips = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Trip[];
+        trips.sort((a, b) => {
+          const dc = (a.date ?? '').localeCompare(b.date ?? '');
+          return dc !== 0 ? dc : (a.time ?? '').localeCompare(b.time ?? '');
+        });
+        callback(trips);
+      },
+      (err: Error) => { console.error('[trips/dateRange] subscription error:', err); callback([]); },
+    );
   },
 
   // Update seat status (atomic transaction to avoid race conditions)
