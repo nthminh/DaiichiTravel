@@ -282,14 +282,30 @@ export function OperationsPage({
   // Only show trips after the user explicitly loads data via the "Tải dữ liệu" button.
   // Before the button is clicked (not loading and not loaded), return an empty list so the
   // page starts blank. Once loading starts or finishes, merge the batch-loaded extraTrips with
-  // the real-time subscription trips (subscription takes priority for live updates).
+  // the real-time subscription trips.
+  //
+  // When active filters are set (date, route, etc.) extraTrips is the authoritative source
+  // because it was fetched with those exact Firestore constraints. The subscription delivers
+  // the 500 most-recent trips regardless of the chosen filter, so mixing it in would inject
+  // trips from other dates/routes and produce the "rời rạc" (scattered) display bug.
+  // In filtered mode we still overlay subscription data for trips that already appear in
+  // extraTrips so seat-status live updates keep working.
   const allTrips = React.useMemo(() => {
     if (!loadingAllTrips && !allTripsLoaded) return [];
     if (extraTrips.length === 0) return trips;
+    if (
+      tripFilterRoute || tripFilterDate || tripFilterDateFrom ||
+      tripFilterDateTo || tripFilterTime || tripFilterVehicle || tripFilterDriver
+    ) {
+      // Filtered mode: extraTrips defines the exact set; subscription provides live updates.
+      const subscriptionMap = new Map(trips.map(t => [t.id, t]));
+      return extraTrips.map(t => subscriptionMap.get(t.id) ?? t);
+    }
+    // Unfiltered mode: merge both sources, subscription takes priority for live updates.
     const map = new Map(trips.map(t => [t.id, t]));
     for (const t of extraTrips) if (!map.has(t.id)) map.set(t.id, t);
     return Array.from(map.values());
-  }, [trips, extraTrips, loadingAllTrips, allTripsLoaded]);
+  }, [trips, extraTrips, loadingAllTrips, allTripsLoaded, tripFilterRoute, tripFilterDate, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver]);
 
   const handleLoadAllTrips = React.useCallback(async () => {
     if (loadingAllTrips) return;
