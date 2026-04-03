@@ -1,18 +1,18 @@
 rules_version = '2';
 
 service cloud.firestore {
-  match /databases/{database}/documents {
+  match /databases/daiichi-asia/documents {
 
     // Helper function to check for Rowy user roles safely.
     function isRowyUserWithRole(role) {
-      let userDocPath = /databases/$(database)/documents/_rowy_/userManagement/users/$(request.auth.uid);
+      let userDocPath = /databases/daiichi-asia/documents/_rowy_/userManagement/users/$(request.auth.uid);
       return request.auth != null &&
              exists(userDocPath) &&
              (get(userDocPath).data.roles.hasAny([role, 'admin']));
     }
     
     function isRowyAdmin() {
-        let userDocPath = /databases/$(database)/documents/_rowy_/userManagement/users/$(request.auth.uid);
+        let userDocPath = /databases/daiichi-asia/documents/_rowy_/userManagement/users/$(request.auth.uid);
         return request.auth != null &&
              exists(userDocPath) &&
              get(userDocPath).data.roles.hasAny(['admin']);
