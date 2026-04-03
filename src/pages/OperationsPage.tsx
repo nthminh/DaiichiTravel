@@ -266,6 +266,19 @@ export function OperationsPage({
   const [loadedTripCount, setLoadedTripCount] = React.useState(0);
   const loadAbortRef = React.useRef<{ aborted: boolean }>({ aborted: false });
 
+  // Reset loaded state when filters change so the user can re-load with new filters.
+  // Also abort any in-progress load since the result would not match new filters.
+  React.useEffect(() => {
+    if (loadingAllTrips || allTripsLoaded) {
+      loadAbortRef.current.aborted = true;
+      setLoadingAllTrips(false);
+      setAllTripsLoaded(false);
+      setExtraTrips([]);
+      setLoadedTripCount(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripFilterRoute, tripFilterDate, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver]);
+
   // Merged trips: real-time subscription (trips prop) takes priority over extra snapshot trips
   const allTrips = React.useMemo(() => {
     if (extraTrips.length === 0) return trips;
@@ -283,17 +296,26 @@ export function OperationsPage({
     const signal = { aborted: false };
     loadAbortRef.current = signal;
     const accumulated: Trip[] = [];
+    const activeFilters = {
+      route: tripFilterRoute || undefined,
+      date: tripFilterDate || undefined,
+      dateFrom: tripFilterDateFrom || undefined,
+      dateTo: tripFilterDateTo || undefined,
+      time: tripFilterTime || undefined,
+      licensePlate: tripFilterVehicle || undefined,
+      driverName: tripFilterDriver || undefined,
+    };
     try {
       await transportService.loadAllTripsBatched((batch) => {
         accumulated.push(...batch);
         setExtraTrips([...accumulated]);
         setLoadedTripCount(accumulated.length);
-      }, 500, signal);
+      }, 500, signal, activeFilters);
       setAllTripsLoaded(true);
     } finally {
       setLoadingAllTrips(false);
     }
-  }, [loadingAllTrips]);
+  }, [loadingAllTrips, tripFilterRoute, tripFilterDate, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver]);
 
   const handleAddonImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setForm: (updater: (p: any) => any) => void) => {
     const file = e.target.files?.[0];
