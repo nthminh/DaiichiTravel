@@ -91,8 +91,14 @@ export const transportService = {
     const start = new Date(dateFrom + 'T00:00:00');
     const end = new Date(dateTo + 'T00:00:00');
     const MAX_DAYS = 31;
+    const toLocalDateStr = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
     for (let d = new Date(start); d <= end && dates.length < MAX_DAYS; d.setDate(d.getDate() + 1)) {
-      dates.push(d.toISOString().split('T')[0]);
+      dates.push(toLocalDateStr(d));
     }
     if (dates.length === 0) { callback([]); return () => {}; }
 
