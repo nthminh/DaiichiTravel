@@ -80,6 +80,51 @@ export const transportService = {
     }, (err) => { console.error('[trips] subscription error:', err); callback([]); });
   },
 
+  // Listen to trips for a date range by reading daily_schedules documents.
+  // Each document (ID = YYYY-MM-DD) stores a pre-aggregated `trips` array,
+  // limiting Firestore reads to exactly one document per day.
+  subscribeToTripsByDateRange: (dateFrom: string, dateTo: string, callback: (trips: Trip[]) => void) => {
+    if (!db) { callback([]); return () => {}; }
+
+    // Build the list of dates in [dateFrom, dateTo] (capped at 31 days).
+    const dates: string[] = [];
+    const start = new Date(dateFrom + 'T00:00:00');
+    const end = new Date(dateTo + 'T00:00:00');
+    const MAX_DAYS = 31;
+    for (let d = new Date(start); d <= end && dates.length < MAX_DAYS; d.setDate(d.getDate() + 1)) {
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    if (dates.length === 0) { callback([]); return () => {}; }
+
+    const tripsMap = new Map<string, Trip[]>();
+    const unsubscribers: (() => void)[] = [];
+
+    const emit = () => {
+      const all: Trip[] = [];
+      for (const date of dates) all.push(...(tripsMap.get(date) ?? []));
+      all.sort((a, b) => {
+        const dc = (a.date ?? '').localeCompare(b.date ?? '');
+        return dc !== 0 ? dc : (a.time ?? '').localeCompare(b.time ?? '');
+      });
+      callback(all);
+    };
+
+    for (const date of dates) {
+      tripsMap.set(date, []);
+      const unsub = onSnapshot(
+        doc(db, 'daily_schedules', date),
+        (snap: import('firebase/firestore').DocumentSnapshot) => {
+          tripsMap.set(date, snap.exists() ? ((snap.data()?.trips ?? []) as Trip[]) : []);
+          emit();
+        },
+        (err: Error) => { console.error(`[daily_schedules/${date}] error:`, err); },
+      );
+      unsubscribers.push(unsub);
+    }
+
+    return () => unsubscribers.forEach(u => u());
+  },
+
   // Update seat status (atomic transaction to avoid race conditions)
   bookSeat: async (tripId: string, seatId: string, bookingData: Partial<Seat>) => {
     if (!db) return;

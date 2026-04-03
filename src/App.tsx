@@ -310,8 +310,8 @@ export default function App() {
   const [tripFilterRoute, setTripFilterRoute] = useState('');
   const [tripFilterDate, setTripFilterDate] = useState('');
   const [tripFilterStatus, setTripFilterStatus] = useState<string>('ALL');
-  const [tripFilterDateFrom, setTripFilterDateFrom] = useState('');
-  const [tripFilterDateTo, setTripFilterDateTo] = useState('');
+  const [tripFilterDateFrom, setTripFilterDateFrom] = useState(() => getLocalDateString());
+  const [tripFilterDateTo, setTripFilterDateTo] = useState(() => getLocalDateString());
   const [tripFilterTime, setTripFilterTime] = useState('');
   const [tripFilterVehicle, setTripFilterVehicle] = useState('');
   const [tripFilterDriver, setTripFilterDriver] = useState('');
@@ -626,7 +626,6 @@ export default function App() {
   ], [employees]);
 
   useEffect(() => {
-    const unsubscribeTrips = transportService.subscribeToTrips(setTrips);
     const unsubscribeConsignments = transportService.subscribeToConsignments(setConsignments);
     const unsubscribeAgents = transportService.subscribeToAgents((data) => { setAgents(data); setAgentsLoading(false); });
     const unsubscribeStops = transportService.subscribeToStops(setStops);
@@ -641,7 +640,6 @@ export default function App() {
     const unsubscribeCategoryRequests = transportService.subscribeToCategoryRequests(setCategoryRequests);
     const unsubscribeAuditLogs = transportService.subscribeToAuditLogs(setAuditLogs);
     return () => {
-      unsubscribeTrips();
       unsubscribeConsignments();
       unsubscribeAgents();
       unsubscribeStops();
@@ -657,6 +655,15 @@ export default function App() {
       unsubscribeAuditLogs();
     };
   }, []);
+
+  // Subscribe to trips from daily_schedules for the selected date range.
+  // Re-subscribes automatically when the operator changes the date filter,
+  // loading only the required day-documents instead of the full trips collection.
+  useEffect(() => {
+    const from = tripFilterDateFrom || getLocalDateString();
+    const to = tripFilterDateTo || getLocalDateString();
+    return transportService.subscribeToTripsByDateRange(from, to, setTrips);
+  }, [tripFilterDateFrom, tripFilterDateTo]);
 
   // Subscribe to invoices only when Firebase Auth is available (invoices require auth for Firestore reads/writes).
   // onAuthStateChanged re-subscribes automatically after login so the list is always up-to-date.
