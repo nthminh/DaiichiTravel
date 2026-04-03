@@ -119,7 +119,7 @@ export const transportService = {
       if (filters!.licensePlate) constraints.push(where('licensePlate', '==', filters!.licensePlate));
       if (filters!.driverName) constraints.push(where('driverName', '==', filters!.driverName));
       // When filtering by date range use orderBy('date') first (Firestore requirement)
-      if (!filters!.date && (filters!.dateFrom || filters!.dateTo)) {
+      if (filters!.dateFrom || filters!.dateTo) {
         constraints.push(orderBy('date', 'asc'));
       }
     } else {

@@ -266,10 +266,12 @@ export function OperationsPage({
   const [loadedTripCount, setLoadedTripCount] = React.useState(0);
   const loadAbortRef = React.useRef<{ aborted: boolean }>({ aborted: false });
 
-  // Reset loaded state when filters change so the user can re-load with new filters
+  // Reset loaded state when filters change so the user can re-load with new filters.
+  // Also abort any in-progress load since the result would not match new filters.
   React.useEffect(() => {
-    if (allTripsLoaded) {
+    if (loadingAllTrips || allTripsLoaded) {
       loadAbortRef.current.aborted = true;
+      setLoadingAllTrips(false);
       setAllTripsLoaded(false);
       setExtraTrips([]);
       setLoadedTripCount(0);
