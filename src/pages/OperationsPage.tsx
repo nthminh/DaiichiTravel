@@ -388,7 +388,7 @@ export function OperationsPage({
                 const rh = lockRoomHeaders.find(h => h.deck === d && h.row === r && h.col === c);
                 if (rh) { rowArr.push(rh); continue; }
                 const seat = trip.seats.find(s => (s.deck || 0) === d && (s.row ?? -1) === r && (s.col ?? -1) === c);
-                rowArr.push(seat ? { label: seat.id, row: r, col: c, deck: d, discounted: false, booked: false } : null);
+                rowArr.push(seat ? { id: seat.id, label: seat.id, row: r, col: c, deck: d, discounted: false, booked: false } : null);
               }
               deckArr.push(rowArr);
             }

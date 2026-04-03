@@ -277,7 +277,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser, use
                     </span>
                     <h3 className="font-bold text-gray-800 text-sm leading-tight truncate">{guide.title}</h3>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      {t.guide_last_updated ?? 'Cập nhật'}: {formatDateVN(guide.updatedAt)}
+                      {t.guide_last_updated ?? 'Cập nhật'}: {formatDateVN(new Date(guide.updatedAt))}
                     </p>
                   </div>
                   {isManager && (
