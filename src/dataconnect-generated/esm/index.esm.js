@@ -3,7 +3,7 @@ import { queryRef, executeQuery, mutationRef, executeMutation, validateArgs } fr
 export const connectorConfig = {
   connector: 'example',
   service: 'daiichitravel',
-  location: 'us-central1'
+  location: 'asia-southeast1'
 };
 
 export const createMovieRef = (dcOrVars, vars) => {
