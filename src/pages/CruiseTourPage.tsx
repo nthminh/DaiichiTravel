@@ -245,13 +245,16 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
                             className="flex items-center justify-between text-[10px] px-2 py-1 bg-cyan-50 rounded-lg border border-cyan-100"
                           >
                             <span className="font-medium text-cyan-700">{rt.name}</span>
-                            {available !== null && (
-                              <span className={`font-semibold ${isFullyBooked ? 'text-red-500' : available <= 2 ? 'text-amber-500' : 'text-green-600'}`}>
-                                {isFullyBooked
-                                  ? (isVi ? 'Hết phòng' : isJa ? '満室' : 'Full')
-                                  : (isVi ? `Còn ${available} phòng` : isJa ? `残り${available}室` : `${available} left`)}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-cyan-600 font-semibold">{rt.price.toLocaleString('vi-VN')}đ/{rt.pricingMode === 'PER_ROOM' ? (isVi ? 'phòng' : isJa ? '部屋' : 'room') : (isVi ? 'người' : isJa ? '人' : 'pax')}</span>
+                              {available !== null && (
+                                <span className={`font-semibold ${isFullyBooked ? 'text-red-500' : available <= 2 ? 'text-amber-500' : 'text-green-600'}`}>
+                                  {isFullyBooked
+                                    ? (isVi ? 'Hết phòng' : isJa ? '満室' : 'Full')
+                                    : (isVi ? `Còn ${available} phòng` : isJa ? `残り${available}室` : `${available} left`)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
