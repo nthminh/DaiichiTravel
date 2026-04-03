@@ -1,5 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info, ZoomIn, SlidersHorizontal } from 'lucide-react'
+import { Bus, Users, Calendar, MapPin, Search, Clock, X, CheckCircle2, AlertTriangle, Phone, Gift, ChevronDown, ArrowUpDown, Heart, ChevronRight, Info, ZoomIn, SlidersHorizontal, DatabaseZap, Loader2 as LoaderIcon } from 'lucide-react'
 import { cn, getLocalDateString } from '../lib/utils'
 import { Language, TRANSLATIONS, UserRole } from '../App'
 import { SeatStatus, TripStatus, Trip, Route, Stop, TripAddon, Vehicle, RouteSurcharge } from '../types'
@@ -1474,6 +1474,42 @@ export function BookTicketPage({
   const t = TRANSLATIONS[language];
   const { toasts, showToast, dismissToast } = useToast();
 
+  // Extra trips loaded on demand beyond the initial 500-trip subscription
+  const [extraTrips, setExtraTrips] = useState<Trip[]>([]);
+  const [loadingAllTrips, setLoadingAllTrips] = useState(false);
+  const [allTripsLoaded, setAllTripsLoaded] = useState(false);
+  const [loadedTripCount, setLoadedTripCount] = useState(0);
+  const loadAbortRef = useRef<{ aborted: boolean }>({ aborted: false });
+
+  // Merged trips: real-time subscription (trips prop) takes priority over extra snapshot trips
+  const allTrips = useMemo(() => {
+    if (extraTrips.length === 0) return trips;
+    const map = new Map(extraTrips.map(t => [t.id, t]));
+    for (const t of trips) map.set(t.id, t);
+    return Array.from(map.values());
+  }, [trips, extraTrips]);
+
+  const handleLoadAllTrips = async () => {
+    if (loadingAllTrips) return;
+    setLoadingAllTrips(true);
+    setAllTripsLoaded(false);
+    setExtraTrips([]);
+    setLoadedTripCount(0);
+    const signal = { aborted: false };
+    loadAbortRef.current = signal;
+    let accumulated: Trip[] = [];
+    try {
+      await transportService.loadAllTripsBatched((batch) => {
+        accumulated = [...accumulated, ...batch];
+        setExtraTrips([...accumulated]);
+        setLoadedTripCount(accumulated.length);
+      }, 500, signal);
+      setAllTripsLoaded(true);
+    } finally {
+      setLoadingAllTrips(false);
+    }
+  };
+
   // Effective category filter: lockedCategoryFilter takes precedence over the prop passed from parent.
   const effectiveCategoryFilter = lockedCategoryFilter ?? routeCategoryFilter ?? '';
 
@@ -1542,7 +1578,7 @@ export function BookTicketPage({
   // Compute unique vehicle type+seat combinations from active trips for the combined filter
   const availableCombinations = useMemo(() => {
     const activePlates = new Set(
-      trips
+      allTrips
         .filter(tr => tr.status === TripStatus.WAITING || tr.status === TripStatus.RUNNING)
         .map(tr => tr.licensePlate)
     );
@@ -1560,7 +1596,7 @@ export function BookTicketPage({
       }
     });
     return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
-  }, [trips, vehicles]);
+  }, [allTrips, vehicles]);
 
   // Parse the combo value into type/seats for filter comparisons
   const comboType = localVehicleCombo ? localVehicleCombo.split('::')[0] : '';
@@ -1680,7 +1716,7 @@ export function BookTicketPage({
     const fetchId = ++segmentFareFetchRef.current;
 
     const fetchFares = async () => {
-      const uniqueRouteNames = [...new Set(trips.map(t => t.route))];
+      const uniqueRouteNames = [...new Set(allTrips.map(t => t.route))];
 
       const results = await Promise.all(
         uniqueRouteNames.map(async (routeName) => {
@@ -1773,7 +1809,7 @@ export function BookTicketPage({
 
     fetchFares();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [committedParams, tripType, roundTripPhase, routes, stops, trips]);
+  }, [committedParams, tripType, roundTripPhase, routes, stops, allTrips]);
 
   // Show the search result notification after segment fares have finished loading for the current
   // search. We track the false→true transition of segmentFaresLoaded so we don't accidentally fire
@@ -1785,7 +1821,7 @@ export function BookTicketPage({
     if (!wasLoaded && segmentFaresLoaded && pendingNotificationRef.current) {
       pendingNotificationRef.current = false;
       const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
-      const count = trips.filter(trip => {
+      const count = allTrips.filter(trip => {
         if (!filterTrip(trip, true)) return false;
         if (localVehicleCombo) {
           const v = vehicleMap.get(trip.licensePlate);
@@ -1801,7 +1837,7 @@ export function BookTicketPage({
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segmentFaresLoaded, trips]);
+  }, [segmentFaresLoaded, allTrips]);
 
   const routeByName = new Map(routes.map(r => [r.name, r]));
 
@@ -1996,7 +2032,7 @@ export function BookTicketPage({
     } else {
       // No segment fare filter will be applied (from/to not specified), so count now directly.
       const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
-      const count = trips.filter(trip => {
+      const count = allTrips.filter(trip => {
         if (!filterTrip(trip, true, newParams)) return false;
         if (localVehicleCombo) {
           const v = vehicleMap.get(trip.licensePlate);
@@ -2562,7 +2598,7 @@ export function BookTicketPage({
     <>
     {/* Image lightbox overlay */}
     {lightboxState && (() => {
-      const lbTrip = trips.find(t => t.id === lightboxState.tripId);
+      const lbTrip = allTrips.find(t => t.id === lightboxState.tripId);
       const lbRoute = lbTrip ? routes.find(r => r.name === lbTrip.route) : undefined;
       const lbImages = (lbRoute?.images && lbRoute.images.length > 0) ? lbRoute.images : (lbRoute?.imageUrl ? [lbRoute.imageUrl] : []);
       if (lbImages.length === 0) return null;
@@ -3007,8 +3043,8 @@ export function BookTicketPage({
             const route = routeByName.get(tr.route);
             return !!route && route.routeCategory === effectiveCategoryFilter;
           };
-          const likedSuggestions = trips.filter(tr => likedTrips.has(tr.id) && eligibleStatuses.includes(tr.status) && matchesCategory(tr));
-          const discountedSuggestions = trips.filter(tr =>
+          const likedSuggestions = allTrips.filter(tr => likedTrips.has(tr.id) && eligibleStatuses.includes(tr.status) && matchesCategory(tr));
+          const discountedSuggestions = allTrips.filter(tr =>
             !likedTrips.has(tr.id) &&
             (tr.discountPercent || 0) > 0 &&
             eligibleStatuses.includes(tr.status) &&
@@ -3047,7 +3083,7 @@ export function BookTicketPage({
 
           const filteredBookingTrips = (() => {
             const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
-            let result = trips.filter(tr => {
+            let result = allTrips.filter(tr => {
               if (!filterTrip(tr, true)) return false;
               if (localVehicleCombo) {
                 const v = vehicleMap.get(tr.licensePlate);
@@ -3086,7 +3122,7 @@ export function BookTicketPage({
 
           // Nearest trips: same route/direction but without date restriction, sorted by date proximity
           const nearestTrips = filteredBookingTrips.length === 0 && (effectiveFrom || effectiveTo)
-            ? trips
+            ? allTrips
                 .filter(tr => filterTrip(tr, false))
                 .sort((a, b) => {
                   if (!effectiveDate) return compareTripDateTime(a, b);
@@ -3100,8 +3136,30 @@ export function BookTicketPage({
 
           if (filteredBookingTrips.length > 0) {
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredBookingTrips.map(trip => renderTripCard(trip, false))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredBookingTrips.map(trip => renderTripCard(trip, false))}
+                </div>
+                {/* Load all trips button shown at bottom of results */}
+                {!allTripsLoaded && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={handleLoadAllTrips}
+                      disabled={loadingAllTrips}
+                      className="flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow"
+                    >
+                      {loadingAllTrips ? <LoaderIcon size={16} className="animate-spin" /> : <DatabaseZap size={16} />}
+                      {loadingAllTrips
+                        ? (language === 'vi' ? `Đang tải... ${loadedTripCount} chuyến` : `Loading... ${loadedTripCount} trips`)
+                        : (language === 'vi' ? 'Tải tất cả chuyến' : 'Load all trips')}
+                    </button>
+                  </div>
+                )}
+                {allTripsLoaded && (
+                  <p className="text-center text-xs text-gray-400 pt-1">
+                    {language === 'vi' ? `Đã hiển thị tất cả ${allTrips.length} chuyến` : `Showing all ${allTrips.length} trips`}
+                  </p>
+                )}
               </div>
             );
           }
@@ -3208,6 +3266,23 @@ export function BookTicketPage({
                 <div className="text-center py-10 text-gray-400">
                   <Search size={40} className="mx-auto mb-3 opacity-30" />
                   <p className="font-medium mb-4">{t.no_trips_found}</p>
+                  {!allTripsLoaded && (
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500 mb-3">
+                        {language === 'vi' ? 'Có thể có nhiều chuyến hơn trong cơ sở dữ liệu.' : 'There may be more trips in the database.'}
+                      </p>
+                      <button
+                        onClick={handleLoadAllTrips}
+                        disabled={loadingAllTrips}
+                        className="flex items-center gap-2 mx-auto bg-purple-600 text-white px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow mb-3"
+                      >
+                        {loadingAllTrips ? <LoaderIcon size={16} className="animate-spin" /> : <DatabaseZap size={16} />}
+                        {loadingAllTrips
+                          ? (language === 'vi' ? `Đang tải... ${loadedTripCount} chuyến` : `Loading... ${loadedTripCount} trips`)
+                          : (language === 'vi' ? 'Tải tất cả chuyến' : 'Load all trips')}
+                      </button>
+                    </div>
+                  )}
                   <p className="text-sm text-gray-500 mb-3">{t.no_trips_at_all_prompt}</p>
                   <button
                     onClick={() => setShowInquiryForm(true)}

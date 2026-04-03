@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check, Lock, Unlock } from 'lucide-react';
+import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check, Lock, Unlock, DatabaseZap } from 'lucide-react';
 import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
@@ -259,6 +259,42 @@ export function OperationsPage({
   const [editingAddonId, setEditingAddonId] = React.useState<string | null>(null);
   const [addonUploadError, setAddonUploadError] = React.useState<string | null>(null);
 
+  // Extra trips loaded via the "Tải dữ liệu" button (beyond the initial 500-trip subscription)
+  const [extraTrips, setExtraTrips] = React.useState<Trip[]>([]);
+  const [loadingAllTrips, setLoadingAllTrips] = React.useState(false);
+  const [allTripsLoaded, setAllTripsLoaded] = React.useState(false);
+  const [loadedTripCount, setLoadedTripCount] = React.useState(0);
+  const loadAbortRef = React.useRef<{ aborted: boolean }>({ aborted: false });
+
+  // Merged trips: real-time subscription (trips prop) takes priority over extra snapshot trips
+  const allTrips = React.useMemo(() => {
+    if (extraTrips.length === 0) return trips;
+    const map = new Map(extraTrips.map(t => [t.id, t]));
+    for (const t of trips) map.set(t.id, t);
+    return Array.from(map.values());
+  }, [trips, extraTrips]);
+
+  const handleLoadAllTrips = React.useCallback(async () => {
+    if (loadingAllTrips) return;
+    setLoadingAllTrips(true);
+    setAllTripsLoaded(false);
+    setExtraTrips([]);
+    setLoadedTripCount(0);
+    const signal = { aborted: false };
+    loadAbortRef.current = signal;
+    let accumulated: Trip[] = [];
+    try {
+      await transportService.loadAllTripsBatched((batch) => {
+        accumulated = [...accumulated, ...batch];
+        setExtraTrips([...accumulated]);
+        setLoadedTripCount(accumulated.length);
+      }, 500, signal);
+      setAllTripsLoaded(true);
+    } finally {
+      setLoadingAllTrips(false);
+    }
+  }, [loadingAllTrips]);
+
   const handleAddonImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, setForm: (updater: (p: any) => any) => void) => {
     const file = e.target.files?.[0];
     if (!file || !uploadAddonImage) return;
@@ -293,10 +329,10 @@ export function OperationsPage({
     ...employees.filter(e => e.role !== 'DRIVER' && e.status === 'ACTIVE').map(e => e.name),
   ];
   const availableSeatCounts = React.useMemo(
-    () => Array.from(new Set(trips.filter(t => t.status !== TripStatus.COMPLETED).map(t => (t.seats || []).length))).filter(n => n > 0).sort((a, b) => a - b),
-    [trips]
+    () => Array.from(new Set(allTrips.filter(t => t.status !== TripStatus.COMPLETED).map(t => (t.seats || []).length))).filter(n => n > 0).sort((a, b) => a - b),
+    [allTrips]
   );
-  const filteredTrips = React.useMemo(() => trips.filter(trip => {
+  const filteredTrips = React.useMemo(() => allTrips.filter(trip => {
     if (trip.status === TripStatus.COMPLETED) return false;
     // Quick dropdown filters
     if (tripFilterStatus !== 'ALL' && trip.status !== tripFilterStatus) return false;
@@ -327,7 +363,7 @@ export function OperationsPage({
   // dependencies) defined without useCallback in App.tsx, so excluding it avoids
   // unnecessary memoization invalidations on every App render.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [trips, tripFilterStatus, tripFilterRoute, tripFilterDate, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripFilterDaysOfWeek, tripSearch]);
+  [allTrips, tripFilterStatus, tripFilterRoute, tripFilterDate, tripFilterTime, tripFilterVehicle, tripFilterDriver, tripFilterSeatCount, tripFilterDateFrom, tripFilterDateTo, tripFilterDaysOfWeek, tripSearch]);
 
   // Reset to page 1 whenever active filters change
   React.useEffect(() => {
@@ -342,7 +378,7 @@ export function OperationsPage({
     <div className="space-y-6">
       {/* Seat Lock Modal */}
       {lockSeatsTrip && isAdmin && (() => {
-        const trip = trips.find(t => t.id === lockSeatsTrip.id) ?? lockSeatsTrip;
+        const trip = allTrips.find(t => t.id === lockSeatsTrip.id) ?? lockSeatsTrip;
         const handleToggle = async (seatId: string) => {
           const seat = trip.seats.find(s => s.id === seatId);
           if (!seat) return;
@@ -560,7 +596,7 @@ export function OperationsPage({
           </div>
         );
       })()}
-      <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">{t.operation_management}</h2>
         <div className="flex gap-2">
           {selectedTripIdsForMerge.length === 2 && (
@@ -581,6 +617,24 @@ export function OperationsPage({
               {language === 'vi' ? 'Bỏ chọn' : 'Deselect'}
             </button>
           )}
+          {!allTripsLoaded ? (
+            <button
+              onClick={handleLoadAllTrips}
+              disabled={loadingAllTrips}
+              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title={language === 'vi' ? 'Tải tất cả chuyến từ cơ sở dữ liệu' : 'Load all trips from database'}
+            >
+              {loadingAllTrips ? <Loader2 size={16} className="animate-spin" /> : <DatabaseZap size={16} />}
+              {loadingAllTrips
+                ? (language === 'vi' ? `Đang tải... ${loadedTripCount} chuyến` : `Loading... ${loadedTripCount} trips`)
+                : (language === 'vi' ? 'Tải dữ liệu' : 'Load Data')}
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-200 text-purple-700 px-3 py-2 rounded-lg text-sm font-semibold">
+              <CheckCircle2 size={14} className="text-purple-500" />
+              {language === 'vi' ? `Đã tải ${allTrips.length} chuyến` : `Loaded ${allTrips.length} trips`}
+            </div>
+          )}
           <button
             onClick={() => exportAllTripsToExcelHandler(filteredTrips)}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 transition-colors"
@@ -595,8 +649,8 @@ export function OperationsPage({
 
       {showMergeConfirm && (() => {
         const [primaryId, secondaryId] = selectedTripIdsForMerge;
-        const primaryTrip = trips.find(t => t.id === primaryId);
-        const secondaryTrip = trips.find(t => t.id === secondaryId);
+        const primaryTrip = allTrips.find(t => t.id === primaryId);
+        const secondaryTrip = allTrips.find(t => t.id === secondaryId);
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-[32px] p-8 max-w-md w-full space-y-5">
@@ -1020,7 +1074,7 @@ export function OperationsPage({
           className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', tripFilterTime ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
         >
           <option value="">{language === 'vi' ? 'Tất cả giờ' : 'All Times'}</option>
-          {Array.from(new Set(trips.filter(t => t.status !== TripStatus.COMPLETED && t.time).map(t => t.time))).sort().map(time => (
+          {Array.from(new Set(allTrips.filter(t => t.status !== TripStatus.COMPLETED && t.time).map(t => t.time))).sort().map(time => (
             <option key={time} value={time}>{time}</option>
           ))}
         </select>
@@ -1378,7 +1432,7 @@ export function OperationsPage({
               const isSelectedForMerge = selectedTripIdsForMerge.includes(trip.id);
               // When one trip is already selected, only trips with the same route, date and time are compatible
               const firstSelectedTrip = selectedTripIdsForMerge.length === 1
-                ? trips.find(t => t.id === selectedTripIdsForMerge[0])
+                ? allTrips.find(t => t.id === selectedTripIdsForMerge[0])
                 : null;
               const isCompatibleWithSelected = !firstSelectedTrip || (
                 trip.route === firstSelectedTrip.route &&

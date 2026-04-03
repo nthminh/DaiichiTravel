@@ -13,10 +13,12 @@ import {
   query, 
   orderBy,
   limit,
+  startAfter,
   where,
   increment,
   Timestamp,
-  getCountFromServer
+  getCountFromServer,
+  QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment, Property, PropertyRoomType } from '../types';
@@ -78,6 +80,31 @@ export const transportService = {
       })) as Trip[];
       callback(trips);
     }, (err) => { console.error('[trips] subscription error:', err); callback([]); });
+  },
+
+  // Load all trips from Firestore in batches, calling onBatch for each batch.
+  // Useful for admin "load all data" and customer "search all trips" features.
+  // batchSize defaults to 500 to stay within Firestore limits per query.
+  loadAllTripsBatched: async (
+    onBatch: (trips: Trip[]) => void,
+    batchSize = 500,
+    signal?: { aborted: boolean }
+  ): Promise<void> => {
+    if (!db) return;
+    let cursor: QueryDocumentSnapshot | null = null;
+    let hasMore = true;
+    while (hasMore) {
+      if (signal?.aborted) return;
+      const q = cursor
+        ? query(collection(db, 'trips'), orderBy('time', 'asc'), startAfter(cursor), limit(batchSize))
+        : query(collection(db, 'trips'), orderBy('time', 'asc'), limit(batchSize));
+      const snap = await getDocs(q);
+      if (snap.empty) break;
+      const trips = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Trip[];
+      cursor = snap.docs[snap.docs.length - 1];
+      hasMore = snap.docs.length === batchSize;
+      onBatch(trips);
+    }
   },
 
   // Update seat status (atomic transaction to avoid race conditions)
