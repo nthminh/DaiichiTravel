@@ -18,7 +18,8 @@ import {
   increment,
   Timestamp,
   getCountFromServer,
-  QueryDocumentSnapshot
+  QueryDocumentSnapshot,
+  QueryConstraint
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment, Property, PropertyRoomType } from '../types';
@@ -85,19 +86,52 @@ export const transportService = {
   // Load all trips from Firestore in batches, calling onBatch for each batch.
   // Useful for admin "load all data" and customer "search all trips" features.
   // batchSize defaults to 500 to stay within Firestore limits per query.
+  // Optional filters are applied as Firestore where clauses to reduce data transfer.
   loadAllTripsBatched: async (
     onBatch: (trips: Trip[]) => void,
     batchSize = 500,
-    signal?: { aborted: boolean }
+    signal?: { aborted: boolean },
+    filters?: {
+      route?: string;
+      date?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      time?: string;
+      licensePlate?: string;
+      driverName?: string;
+    }
   ): Promise<void> => {
     if (!db) return;
+    const hasFilters = filters && (
+      filters.route || filters.date || filters.dateFrom ||
+      filters.dateTo || filters.time || filters.licensePlate || filters.driverName
+    );
+    const constraints: QueryConstraint[] = [];
+    if (hasFilters) {
+      if (filters!.route) constraints.push(where('route', '==', filters!.route));
+      if (filters!.date) {
+        constraints.push(where('date', '==', filters!.date));
+      } else {
+        if (filters!.dateFrom) constraints.push(where('date', '>=', filters!.dateFrom));
+        if (filters!.dateTo) constraints.push(where('date', '<=', filters!.dateTo));
+      }
+      if (filters!.time) constraints.push(where('time', '==', filters!.time));
+      if (filters!.licensePlate) constraints.push(where('licensePlate', '==', filters!.licensePlate));
+      if (filters!.driverName) constraints.push(where('driverName', '==', filters!.driverName));
+      // When filtering by date range use orderBy('date') first (Firestore requirement)
+      if (!filters!.date && (filters!.dateFrom || filters!.dateTo)) {
+        constraints.push(orderBy('date', 'asc'));
+      }
+    } else {
+      constraints.push(orderBy('time', 'asc'));
+    }
     let cursor: QueryDocumentSnapshot | null = null;
     let hasMore = true;
     while (hasMore) {
       if (signal?.aborted) return;
       const q = cursor
-        ? query(collection(db, 'trips'), orderBy('time', 'asc'), startAfter(cursor), limit(batchSize))
-        : query(collection(db, 'trips'), orderBy('time', 'asc'), limit(batchSize));
+        ? query(collection(db, 'trips'), ...constraints, startAfter(cursor), limit(batchSize))
+        : query(collection(db, 'trips'), ...constraints, limit(batchSize));
       const snap = await getDocs(q);
       if (snap.empty) break;
       const trips = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Trip[];
