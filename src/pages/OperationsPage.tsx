@@ -279,13 +279,17 @@ export function OperationsPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripFilterRoute, tripFilterDate, tripFilterDateFrom, tripFilterDateTo, tripFilterTime, tripFilterVehicle, tripFilterDriver]);
 
-  // Merged trips: real-time subscription (trips prop) takes priority over extra snapshot trips
+  // Only show trips after the user explicitly loads data via the "Tải dữ liệu" button.
+  // Before the button is clicked (not loading and not loaded), return an empty list so the
+  // page starts blank. Once loading starts or finishes, merge the batch-loaded extraTrips with
+  // the real-time subscription trips (subscription takes priority for live updates).
   const allTrips = React.useMemo(() => {
+    if (!loadingAllTrips && !allTripsLoaded) return [];
     if (extraTrips.length === 0) return trips;
     const map = new Map(trips.map(t => [t.id, t]));
     for (const t of extraTrips) if (!map.has(t.id)) map.set(t.id, t);
     return Array.from(map.values());
-  }, [trips, extraTrips]);
+  }, [trips, extraTrips, loadingAllTrips, allTripsLoaded]);
 
   const handleLoadAllTrips = React.useCallback(async () => {
     if (loadingAllTrips) return;
