@@ -266,11 +266,12 @@ service cloud.firestore {
                     && isShortString(request.resource.data.status);
     }
 
-    // Audit logs: authenticated read, authenticated create-only (immutable audit trail)
+    // Audit logs: authenticated read, open create-only (immutable audit trail).
+    // Creates do not require isSignedIn() because anonymous Firebase Auth may be
+    // unavailable; instead we validate the payload to prevent abuse.
     match /auditLogs/{log} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-                    && request.resource.data.keys().size() <= 20
+      allow create: if request.resource.data.keys().size() <= 20
                     && isShortString(request.resource.data.actorName)
                     && isShortString(request.resource.data.action);
       allow update, delete: if false;
