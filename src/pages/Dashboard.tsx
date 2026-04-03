@@ -569,7 +569,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                       <Clock size={13} className="text-daiichi-red mb-0.5" />
                       <span className="text-xs font-bold text-gray-700 leading-none">{trip.time || '—'}</span>
                       {trip.date && (
-                        <span className="text-[9px] text-gray-400 leading-none mt-0.5">{formatBookingDate(trip.date)}</span>
+                      <span className="text-[10px] text-gray-400 leading-none mt-0.5">{formatBookingDate(trip.date)}</span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

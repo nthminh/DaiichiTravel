@@ -220,7 +220,10 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
         )
           .then(url => {
             setOnepayQrString(url);
-            // Auto-open OnePay payment page in a new tab on first URL load
+            // Auto-open OnePay payment page in a new tab on first URL load.
+            // window.open() may return null if blocked by a popup blocker;
+            // in that case we still set onepayTabOpened so the banner with the
+            // manual re-open button is shown.
             if (!openedOnepayRef.current) {
               openedOnepayRef.current = true;
               window.open(url, '_blank', 'noopener,noreferrer');
