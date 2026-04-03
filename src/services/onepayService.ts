@@ -25,7 +25,7 @@
 export interface OnepayConfig {
   /** Mã merchant (vpc_Merchant) — do OnePay cấp khi đăng ký */
   merchant: string;
-  /** Mã access code (vpc_Access_Code) — do OnePay cấp khi đăng ký */
+  /** Mã access code (vpc_AccessCode) — do OnePay cấp khi đăng ký */
   accessCode: string;
   /**
    * Khóa bí mật dạng chuỗi hex dùng để tạo/xác thực chữ ký HMAC-SHA256
@@ -281,7 +281,7 @@ export async function createOnepayPaymentUrl(
     vpc_Version:     '2',                         // Phiên bản API
     vpc_Currency:    'VND',                       // Đơn vị tiền tệ
     vpc_Command:     'pay',                       // Loại lệnh: thanh toán
-    vpc_Access_Code: config.accessCode,           // Mã truy cập (do OnePay cấp)
+    vpc_AccessCode:  config.accessCode,           // Mã truy cập (do OnePay cấp)
     vpc_Merchant:    config.merchant,             // Mã merchant (do OnePay cấp)
     vpc_Locale:      params.locale ?? 'vn',       // Ngôn ngữ hiển thị ('vn' hoặc 'en')
     vpc_ReturnURL:   params.returnUrl,            // URL nhận kết quả thanh toán
