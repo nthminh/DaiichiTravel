@@ -653,6 +653,25 @@ export function SeatMappingPage({
   {shouldShowMobileBackdrop && (
     <div className="fixed inset-0 bg-black/20 z-[140] lg:hidden" />
   )}
+  {/* Fixed back arrow button for mobile screens */}
+  <button
+    onClick={() => {
+      if (showBookingConfirmation) {
+        setShowBookingConfirmation(false);
+      } else if (showBookingForm) {
+        setShowBookingForm(null);
+        setExtraSeatIds([]);
+        setAddonQuantities({});
+      } else {
+        setActiveTab(previousTab);
+      }
+    }}
+    className="fixed top-4 left-4 z-[200] flex items-center justify-center w-10 h-10 bg-white shadow-lg border border-gray-200 rounded-full text-gray-600 hover:text-daiichi-red hover:border-daiichi-red transition-all lg:hidden"
+    title={language === 'vi' ? 'Quay lại' : language === 'ja' ? '戻る' : 'Go back'}
+    aria-label={language === 'vi' ? 'Quay lại' : language === 'ja' ? '戻る' : 'Go back'}
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+  </button>
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-[40px] shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
