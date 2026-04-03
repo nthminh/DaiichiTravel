@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 import * as https from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
@@ -178,7 +179,7 @@ export const verifyRecaptchaAndSendOtp = https.onCall(
  *   firebase functions:secrets:set SMTP_PASS
  */
 export const notifyInquiry = onDocumentCreated(
-  { document: 'inquiries/{inquiryId}', region: 'asia-southeast1', secrets: ['SMTP_USER', 'SMTP_PASS'] },
+  { document: 'inquiries/{inquiryId}', database: 'daiichi-asia', region: 'asia-southeast1', secrets: ['SMTP_USER', 'SMTP_PASS'] },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
@@ -521,7 +522,7 @@ ${companyInfoHtml(appUrl)}`;
  * function exits gracefully without throwing.
  */
 export const onCustomerCreated = onDocumentCreated(
-  { document: 'customers/{customerId}', region: 'asia-southeast1', secrets: ['SMTP_USER', 'SMTP_PASS'] },
+  { document: 'customers/{customerId}', database: 'daiichi-asia', region: 'asia-southeast1', secrets: ['SMTP_USER', 'SMTP_PASS'] },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
@@ -911,7 +912,7 @@ export const exportTripExcel = https.onCall(
     }
 
     const tripId = data.tripId.trim();
-    const db = admin.firestore();
+    const db = getFirestore(admin.app(), 'daiichi-asia');
 
     // Fetch trip
     const tripSnap = await db.collection('trips').doc(tripId).get();
@@ -1175,7 +1176,7 @@ export const onepayIpn = https.onRequest(
         confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-    const db = admin.firestore();
+    const db = getFirestore(admin.app(), 'daiichi-asia');
     try {
       const paymentDocRef = db.collection('pendingPayments').doc(orderId);
       const paymentSnap = await paymentDocRef.get();
