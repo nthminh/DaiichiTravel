@@ -323,9 +323,11 @@ export function SeatMappingPage({
     });
     return Array.from(groupMap.values());
   })();
-  const priceGrandTotal = priceUseAgePricing && children > 0
+  const priceAddonItems = (selectedTrip?.addons || []).filter((a: TripAddon) => (addonQuantities[a.id] || 0) > 0) as TripAddon[];
+  const priceAddonsTotal = priceAddonItems.reduce((sum, a) => sum + a.price * (addonQuantities[a.id] || 0), 0);
+  const priceGrandTotal = (priceUseAgePricing && children > 0
     ? priceTotalPerPerson * adults + priceChildAgeGroups.reduce((s, g) => s + g.count * g.farePer, 0)
-    : priceTotalPerPerson * priceBillablePassengers;
+    : priceTotalPerPerson * priceBillablePassengers) + priceAddonsTotal;
   // Pre-compute stop name lists for pickup/dropoff address selects.
   // Only show STOP-type (điểm dừng) entries – never major TERMINAL stations (ga lớn).
   // Use the user-selected departure/arrival (pickupPoint/dropoffPoint) as the effective
@@ -2042,6 +2044,19 @@ export function SeatMappingPage({
               </>
             )}
           </div>
+          {/* Addon services */}
+          {priceAddonItems.length > 0 && (
+            <div className="pt-1 space-y-1.5">
+              {priceAddonItems.map(a => (
+                <div key={a.id} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">
+                    + {a.name} × {addonQuantities[a.id]}
+                  </span>
+                  <span className="font-semibold text-emerald-600">+{(a.price * addonQuantities[a.id]).toLocaleString()}đ</span>
+                </div>
+              ))}
+            </div>
+          )}
           {/* Grand total — most important */}
           <div className="flex items-center justify-between px-4 py-3 bg-daiichi-red/5 rounded-xl border border-daiichi-red/20">
             <span className="font-bold text-gray-800">
