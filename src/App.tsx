@@ -675,6 +675,13 @@ export default function App() {
     return transportService.subscribeToAuditLogs(setAuditLogs);
   }, [auditLogsRequested]);
 
+  // Auto-load bookings when the user navigates to pages that require them and haven't loaded yet.
+  useEffect(() => {
+    if (['my-tickets', 'agent-bookings'].includes(activeTab) && !bookingsRequested) {
+      setBookingsRequested(true);
+    }
+  }, [activeTab, bookingsRequested]);
+
   // Subscribe to trips from daily_schedules for the selected date range.
   // Re-subscribes automatically when the operator changes the date filter,
   // loading only the required day-documents instead of the full trips collection.
@@ -1445,7 +1452,6 @@ export default function App() {
         );
 
       case 'my-tickets':
-        if (!bookingsRequested) { setBookingsRequested(true); }
         return (
           <MyTickets
             language={language}
@@ -1456,7 +1462,6 @@ export default function App() {
         );
 
       case 'agent-bookings':
-        if (!bookingsRequested) { setBookingsRequested(true); }
         return (
           <AgentBookings
             language={language}
