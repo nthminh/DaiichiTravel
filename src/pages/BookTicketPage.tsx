@@ -1988,12 +1988,6 @@ export function BookTicketPage({
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
     // For RUNNING trips, skip seat availability check (no open booking slots).
     if (trip.status === TripStatus.WAITING && emptySeats < totalPassengers) return false;
-    // Only show trips whose route has fare configuration for the searched segment.
-    // Skip this check when fares haven't loaded yet (avoid false negatives during async fetch).
-    // Also skip when tripRoute is unknown (route data not yet loaded) to avoid hiding trips incorrectly.
-    if (effectiveFrom && effectiveTo && segmentFaresLoaded) {
-      if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
-    }
     return true;
   };
 
