@@ -45,6 +45,8 @@ interface PickupDropoffManagementProps {
   bookings: any[];
   currentUserName: string;
   currentUser?: User | null;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
 // ── Simple combo-box (type-ahead + dropdown) ───────────────────────────────────
@@ -123,6 +125,8 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
   bookings,
   currentUserName,
   currentUser,
+  dataRequested,
+  onLoadData,
 }) => {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
@@ -752,13 +756,24 @@ export const PickupDropoffManagement: React.FC<PickupDropoffManagementProps> = (
           </h2>
           <p className="text-sm text-gray-500 mt-0.5">{t.pickup_dropoff_desc || ''}</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:border-daiichi-red hover:text-daiichi-red transition-all"
-        >
-          <Download size={15} />
-          {language === 'vi' ? 'Xuất Excel' : 'Export Excel'}
-        </button>
+        <div className="flex items-center gap-2">
+          {!dataRequested && (
+            <button
+              onClick={onLoadData}
+              className="flex items-center gap-2 px-5 py-2.5 bg-daiichi-red text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-colors"
+            >
+              <ArrowDownCircle size={15} />
+              {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+            </button>
+          )}
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:border-daiichi-red hover:text-daiichi-red transition-all"
+          >
+            <Download size={15} />
+            {language === 'vi' ? 'Xuất Excel' : 'Export Excel'}
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}

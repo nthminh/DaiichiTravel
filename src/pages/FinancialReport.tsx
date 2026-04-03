@@ -19,6 +19,8 @@ interface FinancialReportProps {
   agents: { id: string; name: string; code: string; balance: number; address?: string }[];
   bookings: any[];
   invoices: Invoice[];
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
 type Period = 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
@@ -31,7 +33,7 @@ const emptyInvoiceItem = (): InvoiceItem => ({
   type: 'TICKET',
 });
 
-export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agents, bookings, invoices }) => {
+export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agents, bookings, invoices, dataRequested, onLoadData }) => {
   const t = TRANSLATIONS[language];
   const [activeSection, setActiveSection] = useState<'overview' | 'invoices' | 'debt'>('overview');
   const [period, setPeriod] = useState<Period>('this_month');
@@ -426,6 +428,20 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
           </button>
         </div>
       </div>
+
+      {/* Lazy-load prompt */}
+      {!dataRequested && (
+        <div className="flex flex-col items-center justify-center py-14 gap-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <TrendingUp size={36} className="text-gray-300" />
+          <p className="text-sm text-gray-500">{language === 'vi' ? 'Dữ liệu báo cáo chưa được tải. Nhấn nút bên dưới để tải.' : 'Report data not loaded yet. Click below to load.'}</p>
+          <button
+            onClick={onLoadData}
+            className="px-5 py-2 bg-daiichi-red text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+          >
+            {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+          </button>
+        </div>
+      )}
 
       {/* Period Selector */}
       <div className="flex flex-wrap gap-2 items-center">

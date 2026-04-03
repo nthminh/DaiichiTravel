@@ -82,6 +82,13 @@ service cloud.firestore {
     
     // --- App Collections ---
 
+    // Daily schedules: public read (aggregated trip list per day, used by booking page and ops)
+    // Only authenticated users may write (schedule updates are admin-only).
+    match /daily_schedules/{date} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // Trips: public read + authenticated validated write (for management)
     // Seat-only updates (status change during booking) are allowed without auth.
     match /trips/{trip} {

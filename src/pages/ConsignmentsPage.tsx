@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, X, Filter, Edit3, Trash2 } from 'lucide-react';
+import { Search, X, Filter, Edit3, Trash2, Package } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
@@ -11,9 +11,11 @@ interface ConsignmentsPageProps {
   consignments: Consignment[];
   currentUser: User | null;
   language: Language;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
-export function ConsignmentsPage({ consignments, currentUser, language }: ConsignmentsPageProps) {
+export function ConsignmentsPage({ consignments, currentUser, language, dataRequested, onLoadData }: ConsignmentsPageProps) {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
 
@@ -161,6 +163,20 @@ export function ConsignmentsPage({ consignments, currentUser, language }: Consig
         <h2 className="text-2xl font-bold">{t.consignment_title}</h2>
         <button onClick={() => setShowCreateConsignment(true)} className="bg-daiichi-red text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-daiichi-red/20">+ {t.create_bill}</button>
       </div>
+
+      {/* Lazy-load prompt */}
+      {!dataRequested && (
+        <div className="flex flex-col items-center justify-center py-14 gap-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <Package size={36} className="text-gray-300" />
+          <p className="text-sm text-gray-500">{language === 'vi' ? 'Dữ liệu vận đơn chưa được tải. Nhấn nút bên dưới để tải.' : 'Consignment data not loaded yet. Click below to load.'}</p>
+          <button
+            onClick={onLoadData}
+            className="px-5 py-2 bg-daiichi-red text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+          >
+            {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+          </button>
+        </div>
+      )}
 
       {/* Advanced Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">

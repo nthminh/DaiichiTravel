@@ -23,9 +23,11 @@ interface DashboardProps {
   bookings: any[];
   currentUser: any;
   setActiveTab?: (tab: string) => void;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments, bookings, currentUser, setActiveTab }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments, bookings, currentUser, setActiveTab, dataRequested, onLoadData }) => {
   const t = TRANSLATIONS[language];
   const [filterType, setFilterType] = useState<'ALL' | 'TRIP' | 'TOUR'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PAID' | 'BOOKED'>('ALL');
@@ -376,6 +378,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
             <CalendarIcon size={20} />
             {language === 'vi' ? 'Lịch trình' : 'Schedule'}
           </button>
+          {!dataRequested && (
+            <button
+              onClick={onLoadData}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-600/20 hover:scale-[1.02] transition-all"
+            >
+              <BarChart2 size={20} />
+              {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+            </button>
+          )}
         </div>
       </div>
 

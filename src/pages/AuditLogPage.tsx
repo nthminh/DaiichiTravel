@@ -11,6 +11,8 @@ interface AuditLogPageProps {
   language: Language;
   logs: AuditLog[];
   currentUser?: AppUser | null;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -113,7 +115,7 @@ function summarizeActivities(activities: AuditLog[], language: Language): string
 
 const PAGE_SIZE = 50;
 
-export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, currentUser }) => {
+export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, currentUser, dataRequested, onLoadData }) => {
   const t = TRANSLATIONS[language];
 
   const [activeTab, setActiveTab] = useState<'detail' | 'session'>('detail');
@@ -206,6 +208,22 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
         <p className="text-sm text-gray-500 mt-0.5">{t.audit_log_desc}</p>
       </div>
 
+      {/* Lazy-load prompt */}
+      {!dataRequested && (
+        <div className="flex flex-col items-center justify-center py-14 gap-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <Activity size={36} className="text-gray-300" />
+          <p className="text-sm text-gray-500">{language === 'vi' ? 'Nhật ký chưa được tải. Nhấn nút bên dưới để tải dữ liệu.' : 'Logs not loaded yet. Click the button below to load data.'}</p>
+          <button
+            onClick={onLoadData}
+            className="px-5 py-2 bg-daiichi-red text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+          >
+            {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+          </button>
+        </div>
+      )}
+
+      {/* Tabs + Filters + Content – only shown after data is loaded */}
+      {dataRequested && <>
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
@@ -479,6 +497,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ language, logs, curr
           </>
         )
       )}
+      </> /* end dataRequested */}
     </div>
   );
 };
