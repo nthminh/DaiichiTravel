@@ -17,6 +17,6 @@ const firebaseConfig = {
 const isConfigured = !!(import.meta.env.VITE_FIREBASE_API_KEY && firebaseConfig.projectId);
 
 export const app = isConfigured ? initializeApp(firebaseConfig) : null;
-export const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true, databaseId: 'daiichi-asia' }) : null;
+export const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }, 'daiichi-asia') : null;
 export const auth = app ? getAuth(app) : null;
 export const storage = app ? getStorage(app) : null;
