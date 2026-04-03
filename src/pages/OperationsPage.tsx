@@ -638,13 +638,12 @@ export function OperationsPage({
               : `Loaded: ${tripLoadedDateFrom} → ${tripLoadedDateTo}`}
           </span>
         )}
-        {!tripLoadedDateFrom && (
+        {!tripLoadedDateFrom && !tripLoadedDateTo && (
           <span className="text-xs text-blue-400 italic">
             {language === 'vi' ? 'Chọn khoảng ngày và nhấn "Tải dữ liệu"' : 'Select a date range and click "Load Data"'}
           </span>
         )}
       </div>
-
 
       {showMergeConfirm && (() => {
         const [primaryId, secondaryId] = selectedTripIdsForMerge;
