@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
@@ -19,7 +19,7 @@ const isConfigured = !!(import.meta.env.VITE_FIREBASE_API_KEY && firebaseConfig.
 export const app = isConfigured ? initializeApp(firebaseConfig) : null;
 export const db = app ? initializeFirestore(app, {
   ignoreUndefinedProperties: true,
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() }),
 }, 'daiichi-asia') : null;
 export const auth = app ? getAuth(app) : null;
 export const storage = app ? getStorage(app) : null;
