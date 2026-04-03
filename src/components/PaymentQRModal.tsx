@@ -100,6 +100,9 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   // Auto-payment detection state
   const [autoDetected, setAutoDetected] = useState(false);
   const [amountMismatch, setAmountMismatch] = useState(false);
+  // Track whether we've already auto-opened the OnePay tab
+  const [onepayTabOpened, setOnepayTabOpened] = useState(false);
+  const openedOnepayRef = useRef(false);
   // Prevent duplicate auto-confirm calls
   const autoConfirmCalledRef = useRef(false);
   // Keep stable reference to onConfirm/onCancel for use inside subscriptions
@@ -215,7 +218,18 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
             callbackUrl: ipnUrl || undefined,
           }
         )
-          .then(url => setOnepayQrString(url))
+          .then(url => {
+            setOnepayQrString(url);
+            // Auto-open OnePay payment page in a new tab on first URL load.
+            // window.open() may return null if blocked by a popup blocker;
+            // in that case we still set onepayTabOpened so the banner with the
+            // manual re-open button is shown.
+            if (!openedOnepayRef.current) {
+              openedOnepayRef.current = true;
+              window.open(url, '_blank', 'noopener,noreferrer');
+              setOnepayTabOpened(true);
+            }
+          })
           .catch(err => {
             console.error('[PaymentQRModal] Failed to generate OnePay URL:', err);
             setOnepayQrString(null);
@@ -464,6 +478,38 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                     >
                       {qrString}
                     </a>
+                  </div>
+                )}
+
+                {/* OnePay tab opened banner */}
+                {onepayTabOpened && !autoDetected && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 flex items-start gap-3">
+                    <Zap size={16} className="text-blue-500 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-blue-700 font-bold">
+                        {language === 'vi'
+                          ? '🔗 Trang thanh toán OnePay đã mở trong tab mới'
+                          : language === 'ja'
+                          ? '🔗 OnePay支払いページが新しいタブで開きました'
+                          : '🔗 OnePay payment page opened in a new tab'}
+                      </p>
+                      <p className="text-xs text-blue-500 mt-0.5">
+                        {language === 'vi'
+                          ? 'Hoàn tất thanh toán trên trang OnePay, sau đó quay lại đây để nhận vé.'
+                          : language === 'ja'
+                          ? 'OnePay ページで支払いを完了し、チケットを受け取るためにここに戻ってください。'
+                          : 'Complete payment on the OnePay page, then return here to receive your ticket.'}
+                      </p>
+                      {onepayQrString && (
+                        <button
+                          type="button"
+                          onClick={() => window.open(onepayQrString, '_blank', 'noopener,noreferrer')}
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
+                        >
+                          {language === 'vi' ? '↗ Mở lại trang thanh toán' : language === 'ja' ? '↗ 支払いページを再度開く' : '↗ Re-open payment page'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
