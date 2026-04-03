@@ -1818,7 +1818,7 @@ export default function App() {
                 paymentRef: ref,
                 expectedAmount: amount,
                 customerName: label,
-                routeInfo: selectedTour?.name ?? 'Tour',
+                routeInfo: selectedTour?.title ?? 'Tour',
                 tripId: selectedTour?.id ?? '',
               }).catch(err => console.error(`[pendingTourPayment] Failed to create pending payment for ref ${ref}:`, err));
               setPendingTourPayment({
