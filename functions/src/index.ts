@@ -1223,10 +1223,14 @@ export const onepayIpn = https.onRequest(
         }
 
         // 7b. Confirm the payment as PAID.
+        // paidContent is set to orderId (== vpc_MerchTxnRef == paymentRef) so that
+        // the PaymentQRModal frontend check `paidContent.includes(paymentRef)` passes.
+        // The OnePay transaction number is stored separately for audit purposes.
         await paymentDocRef.update({
           status: 'PAID',
           paidAmount: amount,
-          paidContent: transactionNo,
+          paidContent: orderId,
+          transactionNo,
           confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         logger.info('[onepayIpn] Payment confirmed', { orderId, amount, transactionNo });
