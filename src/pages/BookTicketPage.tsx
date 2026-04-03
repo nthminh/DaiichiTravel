@@ -1484,8 +1484,8 @@ export function BookTicketPage({
   // Merged trips: real-time subscription (trips prop) takes priority over extra snapshot trips
   const allTrips = useMemo(() => {
     if (extraTrips.length === 0) return trips;
-    const map = new Map(extraTrips.map(t => [t.id, t]));
-    for (const t of trips) map.set(t.id, t);
+    const map = new Map(trips.map(t => [t.id, t]));
+    for (const t of extraTrips) if (!map.has(t.id)) map.set(t.id, t);
     return Array.from(map.values());
   }, [trips, extraTrips]);
 
@@ -1497,10 +1497,10 @@ export function BookTicketPage({
     setLoadedTripCount(0);
     const signal = { aborted: false };
     loadAbortRef.current = signal;
-    let accumulated: Trip[] = [];
+    const accumulated: Trip[] = [];
     try {
       await transportService.loadAllTripsBatched((batch) => {
-        accumulated = [...accumulated, ...batch];
+        accumulated.push(...batch);
         setExtraTrips([...accumulated]);
         setLoadedTripCount(accumulated.length);
       }, 500, signal);
