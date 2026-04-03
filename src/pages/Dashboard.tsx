@@ -565,9 +565,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 };
                 return (
                   <div key={trip.id || i} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-50 flex flex-col items-center justify-center border border-gray-100 shrink-0">
+                    <div className="w-14 h-14 rounded-2xl bg-gray-50 flex flex-col items-center justify-center border border-gray-100 shrink-0">
                       <Clock size={13} className="text-daiichi-red mb-0.5" />
                       <span className="text-xs font-bold text-gray-700 leading-none">{trip.time || '—'}</span>
+                      {trip.date && (
+                        <span className="text-[9px] text-gray-400 leading-none mt-0.5">{formatBookingDate(trip.date)}</span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{trip.route || '—'}</p>

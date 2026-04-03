@@ -189,7 +189,7 @@ export default function App() {
   const [searchTo, setSearchTo] = useState('');
   const [searchStationFrom, setSearchStationFrom] = useState('');
   const [searchStationTo, setSearchStationTo] = useState('');
-  const [searchDate, setSearchDate] = useState('');
+  const [searchDate, setSearchDate] = useState(() => getLocalDateString(0));
   const [searchReturnDate, setSearchReturnDate] = useState('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
   const [bookTicketSearch, setBookTicketSearch] = useState('');
