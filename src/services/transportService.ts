@@ -596,6 +596,8 @@ export const transportService = {
       const q = query(
         collection(db, 'bookings'),
         where('tourId', 'in', batch),
+        // Server-side filter: excludes CANCELLED bookings. Documents without a
+        // status field are treated as non-cancelled (same as previous client-side logic).
         where('status', '!=', 'CANCELLED')
       );
       const snapshot = await getDocs(q);

@@ -353,7 +353,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   // Fetch room booking counts whenever the set of tour IDs changes
   useEffect(() => {
     if (!tourIdsKey) { setRoomBookingCounts({}); return; }
-    const ids = tourIdsKey.split(',');
+    const ids = tourIdsKey.split(',').filter(Boolean);
     transportService.getMultipleTourRoomBookingCounts(ids).then(counts => {
       setRoomBookingCounts(counts);
     }).catch(err => { console.error('Failed to load room booking counts:', err); });
