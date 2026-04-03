@@ -73,7 +73,7 @@ export const transportService = {
   // Listen to all trips
   subscribeToTrips: (callback: (trips: Trip[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'trips'), orderBy('time', 'asc'), limit(500));
+    const q = query(collection(db, 'trips'), orderBy('date', 'desc'), orderBy('time', 'asc'), limit(500));
     return onSnapshot(q, (snapshot) => {
       const trips = snapshot.docs.map(doc => ({
         id: doc.id,
