@@ -80,38 +80,6 @@ export const transportService = {
     }, (err) => { console.error('[trips] subscription error:', err); callback([]); });
   },
 
-  // Listen to trips for a date range by querying the trips collection directly.
-  // Uses a single-field range filter on 'date' (YYYY-MM-DD), which is covered by
-  // Firestore's automatically-generated single-field index – no composite index needed.
-  // Results are capped at 2000 trips to prevent runaway reads on very large ranges.
-  subscribeToTripsByDateRange: (dateFrom: string, dateTo: string, callback: (trips: Trip[]) => void) => {
-    if (!db) { callback([]); return () => {}; }
-    if (!dateFrom || !dateTo) { callback([]); return () => {}; }
-
-    const q = query(
-      collection(db, 'trips'),
-      where('date', '>=', dateFrom),
-      where('date', '<=', dateTo),
-      limit(2000),
-    );
-
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const trips = snapshot.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as Trip[];
-        trips.sort((a, b) => {
-          const dc = (a.date ?? '').localeCompare(b.date ?? '');
-          return dc !== 0 ? dc : (a.time ?? '').localeCompare(b.time ?? '');
-        });
-        callback(trips);
-      },
-      (err: Error) => { console.error('[trips/dateRange] subscription error:', err); callback([]); },
-    );
-  },
-
   // Update seat status (atomic transaction to avoid race conditions)
   bookSeat: async (tripId: string, seatId: string, bookingData: Partial<Seat>) => {
     if (!db) return;
