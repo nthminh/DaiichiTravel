@@ -22,14 +22,18 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
   // Map of tourId → { roomTypeId → booked count }
   const [allRoomCounts, setAllRoomCounts] = useState<Record<string, Record<string, number>>>({});
 
-  // Load room booking counts for all tours whenever the tours list changes
+  // Stable string of tour IDs – only changes when the set of tours actually changes,
+  // preventing getMultipleTourRoomBookingCounts from re-running on every tour data update.
+  const tourIdsKey = useMemo(() => tours.map(t => t.id).filter(Boolean).join(','), [tours]);
+
+  // Load room booking counts for all tours whenever the set of tour IDs changes
   useEffect(() => {
-    const ids = tours.map(t => t.id).filter(Boolean);
+    const ids = tourIdsKey.split(',').filter(Boolean);
     if (ids.length === 0) return;
     transportService.getMultipleTourRoomBookingCounts(ids)
       .then(counts => setAllRoomCounts(counts))
       .catch(err => console.error('[CruiseTourPage] room counts error:', err));
-  }, [tours]);
+  }, [tourIdsKey]);
   const filteredTours = useMemo(() => {
     return tours.filter(tour => {
       const q = searchTerm.toLowerCase();
