@@ -293,11 +293,10 @@ export function OperationsPage({
   const allTrips = React.useMemo(() => {
     if (!loadingAllTrips && !allTripsLoaded) return [];
     if (extraTrips.length === 0) return trips;
-    const activeFiltersExist = !!(
+    if (
       tripFilterRoute || tripFilterDate || tripFilterDateFrom ||
       tripFilterDateTo || tripFilterTime || tripFilterVehicle || tripFilterDriver
-    );
-    if (activeFiltersExist) {
+    ) {
       // Filtered mode: extraTrips defines the exact set; subscription provides live updates.
       const subscriptionMap = new Map(trips.map(t => [t.id, t]));
       return extraTrips.map(t => subscriptionMap.get(t.id) ?? t);
