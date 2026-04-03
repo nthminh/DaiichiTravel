@@ -318,6 +318,9 @@ export default function App() {
   const [tripFilterStatus, setTripFilterStatus] = useState<string>('ALL');
   const [tripFilterDateFrom, setTripFilterDateFrom] = useState(() => getLocalDateString());
   const [tripFilterDateTo, setTripFilterDateTo] = useState(() => getLocalDateString());
+  // Committed date range: the subscription only fires when these are set (by clicking "Tải dữ liệu")
+  const [tripLoadedDateFrom, setTripLoadedDateFrom] = useState('');
+  const [tripLoadedDateTo, setTripLoadedDateTo] = useState('');
   const [tripFilterTime, setTripFilterTime] = useState('');
   const [tripFilterVehicle, setTripFilterVehicle] = useState('');
   const [tripFilterDriver, setTripFilterDriver] = useState('');
@@ -682,14 +685,20 @@ export default function App() {
     }
   }, [activeTab, bookingsRequested]);
 
-  // Subscribe to trips from daily_schedules for the selected date range.
-  // Re-subscribes automatically when the operator changes the date filter,
-  // loading only the required day-documents instead of the full trips collection.
+  // Subscribe to trips from daily_schedules for the loaded date range.
+  // Only fires after the user clicks "Tải dữ liệu" to avoid unnecessary permission errors.
   useEffect(() => {
+    if (!tripLoadedDateFrom || !tripLoadedDateTo) return;
+    return transportService.subscribeToTripsByDateRange(tripLoadedDateFrom, tripLoadedDateTo, setTrips);
+  }, [tripLoadedDateFrom, tripLoadedDateTo]);
+
+  // Commit current filter dates and start the subscription.
+  const handleLoadTrips = () => {
     const from = tripFilterDateFrom || getLocalDateString();
     const to = tripFilterDateTo || getLocalDateString();
-    return transportService.subscribeToTripsByDateRange(from, to, setTrips);
-  }, [tripFilterDateFrom, tripFilterDateTo]);
+    setTripLoadedDateFrom(from);
+    setTripLoadedDateTo(to);
+  };
 
   // Subscribe to invoices only when Firebase Auth is available (invoices require auth for Firestore reads/writes).
   // onAuthStateChanged re-subscribes automatically after login so the list is always up-to-date.
@@ -1990,6 +1999,9 @@ export default function App() {
               setTripFilterDateFrom={setTripFilterDateFrom}
               tripFilterDateTo={tripFilterDateTo}
               setTripFilterDateTo={setTripFilterDateTo}
+              tripLoadedDateFrom={tripLoadedDateFrom}
+              tripLoadedDateTo={tripLoadedDateTo}
+              onLoadTrips={handleLoadTrips}
               tripFilterTime={tripFilterTime}
               setTripFilterTime={setTripFilterTime}
               tripFilterVehicle={tripFilterVehicle}

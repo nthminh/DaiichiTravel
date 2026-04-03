@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check, Lock, Unlock } from 'lucide-react';
+import { X, Edit3, Trash2, Search, Filter, Copy, Download, FileText, Users, Columns, SlidersHorizontal, Loader2, Clock, CheckCircle2, Info, GitMerge, AlertTriangle, Check, Lock, Unlock, RefreshCw } from 'lucide-react';
 import { cn, getLocalDateString } from '../lib/utils';
 import { buildStopNameByOrder, getSegmentInfo as getSegmentInfoUtil } from '../lib/segmentUtils';
 import { TRANSLATIONS, Language, TripStatus, SeatStatus } from '../constants/translations';
@@ -36,6 +36,9 @@ interface OperationsPageProps {
   setTripFilterDateFrom: (v: string) => void;
   tripFilterDateTo: string;
   setTripFilterDateTo: (v: string) => void;
+  tripLoadedDateFrom: string;
+  tripLoadedDateTo: string;
+  onLoadTrips: () => void;
   tripFilterTime: string;
   setTripFilterTime: (v: string) => void;
   tripFilterVehicle: string;
@@ -155,6 +158,9 @@ export function OperationsPage({
   setTripFilterDateFrom,
   tripFilterDateTo,
   setTripFilterDateTo,
+  tripLoadedDateFrom,
+  tripLoadedDateTo,
+  onLoadTrips,
   tripFilterTime,
   setTripFilterTime,
   tripFilterVehicle,
@@ -593,7 +599,52 @@ export function OperationsPage({
         </div>
       </div>
 
-      {/* Merge Trips Confirmation Modal */}
+      {/* Date range selector + Load Data button */}
+      <div className="flex flex-wrap items-end gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
+            {language === 'vi' ? 'Từ ngày' : 'From Date'}
+          </label>
+          <input
+            type="date"
+            value={tripFilterDateFrom}
+            onChange={e => setTripFilterDateFrom(e.target.value)}
+            className="px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
+            {language === 'vi' ? 'Đến ngày' : 'To Date'}
+          </label>
+          <input
+            type="date"
+            value={tripFilterDateTo}
+            min={tripFilterDateFrom}
+            onChange={e => setTripFilterDateTo(e.target.value)}
+            className="px-3 py-2 bg-white border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </div>
+        <button
+          onClick={onLoadTrips}
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-600/20"
+        >
+          <RefreshCw size={15} />
+          {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+        </button>
+        {tripLoadedDateFrom && tripLoadedDateTo && (
+          <span className="text-xs text-blue-500 font-medium">
+            {language === 'vi'
+              ? `Đang xem: ${tripLoadedDateFrom} → ${tripLoadedDateTo}`
+              : `Loaded: ${tripLoadedDateFrom} → ${tripLoadedDateTo}`}
+          </span>
+        )}
+        {!tripLoadedDateFrom && !tripLoadedDateTo && (
+          <span className="text-xs text-blue-400 italic">
+            {language === 'vi' ? 'Chọn khoảng ngày và nhấn "Tải dữ liệu"' : 'Select a date range and click "Load Data"'}
+          </span>
+        )}
+      </div>
+
       {showMergeConfirm && (() => {
         const [primaryId, secondaryId] = selectedTripIdsForMerge;
         const primaryTrip = trips.find(t => t.id === primaryId);
