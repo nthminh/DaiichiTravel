@@ -316,8 +316,8 @@ export default function App() {
   const [tripFilterRoute, setTripFilterRoute] = useState('');
   const [tripFilterDate, setTripFilterDate] = useState('');
   const [tripFilterStatus, setTripFilterStatus] = useState<string>('ALL');
-  const [tripFilterDateFrom, setTripFilterDateFrom] = useState(() => getLocalDateString());
-  const [tripFilterDateTo, setTripFilterDateTo] = useState(() => getLocalDateString());
+  const [tripFilterDateFrom, setTripFilterDateFrom] = useState('');
+  const [tripFilterDateTo, setTripFilterDateTo] = useState('');
   const [tripFilterTime, setTripFilterTime] = useState('');
   const [tripFilterVehicle, setTripFilterVehicle] = useState('');
   const [tripFilterDriver, setTripFilterDriver] = useState('');
