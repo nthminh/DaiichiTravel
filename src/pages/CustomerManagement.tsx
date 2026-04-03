@@ -16,6 +16,8 @@ interface CustomerManagementProps {
   language: Language;
   customers: CustomerProfile[];
   currentUser?: AppUser | null;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
 const PAGE_SIZE = 50;
@@ -31,7 +33,7 @@ const EMPTY_FORM: Omit<CustomerProfile, 'id'> = {
   registeredAt: new Date().toISOString(),
 };
 
-export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language, customers, currentUser }) => {
+export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language, customers, currentUser, dataRequested, onLoadData }) => {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
 
@@ -234,6 +236,20 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ language
           </button>
         </div>
       </div>
+
+      {/* Lazy-load prompt */}
+      {!dataRequested && (
+        <div className="flex flex-col items-center justify-center py-14 gap-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <Users size={36} className="text-gray-300" />
+          <p className="text-sm text-gray-500">{language === 'vi' ? 'Dữ liệu khách hàng chưa được tải. Nhấn nút bên dưới để tải.' : 'Customer data not loaded yet. Click below to load.'}</p>
+          <button
+            onClick={onLoadData}
+            className="px-5 py-2 bg-daiichi-red text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+          >
+            {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+          </button>
+        </div>
+      )}
 
       {/* Alerts */}
       <AnimatePresence>

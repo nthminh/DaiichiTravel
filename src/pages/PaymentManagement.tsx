@@ -20,6 +20,8 @@ interface PaymentManagementProps {
   agents: Agent[];
   currentUser: User | null;
   onUpdateAgent?: (agentId: string, updates: any) => void;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
 type PaymentFilter = 'all' | 'retail' | 'agent';
@@ -68,6 +70,8 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
   agents,
   currentUser,
   onUpdateAgent,
+  dataRequested,
+  onLoadData,
 }) => {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
@@ -377,6 +381,20 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
         <h2 className="text-2xl font-bold text-gray-800">{t.payment_management || 'Quản lý Thanh toán'}</h2>
         <p className="text-sm text-gray-500 mt-0.5">{t.payment_management_desc || 'Theo dõi tất cả giao dịch khách lẻ và đại lý'}</p>
       </div>
+
+      {/* Lazy-load prompt */}
+      {!dataRequested && (
+        <div className="flex flex-col items-center justify-center py-14 gap-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <CreditCard size={36} className="text-gray-300" />
+          <p className="text-sm text-gray-500">{language === 'vi' ? 'Dữ liệu thanh toán chưa được tải. Nhấn nút bên dưới để tải.' : 'Payment data not loaded yet. Click below to load.'}</p>
+          <button
+            onClick={onLoadData}
+            className="px-5 py-2 bg-daiichi-red text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+          >
+            {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+          </button>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

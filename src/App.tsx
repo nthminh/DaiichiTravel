@@ -119,6 +119,9 @@ export default function App() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [consignments, setConsignments] = useState<Consignment[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  // Lazy-load flags – when false the heavy subscription is not started yet.
+  const [bookingsRequested, setBookingsRequested] = useState(false);
+  const [consignmentsRequested, setConsignmentsRequested] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [userGuides, setUserGuides] = useState<UserGuideType[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
@@ -280,6 +283,9 @@ export default function App() {
   const [categoryRequests, setCategoryRequests] = useState<import('./types').CategoryVerificationRequest[]>([]);
   // Audit logs (admin only)
   const [auditLogs, setAuditLogs] = useState<import('./types').AuditLog[]>([]);
+  // Lazy-load flags for admin-only heavy collections
+  const [customersRequested, setCustomersRequested] = useState(false);
+  const [auditLogsRequested, setAuditLogsRequested] = useState(false);
 
   // Pending email-link sign-in data (set when the app is opened via a magic link)
   const [emailLinkPending, setEmailLinkPending] = useState<{ uid: string; email: string } | null>(null);
@@ -626,35 +632,55 @@ export default function App() {
   ], [employees]);
 
   useEffect(() => {
-    const unsubscribeConsignments = transportService.subscribeToConsignments(setConsignments);
     const unsubscribeAgents = transportService.subscribeToAgents((data) => { setAgents(data); setAgentsLoading(false); });
     const unsubscribeStops = transportService.subscribeToStops(setStops);
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
     const unsubscribeVehicles = transportService.subscribeToVehicles((data) => setVehicles(data as unknown as Vehicle[]));
     const unsubscribeTours = transportService.subscribeToTours(setTours);
     const unsubscribeEmployees = transportService.subscribeToEmployees(setEmployees);
-    const unsubscribeBookings = transportService.subscribeToBookings(setBookings);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
-    const unsubscribeCustomers = transportService.subscribeToCustomers(setCustomers);
     const unsubscribeCategories = transportService.subscribeToCustomerCategories(setCustomerCategories);
-    const unsubscribeCategoryRequests = transportService.subscribeToCategoryRequests(setCategoryRequests);
-    const unsubscribeAuditLogs = transportService.subscribeToAuditLogs(setAuditLogs);
     return () => {
-      unsubscribeConsignments();
       unsubscribeAgents();
       unsubscribeStops();
       unsubscribeRoutes();
       unsubscribeVehicles();
       unsubscribeTours();
       unsubscribeEmployees();
-      unsubscribeBookings();
       unsubscribeUserGuides();
-      unsubscribeCustomers();
       unsubscribeCategories();
-      unsubscribeCategoryRequests();
-      unsubscribeAuditLogs();
     };
   }, []);
+
+  // Lazy subscriptions – only start when the user explicitly requests data for a page.
+  useEffect(() => {
+    if (!bookingsRequested) return;
+    return transportService.subscribeToBookings(setBookings);
+  }, [bookingsRequested]);
+
+  useEffect(() => {
+    if (!consignmentsRequested) return;
+    return transportService.subscribeToConsignments(setConsignments);
+  }, [consignmentsRequested]);
+
+  useEffect(() => {
+    if (!customersRequested) return;
+    const unsubCustomers = transportService.subscribeToCustomers(setCustomers);
+    const unsubRequests = transportService.subscribeToCategoryRequests(setCategoryRequests);
+    return () => { unsubCustomers(); unsubRequests(); };
+  }, [customersRequested]);
+
+  useEffect(() => {
+    if (!auditLogsRequested) return;
+    return transportService.subscribeToAuditLogs(setAuditLogs);
+  }, [auditLogsRequested]);
+
+  // Auto-load bookings when the user navigates to pages that require them and haven't loaded yet.
+  useEffect(() => {
+    if (['my-tickets', 'agent-bookings'].includes(activeTab) && !bookingsRequested) {
+      setBookingsRequested(true);
+    }
+  }, [activeTab, bookingsRequested]);
 
   // Subscribe to trips from daily_schedules for the selected date range.
   // Re-subscribes automatically when the operator changes the date filter,
@@ -1382,7 +1408,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard language={language} trips={trips} consignments={consignments} bookings={bookings} currentUser={currentUser} setActiveTab={setActiveTab} />;
+        return <Dashboard language={language} trips={trips} consignments={consignments} bookings={bookings} currentUser={currentUser} setActiveTab={setActiveTab} dataRequested={bookingsRequested && consignmentsRequested} onLoadData={() => { setBookingsRequested(true); setConsignmentsRequested(true); }} />;
       
       case 'settings':
         return (
@@ -1396,7 +1422,7 @@ export default function App() {
         );
 
       case 'customers':
-        return <CustomerManagement language={language} customers={customers} currentUser={currentUser} />;
+        return <CustomerManagement language={language} customers={customers} currentUser={currentUser} dataRequested={customersRequested} onLoadData={() => setCustomersRequested(true)} />;
 
       case 'customer-verification':
         return (
@@ -1406,6 +1432,8 @@ export default function App() {
               requests={categoryRequests}
               categories={customerCategories}
               currentUser={currentUser}
+              dataRequested={customersRequested}
+              onLoadData={() => setCustomersRequested(true)}
             />
           </Suspense>
         );
@@ -1417,6 +1445,8 @@ export default function App() {
               language={language}
               logs={auditLogs}
               currentUser={currentUser}
+              dataRequested={auditLogsRequested}
+              onLoadData={() => setAuditLogsRequested(true)}
             />
           </Suspense>
         );
@@ -2144,7 +2174,7 @@ export default function App() {
         return <StopManagement language={language} stops={stops} onUpdateStops={setStops} currentUser={currentUser} />;
 
       case 'financial-report':
-        return <FinancialReport language={language} agents={agents} bookings={bookings} invoices={invoices} />;
+        return <FinancialReport language={language} agents={agents} bookings={bookings} invoices={invoices} dataRequested={bookingsRequested} onLoadData={() => setBookingsRequested(true)} />;
 
       case 'payment-management':
         return (
@@ -2155,12 +2185,14 @@ export default function App() {
               agents={agents}
               currentUser={currentUser}
               onUpdateAgent={handleUpdateAgent}
+              dataRequested={bookingsRequested}
+              onLoadData={() => setBookingsRequested(true)}
             />
           </ErrorBoundary>
         );
 
       case 'consignments':
-        return <ConsignmentsPage consignments={consignments} currentUser={currentUser} language={language} />;
+        return <ConsignmentsPage consignments={consignments} currentUser={currentUser} language={language} dataRequested={consignmentsRequested} onLoadData={() => setConsignmentsRequested(true)} />;
 
       case 'user-guide':
         return <UserGuide language={language} currentUser={currentUser} userGuides={userGuides} />;
@@ -2176,6 +2208,8 @@ export default function App() {
             bookings={bookings}
             currentUserName={currentUser?.name || ''}
             currentUser={currentUser}
+            dataRequested={bookingsRequested}
+            onLoadData={() => setBookingsRequested(true)}
           />
         );
 

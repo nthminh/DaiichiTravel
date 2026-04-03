@@ -14,6 +14,8 @@ interface CustomerVerificationPageProps {
   requests: CategoryVerificationRequest[];
   categories: CustomerCategory[];
   currentUser?: AppUser | null;
+  dataRequested?: boolean;
+  onLoadData?: () => void;
 }
 
 type StatusFilter = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -23,6 +25,8 @@ export const CustomerVerificationPage: React.FC<CustomerVerificationPageProps> =
   requests,
   categories,
   currentUser,
+  dataRequested,
+  onLoadData,
 }) => {
   const t = TRANSLATIONS[language];
   const isAdmin = currentUser?.role === UserRole.MANAGER;
@@ -183,6 +187,20 @@ export const CustomerVerificationPage: React.FC<CustomerVerificationPageProps> =
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">{t.customer_verification_desc}</p>
       </div>
+
+      {/* Lazy-load prompt */}
+      {!dataRequested && (
+        <div className="flex flex-col items-center justify-center py-14 gap-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <Filter size={36} className="text-gray-300" />
+          <p className="text-sm text-gray-500">{language === 'vi' ? 'Yêu cầu xác nhận chưa được tải. Nhấn nút bên dưới để tải dữ liệu.' : 'Verification requests not loaded yet. Click below to load.'}</p>
+          <button
+            onClick={onLoadData}
+            className="px-5 py-2 bg-daiichi-red text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+          >
+            {language === 'vi' ? 'Tải dữ liệu' : 'Load Data'}
+          </button>
+        </div>
+      )}
 
       {/* Alerts */}
       <AnimatePresence>
