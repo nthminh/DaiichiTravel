@@ -395,11 +395,13 @@ export function useTrips(ctx: TripContext) {
       const batchVehicle = ctxRef.current.vehicles.find(v => v.licensePlate === batchTripForm.licensePlate);
       const seatType = batchVehicle?.seatType || 'assigned';
       const dates: string[] = [];
-      const cur = new Date(batchTripForm.dateFrom + 'T00:00:00');
-      const end = new Date(batchTripForm.dateTo + 'T00:00:00');
+      // Parse as UTC midnight (ISO date-only strings) so that toISOString() returns the
+      // correct YYYY-MM-DD regardless of the browser's local timezone offset.
+      const cur = new Date(batchTripForm.dateFrom);
+      const end = new Date(batchTripForm.dateTo);
       while (cur <= end) {
         dates.push(cur.toISOString().split('T')[0]);
-        cur.setDate(cur.getDate() + 1);
+        cur.setUTCDate(cur.getUTCDate() + 1);
       }
       const tripsToCreate = dates.flatMap(date =>
         validSlots.map(slot => ({
