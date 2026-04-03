@@ -15,7 +15,8 @@ import {
   limit,
   where,
   increment,
-  Timestamp 
+  Timestamp,
+  getCountFromServer
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking, Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare, Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage, VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog, PendingPayment, Property, PropertyRoomType } from '../types';
@@ -69,7 +70,7 @@ export const transportService = {
   // Listen to all trips
   subscribeToTrips: (callback: (trips: Trip[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'trips'), orderBy('time', 'asc'));
+    const q = query(collection(db, 'trips'), orderBy('time', 'asc'), limit(500));
     return onSnapshot(q, (snapshot) => {
       const trips = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -460,7 +461,7 @@ export const transportService = {
   // Listen to tours
   subscribeToTours: (callback: (tours: (TourData & { id: string })[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'tours'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'tours'), orderBy('createdAt', 'desc'), limit(200));
     return onSnapshot(q, (snapshot) => {
       const tours = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -578,7 +579,7 @@ export const transportService = {
   /**
    * Fetch room booking counts for multiple tours at once (for listing pages).
    * Returns a map of tourId → { roomTypeId → count }.
-   * Queries all non-cancelled bookings for the given tour IDs (client-side status filter).
+   * Only counts non-cancelled bookings; the status filter is applied server-side.
    */
   getMultipleTourRoomBookingCounts: async (
     tourIds: string[]
@@ -594,12 +595,14 @@ export const transportService = {
     for (const batch of batches) {
       const q = query(
         collection(db, 'bookings'),
-        where('tourId', 'in', batch)
+        where('tourId', 'in', batch),
+        // Server-side filter: excludes CANCELLED bookings. Documents without a
+        // status field are treated as non-cancelled (same as previous client-side logic).
+        where('status', '!=', 'CANCELLED')
       );
       const snapshot = await getDocs(q);
       snapshot.docs.forEach(d => {
         const data = d.data();
-        if (data.status === 'CANCELLED') return;
         const tid: string | undefined = data.tourId;
         const roomTypeId: string | undefined = data.selectedRoomTypeId;
         if (!tid || !roomTypeId) return;
@@ -618,7 +621,8 @@ export const transportService = {
     if (!db) return [];
     const q = query(
       collection(db, 'bookings'),
-      where('tourId', '==', tourId)
+      where('tourId', '==', tourId),
+      limit(2000)
     );
     const snapshot = await getDocs(q);
     const bookings = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Booking[];
@@ -850,8 +854,8 @@ export const transportService = {
   // Seed default vehicle types (safe: only adds if collection is empty)
   seedVehicleTypes: async () => {
     if (!db) throw new Error('Firebase not configured');
-    const snap = await getDocs(collection(db, 'vehicleTypes'));
-    if (!snap.empty) return 0;
+    const countSnap = await getCountFromServer(query(collection(db, 'vehicleTypes'), limit(1)));
+    if (countSnap.data().count > 0) return 0;
     const batch = writeBatch(db);
     DEFAULT_VEHICLE_TYPES.forEach((name, i) => {
       batch.set(doc(collection(db, 'vehicleTypes')), { name, order: i });
@@ -983,7 +987,7 @@ export const transportService = {
   // Listen to employees
   subscribeToEmployees: (callback: (employees: Employee[]) => void) => {
     if (!db) return () => {};
-    const q = query(collection(db, 'employees'), orderBy('name', 'asc'));
+    const q = query(collection(db, 'employees'), orderBy('name', 'asc'), limit(200));
     return onSnapshot(q, (snapshot) => {
       const employees = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -1309,7 +1313,7 @@ export const transportService = {
   ) => {
     if (!db || !phone?.trim()) return;
     const MAX_TRACKED_ITEMS = 20;
-    const q = query(collection(db, 'customers'), where('phone', '==', phone.trim()));
+    const q = query(collection(db, 'customers'), where('phone', '==', phone.trim()), limit(1));
     const snap = await getDocs(q);
     if (snap.empty) return;
 

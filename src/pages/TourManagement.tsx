@@ -346,13 +346,18 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     return unsubscribe;
   }, []);
 
-  // Fetch room booking counts whenever the tours list changes
+  // Stable string of tour IDs – only changes when the set of tours actually changes,
+  // preventing getMultipleTourRoomBookingCounts from re-running on every tour data update.
+  const tourIdsKey = useMemo(() => tours.map(t => t.id).join(','), [tours]);
+
+  // Fetch room booking counts whenever the set of tour IDs changes
   useEffect(() => {
-    if (tours.length === 0) { setRoomBookingCounts({}); return; }
-    transportService.getMultipleTourRoomBookingCounts(tours.map(t => t.id)).then(counts => {
+    if (!tourIdsKey) { setRoomBookingCounts({}); return; }
+    const ids = tourIdsKey.split(',').filter(Boolean);
+    transportService.getMultipleTourRoomBookingCounts(ids).then(counts => {
       setRoomBookingCounts(counts);
     }).catch(err => { console.error('Failed to load room booking counts:', err); });
-  }, [tours]);
+  }, [tourIdsKey]);
 
   // Subscribe to properties for the asset-link picker
   useEffect(() => {
