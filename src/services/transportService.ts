@@ -792,7 +792,7 @@ export const transportService = {
     void Promise.resolve(supabase.from('settings').select('value').eq('id', 'permissions').single())
       .then(({ data }) => callback((data?.value as Record<string, Record<string, boolean>>) ?? null))
       .catch(() => callback(null));
-    const channel = supabase.channel('settings_permissions')
+    const channel = supabase.channel(`settings_permissions_${Math.random().toString(36).slice(2)}`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes' as any, {
         event: '*', schema: 'public', table: 'settings', filter: 'id=eq.permissions',
@@ -859,7 +859,7 @@ export const transportService = {
     void Promise.resolve(supabase.from('settings').select('value').eq('id', 'paymentConfig').single())
       .then(({ data }) => callback((data?.value as Record<string, unknown>) ?? null))
       .catch(() => callback(null));
-    const channel = supabase.channel('settings_paymentConfig')
+    const channel = supabase.channel(`settings_paymentConfig_${Math.random().toString(36).slice(2)}`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes' as any, {
         event: '*', schema: 'public', table: 'settings', filter: 'id=eq.paymentConfig',
@@ -880,7 +880,7 @@ export const transportService = {
     void Promise.resolve(supabase.from('settings').select('value').eq('id', 'securityConfig').single())
       .then(({ data }) => callback((data?.value as Record<string, unknown>) ?? null))
       .catch(() => callback(null));
-    const channel = supabase.channel('settings_securityConfig')
+    const channel = supabase.channel(`settings_securityConfig_${Math.random().toString(36).slice(2)}`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes' as any, {
         event: '*', schema: 'public', table: 'settings', filter: 'id=eq.securityConfig',
