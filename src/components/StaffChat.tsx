@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, AtSign, Mic, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { formatDateVN } from '../lib/vnDate';
 import { TRANSLATIONS } from '../constants/translations';
 import type { Language } from '../constants/translations';
 import { StaffMessage, Employee } from '../types';
 import { transportService } from '../services/transportService';
-import { storage } from '../lib/firebase';
 
 interface StaffChatProps {
   language: Language;
@@ -133,16 +132,20 @@ export const StaffChat: React.FC<StaffChatProps> = ({
 
   // ── Voice recording ────────────────────────────────────────────────────────
   const sendVoiceMessage = async (blob: Blob) => {
-    if (!storage) {
-      alert(t.staff_chat_mic_error || 'Firebase Storage is not configured.');
+    if (!isSupabaseConfigured || !supabase) {
+      alert(t.staff_chat_mic_error || 'Supabase Storage is not configured.');
       return;
     }
     setSending(true);
     try {
       const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm';
-      const sRef = storageRef(storage, `chatAudio/${Date.now()}_${currentUserId}.${ext}`);
-      await uploadBytes(sRef, blob, { contentType: blob.type || 'audio/webm' });
-      const voiceUrl = await getDownloadURL(sRef);
+      const path = `chatAudio/${Date.now()}_${currentUserId}.${ext}`;
+      const { error } = await supabase.storage
+        .from('chat-audio')
+        .upload(path, blob, { contentType: blob.type || 'audio/webm', upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from('chat-audio').getPublicUrl(path);
+      const voiceUrl = data.publicUrl;
       await transportService.addStaffMessage({
         senderId: currentUserId,
         senderName: currentUserName,

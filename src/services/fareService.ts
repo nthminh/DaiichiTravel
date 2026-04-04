@@ -1,14 +1,13 @@
 /**
- * Fare service – Option 2: explicit fare table between any two stops.
+ * Fare service – explicit fare table between any two stops.
  *
- * Firestore path: routeFares/{routeId}/fares/{fareDocId}
- * fareDocId format:
+ * Supabase table: route_fares
+ * fare_doc_id format:
  *   - No date restriction: "{fromStopId}_{toStopId}"
  *   - Date-specific:       "{fromStopId}_{toStopId}|{startDate}|{endDate}"
- * Document fields: { routeId, fromStopId, toStopId, price, currency, active, updatedAt }
+ * Row fields: { routeId, fromStopId, toStopId, price, currency, active, updatedAt, fareDocId }
  */
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase, isSupabaseConfigured, toCamelCaseObj } from '../lib/supabase';
 import type { FareResult, RouteStop, Stop } from '../types';
 
 // ─── domain error ────────────────────────────────────────────────────────────
@@ -81,19 +80,18 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
     }
   }
 
-  // 3. Firestore lookup – query all fares for this stop pair to support
+  // 3. Supabase lookup – query all fares for this stop pair to support
   //    multiple date-specific fares on the same (fromStop → toStop) segment.
-  if (!db) {
+  if (!isSupabaseConfigured || !supabase) {
     throw new FareError('NO_DB', 'Không kết nối được cơ sở dữ liệu.');
   }
 
-  const faresSnap = await getDocs(
-    query(
-      collection(db, 'routeFares', routeId, 'fares'),
-      where('fromStopId', '==', fromStopId),
-      where('toStopId', '==', toStopId),
-    ),
-  );
+  const { data: rows } = await supabase
+    .from('route_fares')
+    .select('*')
+    .eq('route_id', routeId)
+    .eq('from_stop_id', fromStopId)
+    .eq('to_stop_id', toStopId);
 
   // Resolve stop names once for both error messages and success result.
   // Also check routeStops so that synthetic IDs like __departure__/__arrival__
@@ -101,9 +99,9 @@ export async function getFareForStops(params: GetFareParams): Promise<FareResult
   const fromStop = stops?.find((s) => s.id === fromStopId);
   const toStop = stops?.find((s) => s.id === toStopId);
 
-  const activeFares = faresSnap.docs
-    .map(d => ({ ...(d.data() as Record<string, unknown>), fareDocId: d.id }))
-    .filter(f => f['active'] !== false);
+  const activeFares = (rows || [])
+    .map((r) => toCamelCaseObj<Record<string, unknown>>(r))
+    .filter((f) => f['active'] !== false);
 
   if (activeFares.length === 0) {
     const fromName = fromStop?.name
@@ -199,7 +197,7 @@ export async function upsertFare(
   sortOrder?: number,
   fareDocId?: string,
 ): Promise<string> {
-  if (!db) {
+  if (!isSupabaseConfigured || !supabase) {
     throw new FareError('NO_DB', 'Không kết nối được cơ sở dữ liệu.');
   }
 
@@ -209,31 +207,26 @@ export async function upsertFare(
 
   const resolvedFareDocId =
     fareDocId ?? buildFareDocId(fromStopId, toStopId, startDate, endDate);
-  const fareRef = doc(db, 'routeFares', routeId, 'fares', resolvedFareDocId);
 
   const fareData: Record<string, unknown> = {
-    routeId,
-    fromStopId,
-    toStopId,
+    route_id: routeId,
+    from_stop_id: fromStopId,
+    to_stop_id: toStopId,
+    // Keep camelCase aliases too so toCamelCaseObj round-trips correctly
+    fare_doc_id: resolvedFareDocId,
     price,
     currency,
     active: true,
-    updatedAt: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
-  if (agentPrice !== undefined) {
-    fareData['agentPrice'] = agentPrice;
-  }
-  if (startDate) {
-    fareData['startDate'] = startDate;
-  }
-  if (endDate) {
-    fareData['endDate'] = endDate;
-  }
-  if (sortOrder !== undefined) {
-    fareData['sortOrder'] = sortOrder;
-  }
+  if (agentPrice !== undefined) fareData['agent_price'] = agentPrice;
+  if (startDate) fareData['start_date'] = startDate;
+  if (endDate) fareData['end_date'] = endDate;
+  if (sortOrder !== undefined) fareData['sort_order'] = sortOrder;
 
-  await setDoc(fareRef, fareData, { merge: true });
+  await supabase!
+    .from('route_fares')
+    .upsert(fareData, { onConflict: 'fare_doc_id' });
 
   return resolvedFareDocId;
 }

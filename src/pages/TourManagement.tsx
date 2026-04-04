@@ -4,8 +4,7 @@ import {
   Search, Youtube, Copy, Calendar, ChevronDown, ChevronRight,
   MapPin, Clock, BedDouble, Zap, Building2, FileText
 } from 'lucide-react';
-import { storage } from '../lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { uploadFile } from '../lib/supabase';
 import { Language } from '../App';
 import { User, UserRole, Property, Booking } from '../types';
 import { transportService } from '../services/transportService';
@@ -355,7 +354,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
   useEffect(() => {
     if (!tourIdsKey) { setRoomBookingCounts({}); return; }
     const ids = tourIdsKey.split(',').filter(Boolean);
-    transportService.getMultipleTourRoomBookingCounts(ids).then(counts => {
+    transportService.getMultipleTourRoomBookingCounts(ids.map(id => ({ tourId: id, date: '' }))).then(counts => {
       setRoomBookingCounts(counts);
     }).catch(err => { console.error('Failed to load room booking counts:', err); });
   }, [tourIdsKey]);
@@ -397,10 +396,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0 || !storage) {
-      if (!storage) alert('Firebase Storage is not configured. Please check your environment variables.');
-      return;
-    }
+    if (files.length === 0) return;
     if (isEdit) setEditUploading(true);
     else setUploading(true);
     try {
@@ -408,20 +404,11 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       for (let i = 0; i < files.length; i++) {
         const file = files[i] as File;
         const compressed = await compressImage(file, 0.75, 1280);
-        const storageRef = ref(storage, `tours/${Date.now()}_${compressed.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, compressed);
-        await new Promise<void>((resolve, reject) => {
-          uploadTask.on('state_changed',
-            (snapshot) => {
-              if (!isEdit) {
-                const progress = ((i + snapshot.bytesTransferred / snapshot.totalBytes) / files.length) * 100;
-                setUploadProgress(progress);
-              }
-            },
-            (error) => { console.error('Upload failed:', error); reject(error); },
-            async () => { urls.push(await getDownloadURL(uploadTask.snapshot.ref)); resolve(); }
-          );
-        });
+        const path = `tours/${Date.now()}_${compressed.name}`;
+        if (!isEdit) setUploadProgress(((i + 0.5) / files.length) * 100);
+        const url = await uploadFile('tours', path, compressed);
+        urls.push(url);
+        if (!isEdit) setUploadProgress(((i + 1) / files.length) * 100);
       }
       if (isEdit) {
         setEditForm(prev => {
@@ -441,7 +428,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       console.error('Upload failed:', error);
       if (isEdit) setEditUploading(false);
       else setUploading(false);
-      alert('Upload failed. Please check your Firebase configuration.');
+      alert('Upload failed. Please check your Supabase configuration.');
     }
     e.target.value = '';
   };
@@ -452,20 +439,15 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     isEdit: boolean
   ) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0 || !storage) return;
+    if (files.length === 0) return;
     setUploadingRoomIdx(roomIdx);
     try {
       const urls: string[] = [];
       for (const file of files) {
         const compressed = await compressImage(file, 0.75, 1280);
-        const storageRef = ref(storage, `tours/rooms/${Date.now()}_${compressed.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, compressed);
-        await new Promise<void>((resolve, reject) => {
-          uploadTask.on('state_changed', null,
-            (error) => { console.error('Room upload failed:', error); reject(error); },
-            async () => { urls.push(await getDownloadURL(uploadTask.snapshot.ref)); resolve(); }
-          );
-        });
+        const path = `tours/rooms/${Date.now()}_${compressed.name}`;
+        const url = await uploadFile('tours', path, compressed);
+        urls.push(url);
       }
       const setter = isEdit ? setEditForm : setNewTour;
       setter(prev => {

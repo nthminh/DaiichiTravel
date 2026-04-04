@@ -1,21 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
-import { app, auth } from '../lib/firebase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { CustomerCategory, CustomerProfile } from '../types';
-import {
-  signInWithPhoneNumber,
-  signInAnonymously,
-  RecaptchaVerifier,
-  ConfirmationResult,
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  signInWithPopup,
-  sendSignInLinkToEmail,
-} from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 
 type MemberLoginMethod = 'phone' | 'gmail' | 'facebook' | 'whatsapp' | 'email';
 type MemberAuthStep = 'method' | 'phone-entry' | 'otp' | 'social-loading' | 'name-entry' | 'email-entry' | 'email-sent';
@@ -146,7 +135,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [otpError, setOtpError] = useState('');
   const [pendingUser, setPendingUser] = useState<User | null>(null);
   const [otpPhone, setOtpPhone] = useState('');
-  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
 
   // ── Member OTP login flow ──
   const [memberAuthStep, setMemberAuthStep] = useState<MemberAuthStep>('method');
@@ -160,55 +148,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [memberNameLoading, setMemberNameLoading] = useState(false);
   // Holds verified info from phone OTP or social OAuth before profile completion
   const [pendingAuthData, setPendingAuthData] = useState<{ uid?: string; phone?: string; email?: string; name?: string } | null>(null);
-  const memberConfirmationResultRef = useRef<ConfirmationResult | null>(null);
 
-  // ── Category claim state (shown after login for new customers) ──
-  // Category claim has been removed; login goes directly after OTP/OAuth.
-
-  // Holds the RecaptchaVerifier instance for Firebase phone auth (invisible mode).
-  // Kept in a ref so it persists across renders without triggering re-renders.
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
-
-  // Clean up the reCAPTCHA widget when the component unmounts.
-  useEffect(() => {
-    return () => {
-      recaptchaVerifierRef.current?.clear();
-      recaptchaVerifierRef.current = null;
-    };
-  }, []);
 
   /**
-   * Returns the existing RecaptchaVerifier or creates a new invisible one.
-   * The verifier is attached to the hidden #recaptcha-container div in the DOM.
-   */
-  const getOrCreateRecaptchaVerifier = (): RecaptchaVerifier => {
-    if (!auth) throw new Error('Firebase not configured');
-    if (!recaptchaVerifierRef.current) {
-      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-      });
-    }
-    return recaptchaVerifierRef.current;
-  };
-
-  /**
-   * Ensures the current browser session has a Firebase Auth token.
-   * For users who log in via credentials (not phone OTP) we sign them in
-   * anonymously so that all subsequent Firestore writes include a valid
-   * auth token, satisfying the `request.auth != null` security rules.
-   * Phone-auth users are already signed-in by `signInWithPhoneNumber`.
+   * No-op: Supabase Auth tokens are handled automatically.
+   * Previously used to ensure Firebase anonymous auth for Firestore writes.
    */
   const ensureFirebaseAuth = async (): Promise<void> => {
-    if (!auth) return;
-    if (auth.currentUser) return; // already signed in
-    try {
-      await signInAnonymously(auth);
-    } catch (err) {
-      // Anonymous sign-in is best-effort. If it fails (e.g. Anonymous auth not
-      // enabled in the Firebase project), the app continues – Firestore write
-      // rules will reject unauthenticated requests, but the UI logic is unchanged.
-      console.warn('[Auth] Anonymous sign-in failed:', err);
-    }
+    // Not needed with Supabase – session management is automatic.
   };
 
   const t = TRANSLATIONS[language];
@@ -228,89 +175,39 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setOtpLoading(true);
     setOtpError('');
     try {
-      if (!auth || !app) {
-        setOtpSendError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+      if (!isSupabaseConfigured || !supabase) {
+        setOtpSendError(language === 'vi' ? 'Supabase chưa được cấu hình' : 'Supabase not configured');
         return false;
       }
-
       // Step 1: Execute reCAPTCHA v3 to obtain a verification token.
-      let recaptchaToken: string;
+      let recaptchaToken: string | undefined;
       try {
         recaptchaToken = await getRecaptchaToken();
       } catch (captchaErr: any) {
-        console.error('[reCAPTCHA] token error:', captchaErr);
-        setOtpSendError(
-          language === 'vi'
-            ? `reCAPTCHA chưa sẵn sàng, thử lại sau (${captchaErr?.message ?? 'unknown error'})`
-            : `reCAPTCHA not ready, please try again (${captchaErr?.message ?? 'unknown error'})`
-        );
-        return false;
+        console.warn('[reCAPTCHA] token error (non-fatal):', captchaErr?.message);
       }
 
-      // Step 2: Verify the reCAPTCHA token server-side via Cloud Function.
-      //         This ensures the token is valid and the score is high enough (human).
-      try {
-        const functions = getFunctions(app, 'asia-southeast1');
-        const verifyRecaptcha = httpsCallable<
-          { token: string; action: string },
-          { success: boolean; score: number; message: string }
-        >(functions, 'verifyRecaptchaAndSendOtp');
-        const verifyResult = await verifyRecaptcha({ token: recaptchaToken, action: 'LOGIN' });
-        if (!verifyResult.data.success) {
-          console.warn('[reCAPTCHA] server verification failed:', verifyResult.data);
-          setOtpSendError(
-            language === 'vi'
-              ? `Xác minh reCAPTCHA thất bại: ${verifyResult.data.message}`
-              : `reCAPTCHA verification failed: ${verifyResult.data.message}`
-          );
-          return false;
-        }
-        console.info('[reCAPTCHA] score:', verifyResult.data.score);
-      } catch (verifyErr: any) {
-        // If the Cloud Function is unavailable (e.g. not deployed yet), log the error
-        // but allow the flow to continue so phone auth still works in development.
-        console.warn('[reCAPTCHA] server-side verify unavailable, continuing:', verifyErr?.message);
-      }
-
-      // Step 3: Use a proper invisible RecaptchaVerifier so Firebase can validate
-      //         the reCAPTCHA response server-side. The fake verifier previously used
-      //         here caused Firebase to log "[reCAPTCHA] server-side verify unavailable,
-      //         continuing: internal" and eventually trigger auth/too-many-requests.
-      const appVerifier = getOrCreateRecaptchaVerifier();
-
-      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      confirmationResultRef.current = result;
+      // Step 2: Send OTP via Supabase Auth (phone OTP).
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneNumber,
+        options: recaptchaToken ? { captchaToken: recaptchaToken } : {},
+      });
+      if (error) throw error;
       setPendingUser(user);
       setOtpPhone(phoneNumber);
       setOtpStep(true);
       return true;
     } catch (err: any) {
-      // Reset the RecaptchaVerifier so it can be recreated on the next attempt.
-      recaptchaVerifierRef.current?.clear();
-      recaptchaVerifierRef.current = null;
-      const code: string = (err as any)?.code ?? '';
       const msg: string = err?.message ?? '';
       let errMsg: string;
-      if (code === 'auth/invalid-phone-number' || msg.includes('invalid-phone-number')) {
+      if (msg.includes('invalid') && msg.toLowerCase().includes('phone')) {
         errMsg = language === 'vi'
           ? 'Số điện thoại không hợp lệ. Vui lòng kiểm tra cài đặt bảo mật.'
           : 'Invalid phone number. Please check the security settings.';
-      } else if (code === 'auth/too-many-requests' || msg.includes('too-many-requests')) {
+      } else if (msg.includes('rate') || msg.includes('too many') || msg.includes('Too many')) {
         errMsg = language === 'vi'
           ? 'Quá nhiều yêu cầu, vui lòng thử lại sau vài phút'
           : 'Too many requests, please try again in a few minutes';
-      } else if (code === 'auth/quota-exceeded' || msg.includes('quota-exceeded')) {
-        errMsg = language === 'vi'
-          ? 'Đã vượt quá hạn ngạch SMS. Vui lòng thử lại sau.'
-          : 'SMS quota exceeded. Please try again later.';
-      } else if (code === 'auth/app-not-authorized' || msg.includes('app-not-authorized')) {
-        errMsg = language === 'vi'
-          ? 'Xác thực số điện thoại chưa được bật trong Firebase. Vui lòng liên hệ quản trị viên.'
-          : 'Phone authentication is not enabled in Firebase. Please contact the administrator.';
-      } else if (code === 'auth/captcha-check-failed' || msg.includes('captcha-check-failed')) {
-        errMsg = language === 'vi'
-          ? 'Xác minh bảo mật thất bại, vui lòng tải lại trang và thử lại'
-          : 'Security check failed, please reload the page and try again';
       } else {
         errMsg = language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`;
       }
@@ -323,11 +220,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
   const handleOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!confirmationResultRef.current || !pendingUser) return;
+    if (!pendingUser) return;
     setOtpLoading(true);
     setOtpError('');
     try {
-      await confirmationResultRef.current.confirm(otpCode.trim());
+      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
+      const { error } = await supabase.auth.verifyOtp({
+        phone: otpPhone,
+        token: otpCode.trim(),
+        type: 'sms',
+      });
+      if (error) throw error;
       onLogin(pendingUser);
     } catch {
       setOtpError(language === 'vi' ? 'Mã OTP không đúng, vui lòng thử lại' : 'Incorrect OTP code, please try again');
@@ -485,7 +388,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberOtpError('');
     setMemberNameInput('');
     setPendingAuthData(null);
-    memberConfirmationResultRef.current = null;
   };
 
   /**
@@ -522,42 +424,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberOtpLoading(true);
     setMemberOtpError('');
     try {
-      if (!auth || !app) {
-        setMemberOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+      if (!isSupabaseConfigured || !supabase) {
+        setMemberOtpError(language === 'vi' ? 'Supabase chưa được cấu hình' : 'Supabase not configured');
         return;
       }
-      // Normalise to E.164 format for Firebase
       const phoneE164 = toE164(memberPhone);
-
-      // Verify reCAPTCHA before sending OTP
-      try {
-        const recaptchaToken = await getRecaptchaToken();
-        try {
-          const functions = getFunctions(app, 'asia-southeast1');
-          const verifyRecaptcha = httpsCallable<{ token: string; action: string }, { success: boolean; score: number; message: string }>(functions, 'verifyRecaptchaAndSendOtp');
-          await verifyRecaptcha({ token: recaptchaToken, action: 'MEMBER_LOGIN' });
-        } catch {
-          // Best-effort; continue even if Cloud Function unavailable
-        }
-      } catch {
-        // reCAPTCHA not ready – continue anyway in development
-      }
-
-      // Create or reuse RecaptchaVerifier
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
-      }
-      const result = await signInWithPhoneNumber(auth, phoneE164, recaptchaVerifierRef.current);
-      memberConfirmationResultRef.current = result;
+      // Verify reCAPTCHA before sending OTP (best-effort)
+      let captchaToken: string | undefined;
+      try { captchaToken = await getRecaptchaToken(); } catch { /* non-fatal */ }
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneE164,
+        options: captchaToken ? { captchaToken } : {},
+      });
+      if (error) throw error;
       setMemberAuthStep('otp');
     } catch (err: any) {
-      recaptchaVerifierRef.current?.clear();
-      recaptchaVerifierRef.current = null;
-      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
-      if (code === 'auth/invalid-phone-number' || msg.includes('invalid-phone-number')) {
+      if (msg.includes('invalid') && msg.toLowerCase().includes('phone')) {
         setMemberOtpError(language === 'vi' ? 'Số điện thoại không hợp lệ.' : 'Invalid phone number.');
-      } else if (code === 'auth/too-many-requests' || msg.includes('too-many-requests')) {
+      } else if (msg.includes('rate') || msg.includes('too many') || msg.includes('Too many')) {
         setMemberOtpError(language === 'vi' ? 'Quá nhiều yêu cầu, vui lòng thử lại sau.' : 'Too many requests, please try again later.');
       } else {
         setMemberOtpError(language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`);
@@ -570,15 +455,21 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   /** Verify the 6-digit OTP entered by the member */
   const handleMemberOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!memberConfirmationResultRef.current || memberOtp.length !== 6) return;
+    if (memberOtp.length !== 6) return;
     setMemberOtpLoading(true);
     setMemberOtpError('');
     try {
-      const credential = await memberConfirmationResultRef.current.confirm(memberOtp.trim());
-      const fbUser = credential.user;
+      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
       const phoneE164 = toE164(memberPhone);
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: phoneE164,
+        token: memberOtp.trim(),
+        type: 'sms',
+      });
+      if (error) throw error;
+      const sbUser = data.user;
       await completeMemberLogin(
-        { uid: fbUser.uid, phone: fbUser.phoneNumber || phoneE164, name: fbUser.displayName || undefined },
+        { uid: sbUser?.id, phone: sbUser?.phone || phoneE164, name: undefined },
         selectedMethod || 'phone',
       );
     } catch {
@@ -593,60 +484,50 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberAuthStep('phone-entry');
     setMemberOtp('');
     setMemberOtpError('');
-    memberConfirmationResultRef.current = null;
   };
 
   /** Sign in with Google OAuth */
   const handleGoogleLogin = async () => {
-    if (!auth) return;
+    if (!isSupabaseConfigured || !supabase) return;
     setMemberAuthStep('social-loading');
     setMemberOtpError('');
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const fbUser = result.user;
-      await completeMemberLogin(
-        { uid: fbUser.uid, email: fbUser.email || undefined, name: fbUser.displayName || undefined },
-        'gmail',
-      );
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + window.location.pathname },
+      });
+      if (error) throw error;
+      // The page will redirect; onAuthStateChange in App.tsx will handle the callback.
     } catch (err: any) {
-      const code: string = err?.code ?? '';
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setMemberOtpError(language === 'vi' ? 'Đăng nhập Google thất bại. Vui lòng thử lại.' : 'Google sign-in failed. Please try again.');
-      }
+      setMemberOtpError(language === 'vi' ? 'Đăng nhập Google thất bại. Vui lòng thử lại.' : 'Google sign-in failed. Please try again.');
       setMemberAuthStep('method');
     }
   };
 
   /** Sign in with Facebook OAuth */
   const handleFacebookLogin = async () => {
-    if (!auth) return;
+    if (!isSupabaseConfigured || !supabase) return;
     setMemberAuthStep('social-loading');
     setMemberOtpError('');
     try {
-      const provider = new FacebookAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const fbUser = result.user;
-      await completeMemberLogin(
-        { uid: fbUser.uid, email: fbUser.email || undefined, name: fbUser.displayName || undefined },
-        'facebook',
-      );
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'facebook',
+        options: { redirectTo: window.location.origin + window.location.pathname },
+      });
+      if (error) throw error;
     } catch (err: any) {
-      const code: string = err?.code ?? '';
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setMemberOtpError(language === 'vi' ? 'Đăng nhập Facebook thất bại. Vui lòng thử lại.' : 'Facebook sign-in failed. Please try again.');
-      }
+      setMemberOtpError(language === 'vi' ? 'Đăng nhập Facebook thất bại. Vui lòng thử lại.' : 'Facebook sign-in failed. Please try again.');
       setMemberAuthStep('method');
     }
   };
 
-  /** Send a Firebase Email Sign-in Link (passwordless magic link) */
+  /** Send a Supabase Email Sign-in OTP/Magic link (passwordless) */
   const handleEmailSendLink = async (e: React.FormEvent) => {
     e.preventDefault();
     const email = memberEmail.trim();
     if (!email) return;
-    if (!auth || !app) {
-      setMemberOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+    if (!isSupabaseConfigured || !supabase) {
+      setMemberOtpError(language === 'vi' ? 'Supabase chưa được cấu hình' : 'Supabase not configured');
       return;
     }
     // Basic email format check
@@ -658,37 +539,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberOtpError('');
     try {
       const redirectUrl = window.location.origin + window.location.pathname;
-      // Try the branded Cloud Function first; fall back to Firebase's default email
-      // when the Cloud Function is unavailable (e.g. SMTP not configured).
-      let usedCloudFunction = false;
-      try {
-        const fns = getFunctions(app, 'asia-southeast1');
-        const sendLink = httpsCallable<{ email: string; redirectUrl: string }, { success: boolean }>(
-          fns, 'sendEmailLoginLink');
-        await sendLink({ email, redirectUrl });
-        usedCloudFunction = true;
-      } catch (cfErr: unknown) {
-        // Only fall back on unavailable/internal errors (e.g. SMTP not configured).
-        // Re-throw auth/invalid-email and similar hard failures so the user sees them.
-        const cfCode: string = (cfErr !== null && typeof cfErr === 'object' && 'code' in cfErr)
-          ? String((cfErr as { code: unknown }).code)
-          : '';
-        if (cfCode !== 'functions/unavailable' && cfCode !== 'functions/internal') {
-          throw cfErr;
-        }
-      }
-      if (!usedCloudFunction) {
-        await sendSignInLinkToEmail(auth, email, {
-          url: redirectUrl,
-          handleCodeInApp: true,
-        });
-      }
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectUrl },
+      });
+      if (error) throw error;
       // Persist email so the completion handler can read it after redirect
       window.localStorage.setItem('emailForSignIn', email);
       setMemberAuthStep('email-sent');
     } catch (err: any) {
-      const code: string = err?.code ?? '';
-      if (code === 'auth/invalid-email') {
+      const msg: string = err?.message ?? '';
+      if (msg.toLowerCase().includes('invalid') && msg.toLowerCase().includes('email')) {
         setMemberOtpError(t.otp_email_error_invalid || 'Địa chỉ email không hợp lệ.');
       } else {
         setMemberOtpError(t.otp_email_error_failed || 'Không thể gửi email. Vui lòng thử lại.');

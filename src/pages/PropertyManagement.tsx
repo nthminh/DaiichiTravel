@@ -5,8 +5,7 @@ import {
   Clock, Users, Grid3X3, Calendar, MapPin,
   BedDouble
 } from 'lucide-react';
-import { storage } from '../lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { uploadFile } from '../lib/supabase';
 import { Language } from '../App';
 import { User, Property, PropertyRoomType, PropertyRoomSurcharge } from '../types';
 import { transportService } from '../services/transportService';
@@ -182,25 +181,19 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   }, []);
 
   // ── image upload helpers ───────────────────────────────────────────────────
-  const uploadImages = useCallback(async (files: FileList, pathPrefix: string): Promise<string[]> => {
+  const uploadImages = useCallback(async (files: FileList, bucket: string): Promise<string[]> => {
     const urls: string[] = [];
     for (const file of Array.from(files)) {
       const compressed = await compressImage(file, 0.75, 1280);
-      const storageRef = ref(storage!, `${pathPrefix}/${Date.now()}_${compressed.name}`);
-      await new Promise<void>((resolve, reject) => {
-        const task = uploadBytesResumable(storageRef, compressed);
-        task.on('state_changed', null, reject, async () => {
-          const url = await getDownloadURL(storageRef);
-          urls.push(url);
-          resolve();
-        });
-      });
+      const path = `${Date.now()}_${compressed.name}`;
+      const url = await uploadFile(bucket, path, compressed);
+      urls.push(url);
     }
     return urls;
   }, []);
 
   const handleAddPropertyImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !storage) return;
+    if (!e.target.files?.length) return;
     setUploadingAddImages(true);
     try {
       const urls = await uploadImages(e.target.files, 'properties');
@@ -212,7 +205,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   };
 
   const handleEditPropertyImages = async (e: React.ChangeEvent<HTMLInputElement>, propId: string) => {
-    if (!e.target.files?.length || !storage) return;
+    if (!e.target.files?.length) return;
     setUploadingEditImages(prev => ({ ...prev, [propId]: true }));
     try {
       const urls = await uploadImages(e.target.files, 'properties');
@@ -224,10 +217,10 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   };
 
   const handleAddRoomTypeImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !storage) return;
+    if (!e.target.files?.length) return;
     setUploadingRoomTypeImages(true);
     try {
-      const urls = await uploadImages(e.target.files, 'room_types');
+      const urls = await uploadImages(e.target.files, 'room-types');
       setAddRoomTypeForm(prev => ({ ...prev, images: [...prev.images, ...urls] }));
     } catch (err) {
       console.error('[PropertyManagement] add room type image upload failed:', err);
@@ -236,10 +229,10 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
   };
 
   const handleEditRoomTypeImages = async (e: React.ChangeEvent<HTMLInputElement>, rtId: string) => {
-    if (!e.target.files?.length || !storage) return;
+    if (!e.target.files?.length) return;
     setUploadingEditRoomTypeImages(prev => ({ ...prev, [rtId]: true }));
     try {
-      const urls = await uploadImages(e.target.files, 'room_types');
+      const urls = await uploadImages(e.target.files, 'room-types');
       setEditRoomTypeForms(prev => ({ ...prev, [rtId]: { ...prev[rtId], images: [...(prev[rtId].images ?? []), ...urls] } }));
     } catch (err) {
       console.error('[PropertyManagement] edit room type image upload failed:', err);

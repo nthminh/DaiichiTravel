@@ -5,8 +5,7 @@ import {
   Loader2, AlignLeft, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
+import { uploadFile } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { formatDateVN } from '../lib/vnDate';
 import { Language, TRANSLATIONS, UserRole } from '../App';
@@ -122,7 +121,6 @@ export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser, use
   };
 
   const addImageBlockPlaceholder = (afterIdx: number) => {
-    if (!storage) { alert(t.storage_not_configured ?? 'Firebase Storage chưa được cấu hình.'); return; }
     const newBlocks = [...editForm.blocks];
     newBlocks.splice(afterIdx + 1, 0, { type: 'image', content: '' });
     setEditForm(f => ({ ...f, blocks: newBlocks }));
@@ -135,35 +133,30 @@ export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser, use
     }
   };
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const idx = pendingImageBlockIdx.current;
-    if (!file || idx === null || !storage) return;
+    if (!file || idx === null) return;
 
     setUploadingBlockIdx(idx);
-    const storageRef = ref(storage, `userGuides/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-    task.on('state_changed',
-      null,
-      (err) => {
-        console.error('Upload failed:', err);
-        setUploadingBlockIdx(null);
-        // Remove the placeholder block on error
-        setEditForm(f => ({
-          ...f,
-          blocks: f.blocks.filter((_, i) => i !== idx),
-        }));
-      },
-      async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        setEditForm(f => {
-          const blocks = f.blocks.map((b, i) => i === idx ? { type: 'image' as const, content: url } : b);
-          return { ...f, blocks };
-        });
-        setUploadingBlockIdx(null);
-        pendingImageBlockIdx.current = null;
-      }
-    );
+    try {
+      const path = `userGuides/${Date.now()}_${file.name}`;
+      const url = await uploadFile('user-guides', path, file);
+      setEditForm(f => {
+        const blocks = f.blocks.map((b, i) => i === idx ? { type: 'image' as const, content: url } : b);
+        return { ...f, blocks };
+      });
+    } catch (err) {
+      console.error('Upload failed:', err);
+      // Remove the placeholder block on error
+      setEditForm(f => ({
+        ...f,
+        blocks: f.blocks.filter((_, i) => i !== idx),
+      }));
+    } finally {
+      setUploadingBlockIdx(null);
+      pendingImageBlockIdx.current = null;
+    }
   };
 
   const updateBlock = (idx: number, content: string) => {

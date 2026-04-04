@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { transportService } from '../services/transportService';
 import { Trip, TripStatus, Booking, Vehicle, SeatStatus, TripAddon, User } from '../types';
 import { generateVehicleLayout, serializeLayout, SerializedSeat } from '../lib/vehicleSeatUtils';
@@ -148,15 +147,19 @@ export function useTrips(ctx: TripContext) {
         const currentSeatCount = editingTrip.seats?.length ?? 0;
         if (newSeatCount !== currentSeatCount) {
           let liveSeats: any[] = editingTrip.seats || [];
-          if (db) {
+          if (isSupabaseConfigured && supabase) {
             try {
-              const snap = await getDoc(doc(db, 'trips', editingTrip.id));
-              if (snap.exists()) {
-                liveSeats = (snap.data().seats as any[]) || [];
+              const { data: row } = await supabase
+                .from('trips')
+                .select('seats')
+                .eq('id', editingTrip.id)
+                .single();
+              if (row) {
+                liveSeats = (row.seats as any[]) || [];
               }
             } catch (err) {
               // Fall back to the snapshot captured when the edit opened; log for debugging
-              console.warn('Could not fetch fresh trip seats from Firestore, using cached snapshot:', err);
+              console.warn('Could not fetch fresh trip seats from Supabase, using cached snapshot:', err);
               liveSeats = editingTrip.seats || [];
             }
           }

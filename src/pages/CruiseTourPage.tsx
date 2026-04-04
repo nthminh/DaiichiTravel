@@ -31,7 +31,7 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
   useEffect(() => {
     const ids = tourIdsKey.split(',').filter(Boolean);
     if (ids.length === 0) return;
-    transportService.getMultipleTourRoomBookingCounts(ids)
+    transportService.getMultipleTourRoomBookingCounts(ids.map(id => ({ tourId: id, date: '' })))
       .then(counts => setAllRoomCounts(counts))
       .catch(err => console.error('[CruiseTourPage] room counts error:', err));
   }, [tourIdsKey]);
