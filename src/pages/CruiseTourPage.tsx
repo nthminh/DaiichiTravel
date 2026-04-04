@@ -124,6 +124,7 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
               type="date"
               value={dateFilter}
               onChange={e => setDateFilter(e.target.value)}
+              aria-label={isVi ? 'Ngày khởi hành' : isJa ? '出発日' : 'Departure date'}
               className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:border-transparent"
             />
           </div>

@@ -104,10 +104,11 @@ export function ToursPage({
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày khởi hành' : 'Departure date'}</label>
+              <label htmlFor="tour-date-filter" className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày khởi hành' : 'Departure date'}</label>
               <div className="relative mt-1">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
                 <input
+                  id="tour-date-filter"
                   type="date"
                   value={tourDateFilter}
                   onChange={e => setTourDateFilter(e.target.value)}
