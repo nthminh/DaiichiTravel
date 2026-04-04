@@ -1175,8 +1175,8 @@ export const Settings: React.FC<SettingsProps> = ({
                           />
                           <p className="text-[10px] text-orange-500 mt-1">
                             {language === 'vi'
-                              ? 'URL của Cloud Function onepayIpn (Firebase Console → Functions). Bắt buộc để OnePay gửi IPN về tự động.'
-                              : 'onepayIpn Cloud Function URL (Firebase Console → Functions). Required for OnePay to deliver IPN automatically.'}
+                              ? 'URL của Cloud Function onepayIpn. Bắt buộc để OnePay gửi IPN về tự động.'
+                              : 'onepayIpn Cloud Function URL. Required for OnePay to deliver IPN automatically.'}
                           </p>
                         </div>
                       </div>
@@ -1339,8 +1339,8 @@ export const Settings: React.FC<SettingsProps> = ({
 
                   <p className="text-[10px] text-gray-400 mt-2">
                     {language === 'vi'
-                      ? '* Số điện thoại đầu tiên trong danh sách sẽ là số nhận OTP mặc định khi đăng nhập. Sử dụng Firebase Authentication (10.000 SMS miễn phí/tháng).'
-                      : '* The first phone number will receive the OTP by default on login. Uses Firebase Authentication (10,000 free SMS/month).'}
+                      ? '* Số điện thoại đầu tiên trong danh sách sẽ là số nhận OTP mặc định khi đăng nhập. Sử dụng dịch vụ OTP (10.000 SMS miễn phí/tháng với reCAPTCHA).'
+                      : '* The first phone number will receive the OTP by default on login. Uses OTP service (10,000 free SMS/month with reCAPTCHA).'}
                   </p>
                 </div>
               </div>

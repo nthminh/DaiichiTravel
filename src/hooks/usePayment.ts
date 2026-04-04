@@ -36,7 +36,7 @@ interface CapturedOutboundLeg {
 export interface BookingContext {
   currentUser: User | null;
   language: 'vi' | 'en' | 'ja';
-  /** The trip being booked (may have extra Firestore-populated fields) */
+  /** The trip being booked (may have extra fields from Supabase) */
   selectedTrip: any;
   routes: Route[];
   /** All agents – used to look up per-route commission rates for agent bookings */
@@ -381,7 +381,7 @@ export function usePayment(ctx: BookingContext) {
       if (isNaN(h) || isNaN(m)) return baseDate;
       const overflowDays = Math.floor((h * 60 + m + fromStopOffsetMinutes) / (24 * 60));
       if (overflowDays <= 0) return baseDate;
-      // Only adjust if baseDate is in YYYY-MM-DD format (Firestore date)
+      // Only adjust if baseDate is in YYYY-MM-DD format
       if (!/^\d{4}-\d{2}-\d{2}$/.test(baseDate)) return baseDate;
       const d = new Date(baseDate + 'T00:00:00');
       d.setDate(d.getDate() + overflowDays);
@@ -777,7 +777,7 @@ export function usePayment(ctx: BookingContext) {
           const capturedReturnTripId = c.selectedTrip.id;
           const capturedReturnSeatIds = [...allSeatIds];
 
-          // Create pending payment record in Firestore for round-trip booking
+          // Create pending payment record in Supabase for round-trip booking
           transportService.createPendingPayment({
             paymentRef: paymentReference,
             expectedAmount: combinedAmount,
@@ -1000,7 +1000,7 @@ export function usePayment(ctx: BookingContext) {
         }));
       }
 
-      // Optimistic local state update while Firebase listener syncs
+      // Optimistic local state update while Supabase listener syncs
       const applyOptimisticSeatUpdate = buildOptimisticUpdater(allSeatIds, fromStopOrder, toStopOrder, seatUpdateData);
 
       ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
@@ -1053,7 +1053,7 @@ export function usePayment(ctx: BookingContext) {
         ? { fromStopOrder, toStopOrder }
         : undefined;
 
-      // Create a pending payment record in Firestore so the QR modal can detect
+      // Create a pending payment record in Supabase so the QR modal can detect
       // payment confirmation in real-time (auto-verify amount & content).
       transportService.createPendingPayment({
         paymentRef: paymentReference,

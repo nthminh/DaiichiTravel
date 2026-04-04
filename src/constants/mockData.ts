@@ -1,4 +1,4 @@
-// Mock data has been removed. All data is now fetched from Firebase Firestore.
+// Mock data has been removed. All data is now fetched from Supabase.
 // These empty exports are kept for backward compatibility but should no longer be used.
 export const MOCK_AGENTS: never[] = [];
 export const MOCK_ROUTES: never[] = [];

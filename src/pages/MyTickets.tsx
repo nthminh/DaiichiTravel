@@ -13,7 +13,7 @@ const MY_TICKETS_KEY = 'daiichi_my_tickets';
 interface MyTicketsProps {
   language: Language;
   currentUser: any | null;
-  bookings: any[]; // all bookings from Firestore
+  bookings: any[]; // all bookings from Supabase
   routes?: Route[];
 }
 
@@ -53,21 +53,21 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
     setLocalTickets(loadLocalTickets());
   }, []);
 
-  // For logged-in customers, also fetch tickets from Firestore by phone
+  // For logged-in customers, also fetch tickets from Supabase by phone
   const customerPhone = currentUser?.role === UserRole.CUSTOMER
     ? currentUser?.phone
     : null;
 
-  // Merge localStorage tickets and Firestore tickets (avoid duplicates by ticketCode/id)
-  const firestoreTickets = customerPhone
+  // Merge localStorage tickets and Supabase tickets (avoid duplicates by ticketCode/id)
+  const supabaseTickets = customerPhone
     ? bookings.filter(b => (b.type === 'TRIP' || b.type === 'TOUR') && b.phone === customerPhone)
     : [];
 
   const allTickets = React.useMemo(() => {
     const seen = new Set<string>();
     const merged: any[] = [];
-    // Firestore tickets first (most authoritative)
-    for (const t of firestoreTickets) {
+    // Supabase tickets first (most authoritative)
+    for (const t of supabaseTickets) {
       const key = t.ticketCode || t.id;
       if (!seen.has(key)) { seen.add(key); merged.push(t); }
     }
@@ -82,7 +82,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
       const tb = b.createdAt?.toDate?.() ?? new Date(b.createdAt ?? 0);
       return tb.getTime() - ta.getTime();
     });
-  }, [firestoreTickets, localTickets]);
+  }, [supabaseTickets, localTickets]);
 
   const isVi = language === 'vi';
   const isJa = language === 'ja';
@@ -111,7 +111,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
         phone: editForm.phone.trim(),
         bookingNote: editForm.bookingNote.trim(),
       };
-      // Update in Firestore if this is a cloud booking (has a real id)
+      // Update in Supabase if this is a cloud booking (has a real id)
       if (editingBooking.id && !editingBooking._localOnly) {
         await transportService.updateBooking(editingBooking.id, updates);
       }
@@ -137,7 +137,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ language, currentUser, boo
   const handleDelete = async (booking: any) => {
     setDeleteLoading(true);
     try {
-      // Delete from Firestore if cloud booking
+      // Delete from Supabase if cloud booking
       if (booking.id && !booking._localOnly) {
         await transportService.deleteBooking(booking.id);
       }

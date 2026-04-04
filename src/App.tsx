@@ -1092,7 +1092,7 @@ export default function App() {
     try {
       await transportService.updateAgent(agentId, updates);
     } catch {
-      // Fallback to local state update if Firebase is unavailable
+      // Fallback to local state update if Supabase is unavailable
       setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
     }
   };

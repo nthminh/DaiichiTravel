@@ -1,5 +1,5 @@
 /**
- * Compress an image file using the Canvas API before uploading to Firebase Storage.
+ * Compress an image file using the Canvas API before uploading to Supabase Storage.
  * Outputs WebP format for smaller file sizes and better performance.
  * Falls back to JPEG if the browser does not support WebP encoding.
  * @param file      The original image File

@@ -2,7 +2,7 @@
  * transportService – all data access operations, rewritten for Supabase.
  *
  * Replaces the former Firebase Firestore implementation.
- * All Firestore "collection" operations map to Supabase table operations.
+ * All former Firestore "collection" operations map to Supabase table operations.
  * Former Firestore subcollections are now flat tables with FK columns.
  *
  * camelCase ↔ snake_case conversion is done via toSnakeCaseObj / toCamelCaseObj
