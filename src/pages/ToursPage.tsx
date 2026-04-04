@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, Search, Star } from 'lucide-react';
+import { Heart, Search, Star, Calendar } from 'lucide-react';
 import { getYoutubeEmbedUrl } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../constants/translations';
 import type { TourItem } from '../components/TourBookingForm';
@@ -11,6 +11,7 @@ interface ToursPageProps {
   tourPriceMin: string;
   tourPriceMax: string;
   tourDurationFilter: string;
+  tourDateFilter: string;
   expandedVideoTourId: string | null;
   likedTours: Set<string>;
   language: Language;
@@ -19,6 +20,7 @@ interface ToursPageProps {
   setTourPriceMin: (v: string) => void;
   setTourPriceMax: (v: string) => void;
   setTourDurationFilter: (v: string) => void;
+  setTourDateFilter: (v: string) => void;
   setExpandedVideoTourId: (v: string | null) => void;
   toggleLike: (tourId: string) => void;
   onSelectTour: (tour: TourItem) => void;
@@ -31,6 +33,7 @@ export function ToursPage({
   tourPriceMin,
   tourPriceMax,
   tourDurationFilter,
+  tourDateFilter,
   expandedVideoTourId,
   likedTours,
   language,
@@ -39,6 +42,7 @@ export function ToursPage({
   setTourPriceMin,
   setTourPriceMax,
   setTourDurationFilter,
+  setTourDateFilter,
   setExpandedVideoTourId,
   toggleLike,
   onSelectTour,
@@ -62,6 +66,8 @@ export function ToursPage({
       const matchesDuration = (tour.duration || '').toLowerCase().includes(q);
       if (!matchesTitle && !matchesDescription && !matchesDuration) return false;
     }
+    // Filter by departure date (tour.startDate is YYYY-MM-DD; tourDateFilter is also YYYY-MM-DD from date input)
+    if (tourDateFilter && tour.startDate && tour.startDate !== tourDateFilter) return false;
     if (tourPriceMin) {
       const min = parseInt(tourPriceMin);
       if (!isNaN(min) && effectivePrice < min) return false;
@@ -98,6 +104,19 @@ export function ToursPage({
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div>
+              <label htmlFor="tour-date-filter" className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Ngày khởi hành' : 'Departure date'}</label>
+              <div className="relative mt-1">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                <input
+                  id="tour-date-filter"
+                  type="date"
+                  value={tourDateFilter}
+                  onChange={e => setTourDateFilter(e.target.value)}
+                  className="pl-8 pr-3 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
+                />
+              </div>
+            </div>
+            <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Giá từ (đ)' : 'Price from'}</label>
               <input
                 type="number"
@@ -126,9 +145,9 @@ export function ToursPage({
               <Search size={16} />
               {language === 'vi' ? 'Tìm' : 'Search'}
             </button>
-            {(tourDurationFilter || tourPriceMin || tourPriceMax) && (
+            {(tourDurationFilter || tourPriceMin || tourPriceMax || tourDateFilter) && (
               <button
-                onClick={() => { setTourDurationFilter(''); setTourPriceMin(''); setTourPriceMax(''); setTourHasSearched(false); }}
+                onClick={() => { setTourDurationFilter(''); setTourPriceMin(''); setTourPriceMax(''); setTourDateFilter(''); setTourHasSearched(false); }}
                 className="px-4 py-3 text-gray-400 hover:text-gray-600 text-sm"
               >
                 {language === 'vi' ? 'Xóa bộ lọc' : 'Clear'}

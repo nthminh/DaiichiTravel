@@ -208,6 +208,7 @@ export default function App() {
   const [tourPriceMin, setTourPriceMin] = useState('');
   const [tourPriceMax, setTourPriceMax] = useState('');
   const [tourDurationFilter, setTourDurationFilter] = useState('');
+  const [tourDateFilter, setTourDateFilter] = useState('');
   const [expandedVideoTourId, setExpandedVideoTourId] = useState<string | null>(null);
   const [likedTours, setLikedTours] = useState<Set<string>>(() => {
     try {
