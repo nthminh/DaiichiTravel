@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Eye, EyeOff, Loader2, Bus, ArrowRight, Ticket, Phone, KeyRound, UserPlus, CheckCircle2, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -135,7 +135,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const [otpError, setOtpError] = useState('');
   const [pendingUser, setPendingUser] = useState<User | null>(null);
   const [otpPhone, setOtpPhone] = useState('');
-  const confirmationResultRef = useRef<null>(null);
 
   // ── Member OTP login flow ──
   const [memberAuthStep, setMemberAuthStep] = useState<MemberAuthStep>('method');
@@ -150,22 +149,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   // Holds verified info from phone OTP or social OAuth before profile completion
   const [pendingAuthData, setPendingAuthData] = useState<{ uid?: string; phone?: string; email?: string; name?: string } | null>(null);
 
-  // Holds the RecaptchaVerifier instance for Firebase phone auth (invisible mode).
-  // Kept in a ref so it persists across renders without triggering re-renders.
-  const recaptchaVerifierRef = useRef<unknown>(null);
-
-  // Clean up any lingering Supabase auth listeners when the component unmounts.
-  useEffect(() => {
-    return () => {
-      recaptchaVerifierRef.current = null;
-    };
-  }, []);
-
-  /**
-   * Returns the existing RecaptchaVerifier or returns null (not used with Supabase).
-   * @deprecated Kept for compatibility; Supabase handles reCAPTCHA differently.
-   */
-  const getOrCreateRecaptchaVerifier = () => null;
 
   /**
    * No-op: Supabase Auth tokens are handled automatically.

@@ -2186,10 +2186,10 @@ export default function App() {
 
     /** Upload a proof image and create a category verification request */
     const handleCategoryRequest = async (data: { customerId: string; categoryId: string; categoryName: string; proofFile: File }) => {
-      // Upload image to Supabase Storage
+      // Upload image to Supabase Storage (dedicated category-proofs bucket)
       const compressed = await compressImage(data.proofFile);
       const path = `categoryProofs/${data.customerId}_${Date.now()}.webp`;
-      const proofImageUrl = await uploadFile('properties', path, compressed);
+      const proofImageUrl = await uploadFile('category-proofs', path, compressed);
       // Find the customer
       const customer = customers.find(c => c.id === data.customerId);
       // Create the request document
@@ -2217,14 +2217,12 @@ export default function App() {
         {emailLinkReenter && (
           <EmailLinkReenterForm
             language={language}
-            onSubmit={(email) => {
+            onSubmit={(_email) => {
               setEmailLinkReenter(false);
-              if (!isSupabaseConfigured || !supabase) return;
               // With Supabase, the magic-link code exchange is handled automatically
               // by the auth state change listener set up in the useEffect above.
-              // Just close the re-enter form; onAuthStateChange will fire if the link is valid.
+              // The form is closed here; onAuthStateChange will fire if the link is valid.
               window.history.replaceState(null, '', window.location.pathname);
-              void email; // email would be used with supabase.auth.verifyOtp if needed
             }}
             onCancel={() => {
               setEmailLinkReenter(false);

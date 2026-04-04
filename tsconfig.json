@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["scripts", "functions", "server.ts"]
+  "exclude": ["scripts", "functions", "server.ts", "supabase/functions"]
 }

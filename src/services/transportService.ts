@@ -12,7 +12,7 @@
 
 import { supabase, toSnakeCaseObj, toCamelCaseObj, isSupabaseConfigured } from '../lib/supabase';
 import {
-  Trip, TripStatus, Booking, Consignment, SeatStatus, Seat, SegmentBooking,
+  Trip, Booking, Consignment, SeatStatus, Seat, SegmentBooking,
   Agent, Route, Vehicle, Stop, Invoice, TripAddon, RouteFare, RouteSeatFare,
   Employee, UserGuide, CustomerProfile, DriverAssignment, StaffMessage,
   VehicleType, CustomerCategory, CategoryVerificationRequest, AuditLog,
@@ -1565,6 +1565,3 @@ export const transportService = {
     await supabase.from('property_room_types').delete().eq('id', roomTypeId).eq('property_id', propertyId);
   },
 };
-
-// Re-export unused imports to avoid TypeScript errors on unused TripStatus
-void TripStatus;
