@@ -16,7 +16,7 @@
  * Lưu ý:
  *   - Script dùng MD5 hash để tạo UUID xác định (deterministic) từ Firebase doc ID,
  *     nên chạy lại nhiều lần vẫn cho cùng kết quả (idempotent).
- *   - Trips đã tồn tại trong Supabase sẽ được CẬP NHẬT (upsert), không bị trùng.
+ *   - Trips, route_fares, và route_seat_fares đã tồn tại trong Supabase sẽ được CẬP NHẬT (upsert), không bị trùng.
  *   - Bookings liên quan KHÔNG bị ảnh hưởng vì UUID giữ nguyên.
  */
 
@@ -178,49 +178,7 @@ async function migrateTrips() {
   return { total: rows.length, inserted, errors };
 }
 
-// ─── 6. Main ──────────────────────────────────────────────────────────────────
-
-(async () => {
-  console.log('='.repeat(60));
-  console.log('  MIGRATE: Firebase → Supabase  (chỉ bảng TRIPS)');
-  console.log('='.repeat(60));
-
-  const start = Date.now();
-
-  try {
-    const result = await migrateTrips();
-
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    console.log('\n' + '='.repeat(60));
-    console.log(`  Kết quả: ${result.inserted}/${result.total} trips đã được upsert.`);
-    console.log(`  Thời gian: ${elapsed}s`);
-    if (result.errors > 0) {
-      console.log(`  ⚠️  ${result.errors} trips gặp lỗi – xem log ở trên.`);
-    }
-    console.log('='.repeat(60));
-  } catch (err) {
-    console.error('\n❌  Lỗi không xử lý được:', err);
-    process.exit(1);
-  } finally {
-    // Đóng kết nối Firebase
-    await admin.app().delete();
-  }
-})();
-
-/*
- * ─────────────────────────────────────────────────────────────────────────────
- * GHI CHÚ VỀ "PHỤ THU THEO TỪNG CHẶNG NHỎ" (route_fares)
- * ─────────────────────────────────────────────────────────────────────────────
- *
- * Trong Firebase, giá/phụ thu theo từng chặng (từ điểm A → điểm B) được lưu
- * ở subcollection:  routeFares/{routeId}/fares/{fromStopId_toStopId}
- *
- * Trong Supabase, dữ liệu này nằm ở bảng `route_fares`.
- *
- * Nếu dữ liệu phụ thu bị mất, bạn cần CHẠY THÊM đoạn code sau
- * (bỏ comment phần bên dưới và thêm vào hàm main):
- *
- * ─────────────────────────────────────────────────────────────────────────────
+// ─── 6. Migrate RouteFares ────────────────────────────────────────────────────
 
 async function migrateRouteFares() {
   console.log('\n📦  Đang tải route_fares từ Firebase...');
@@ -284,16 +242,109 @@ async function migrateRouteFares() {
         errors += batch.length;
       } else {
         inserted += batch.length;
+        process.stdout.write(`   → route_fares: ${inserted}/${total}...\r`);
       }
     }
   }
 
-  console.log(`✅  Hoàn thành route_fares: ${inserted}/${total} thành công, ${errors} lỗi.`);
+  console.log(`\n✅  Hoàn thành route_fares: ${inserted}/${total} thành công, ${errors} lỗi.`);
   return { total, inserted, errors };
 }
 
- * ─────────────────────────────────────────────────────────────────────────────
- * Sau khi bỏ comment hàm trên, thêm dòng này vào trong khối try của main:
- *   await migrateRouteFares();
- * ─────────────────────────────────────────────────────────────────────────────
- */
+// ─── 7. Migrate RouteSeatFares ────────────────────────────────────────────────
+
+async function migrateRouteSeatFares() {
+  console.log('\n📦  Đang tải route_seat_fares từ Firebase...');
+
+  // Lấy tất cả routes để biết routeId → Supabase UUID
+  const routesSnap = await db.collection('routes').get();
+  const routeIdMap = {};
+  for (const rdoc of routesSnap.docs) {
+    routeIdMap[rdoc.id] = toUUID(rdoc.id);
+  }
+
+  let total = 0;
+  let inserted = 0;
+  let errors = 0;
+
+  for (const [firebaseRouteId, supabaseRouteId] of Object.entries(routeIdMap)) {
+    const seatsSnap = await db
+      .collection('routeSeatFares')
+      .doc(firebaseRouteId)
+      .collection('seats')
+      .get();
+
+    if (seatsSnap.empty) continue;
+
+    const rows = [];
+    for (const sdoc of seatsSnap.docs) {
+      const d = sdoc.data();
+      rows.push({
+        id: toUUID(sdoc.id + '_seat_' + firebaseRouteId),
+        route_id: supabaseRouteId,
+        seat_id: d.seatId ?? sdoc.id,
+        price: d.price ?? null,
+        agent_price: d.agentPrice ?? null,
+        start_date: d.startDate ?? null,
+        end_date: d.endDate ?? null,
+        note: d.note ?? null,
+        active: d.active ?? true,
+        updated_at: d.updatedAt ? new Date(d.updatedAt).toISOString() : new Date().toISOString(),
+        fare_doc_id: sdoc.id,
+      });
+    }
+
+    total += rows.length;
+
+    for (const batch of chunks(rows, 100)) {
+      const { error } = await supabase
+        .from('route_seat_fares')
+        .upsert(batch, { onConflict: 'fare_doc_id' });
+
+      if (error) {
+        console.error(`❌  route_seat_fares batch lỗi: ${error.message}`);
+        errors += batch.length;
+      } else {
+        inserted += batch.length;
+        process.stdout.write(`   → route_seat_fares: ${inserted}/${total}...\r`);
+      }
+    }
+  }
+
+  console.log(`\n✅  Hoàn thành route_seat_fares: ${inserted}/${total} thành công, ${errors} lỗi.`);
+  return { total, inserted, errors };
+}
+
+// ─── 8. Main ──────────────────────────────────────────────────────────────────
+
+(async () => {
+  console.log('='.repeat(60));
+  console.log('  MIGRATE: Firebase → Supabase  (trips + route_fares + route_seat_fares)');
+  console.log('='.repeat(60));
+
+  const start = Date.now();
+
+  try {
+    const tripsResult = await migrateTrips();
+    const faresResult = await migrateRouteFares();
+    const seatFaresResult = await migrateRouteSeatFares();
+
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    console.log('\n' + '='.repeat(60));
+    console.log(`  Trips:            ${tripsResult.inserted}/${tripsResult.total} upserted`);
+    console.log(`  Route fares:      ${faresResult.inserted}/${faresResult.total} upserted`);
+    console.log(`  Route seat fares: ${seatFaresResult.inserted}/${seatFaresResult.total} upserted`);
+    console.log(`  Thời gian: ${elapsed}s`);
+    const totalErrors = tripsResult.errors + faresResult.errors + seatFaresResult.errors;
+    if (totalErrors > 0) {
+      console.log(`  ⚠️  ${totalErrors} bản ghi gặp lỗi – xem log ở trên.`);
+    }
+    console.log('='.repeat(60));
+  } catch (err) {
+    console.error('\n❌  Lỗi không xử lý được:', err);
+    process.exit(1);
+  } finally {
+    // Đóng kết nối Firebase
+    await admin.app().delete();
+  }
+})();
