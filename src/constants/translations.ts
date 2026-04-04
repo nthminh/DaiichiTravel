@@ -679,7 +679,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     all_roles: 'Tất cả',
     no_image_yet: 'Chưa có ảnh',
     select_guide_prompt: 'Chọn một hướng dẫn từ danh sách để xem nội dung.',
-    storage_not_configured: 'Firebase Storage chưa được cấu hình.',
+    storage_not_configured: 'Storage chưa được cấu hình.',
 
     // Inquiry / No-trip suggestions (book-ticket)
     no_exact_trips: 'Không tìm thấy chuyến xe phù hợp với ngày đã chọn. Đây là các chuyến gần nhất:',
@@ -1596,7 +1596,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     all_roles: 'All',
     no_image_yet: 'No image',
     select_guide_prompt: 'Select a guide from the list to view its content.',
-    storage_not_configured: 'Firebase Storage is not configured.',
+    storage_not_configured: 'Storage is not configured.',
 
     // Inquiry / No-trip suggestions (book-ticket)
     no_exact_trips: 'No trips found for the selected date. Here are the nearest available trips:',
@@ -2513,7 +2513,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     all_roles: 'すべて',
     no_image_yet: '画像なし',
     select_guide_prompt: 'リストからガイドを選択して内容を表示してください。',
-    storage_not_configured: 'Firebase Storageが設定されていません。',
+    storage_not_configured: 'Storageが設定されていません。',
 
     // Inquiry / No-trip suggestions (book-ticket)
     no_exact_trips: '選択した日付に運行が見つかりません。以下は最近の利用可能な運行です：',

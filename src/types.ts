@@ -118,7 +118,7 @@ export interface RouteFare {
 // Allows configuring discounted/premium prices for specific seats (e.g. bad-position seats)
 // with optional seasonal date ranges. Two prices: retail (price) and agent (agentPrice).
 export interface RouteSeatFare {
-  id: string;           // Firestore document ID (seatId or seatId|startDate|endDate)
+  id: string;           // document ID (seatId or seatId|startDate|endDate)
   routeId: string;
   seatId: string;       // The seat label, e.g. "1", "2A", "H1"
   price: number;        // Retail price override for this seat
@@ -501,7 +501,7 @@ export interface UserGuide {
 
 // ─── Driver Assignment ─────────────────────────────────────────────────────────
 // Represents a task assigned to a driver for a passenger pickup/dropoff.
-// Stored in Firestore collection: driverAssignments/{id}
+// Stored in Supabase table: driver_assignments
 export interface DriverAssignment {
   id: string;
   tripId: string;
@@ -537,7 +537,7 @@ export interface DriverAssignment {
 
 // ─── Staff Message ─────────────────────────────────────────────────────────────
 // Internal chat message between staff/drivers.
-// Stored in Firestore collection: staffMessages/{id}
+// Stored in Supabase table: staff_messages
 export interface StaffMessage {
   id: string;
   senderId: string;       // employee username or currentUser id
@@ -546,7 +546,7 @@ export interface StaffMessage {
   mentions: string[];     // list of mentioned names (extracted from @name patterns)
   createdAt: string;      // ISO timestamp
   assignmentId?: string;  // optional – links message to a driver assignment thread
-  voiceUrl?: string;      // optional – Firebase Storage URL for voice message audio
+  voiceUrl?: string;      // optional – Supabase Storage URL for voice message audio
   messageType?: 'text' | 'voice';  // optional – defaults to 'text'
 }
 
@@ -567,7 +567,7 @@ export interface CategoryVerificationRequest {
   customerPhone: string;
   categoryId: string;
   categoryName: string;
-  proofImageUrl: string;      // Firebase Storage URL of uploaded proof image
+  proofImageUrl: string;      // Supabase Storage URL of uploaded proof image
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedAt: string;        // ISO timestamp
   reviewedAt?: string;        // ISO timestamp
@@ -590,7 +590,7 @@ export interface AuditLog {
   ipAddress?: string;         // optional
 }
 
-/** Pending QR payment waiting for confirmation – stored in Firestore 'pendingPayments' collection */
+/** Pending QR payment waiting for confirmation – stored in Supabase 'pending_payments' table */
 export interface PendingPayment {
   /** Document ID – same as paymentRef (e.g. DT-ABC123) */
   id: string;
@@ -610,9 +610,9 @@ export interface PendingPayment {
   paidAmount?: number;
   /** Transfer description content (must contain paymentRef for verification) */
   paidContent?: string;
-  /** Firestore server timestamp when document was created */
+  /** ISO timestamp when record was created */
   createdAt: any;
-  /** Firestore server timestamp when payment was confirmed */
+  /** ISO timestamp when payment was confirmed */
   confirmedAt?: any;
 }
 
@@ -628,7 +628,7 @@ export interface PropertyRoomSurcharge {
   note?: string;
 }
 
-/** A room/cabin type that belongs to a property (stored as Firestore subcollection) */
+/** A room/cabin type that belongs to a property (stored in Supabase property_room_types table) */
 export interface PropertyRoomType {
   id: string;
   name: string;                // e.g. "Phòng Suite VIP", "Cabin Double Ocean View"
@@ -640,7 +640,7 @@ export interface PropertyRoomType {
   checkinTime: string;         // e.g. "14:00"
   checkoutTime: string;        // e.g. "12:00"
   amenities: string[];         // e.g. ["Điều hòa", "Wifi", "Bồn tắm"]
-  images: string[];            // Firebase Storage URLs
+  images: string[];            // Supabase Storage URLs
   totalUnits: number;          // total number of this room type available
 }
 
@@ -654,10 +654,10 @@ export interface Property {
   address: string;             // detailed address
   description: string;        // detailed property description
   images: string[];            // property main images
-  createdAt: any;              // Firestore Timestamp
+  createdAt: any;              // ISO timestamp
 }
 
-// Customer profile stored in Firestore customers collection
+// Customer profile stored in Supabase customers table
 export interface CustomerProfile {
   id: string;
   name: string;

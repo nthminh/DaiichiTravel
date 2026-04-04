@@ -11,7 +11,7 @@ interface UseAuthOptions {
 /**
  * Provides member authentication helpers:
  * - handleRegisterMember: register a new customer (phone/password flow)
- * - handleOtpMemberLogin: find-or-create customer after Firebase OTP/OAuth sign-in
+ * - handleOtpMemberLogin: find-or-create customer after OTP/OAuth sign-in
  */
 export function useAuth({ language, customers }: UseAuthOptions) {
   const handleRegisterMember = async (data: {
@@ -43,7 +43,7 @@ export function useAuth({ language, customers }: UseAuthOptions) {
 
   /**
    * OTP / OAuth-based member login and auto-registration.
-   * Called after Firebase phone-OTP or social sign-in succeeds.
+   * Called after phone-OTP or social sign-in succeeds.
    * Finds an existing customer by phone / email / firebaseUid or creates a new one.
    */
   const handleOtpMemberLogin = async (data: {

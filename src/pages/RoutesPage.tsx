@@ -8,7 +8,6 @@ import { NotePopover } from '../components/NotePopover';
 import { exportRouteToPDF } from '../utils/exportUtils';
 import { useRoutes, DEFAULT_ROUTE_FORM } from '../hooks/useRoutes';
 import { matchesSearch } from '../lib/searchUtils';
-import { FirebaseStorage } from 'firebase/storage';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { transportService } from '../services/transportService';
 import { formatBookingDate } from '../lib/vnDate';
@@ -19,7 +18,7 @@ const STOP_ID_ARRIVAL = '__arrival__';
 interface RoutesPageProps {
   routes: Route[];
   language: Language;
-  storage: FirebaseStorage | null;
+  storage?: unknown;
   stops: Stop[];
 }
 

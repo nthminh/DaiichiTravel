@@ -35,7 +35,7 @@ if (import.meta.env.DEV && !import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
   console.warn('[reCAPTCHA] VITE_RECAPTCHA_SITE_KEY is not set – falling back to the hardcoded site key. Set it in your .env file.');
 }
 
-/** Executes reCAPTCHA v3 and returns a token for use with Firebase phone auth. */
+/** Executes reCAPTCHA v3 and returns a token for OTP phone auth. */
 const getRecaptchaToken = (): Promise<string> =>
   new Promise((resolve, reject) => {
     const g = (window as any).grecaptcha;
@@ -70,7 +70,7 @@ const PARTICLE_DURATION_STEP = 0.8;
 const PARTICLE_MAX_DELAY = 4;
 
 /**
- * Normalise a phone number to E.164 format for Firebase phone auth.
+ * Normalise a phone number to E.164 format for OTP phone auth.
  * - Numbers starting with '0': treated as Vietnamese local format → +84...
  * - Numbers starting with '+': already E.164 (international or Vietnamese) → returned as-is
  * - International users MUST include their country code prefix (e.g. +61 for Australia).
@@ -152,7 +152,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
   /**
    * No-op: Supabase Auth tokens are handled automatically.
-   * Previously used to ensure Firebase anonymous auth for Firestore writes.
+   * Previously used to ensure anonymous auth for Firestore writes.
    */
   const ensureFirebaseAuth = async (): Promise<void> => {
     // Not needed with Supabase – session management is automatic.
@@ -391,7 +391,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   };
 
   /**
-   * After Firebase auth (phone or social), find or create the customer and log in.
+   * After OTP/OAuth sign-in succeeds, find or create the customer and log in.
    * If the customer is new and has no name yet, moves to the name-entry step.
    */
   const completeMemberLogin = async (authData: { uid?: string; phone?: string; email?: string; name?: string }, method: MemberLoginMethod) => {
@@ -1266,7 +1266,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           )}
         </AnimatePresence>
       </div>
-      {/* Hidden container required by Firebase RecaptchaVerifier (invisible mode) */}
+      {/* Hidden container for reCAPTCHA invisible widget */}
       <div id="recaptcha-container" />
     </div>
   );
