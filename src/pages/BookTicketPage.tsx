@@ -1839,6 +1839,39 @@ export function BookTicketPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [segmentFaresLoaded, allTrips]);
 
+  // Auto-load trips for the committed search date(s) from Supabase. The real-time
+  // subscription (subscribeToTrips) is limited to 500 trips ordered by date DESC; if the
+  // searched date falls outside that window (e.g. there are 500+ trips with newer dates
+  // pre-created in the system) the results would appear empty. Loading trips by exact date
+  // on demand guarantees correct search results regardless of the total trip count.
+  useEffect(() => {
+    const datesToLoad = [committedParams?.date, committedParams?.returnDate]
+      .filter((d): d is string => Boolean(d));
+    if (datesToLoad.length === 0) return;
+    const signal = { aborted: false };
+    (async () => {
+      for (const dateToLoad of datesToLoad) {
+        if (signal.aborted) break;
+        const loaded: Trip[] = [];
+        await transportService.loadAllTripsBatched(
+          (batch) => { loaded.push(...batch); },
+          500,
+          signal,
+          { date: dateToLoad },
+        );
+        if (!signal.aborted && loaded.length > 0) {
+          setExtraTrips(prev => {
+            const map = new Map(prev.map(t => [t.id, t]));
+            for (const t of loaded) map.set(t.id, t);
+            return Array.from(map.values());
+          });
+        }
+      }
+    })();
+    return () => { signal.aborted = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [committedParams?.date, committedParams?.returnDate]);
+
   const routeByName = new Map(routes.map(r => [r.name, r]));
 
   // Check whether the current from/to combination matches any configured route segment.
