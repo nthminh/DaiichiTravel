@@ -36,8 +36,10 @@ export const UrgencyNotification = ({ language }: { language: Language }) => {
       const newNotifs: BookingNotif[] = newBookings.map((b) => ({
         id: b.id,
         customerName: b.customerName || '',
-        route: b.route || '',
-        time: b.time || '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        route: (b as any).route || '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        time: (b as any).time || '',
         type: b.type || 'TRIP',
       }));
 

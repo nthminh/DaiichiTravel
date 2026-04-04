@@ -25,8 +25,7 @@ import { usePassengerManagement } from './hooks/usePassengerManagement';
 import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSurcharge, RouteStop, Employee, AgentPaymentOption, Invoice, UserGuide as UserGuideType, CustomerProfile, Vehicle, VehicleSeat, User, VehicleType, RouteSeatFare } from './types';
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
-import { auth, db, storage } from './lib/firebase';
-import { signOut as firebaseSignOut, onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
+import { supabase, uploadFile, isSupabaseConfigured } from './lib/supabase';
 
 // Import Components – always needed on first paint
 import { Login } from './components/Login';
@@ -39,7 +38,6 @@ import { generateVehicleLayout, serializeLayout, SerializedSeat } from './lib/ve
 import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
 import { compressImage } from './lib/imageUtils';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -348,7 +346,7 @@ export default function App() {
   // Trip CRUD state – managed by useTrips hook (called later once vehicles are available)
 
   // Offline state (used only for UI connectivity indicator)
-  const isOffline = !db;
+  const isOffline = !isSupabaseConfigured;
 
   // Trip addon management state
   const [showTripAddons, setShowTripAddons] = useState<Trip | null>(null);
@@ -501,7 +499,7 @@ export default function App() {
     handleStartEditRoute,
     handleCopyRoute,
     handleSaveRouteNote,
-  } = useRoutes({ routes, language, storage, currentUser });
+  } = useRoutes({ routes, language, currentUser });
 
   // ─── Trip CRUD (logic extracted to useTrips hook) ────────────────────────────
   const {
@@ -637,7 +635,8 @@ export default function App() {
     const unsubscribeStops = transportService.subscribeToStops(setStops);
     const unsubscribeRoutes = transportService.subscribeToRoutes(setRoutes);
     const unsubscribeVehicles = transportService.subscribeToVehicles((data) => setVehicles(data as unknown as Vehicle[]));
-    const unsubscribeTours = transportService.subscribeToTours(setTours);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const unsubscribeTours = transportService.subscribeToTours(setTours as unknown as (tours: any[]) => void);
     const unsubscribeEmployees = transportService.subscribeToEmployees(setEmployees);
     const unsubscribeUserGuides = transportService.subscribeToUserGuides(setUserGuides);
     const unsubscribeCategories = transportService.subscribeToCustomerCategories(setCustomerCategories);
@@ -688,74 +687,35 @@ export default function App() {
     return transportService.subscribeToTrips(setTrips);
   }, []);
 
-  // Subscribe to invoices only when Firebase Auth is available (invoices require auth for Firestore reads/writes).
-  // onAuthStateChanged re-subscribes automatically after login so the list is always up-to-date.
+  // Subscribe to invoices
   useEffect(() => {
-    if (!auth) {
-      // No Firebase Auth configured – subscribe anyway (will work if rules are relaxed)
-      return transportService.subscribeToInvoices(setInvoices);
-    }
-    let invoiceUnsub: (() => void) | null = null;
-    const authUnsub = onAuthStateChanged(auth, (user) => {
-      if (invoiceUnsub) { invoiceUnsub(); invoiceUnsub = null; }
-      if (user) {
-        invoiceUnsub = transportService.subscribeToInvoices(setInvoices);
-      } else {
-        setInvoices([]);
-      }
-    });
+    return transportService.subscribeToInvoices(setInvoices);
+  }, []);
+
+  // Subscribe to driverAssignments and staffMessages
+  useEffect(() => {
+    const assignmentUnsub = transportService.subscribeToDriverAssignments(setDriverAssignments);
+    const messagesUnsub = transportService.subscribeToStaffMessages(setStaffMessages);
     return () => {
-      authUnsub();
-      if (invoiceUnsub) invoiceUnsub();
+      assignmentUnsub();
+      messagesUnsub();
     };
   }, []);
 
-  // Subscribe to driverAssignments and staffMessages only when authenticated
-  // (Firestore rules require isSignedIn() for these collections).
+  // Detect Supabase email magic link sign-in on page load (callback URL)
   useEffect(() => {
-    if (!auth) return;
-    let assignmentUnsub: (() => void) | null = null;
-    let messagesUnsub: (() => void) | null = null;
-    const authUnsub = onAuthStateChanged(auth, (user) => {
-      if (assignmentUnsub) { assignmentUnsub(); assignmentUnsub = null; }
-      if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
-      if (user) {
-        assignmentUnsub = transportService.subscribeToDriverAssignments(setDriverAssignments);
-        messagesUnsub = transportService.subscribeToStaffMessages(setStaffMessages);
-      } else {
-        setDriverAssignments([]);
-        setStaffMessages([]);
-      }
-    });
-    return () => {
-      authUnsub();
-      if (assignmentUnsub) assignmentUnsub();
-      if (messagesUnsub) messagesUnsub();
-    };
-  }, []);
-
-  // Detect Firebase email link sign-in on page load (magic link redirect)
-  useEffect(() => {
-    if (!auth) return;
-    if (!isSignInWithEmailLink(auth, window.location.href)) return;
-    const email = window.localStorage.getItem('emailForSignIn');
-    if (!email) {
-      // Email not found in localStorage (e.g. opened on a different device) –
-      // show the re-enter form instead of using a blocking window.prompt().
-      setEmailLinkReenter(true);
-      return;
-    }
-    signInWithEmailLink(auth, email, window.location.href)
-      .then(result => {
+    if (!isSupabaseConfigured || !supabase) return;
+    // Supabase handles the OAuth/magic-link code exchange automatically via onAuthStateChange
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = session.user;
+        const email = user.email || '';
         window.localStorage.removeItem('emailForSignIn');
-        // Clean the URL so the oobCode doesn't persist
         window.history.replaceState(null, '', window.location.pathname);
-        setEmailLinkPending({ uid: result.user.uid, email: result.user.email || email });
-      })
-      .catch(err => {
-        console.error('[EmailLink] Sign-in failed:', err);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        setEmailLinkPending({ uid: user.id, email });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Complete the email-link login once customer data has loaded
@@ -1118,21 +1078,14 @@ export default function App() {
   };
 
   const handleUploadAddonImage = async (file: File): Promise<string> => {
-    if (!storage) throw new Error('Storage not configured');
     let compressed: File;
     try {
       compressed = await compressImage(file, 0.80, 1280);
     } catch (err) {
       throw new Error('Image compression failed. Please try a different image.');
     }
-    const sRef = storageRef(storage, `addonImages/${Date.now()}_${compressed.name}`);
-    const task = uploadBytesResumable(sRef, compressed, { contentType: compressed.type });
-    return new Promise<string>((resolve, reject) => {
-      task.on('state_changed', undefined, reject, async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        resolve(url);
-      });
-    });
+    const path = `addonImages/${Date.now()}_${compressed.name}`;
+    return uploadFile('addon-images', path, compressed);
   };
 
   const handleUpdateAgent = async (agentId: string, updates: any) => {
@@ -1937,7 +1890,7 @@ export default function App() {
               setChildPricingRules={setChildPricingRules}
               routeAddons={routeAddons}
               setRouteAddons={setRouteAddons}
-              uploadAddonImage={storage ? handleUploadAddonImage : undefined}
+              uploadAddonImage={handleUploadAddonImage}
               routeFormSeatFares={routeFormSeatFares}
               setRouteFormSeatFares={setRouteFormSeatFares}
               showAddSeatFare={showAddSeatFare}
@@ -2058,7 +2011,7 @@ export default function App() {
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
               handleUpdateTripAddon={handleUpdateTripAddon}
-              uploadAddonImage={storage ? handleUploadAddonImage : undefined}
+              uploadAddonImage={handleUploadAddonImage}
               exportTripToExcelHandler={exportTripToExcelHandler}
               exportAllTripsToExcelHandler={exportAllTripsToExcelHandler}
               exportTripToPDFHandler={exportTripToPDFHandler}
@@ -2158,7 +2111,7 @@ export default function App() {
               handleAddTripAddon={handleAddTripAddon}
               handleDeleteTripAddon={handleDeleteTripAddon}
               handleUpdateTripAddon={handleUpdateTripAddon}
-              uploadAddonImage={storage ? handleUploadAddonImage : undefined}
+              uploadAddonImage={handleUploadAddonImage}
               setSelectedTrip={setSelectedTrip}
               setPreviousTab={setPreviousTab}
               setActiveTab={setActiveTab}
@@ -2233,15 +2186,10 @@ export default function App() {
 
     /** Upload a proof image and create a category verification request */
     const handleCategoryRequest = async (data: { customerId: string; categoryId: string; categoryName: string; proofFile: File }) => {
-      // Upload image to Firebase Storage
+      // Upload image to Supabase Storage
       const compressed = await compressImage(data.proofFile);
       const path = `categoryProofs/${data.customerId}_${Date.now()}.webp`;
-      const fileRef = storageRef(storage, path);
-      await new Promise<void>((resolve, reject) => {
-        const task = uploadBytesResumable(fileRef, compressed);
-        task.on('state_changed', undefined, reject, resolve);
-      });
-      const proofImageUrl = await getDownloadURL(fileRef);
+      const proofImageUrl = await uploadFile('properties', path, compressed);
       // Find the customer
       const customer = customers.find(c => c.id === data.customerId);
       // Create the request document
@@ -2271,15 +2219,12 @@ export default function App() {
             language={language}
             onSubmit={(email) => {
               setEmailLinkReenter(false);
-              if (!auth) return;
-              signInWithEmailLink(auth, email, window.location.href)
-                .then(result => {
-                  window.history.replaceState(null, '', window.location.pathname);
-                  setEmailLinkPending({ uid: result.user.uid, email: result.user.email || email });
-                })
-                .catch(err => {
-                  console.error('[EmailLink] Sign-in failed:', err);
-                });
+              if (!isSupabaseConfigured || !supabase) return;
+              // With Supabase, the magic-link code exchange is handled automatically
+              // by the auth state change listener set up in the useEffect above.
+              // Just close the re-enter form; onAuthStateChange will fire if the link is valid.
+              window.history.replaceState(null, '', window.location.pathname);
+              void email; // email would be used with supabase.auth.verifyOtp if needed
             }}
             onCancel={() => {
               setEmailLinkReenter(false);
@@ -2504,7 +2449,7 @@ export default function App() {
             });
           }
           setCurrentUser(null);
-          if (auth) firebaseSignOut(auth).catch((err) => console.warn('[Auth] Sign-out failed:', err));
+          supabase?.auth.signOut().catch((err) => console.warn('[Auth] Sign-out failed:', err));
         }} 
         language={language} 
         setLanguage={setLanguage} 

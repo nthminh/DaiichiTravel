@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { FirebaseStorage } from 'firebase/storage';
+import { uploadFile } from '../lib/supabase';
 import { transportService } from '../services/transportService';
 import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
 import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare, TripAddon, User } from '../types';
@@ -10,7 +9,8 @@ import { compressImage } from '../lib/imageUtils';
 export interface RouteContext {
   routes: Route[];
   language: 'vi' | 'en' | 'ja';
-  storage: FirebaseStorage | null;
+  /** @deprecated Supabase storage is used internally – this field is ignored */
+  storage?: unknown;
   currentUser?: User | null;
 }
 
@@ -381,35 +381,17 @@ export function useRoutes(ctx: RouteContext) {
   };
 
   const handleRouteImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { storage } = ctxRef.current;
     const files = Array.from(e.target.files || []) as File[];
-    if (files.length === 0 || !storage) {
-      if (!storage) alert('Firebase Storage is not configured.');
-      return;
-    }
+    if (files.length === 0) return;
     setRouteImageUploading(true);
     try {
       const urls: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const compressed = await compressImage(file, 0.75, 1280);
-        const sRef = storageRef(storage, `routes/${Date.now()}_${compressed.name}`);
-        const task = uploadBytesResumable(sRef, compressed, { contentType: compressed.type });
-        await new Promise<void>((resolve, reject) => {
-          task.on(
-            'state_changed',
-            undefined,
-            err => {
-              console.error('Upload error:', err);
-              reject(err);
-            },
-            async () => {
-              const url = await getDownloadURL(task.snapshot.ref);
-              urls.push(url);
-              resolve();
-            },
-          );
-        });
+        const path = `routes/${Date.now()}_${compressed.name}`;
+        const url = await uploadFile('routes', path, compressed);
+        urls.push(url);
       }
       setRouteForm(prev => {
         const combined = [...(prev.images || []), ...urls];
@@ -417,7 +399,7 @@ export function useRoutes(ctx: RouteContext) {
       });
     } catch (err) {
       console.error('Route image upload failed:', err);
-      alert('Upload failed. Please check your Firebase configuration.');
+      alert('Upload failed. Please check your Supabase configuration.');
     } finally {
       setRouteImageUploading(false);
       e.target.value = '';
