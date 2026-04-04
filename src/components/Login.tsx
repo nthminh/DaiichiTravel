@@ -151,11 +151,22 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
 
 
   /**
-   * No-op: Supabase Auth tokens are handled automatically.
-   * Previously used to ensure anonymous auth for Firestore writes.
+   * Ensures an authenticated Supabase session exists for admin/staff users.
+   * Admin/staff use custom username+password auth (not Supabase Auth), so we
+   * sign in anonymously to obtain a Supabase session whose auth.role() equals
+   * 'authenticated', satisfying the RLS write policies on all tables.
+   * The session is persisted by the Supabase JS client and reused on reload.
    */
   const ensureFirebaseAuth = async (): Promise<void> => {
-    // Not needed with Supabase – session management is automatic.
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        await supabase.auth.signInAnonymously();
+      }
+    } catch (err) {
+      console.warn('[Auth] Anonymous sign-in failed (non-fatal):', err);
+    }
   };
 
   const t = TRANSLATIONS[language];
