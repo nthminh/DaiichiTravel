@@ -1,5 +1,10 @@
 /**
- * migrate.mjs  –  Chuyển bảng `trips` từ Firebase Firestore sang Supabase PostgreSQL
+ * migrate.mjs  –  Chuyển dữ liệu từ Firebase Firestore sang Supabase PostgreSQL
+ *
+ * Phạm vi:
+ *   - 1 dòng trips   (dòng đầu tiên trong collection 'trips')
+ *   - Tất cả dòng route_fares
+ *   - Tất cả dòng route_seat_fares
  *
  * Cách dùng:
  *   1. Cài đặt firebase-admin (nếu chưa có):
@@ -16,7 +21,7 @@
  * Lưu ý:
  *   - Script dùng MD5 hash để tạo UUID xác định (deterministic) từ Firebase doc ID,
  *     nên chạy lại nhiều lần vẫn cho cùng kết quả (idempotent).
- *   - Trips, route_fares, và route_seat_fares đã tồn tại trong Supabase sẽ được CẬP NHẬT (upsert), không bị trùng.
+ *   - Bản ghi đã tồn tại trong Supabase sẽ được CẬP NHẬT (upsert), không bị trùng.
  *   - Bookings liên quan KHÔNG bị ảnh hưởng vì UUID giữ nguyên.
  */
 
@@ -113,15 +118,16 @@ function chunks(arr, size) {
 // ─── 5. Migrate Trips ─────────────────────────────────────────────────────────
 
 async function migrateTrips() {
-  console.log('\n📦  Đang tải trips từ Firebase...');
+  console.log('\n📦  Đang tải 1 trip từ Firebase...');
 
-  const snapshot = await db.collection('trips').get();
+  // Chỉ lấy 1 dòng đầu tiên trong collection 'trips'
+  const snapshot = await db.collection('trips').limit(1).get();
   if (snapshot.empty) {
     console.log('ℹ️   Không có trip nào trong Firebase.');
     return { total: 0, inserted: 0, errors: 0 };
   }
 
-  console.log(`✅  Tải xong ${snapshot.size} trips từ Firebase.`);
+  console.log(`✅  Tải xong 1 trip từ Firebase.`);
 
   const rows = [];
 
@@ -319,7 +325,7 @@ async function migrateRouteSeatFares() {
 
 (async () => {
   console.log('='.repeat(60));
-  console.log('  MIGRATE: Firebase → Supabase  (trips + route_fares + route_seat_fares)');
+  console.log('  MIGRATE: Firebase → Supabase  (1 trip + tất cả route_fares + route_seat_fares)');
   console.log('='.repeat(60));
 
   const start = Date.now();
@@ -331,7 +337,7 @@ async function migrateRouteSeatFares() {
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     console.log('\n' + '='.repeat(60));
-    console.log(`  Trips:            ${tripsResult.inserted}/${tripsResult.total} upserted`);
+    console.log(`  Trips (1 dòng):   ${tripsResult.inserted}/${tripsResult.total} upserted`);
     console.log(`  Route fares:      ${faresResult.inserted}/${faresResult.total} upserted`);
     console.log(`  Route seat fares: ${seatFaresResult.inserted}/${seatFaresResult.total} upserted`);
     console.log(`  Thời gian: ${elapsed}s`);
