@@ -8,6 +8,7 @@ import {
   PAYMENT_METHOD_TRANSLATION_KEYS,
 } from '../constants/paymentMethods';
 import { transportService } from '../services/transportService';
+import { formatBookingDate } from '../lib/vnDate';
 import type { Agent, ChildPricingRule } from '../types';
 import type { User } from '../App';
 
@@ -447,7 +448,7 @@ export function TourBookingForm({
           )}
           <div className="flex justify-between text-sm">
             <span className="text-gray-400 font-medium">{language === 'vi' ? 'Ngày khởi hành' : 'Departure'}</span>
-            <span className="font-bold text-gray-700">{tourBookingDate}</span>
+            <span className="font-bold text-gray-700">{formatBookingDate(tourBookingDate)}</span>
           </div>
           {selectedRoomType && (
             <div className="flex justify-between text-sm">
@@ -769,9 +770,9 @@ export function TourBookingForm({
             <Calendar className="text-gray-400 shrink-0" size={18} />
             {selectedTour?.startDate ? (
               <span className="font-semibold text-gray-700">
-                {selectedTour.startDate}
+                {formatBookingDate(selectedTour.startDate)}
                 {selectedTour.endDate && selectedTour.endDate !== selectedTour.startDate && (
-                  <span className="text-gray-400"> → {selectedTour.endDate}</span>
+                  <span className="text-gray-400"> → {formatBookingDate(selectedTour.endDate)}</span>
                 )}
               </span>
             ) : (

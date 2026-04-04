@@ -9,6 +9,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
 import { User, UserRole, Property, Booking } from '../types';
 import { transportService } from '../services/transportService';
+import { formatBookingDate } from '../lib/vnDate';
 import { compressImage } from '../lib/imageUtils';
 
 interface TourAddon {
@@ -1824,8 +1825,8 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                   : (tour.priceAdult || tour.price);
                 const isExpanded = expandedTourId === tour.id;
                 const departureDisplay = tour.departureTime
-                  ? `${tour.departureTime}${tour.startDate ? ` · ${tour.startDate}` : ''}`
-                  : tour.startDate || '—';
+                  ? `${tour.departureTime}${tour.startDate ? ` · ${formatBookingDate(tour.startDate)}` : ''}`
+                  : (tour.startDate ? formatBookingDate(tour.startDate) : '—');
                 return (
                   <React.Fragment key={tour.id}>
                     <tr
@@ -1868,7 +1869,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
                           )}
                           {(tour.startDate || tour.endDate) && (
                             <span className="text-gray-400 text-[10px]">
-                              {tour.startDate}{tour.startDate && tour.endDate ? ' → ' : ''}{tour.endDate}
+                              {tour.startDate ? formatBookingDate(tour.startDate) : ''}{tour.startDate && tour.endDate ? ' → ' : ''}{tour.endDate ? formatBookingDate(tour.endDate) : ''}
                             </span>
                           )}
                           {!tour.departureTime && !tour.startDate && !tour.endDate && '—'}

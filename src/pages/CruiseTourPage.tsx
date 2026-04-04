@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Anchor, Clock, MapPin, ChevronRight, X } from 'lucide-react';
+import { Search, Anchor, Clock, MapPin, ChevronRight, X, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Language } from '../constants/translations';
 import type { TourItem } from '../components/TourBookingForm';
@@ -19,6 +19,7 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
   const [durationFilter, setDurationFilter] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   // Map of tourId → { roomTypeId → booked count }
   const [allRoomCounts, setAllRoomCounts] = useState<Record<string, Record<string, number>>>({});
 
@@ -48,18 +49,21 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
         : (tour.priceAdult || tour.price);
       if (priceMin !== '' && effectivePrice < Number(priceMin)) return false;
       if (priceMax !== '' && effectivePrice > Number(priceMax)) return false;
+      // Filter by departure date (tour.startDate is YYYY-MM-DD; dateFilter is YYYY-MM-DD from input)
+      if (dateFilter && tour.startDate && tour.startDate !== dateFilter) return false;
       return true;
     });
-  }, [tours, searchTerm, durationFilter, priceMin, priceMax]);
+  }, [tours, searchTerm, durationFilter, priceMin, priceMax, dateFilter]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setDurationFilter('');
     setPriceMin('');
     setPriceMax('');
+    setDateFilter('');
   };
 
-  const hasFilters = searchTerm || durationFilter || priceMin || priceMax;
+  const hasFilters = searchTerm || durationFilter || priceMin || priceMax || dateFilter;
 
   const getEffectivePrice = (tour: TourItem): number => {
     if (tour.roomTypes && tour.roomTypes.length > 0) {
@@ -110,6 +114,17 @@ export const CruiseTourPage: React.FC<CruiseTourPageProps> = ({ tours, language,
               onChange={e => setDurationFilter(e.target.value)}
               placeholder={isVi ? 'VD: 2 ngày...' : isJa ? '例: 2日...' : 'E.g.: 2 days...'}
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:border-transparent"
+            />
+          </div>
+
+          {/* Departure date filter */}
+          <div className="relative sm:w-44">
+            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:border-transparent"
             />
           </div>
 

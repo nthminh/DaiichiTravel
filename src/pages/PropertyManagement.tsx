@@ -10,6 +10,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Language } from '../App';
 import { User, Property, PropertyRoomType, PropertyRoomSurcharge } from '../types';
 import { transportService } from '../services/transportService';
+import { formatBookingDate } from '../lib/vnDate';
 import { compressImage } from '../lib/imageUtils';
 
 interface PropertyManagementProps {
@@ -1063,7 +1064,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
                                         <Calendar size={10} />
                                         <span className="font-bold">{s.label}:</span>
                                         <span>+{s.amount.toLocaleString()}đ</span>
-                                        <span className="text-gray-400">({s.startDate} → {s.endDate})</span>
+                                        <span className="text-gray-400">({formatBookingDate(s.startDate)} → {formatBookingDate(s.endDate)})</span>
                                       </div>
                                     ))}
                                   </div>
