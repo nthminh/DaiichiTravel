@@ -411,6 +411,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         }
       }
     } catch (err) {
+      console.error('[completeMemberLogin]', err);
       setMemberOtpError(language === 'vi' ? 'Đăng nhập thất bại. Vui lòng thử lại.' : 'Login failed. Please try again.');
     } finally {
       setMemberOtpLoading(false);
@@ -472,8 +473,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
         { uid: sbUser?.id, phone: sbUser?.phone || phoneE164, name: undefined },
         selectedMethod || 'phone',
       );
-    } catch {
-      setMemberOtpError(t.otp_wrong || 'Mã OTP không đúng, vui lòng thử lại');
+    } catch (err: any) {
+      console.error('[OTP verify]', err);
+      const msg: string = err?.message ?? '';
+      if (msg.toLowerCase().includes('otp') || msg.toLowerCase().includes('token') || msg.toLowerCase().includes('expired')) {
+        setMemberOtpError(t.otp_wrong || 'Mã OTP không đúng hoặc đã hết hạn, vui lòng thử lại');
+      } else if (msg) {
+        setMemberOtpError(language === 'vi' ? `Lỗi xác thực: ${msg}` : `Verification error: ${msg}`);
+      } else {
+        setMemberOtpError(t.otp_wrong || 'Mã OTP không đúng, vui lòng thử lại');
+      }
     } finally {
       setMemberOtpLoading(false);
     }
