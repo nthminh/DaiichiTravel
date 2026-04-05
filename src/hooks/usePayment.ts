@@ -432,6 +432,7 @@ export function usePayment(ctx: BookingContext) {
       tripId: c.selectedTrip.id,
       seatId: effectiveSeatId,
       seatIds: allSeatIds,
+      seats: allSeatIds,  // also populate the canonical seats column (used by mergeTrips)
       amount: totalAmount,
       agent: effectiveAgentName,
       ...(c.currentUser?.name || c.currentUser?.username ? { bookedByName: c.currentUser.name || c.currentUser.username, bookedByRole: c.currentUser.role } : {}),
