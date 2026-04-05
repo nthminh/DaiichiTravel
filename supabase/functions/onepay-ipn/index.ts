@@ -94,17 +94,24 @@ async function updateSeatsToPaid(
   seatIds: string[],
 ): Promise<void> {
   if (!tripId || !seatIds?.length) return;
-  const { data: row } = await supabase.from('trips').select('seats').eq('id', tripId).single();
+  const { data: row, error: fetchErr } = await supabase.from('trips').select('seats').eq('id', tripId).single();
+  if (fetchErr) {
+    console.error('[onepay-ipn] updateSeatsToPaid fetch error:', fetchErr);
+    return;
+  }
   if (!row?.seats) return;
   const seats = row.seats as Array<Record<string, unknown>>;
   const updatedSeats = seats.map((seat) => {
     if (!seatIds.includes(seat.id as string)) return seat;
     return { ...seat, status: 'PAID' };
   });
-  await supabase
+  const { error: updateErr } = await supabase
     .from('trips')
     .update({ seats: updatedSeats, updated_at: new Date().toISOString() })
     .eq('id', tripId);
+  if (updateErr) {
+    console.error('[onepay-ipn] updateSeatsToPaid update error:', updateErr);
+  }
 }
 
 /**
@@ -217,17 +224,20 @@ Deno.serve(async (req) => {
 
       if (storedPayload) {
         // Idempotency: skip if the client-side listener already created the booking.
-        const { data: existing } = await supabase
+        const { data: existing, error: existingErr } = await supabase
           .from('bookings')
           .select('id')
           .eq('payment_ref', vpc_MerchTxnRef)
           .limit(1);
 
-        const bookingExists = existing && existing.length > 0;
-
-        if (!bookingExists) {
+        // If the query itself failed, err on the side of caution and skip creation
+        // to avoid accidentally creating duplicate bookings.
+        if (existingErr) {
+          console.error('[onepay-ipn] idempotency check error:', existingErr);
+        } else if (!existing || existing.length === 0) {
           if (storedPayload.type === 'roundtrip') {
-            // Round-trip: create outbound and return bookings separately
+            // Round-trip: create outbound and return bookings separately.
+            // Both must succeed before updating seats to maintain consistency.
             const outboundData = storedPayload.outboundBookingData as Record<string, unknown>;
             const outboundTripId = storedPayload.outboundTripId as string;
             const outboundSeatIds = storedPayload.outboundSeatIds as string[];
@@ -236,14 +246,19 @@ Deno.serve(async (req) => {
             const returnSeatIds = storedPayload.returnSeatIds as string[];
 
             const outboundResult = await createBookingFromData(supabase, outboundData);
-            const returnResult = await createBookingFromData(supabase, returnData);
-
-            if (outboundResult && returnResult) {
-              console.log(`[onepay-ipn] Created round-trip bookings: ${outboundResult.ticketCode}, ${returnResult.ticketCode}`);
-              await Promise.all([
-                updateSeatsToPaid(supabase, outboundTripId, outboundSeatIds),
-                updateSeatsToPaid(supabase, returnTripId, returnSeatIds),
-              ]);
+            if (!outboundResult) {
+              console.error('[onepay-ipn] Round-trip outbound booking creation failed, skipping return and seat update');
+            } else {
+              const returnResult = await createBookingFromData(supabase, returnData);
+              if (!returnResult) {
+                console.error('[onepay-ipn] Round-trip return booking creation failed after outbound succeeded; seats left in BOOKED state for client recovery');
+              } else {
+                console.log(`[onepay-ipn] Created round-trip bookings: ${outboundResult.ticketCode}, ${returnResult.ticketCode}`);
+                await Promise.all([
+                  updateSeatsToPaid(supabase, outboundTripId, outboundSeatIds),
+                  updateSeatsToPaid(supabase, returnTripId, returnSeatIds),
+                ]);
+              }
             }
           } else {
             // Single-leg booking
