@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Bus, Users,
-  Download, Filter, Calendar as CalendarIcon, Search,
+  Download, Calendar as CalendarIcon, Search,
   User,
   MapPin, Clock, CreditCard, Tag, Edit3, Trash2, X, Check,
   Eye, Moon, Coffee, Hotel,
@@ -35,7 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [agentFilter, setAgentFilter] = useState('ALL');
-  const [showFilters, setShowFilters] = useState(false);
+
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [bookingPage, setBookingPage] = useState(1);
@@ -608,40 +608,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       {/* Global Quick Search Bar */}
       <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 p-6">
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-daiichi-red" size={20} />
-              <input
-                type="text"
-                placeholder={language === 'vi' ? 'Tìm nhanh theo tên, SĐT, tuyến, giá...' : 'Quick search by name, phone, route, price...'}
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setBookingPage(1); }}
-                className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 focus:border-daiichi-red/40 transition-all"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => { setSearchTerm(''); setBookingPage(1); }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-3.5 rounded-2xl border font-semibold text-sm transition-all",
-                showFilters || minPrice || maxPrice || startDate || endDate || agentFilter !== 'ALL'
-                  ? "bg-daiichi-red text-white border-daiichi-red shadow-md shadow-daiichi-red/20"
-                  : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-              )}
-            >
-              <Filter size={16} />
-              {language === 'vi' ? 'Bộ lọc' : 'Filters'}
-              {(minPrice || maxPrice || startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterStatus !== 'ALL') && (
-                <span className={cn("w-2 h-2 rounded-full", showFilters ? "bg-white" : "bg-daiichi-red")} />
-              )}
-            </button>
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-daiichi-red" size={20} />
+            <input
+              type="text"
+              placeholder={language === 'vi' ? 'Tìm nhanh theo tên, SĐT, tuyến, giá...' : 'Quick search by name, phone, route, price...'}
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setBookingPage(1); }}
+              className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-daiichi-red/20 focus:border-daiichi-red/40 transition-all"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => { setSearchTerm(''); setBookingPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
           {/* Search hint chips */}
           <div className="flex flex-wrap gap-2">
@@ -681,122 +664,79 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                 </h3>
               </div>
 
-              {/* Advanced Filters */}
-              <AnimatePresence>
-                {showFilters && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
+              {/* Inline Filters */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', startDate ? 'bg-daiichi-red text-white border-daiichi-red [color-scheme:dark]' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', endDate ? 'bg-daiichi-red text-white border-daiichi-red [color-scheme:dark]' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                />
+                {!isAgent && (
+                  <select
+                    value={agentFilter}
+                    onChange={(e) => { setAgentFilter(e.target.value); setBookingPage(1); }}
+                    className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', agentFilter !== 'ALL' ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-gray-50 rounded-3xl border border-gray-100">
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.filter_by_date}</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="date" 
-                            value={startDate}
-                            onChange={(e) => { setStartDate(e.target.value); setBookingPage(1); }}
-                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" 
-                          />
-                          <input 
-                            type="date" 
-                            value={endDate}
-                            onChange={(e) => { setEndDate(e.target.value); setBookingPage(1); }}
-                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" 
-                          />
-                        </div>
-                      </div>
-                      {!isAgent && (
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{t.filter_by_agent}</label>
-                          <select 
-                            value={agentFilter}
-                            onChange={(e) => { setAgentFilter(e.target.value); setBookingPage(1); }}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                          >
-                            <option value="ALL">{t.all_agents}</option>
-                            {uniqueAgents.map(agent => (
-                              <option key={agent} value={agent}>{agent}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Loại dịch vụ' : 'Service Type'}</label>
-                        <div className="flex bg-white p-1 rounded-xl border border-gray-200">
-                          {(['ALL', 'TRIP', 'TOUR'] as const).map((type) => (
-                            <button
-                              key={type}
-                              onClick={() => { setFilterType(type); setBookingPage(1); }}
-                              className={cn(
-                                "flex-1 py-1 rounded-lg text-[10px] font-bold transition-all",
-                                filterType === type ? "bg-daiichi-red text-white" : "text-gray-500"
-                              )}
-                            >
-                              {type === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">{language === 'vi' ? 'Trạng thái thanh toán' : 'Payment Status'}</label>
-                        <div className="flex bg-white p-1 rounded-xl border border-gray-200">
-                          {(['ALL', 'PAID', 'BOOKED'] as const).map((s) => (
-                            <button
-                              key={s}
-                              onClick={() => { setFilterStatus(s); setBookingPage(1); }}
-                              className={cn(
-                                "flex-1 py-1 rounded-lg text-[10px] font-bold transition-all",
-                                filterStatus === s ? "bg-daiichi-red text-white" : "text-gray-500"
-                              )}
-                            >
-                              {s === 'ALL' ? (language === 'vi' ? 'Tất cả' : 'All') : s === 'PAID' ? (language === 'vi' ? 'Đã trả' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">
-                          {t.price_range}
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder={t.price_min_placeholder}
-                            value={minPrice}
-                            onChange={(e) => { setMinPrice(e.target.value); setBookingPage(1); }}
-                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder={t.price_max_placeholder}
-                            value={maxPrice}
-                            onChange={(e) => { setMaxPrice(e.target.value); setBookingPage(1); }}
-                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-daiichi-red/10"
-                          />
-                        </div>
-                      </div>
-                      <div className="md:col-span-3 flex justify-end">
-                        <button
-                          onClick={() => {
-                            setStartDate(''); setEndDate(''); setAgentFilter('ALL');
-                            setFilterType('ALL'); setFilterStatus('ALL');
-                            setMinPrice(''); setMaxPrice('');
-                            setSearchTerm(''); setBookingPage(1);
-                          }}
-                          className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-daiichi-red border border-gray-200 rounded-xl hover:border-daiichi-red/30 transition-all"
-                        >
-                          {language === 'vi' ? 'Xoá bộ lọc' : 'Clear filters'}
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
+                    <option value="ALL">{t.all_agents}</option>
+                    {uniqueAgents.map(agent => (
+                      <option key={agent} value={agent}>{agent}</option>
+                    ))}
+                  </select>
                 )}
-              </AnimatePresence>
+                <select
+                  value={filterType}
+                  onChange={(e) => { setFilterType(e.target.value as 'ALL' | 'TRIP' | 'TOUR'); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', filterType !== 'ALL' ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                >
+                  <option value="ALL">{language === 'vi' ? 'Tất cả loại' : 'All Types'}</option>
+                  <option value="TRIP">TRIP</option>
+                  <option value="TOUR">TOUR</option>
+                </select>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => { setFilterStatus(e.target.value as 'ALL' | 'PAID' | 'BOOKED'); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', filterStatus !== 'ALL' ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                >
+                  <option value="ALL">{language === 'vi' ? 'Tất cả trạng thái' : 'All Statuses'}</option>
+                  <option value="PAID">{language === 'vi' ? 'Đã trả' : 'Paid'}</option>
+                  <option value="BOOKED">{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder={t.price_min_placeholder}
+                  value={minPrice}
+                  onChange={(e) => { setMinPrice(e.target.value); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none w-28', minPrice ? 'bg-daiichi-red text-white border-daiichi-red placeholder-white/70' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  placeholder={t.price_max_placeholder}
+                  value={maxPrice}
+                  onChange={(e) => { setMaxPrice(e.target.value); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none w-28', maxPrice ? 'bg-daiichi-red text-white border-daiichi-red placeholder-white/70' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                />
+                {(startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterStatus !== 'ALL' || minPrice || maxPrice) && (
+                  <button
+                    onClick={() => {
+                      setStartDate(''); setEndDate(''); setAgentFilter('ALL');
+                      setFilterType('ALL'); setFilterStatus('ALL');
+                      setMinPrice(''); setMaxPrice(''); setBookingPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1"
+                  >
+                    <X size={12} /> {language === 'vi' ? 'Xóa lọc' : 'Clear'}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="overflow-x-auto pb-4 custom-scrollbar">
