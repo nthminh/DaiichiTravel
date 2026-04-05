@@ -26,6 +26,8 @@ import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSur
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { supabase, uploadFile, isSupabaseConfigured } from './lib/supabase';
+import { firebaseAuth, isFirebaseConfigured } from './lib/firebase';
+import { isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 
 // Import Components – always needed on first paint
 import { Login } from './components/Login';
@@ -723,18 +725,39 @@ export default function App() {
     };
   }, []);
 
-  // Detect Supabase email magic link sign-in on page load (callback URL)
+  // Detect Firebase email magic link sign-in on page load (callback URL)
+  useEffect(() => {
+    if (!isFirebaseConfigured || !firebaseAuth) return;
+    if (!isSignInWithEmailLink(firebaseAuth, window.location.href)) return;
+    const email = window.localStorage.getItem('emailForSignIn') || '';
+    if (!email) return;
+    signInWithEmailLink(firebaseAuth, email, window.location.href)
+      .then(result => {
+        const fbUser = result.user;
+        window.localStorage.removeItem('emailForSignIn');
+        window.history.replaceState(null, '', window.location.pathname);
+        setEmailLinkPending({ uid: fbUser.uid, email: fbUser.email || email });
+      })
+      .catch(err => {
+        console.error('[Firebase EmailLink] Sign-in failed:', err);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep Supabase onAuthStateChange only for Google / Facebook OAuth callbacks
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
-    // Supabase handles the OAuth/magic-link code exchange automatically via onAuthStateChange
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const user = session.user;
         // Skip anonymous sign-ins (used by admin/staff for Supabase RLS).
-        // Only real email magic-link / OAuth sign-ins should trigger member login.
         if ((user as { is_anonymous?: boolean }).is_anonymous) return;
+        // Skip phone-only sessions (phone OTP is now handled by Firebase).
         if (!user.email) return;
-        window.localStorage.removeItem('emailForSignIn');
+        // Skip email sessions – Firebase handles those now.
+        // Only handle OAuth providers (Google, Facebook, etc.).
+        const provider = user.app_metadata?.provider as string | undefined;
+        if (!provider || provider === 'email') return;
         window.history.replaceState(null, '', window.location.pathname);
         setEmailLinkPending({ uid: user.id, email: user.email });
       }
