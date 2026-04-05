@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { uploadFile } from '../lib/supabase';
+import { compressImage, generateStoragePath } from '../lib/imageUtils';
 import { cn } from '../lib/utils';
 import { formatDateVN } from '../lib/vnDate';
 import { Language, TRANSLATIONS, UserRole } from '../App';
@@ -140,8 +141,9 @@ export const UserGuide: React.FC<UserGuideProps> = ({ language, currentUser, use
 
     setUploadingBlockIdx(idx);
     try {
-      const path = `userGuides/${Date.now()}_${file.name}`;
-      const url = await uploadFile('user-guides', path, file);
+      const compressed = await compressImage(file, 0.75, 1280);
+      const path = generateStoragePath('userGuides', compressed.name);
+      const url = await uploadFile('user-guides', path, compressed);
       setEditForm(f => {
         const blocks = f.blocks.map((b, i) => i === idx ? { type: 'image' as const, content: url } : b);
         return { ...f, blocks };

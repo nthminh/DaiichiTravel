@@ -37,7 +37,7 @@ import { SearchableSelect } from './components/SearchableSelect';
 import { generateVehicleLayout, serializeLayout, SerializedSeat } from './lib/vehicleSeatUtils';
 import { ResizableTh } from './components/ResizableTh';
 import { matchesSearch } from './lib/searchUtils';
-import { compressImage } from './lib/imageUtils';
+import { compressImage, generateStoragePath } from './lib/imageUtils';
 import { NotePopover } from './components/NotePopover';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -1108,7 +1108,7 @@ export default function App() {
     } catch (err) {
       throw new Error('Image compression failed. Please try a different image.');
     }
-    const path = `addonImages/${Date.now()}_${compressed.name}`;
+    const path = generateStoragePath('addonImages', compressed.name);
     return uploadFile('addon-images', path, compressed);
   };
 
@@ -2210,30 +2210,35 @@ export default function App() {
 
     /** Upload a proof image and create a category verification request */
     const handleCategoryRequest = async (data: { customerId: string; categoryId: string; categoryName: string; proofFile: File }) => {
-      // Upload image to Supabase Storage (dedicated category-proofs bucket)
-      const compressed = await compressImage(data.proofFile);
-      const path = `categoryProofs/${data.customerId}_${Date.now()}.webp`;
-      const proofImageUrl = await uploadFile('category-proofs', path, compressed);
-      // Find the customer
-      const customer = customers.find(c => c.id === data.customerId);
-      // Create the request document
-      await transportService.addCategoryRequest({
-        customerId: data.customerId,
-        customerName: customer?.name || '',
-        customerPhone: customer?.phone || '',
-        categoryId: data.categoryId,
-        categoryName: data.categoryName,
-        proofImageUrl,
-        status: 'PENDING',
-        submittedAt: new Date().toISOString(),
-      });
-      // Mark the customer profile as PENDING
-      await transportService.updateCustomer(data.customerId, {
-        categoryVerificationStatus: 'PENDING',
-        categoryId: data.categoryId,
-        categoryName: data.categoryName,
-        categoryProofImageUrl: proofImageUrl,
-      });
+      try {
+        // Upload image to Supabase Storage (dedicated category-proofs bucket)
+        const compressed = await compressImage(data.proofFile);
+        const path = generateStoragePath('categoryProofs', compressed.name);
+        const proofImageUrl = await uploadFile('category-proofs', path, compressed);
+        // Find the customer
+        const customer = customers.find(c => c.id === data.customerId);
+        // Create the request document
+        await transportService.addCategoryRequest({
+          customerId: data.customerId,
+          customerName: customer?.name || '',
+          customerPhone: customer?.phone || '',
+          categoryId: data.categoryId,
+          categoryName: data.categoryName,
+          proofImageUrl,
+          status: 'PENDING',
+          submittedAt: new Date().toISOString(),
+        });
+        // Mark the customer profile as PENDING
+        await transportService.updateCustomer(data.customerId, {
+          categoryVerificationStatus: 'PENDING',
+          categoryId: data.categoryId,
+          categoryName: data.categoryName,
+          categoryProofImageUrl: proofImageUrl,
+        });
+      } catch (err) {
+        console.error('[handleCategoryRequest] failed:', err);
+        throw err;
+      }
     };
     return (
       <>

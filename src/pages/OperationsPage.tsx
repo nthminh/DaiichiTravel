@@ -1347,7 +1347,7 @@ export function OperationsPage({
         </div>
         {/* Edit Passenger Modal */}
         {editingPassengerSeatId && (() => {
-          const editingGroup = passengerGroups.find(g => g.seats[0].id === editingPassengerSeatId);
+          const editingGroup = passengerGroups.find(g => g.seats?.length > 0 && g.seats[0].id === editingPassengerSeatId);
           const editSeatIds = editingGroup?.seats.map((s: any) => s.id).join(', ') || editingPassengerSeatId;
           const editTicketCode = editingGroup?.booking?.ticketCode || seatTicketCodeMap.get(editingPassengerSeatId) || '—';
           return (

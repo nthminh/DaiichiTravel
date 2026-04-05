@@ -3,7 +3,7 @@ import { uploadFile } from '../lib/supabase';
 import { transportService } from '../services/transportService';
 import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
 import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteFare, RouteSeatFare, TripAddon, User } from '../types';
-import { compressImage } from '../lib/imageUtils';
+import { compressImage, generateStoragePath } from '../lib/imageUtils';
 
 /** External dependencies that useRoutes needs from App.tsx */
 export interface RouteContext {
@@ -425,7 +425,7 @@ export function useRoutes(ctx: RouteContext) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const compressed = await compressImage(file, 0.75, 1280);
-        const path = `routes/${Date.now()}_${compressed.name}`;
+        const path = generateStoragePath('routes', compressed.name);
         const url = await uploadFile('routes', path, compressed);
         urls.push(url);
       }

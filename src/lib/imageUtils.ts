@@ -69,6 +69,27 @@ export async function compressImage(
 }
 
 /**
+ * Generate a unique, URL-safe storage path for an uploaded file.
+ * Uses crypto.randomUUID() so paths are collision-free and free of
+ * any special characters (spaces, Vietnamese/CJK letters, etc.) that
+ * can cause problems with Supabase Storage URL construction.
+ *
+ * @param folder        Folder prefix inside the bucket (e.g. 'tours', 'rooms').
+ *                      Pass an empty string to place the file at the bucket root.
+ * @param originalName  The original (or compressed) filename – only the extension
+ *                      is preserved; everything else is replaced with a UUID.
+ * @returns             A path string safe to pass to `uploadFile(bucket, path, file)`.
+ */
+export function generateStoragePath(folder: string, originalName: string): string {
+  // Extract and sanitise the file extension (keep only a–z, 0–9); default to 'webp'
+  const raw = originalName.split('.').pop() ?? '';
+  const ext = raw.toLowerCase().replace(/[^a-z0-9]/g, '') || 'webp';
+  // Use the Web Crypto UUID API available in all modern browsers and Node ≥ 18
+  const uid = crypto.randomUUID().replace(/-/g, '');
+  return folder ? `${folder}/${uid}.${ext}` : `${uid}.${ext}`;
+}
+
+/**
  * Generate a tiny low-quality image placeholder (LQIP / blur placeholder)
  * as a base64 data URL. Use it as the `src` while the real image loads,
  * then swap to the full URL once loaded — this eliminates layout shift and

@@ -9,7 +9,7 @@ import { Language } from '../App';
 import { User, UserRole, Property, Booking } from '../types';
 import { transportService } from '../services/transportService';
 import { formatBookingDate } from '../lib/vnDate';
-import { compressImage } from '../lib/imageUtils';
+import { compressImage, generateStoragePath } from '../lib/imageUtils';
 
 interface TourAddon {
   id: string;
@@ -404,7 +404,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       for (let i = 0; i < files.length; i++) {
         const file = files[i] as File;
         const compressed = await compressImage(file, 0.75, 1280);
-        const path = `tours/${Date.now()}_${compressed.name}`;
+        const path = generateStoragePath('tours', compressed.name);
         if (!isEdit) setUploadProgress(((i + 0.5) / files.length) * 100);
         const url = await uploadFile('tours', path, compressed);
         urls.push(url);
@@ -427,7 +427,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
     } catch (error) {
       console.error('Upload failed:', error);
       if (isEdit) setEditUploading(false);
-      else setUploading(false);
+      else { setUploading(false); setUploadProgress(0); }
       alert('Upload failed. Please check your Supabase configuration.');
     }
     e.target.value = '';
@@ -445,7 +445,7 @@ export const TourManagement: React.FC<TourManagementProps> = ({ language, curren
       const urls: string[] = [];
       for (const file of files) {
         const compressed = await compressImage(file, 0.75, 1280);
-        const path = `tours/rooms/${Date.now()}_${compressed.name}`;
+        const path = generateStoragePath('tours/rooms', compressed.name);
         const url = await uploadFile('tours', path, compressed);
         urls.push(url);
       }
