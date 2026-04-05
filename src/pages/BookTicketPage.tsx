@@ -1823,6 +1823,10 @@ export function BookTicketPage({
       const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
       const count = allTrips.filter(trip => {
         if (!filterTrip(trip, true)) return false;
+        if (segmentFaresLoaded) {
+          const tripRoute = routeByName.get(trip.route);
+          if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
+        }
         if (localVehicleCombo) {
           const v = vehicleMap.get(trip.licensePlate);
           if (comboType && v?.type !== comboType) return false;
@@ -3112,6 +3116,14 @@ export function BookTicketPage({
             const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
             let result = allTrips.filter(tr => {
               if (!filterTrip(tr, true)) return false;
+              // Only show trips whose route has a configured fare for the searched segment.
+              // segmentFaresLoaded is only set to true when both from and to are specified
+              // and fares have been fetched. Routes without a configured fare return null
+              // in the fetch and are absent from the segmentFares map.
+              if (segmentFaresLoaded) {
+                const tripRoute = routeByName.get(tr.route);
+                if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
+              }
               if (localVehicleCombo) {
                 const v = vehicleMap.get(tr.licensePlate);
                 if (comboType && v?.type !== comboType) return false;
@@ -3150,7 +3162,14 @@ export function BookTicketPage({
           // Nearest trips: same route/direction but without date restriction, sorted by date proximity
           const nearestTrips = filteredBookingTrips.length === 0 && (effectiveFrom || effectiveTo)
             ? allTrips
-                .filter(tr => filterTrip(tr, false))
+                .filter(tr => {
+                  if (!filterTrip(tr, false)) return false;
+                  if (segmentFaresLoaded) {
+                    const tripRoute = routeByName.get(tr.route);
+                    if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
+                  }
+                  return true;
+                })
                 .sort((a, b) => {
                   if (!effectiveDate) return compareTripDateTime(a, b);
                   const target = new Date(effectiveDate).getTime();
