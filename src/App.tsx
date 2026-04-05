@@ -730,10 +730,13 @@ export default function App() {
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const user = session.user;
-        const email = user.email || '';
+        // Skip anonymous sign-ins (used by admin/staff for Supabase RLS).
+        // Only real email magic-link / OAuth sign-ins should trigger member login.
+        if ((user as { is_anonymous?: boolean }).is_anonymous) return;
+        if (!user.email) return;
         window.localStorage.removeItem('emailForSignIn');
         window.history.replaceState(null, '', window.location.pathname);
-        setEmailLinkPending({ uid: user.id, email });
+        setEmailLinkPending({ uid: user.id, email: user.email });
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
