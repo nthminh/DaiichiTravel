@@ -154,13 +154,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
    */
   const getRecaptchaVerifier = (containerId: string): RecaptchaVerifier => {
     if (recaptchaVerifierRef.current) {
-      try { recaptchaVerifierRef.current.clear(); } catch { /* ignore */ }
+      // Clearing may throw if the widget was already unmounted; safe to ignore.
+      try { recaptchaVerifierRef.current.clear(); } catch (e) {
+        console.warn('[reCAPTCHA] clear error (non-fatal):', e);
+      }
       recaptchaVerifierRef.current = null;
     }
     const verifier = new RecaptchaVerifier(firebaseAuth!, containerId, {
       size: 'invisible',
-      callback: () => {},
-      'expired-callback': () => {},
+      callback: () => { console.debug('[reCAPTCHA] solved'); },
+      'expired-callback': () => { console.warn('[reCAPTCHA] expired – user must retry'); },
     });
     recaptchaVerifierRef.current = verifier;
     return verifier;
@@ -193,13 +196,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       setOtpStep(true);
       return true;
     } catch (err: any) {
+      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
       let errMsg: string;
-      if (msg.includes('invalid-phone-number') || (msg.includes('invalid') && msg.toLowerCase().includes('phone'))) {
+      if (code === 'auth/invalid-phone-number') {
         errMsg = language === 'vi'
           ? 'Số điện thoại không hợp lệ. Vui lòng kiểm tra cài đặt bảo mật.'
           : 'Invalid phone number. Please check the security settings.';
-      } else if (msg.includes('too-many-requests') || msg.includes('rate') || msg.includes('too many') || msg.includes('Too many')) {
+      } else if (code === 'auth/too-many-requests') {
         errMsg = language === 'vi'
           ? 'Quá nhiều yêu cầu, vui lòng thử lại sau vài phút'
           : 'Too many requests, please try again in a few minutes';
@@ -425,10 +429,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       memberConfirmationResultRef.current = result;
       setMemberAuthStep('otp');
     } catch (err: any) {
+      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
-      if (msg.includes('invalid-phone-number') || (msg.includes('invalid') && msg.toLowerCase().includes('phone'))) {
+      if (code === 'auth/invalid-phone-number') {
         setMemberOtpError(language === 'vi' ? 'Số điện thoại không hợp lệ.' : 'Invalid phone number.');
-      } else if (msg.includes('too-many-requests') || msg.includes('rate') || msg.includes('too many') || msg.includes('Too many')) {
+      } else if (code === 'auth/too-many-requests') {
         setMemberOtpError(language === 'vi' ? 'Quá nhiều yêu cầu, vui lòng thử lại sau.' : 'Too many requests, please try again later.');
       } else {
         setMemberOtpError(language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`);
@@ -455,8 +460,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
       );
     } catch (err: any) {
       console.error('[OTP verify]', err);
+      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
-      if (msg.includes('invalid-verification-code') || msg.toLowerCase().includes('otp') || msg.toLowerCase().includes('token') || msg.toLowerCase().includes('expired')) {
+      if (code === 'auth/invalid-verification-code' || code === 'auth/code-expired') {
         setMemberOtpError(t.otp_wrong || 'Mã OTP không đúng hoặc đã hết hạn, vui lòng thử lại');
       } else if (msg) {
         setMemberOtpError(language === 'vi' ? `Lỗi xác thực: ${msg}` : `Verification error: ${msg}`);

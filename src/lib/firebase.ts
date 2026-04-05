@@ -16,7 +16,8 @@ export const isFirebaseConfigured = !!(
   firebaseConfig.projectId
 );
 
-const app =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = isFirebaseConfigured
+  ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0])
+  : null;
 
-export const firebaseAuth = isFirebaseConfigured ? getAuth(app) : null;
+export const firebaseAuth = app ? getAuth(app) : null;
