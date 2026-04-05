@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { uploadFile } from '../lib/supabase';
 import { transportService } from '../services/transportService';
 import { buildFareDocId, buildSeatFareDocId } from '../services/fareService';
-import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteSeatFare, TripAddon, User } from '../types';
+import { Route, RouteStop, PricePeriod, RouteSurcharge, ChildPricingRule, RouteFare, RouteSeatFare, TripAddon, User } from '../types';
 import { compressImage } from '../lib/imageUtils';
 
 /** External dependencies that useRoutes needs from App.tsx */
@@ -75,6 +75,22 @@ export type SeatFareEntry = {
   endDate: string;
   note: string;
 };
+
+/**
+ * Returns the deterministic fare_doc_id for a RouteFare.
+ * Uses f.fareDocId (from the DB column) when available, otherwise derives it from stop IDs.
+ */
+function resolveFareDocId(f: RouteFare): string {
+  return f.fareDocId ?? buildFareDocId(f.fromStopId, f.toStopId, f.startDate, f.endDate);
+}
+
+/**
+ * Returns the deterministic fare_doc_id for a RouteSeatFare.
+ * Uses f.fareDocId (from the DB column) when available, otherwise derives it from the seat ID.
+ */
+function resolveSeatFareDocId(f: RouteSeatFare): string {
+  return f.fareDocId ?? buildSeatFareDocId(f.seatId, f.startDate, f.endDate);
+}
 
 /**
  * useRoutes – encapsulates all route CRUD state and handlers.
@@ -268,7 +284,7 @@ export function useRoutes(ctx: RouteContext) {
         // Save all fares in parallel to avoid N sequential round-trips
         const fareResults = await Promise.allSettled(
           faresSnapshot.map((fare, fareIdx) => {
-            // Use the existing Firestore doc ID for fares loaded from the DB, or
+            // Use the existing fare_doc_id for fares loaded from the DB, or
             // derive a deterministic new ID for fares added in the current session.
             const fareDocId =
               fare.fareId ??
@@ -295,6 +311,16 @@ export function useRoutes(ctx: RouteContext) {
             });
           })
         );
+        const failedFares = fareResults.filter(r => r.status === 'rejected');
+        if (failedFares.length > 0) {
+          const lang = ctxRef.current.language;
+          const firstErr = (failedFares[0] as PromiseRejectedResult).reason;
+          throw new Error(
+            lang === 'vi'
+              ? `Lưu giá chặng thất bại: ${firstErr?.message || 'Vui lòng thử lại.'}`
+              : `Failed to save fare prices: ${firstErr?.message || 'Please try again.'}`,
+          );
+        }
         const savedFareDocIds = new Set<string>(
           fareResults
             .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
@@ -336,6 +362,16 @@ export function useRoutes(ctx: RouteContext) {
             });
           })
         );
+        const failedSeatFares = seatFareResults.filter(r => r.status === 'rejected');
+        if (failedSeatFares.length > 0) {
+          const lang = ctxRef.current.language;
+          const firstErr = (failedSeatFares[0] as PromiseRejectedResult).reason;
+          throw new Error(
+            lang === 'vi'
+              ? `Lưu giá ghế thất bại: ${firstErr?.message || 'Vui lòng thử lại.'}`
+              : `Failed to save seat fare prices: ${firstErr?.message || 'Please try again.'}`,
+          );
+        }
         const savedSeatFareDocIds = new Set<string>(
           seatFareResults
             .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
@@ -521,11 +557,12 @@ export function useRoutes(ctx: RouteContext) {
         .getRouteFares(route.id)
         .then(fares => {
           const activeFares = fares.filter(f => f.active !== false);
-          // Track the actual Firestore doc IDs so we can delete removed fares.
-          originalFareDocIdsRef.current = new Set(activeFares.map(f => f.id));
+          // Track the actual fare_doc_id values so we can delete removed fares.
+          // f.fareDocId is the deterministic TEXT key (e.g. "stopA_stopB"); f.id is the UUID PK.
+          originalFareDocIdsRef.current = new Set(activeFares.map(resolveFareDocId));
           setRouteFormFares(
             activeFares.map(f => ({
-              fareId: f.id,
+              fareId: resolveFareDocId(f),
               fromStopId: f.fromStopId,
               toStopId: f.toStopId,
               fromName: allStops.find(s => s.stopId === f.fromStopId)?.stopName || f.fromStopId,
@@ -552,10 +589,10 @@ export function useRoutes(ctx: RouteContext) {
         .getRouteSeatFares(route.id)
         .then(fares => {
           const activeFares = fares.filter(f => f.active !== false);
-          originalSeatFareDocIdsRef.current = new Set(activeFares.map(f => f.id));
+          originalSeatFareDocIdsRef.current = new Set(activeFares.map(resolveSeatFareDocId));
           setRouteFormSeatFares(
             activeFares.map(f => ({
-              fareId: f.id,
+              fareId: resolveSeatFareDocId(f),
               seatId: f.seatId,
               price: f.price,
               agentPrice: f.agentPrice || 0,
