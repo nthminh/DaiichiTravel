@@ -620,6 +620,14 @@ export interface PendingPayment {
   createdAt: any;
   /** ISO timestamp when payment was confirmed */
   confirmedAt?: any;
+  /**
+   * Full booking payload (camelCase) stored when the pending payment is
+   * created so the IPN Edge Function can create the booking server-side.
+   * Shape: { type: 'single', bookingData, tripId, seatIds } or
+   *        { type: 'roundtrip', outboundBookingData, outboundTripId,
+   *          outboundSeatIds, returnBookingData, returnTripId, returnSeatIds }
+   */
+  bookingData?: Record<string, unknown>;
 }
 
 // ─── Property Management (Quản lý tài sản) ───────────────────────────────────

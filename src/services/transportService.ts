@@ -1506,6 +1506,7 @@ export const transportService = {
       trip_id: payment.tripId || null,
       status: 'PENDING',
       created_at: new Date().toISOString(),
+      ...(payment.bookingData ? { booking_data: payment.bookingData } : {}),
     });
   },
 
@@ -1587,6 +1588,21 @@ export const transportService = {
       .maybeSingle();
     if (error) return null;
     return data ? fromDb(data) : null;
+  },
+
+  /**
+   * Returns true if at least one booking exists with the given payment
+   * reference. Used for idempotency: the IPN Edge Function may have already
+   * created the booking server-side before the client-side listener fires.
+   */
+  hasBookingWithPaymentRef: async (paymentRef: string): Promise<boolean> => {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { data } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('payment_ref', paymentRef)
+      .limit(1);
+    return (data?.length ?? 0) > 0;
   },
 
   /** Find a booking by its ticket code (used by the kiosk QR scanner). */

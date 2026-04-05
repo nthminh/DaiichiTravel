@@ -785,6 +785,15 @@ export function usePayment(ctx: BookingContext) {
             customerName: bookingData.customerName,
             routeInfo: `${outboundLeg.bookingData.route ?? ''} ↔ ${bookingData.route ?? ''}`,
             tripId: c.selectedTrip.id,
+            bookingData: {
+              type: 'roundtrip',
+              outboundBookingData: { ...outboundLeg.bookingData, paymentStatus: 'PAID', status: 'PAID' },
+              outboundTripId: capturedOutboundTripId,
+              outboundSeatIds: capturedOutboundSeatIds,
+              returnBookingData: { ...bookingData, paymentStatus: 'PAID', status: 'PAID' },
+              returnTripId: capturedReturnTripId,
+              returnSeatIds: capturedReturnSeatIds,
+            },
           }).catch(err => console.error('[pendingPayment] create error:', err));
 
           const releaseAllReservations = async () => {
@@ -822,6 +831,35 @@ export function usePayment(ctx: BookingContext) {
             // Clean up the pending payment record
             transportService.deletePendingPayment(paymentReference)
               .catch(err => console.error('[pendingPayment] delete error:', err));
+
+            // The IPN Edge Function may have already created the bookings server-side.
+            // Skip creation if any booking already exists for this payment reference.
+            const alreadyCreated = await transportService.hasBookingWithPaymentRef(paymentReference);
+            if (alreadyCreated) {
+              // Bookings exist; just update seat statuses and show the UI
+              await Promise.all([
+                transportService.bookSeats(capturedOutboundTripId, capturedOutboundSeatIds, { status: SeatStatus.PAID }),
+                transportService.bookSeats(capturedReturnTripId, capturedReturnSeatIds, { status: SeatStatus.PAID }),
+              ]).catch(err => console.error('Failed to update seats to PAID:', err));
+              const outboundSet = new Set(capturedOutboundSeatIds);
+              const returnSet = new Set(capturedReturnSeatIds);
+              ctx2.setTrips((prev: any[]) => prev.map((trip: any) => {
+                if (trip.id === capturedOutboundTripId) {
+                  return { ...trip, seats: trip.seats.map((s: any) => outboundSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+                }
+                if (trip.id === capturedReturnTripId) {
+                  return { ...trip, seats: trip.seats.map((s: any) => returnSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+                }
+                return trip;
+              }));
+              ctx2.setSelectedTrip((prev: any) => {
+                if (!prev || prev.id !== capturedReturnTripId) return prev;
+                return { ...prev, seats: prev.seats.map((s: any) => returnSet.has(s.id) ? { ...s, status: SeatStatus.PAID } : s) };
+              });
+              setCapturedOutboundLeg(null);
+              resetFormState();
+              return;
+            }
 
             const savedOutbound = await saveSingleBooking(
               { ...capturedLeg.bookingData, paymentStatus: 'PAID', status: 'PAID' },
@@ -1089,12 +1127,22 @@ export function usePayment(ctx: BookingContext) {
 
       // Create a pending payment record in Supabase so the QR modal can detect
       // payment confirmation in real-time (auto-verify amount & content).
+      // Also store the full booking payload so the IPN Edge Function can create
+      // the booking server-side even if the browser tab is closed before the
+      // real-time listener fires.
       transportService.createPendingPayment({
         paymentRef: paymentReference,
         expectedAmount: totalAmount,
         customerName: bookingData.customerName,
         routeInfo: bookingData.route ?? '',
         tripId: c.selectedTrip.id,
+        bookingData: {
+          type: 'single',
+          bookingData: { ...bookingData, paymentStatus: 'PAID', status: 'PAID' },
+          tripId: c.selectedTrip.id,
+          seatIds: capturedSeatIds,
+          ...(capturedSegmentInfo ? { segmentInfo: capturedSegmentInfo } : {}),
+        },
       }).catch(err => console.error('[pendingPayment] create error:', err));
 
       // Release reserved seats when the user cancels or the 3-min timer expires
@@ -1124,8 +1172,16 @@ export function usePayment(ctx: BookingContext) {
         transportService.deletePendingPayment(paymentReference)
           .catch(err => console.error('[pendingPayment] delete error:', err));
         try {
-          const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID', status: 'PAID' });
-          const savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
+          // The IPN Edge Function may have already created the booking server-side.
+          // Check for an existing booking to avoid creating a duplicate.
+          const existingBooking = await transportService.getBookingByPaymentRef(paymentReference);
+          let savedBooking: any;
+          if (existingBooking) {
+            savedBooking = existingBooking;
+          } else {
+            const result = await transportService.createBooking({ ...bookingData, paymentStatus: 'PAID', status: 'PAID' });
+            savedBooking = { ...bookingData, id: result.id, ticketCode: result.ticketCode };
+          }
           ctx2.setLastBooking(savedBooking);
           // Fire-and-forget customer activity update (does not affect booking outcome on failure)
           transportService.updateCustomerOnBooking(bookingData.phone, bookingData.route, bookingData.amount, bookingData.pickupPoint, bookingData.dropoffPoint)

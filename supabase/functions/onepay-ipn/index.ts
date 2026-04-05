@@ -7,6 +7,11 @@
  * Accepts GET or POST with OnePay IPN parameters, verifies the HMAC-SHA256
  * signature, then updates the pending_payments row to PAID or CANCELLED.
  *
+ * When a payment is confirmed (PAID), this function also creates the booking
+ * record(s) in the bookings table server-side using the booking_data stored
+ * in pending_payments. This ensures bookings are never lost even when the
+ * customer's browser tab is closed before the client-side listener fires.
+ *
  * Response format required by OnePay:
  *   responsecode=1&desc=confirm-success   (success, HTTP 200)
  *   responsecode=0&desc=confirm-fail      (failure, non-200 or 200 with code 0)
@@ -53,6 +58,85 @@ async function verifyHmac(params: URLSearchParams, hashKey: string): Promise<boo
   return hmac === vpc_SecureHash.toUpperCase();
 }
 
+/** Convert a camelCase key to snake_case (top-level only, matches frontend toSnakeCaseObj) */
+function toSnake(key: string): string {
+  return key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+}
+
+/** Convert top-level object keys from camelCase to snake_case */
+function toSnakeCaseObj(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(obj)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [toSnake(k), v]),
+  );
+}
+
+/** Generate a ticket code in the same format as the frontend (DT-XXXXXXXX) */
+function generateTicketCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const timePart = Date.now().toString(36).toUpperCase().slice(-2);
+  let randomPart = '';
+  for (let i = 0; i < 6; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `DT-${randomPart}${timePart}`;
+}
+
+/**
+ * Update seat statuses on a trip from BOOKED to PAID for the given seat IDs.
+ * Mirrors the client-side transportService.bookSeats({ status: 'PAID' }) call.
+ */
+async function updateSeatsToPaid(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  tripId: string,
+  seatIds: string[],
+): Promise<void> {
+  if (!tripId || !seatIds?.length) return;
+  const { data: row, error: fetchErr } = await supabase.from('trips').select('seats').eq('id', tripId).single();
+  if (fetchErr) {
+    console.error('[onepay-ipn] updateSeatsToPaid fetch error:', fetchErr);
+    return;
+  }
+  if (!row?.seats) return;
+  const seats = row.seats as Array<Record<string, unknown>>;
+  const updatedSeats = seats.map((seat) => {
+    if (!seatIds.includes(seat.id as string)) return seat;
+    return { ...seat, status: 'PAID' };
+  });
+  const { error: updateErr } = await supabase
+    .from('trips')
+    .update({ seats: updatedSeats, updated_at: new Date().toISOString() })
+    .eq('id', tripId);
+  if (updateErr) {
+    console.error('[onepay-ipn] updateSeatsToPaid update error:', updateErr);
+  }
+}
+
+/**
+ * Insert a single booking row derived from the camelCase bookingData stored in
+ * pending_payments.booking_data.  Returns the created booking id and ticketCode.
+ */
+async function createBookingFromData(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  bookingData: Record<string, unknown>,
+): Promise<{ id: string; ticketCode: string } | null> {
+  const ticketCode = generateTicketCode();
+  const row = toSnakeCaseObj({
+    ...bookingData,
+    ticketCode,
+    createdAt: new Date().toISOString(),
+  });
+  const { data, error } = await supabase.from('bookings').insert(row).select('id').single();
+  if (error) {
+    console.error('[onepay-ipn] createBooking error:', error);
+    return null;
+  }
+  return { id: data.id, ticketCode };
+}
+
 Deno.serve(async (req) => {
   try {
     let params: URLSearchParams;
@@ -96,7 +180,7 @@ Deno.serve(async (req) => {
       .update(update)
       .eq('payment_ref', vpc_MerchTxnRef)
       .eq('status', 'PENDING')
-      .select('id');
+      .select('id, booking_data, trip_id');
 
     if (error) {
       console.error('[onepay-ipn] DB update error:', error);
@@ -131,6 +215,69 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Server-side booking creation ────────────────────────────────────────
+    // Create the booking record(s) here so they are never lost if the customer
+    // closes their browser tab before the client-side real-time listener fires.
+    if (isPaid) {
+      const pendingRow = updatedRows[0] as Record<string, unknown>;
+      const storedPayload = pendingRow.booking_data as Record<string, unknown> | null;
+
+      if (storedPayload) {
+        // Idempotency: skip if the client-side listener already created the booking.
+        const { data: existing, error: existingErr } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('payment_ref', vpc_MerchTxnRef)
+          .limit(1);
+
+        // If the query itself failed, err on the side of caution and skip creation
+        // to avoid accidentally creating duplicate bookings.
+        if (existingErr) {
+          console.error('[onepay-ipn] idempotency check error:', existingErr);
+        } else if (!existing || existing.length === 0) {
+          if (storedPayload.type === 'roundtrip') {
+            // Round-trip: create outbound and return bookings separately.
+            // Both must succeed before updating seats to maintain consistency.
+            const outboundData = storedPayload.outboundBookingData as Record<string, unknown>;
+            const outboundTripId = storedPayload.outboundTripId as string;
+            const outboundSeatIds = storedPayload.outboundSeatIds as string[];
+            const returnData = storedPayload.returnBookingData as Record<string, unknown>;
+            const returnTripId = storedPayload.returnTripId as string;
+            const returnSeatIds = storedPayload.returnSeatIds as string[];
+
+            const outboundResult = await createBookingFromData(supabase, outboundData);
+            if (!outboundResult) {
+              console.error('[onepay-ipn] Round-trip outbound booking creation failed, skipping return and seat update');
+            } else {
+              const returnResult = await createBookingFromData(supabase, returnData);
+              if (!returnResult) {
+                console.error('[onepay-ipn] Round-trip return booking creation failed after outbound succeeded; seats left in BOOKED state for client recovery');
+              } else {
+                console.log(`[onepay-ipn] Created round-trip bookings: ${outboundResult.ticketCode}, ${returnResult.ticketCode}`);
+                await Promise.all([
+                  updateSeatsToPaid(supabase, outboundTripId, outboundSeatIds),
+                  updateSeatsToPaid(supabase, returnTripId, returnSeatIds),
+                ]);
+              }
+            }
+          } else {
+            // Single-leg booking
+            const bookingData = storedPayload.bookingData as Record<string, unknown>;
+            const tripId = storedPayload.tripId as string;
+            const seatIds = storedPayload.seatIds as string[];
+
+            const result = await createBookingFromData(supabase, bookingData);
+            if (result) {
+              console.log(`[onepay-ipn] Created booking: ${result.ticketCode}`);
+              await updateSeatsToPaid(supabase, tripId, seatIds);
+            }
+          }
+        } else {
+          console.log(`[onepay-ipn] Booking already exists for ${vpc_MerchTxnRef}, skipping server-side creation`);
+        }
+      }
+    }
+
     return new Response('responsecode=1&desc=confirm-success', {
       status: 200,
       headers: { 'Content-Type': 'text/plain' },
@@ -143,3 +290,4 @@ Deno.serve(async (req) => {
     });
   }
 });
+
