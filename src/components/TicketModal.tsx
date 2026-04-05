@@ -23,7 +23,7 @@ interface TicketModalProps {
   onRegisterMember?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
   /** When true, automatically triggers window.print() when the modal opens (e.g. after payment) */
   autoDownload?: boolean;
-  currentUser?: { role?: string } | null;
+  currentUser?: { role?: UserRole | string } | null;
 }
 
 export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, routes = [], autoDownload, currentUser }) => {
