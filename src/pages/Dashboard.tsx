@@ -887,7 +887,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         )}
                       </td>
                       <td className="py-5">
-                        <p className="font-bold text-gray-800">{booking.amount.toLocaleString()}đ</p>
+                        <p className="font-bold text-gray-800">{(booking.amount ?? 0).toLocaleString()}đ</p>
                       </td>
                       <td className="py-5">
                         <span className={cn(
