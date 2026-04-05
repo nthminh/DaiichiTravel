@@ -1555,6 +1555,61 @@ export const transportService = {
     }
   },
 
+  /**
+   * Credit agent balance from a TOPUP pending payment (idempotent).
+   * Calls the credit_agent_from_topup Supabase RPC which guards against
+   * double-crediting using the balance_credited flag.
+   */
+  creditAgentFromTopup: async (paymentRef: string): Promise<boolean> => {
+    if (!isSupabaseConfigured || !supabase) return false;
+    try {
+      const { data, error } = await supabase.rpc('credit_agent_from_topup', {
+        p_payment_ref: paymentRef,
+      });
+      if (error) {
+        console.error('[creditAgentFromTopup] RPC error:', error);
+        return false;
+      }
+      return !!data;
+    } catch (err) {
+      console.error('[creditAgentFromTopup] error:', err);
+      return false;
+    }
+  },
+
+  /** Find a booking by its payment reference (e.g. after OnePay redirect). */
+  getBookingByPaymentRef: async (paymentRef: string): Promise<any | null> => {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('payment_ref', paymentRef)
+      .maybeSingle();
+    if (error) return null;
+    return data ? fromDb(data) : null;
+  },
+
+  /** Find a booking by its ticket code (used by the kiosk QR scanner). */
+  getBookingByTicketCode: async (ticketCode: string): Promise<any | null> => {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('ticket_code', ticketCode)
+      .maybeSingle();
+    if (error) return null;
+    return data ? fromDb(data) : null;
+  },
+
+  /** Mark a booking as checked-in (kiosk feature). */
+  checkInBooking: async (bookingId: string): Promise<void> => {
+    if (!isSupabaseConfigured || !supabase) return;
+    await supabase.from('bookings').update({
+      is_checked_in: true,
+      checked_in_at: new Date().toISOString(),
+    }).eq('id', bookingId);
+  },
+
   // ─── Property Management ──────────────────────────────────────────────────
 
   subscribeToProperties: (callback: (properties: Property[]) => void) => {

@@ -890,12 +890,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                         <p className="font-bold text-gray-800">{(booking.amount ?? 0).toLocaleString()}đ</p>
                       </td>
                       <td className="py-5">
-                        <span className={cn(
-                          "px-3 py-1 rounded-full text-[10px] font-bold uppercase",
-                          booking.status === 'PAID' ? "bg-green-100 text-green-600" : "bg-yellow-100 text-yellow-600"
-                        )}>
-                          {booking.status === 'PAID' ? (language === 'vi' ? 'Đã trả' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-bold uppercase",
+                            booking.status === 'PAID' ? "bg-green-100 text-green-600" : "bg-yellow-100 text-yellow-600"
+                          )}>
+                            {booking.status === 'PAID' ? (language === 'vi' ? 'Đã trả' : 'Paid') : (language === 'vi' ? 'Đã đặt' : 'Booked')}
+                          </span>
+                          {(booking.isCheckedIn || booking.is_checked_in) && (
+                            <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-600">
+                              ✓ Check-in
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-5">
                         <div className="flex gap-2" onClick={e => e.stopPropagation()}>

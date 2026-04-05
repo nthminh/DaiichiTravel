@@ -118,28 +118,16 @@ Deno.serve(async (req) => {
 
     // If this is an agent top-up payment, credit the agent's balance atomically.
     // Agent code is encoded in the payment reference as "TOPUP{code}".
-    // Only alphanumeric characters are accepted to prevent unexpected queries.
-    if (isPaid && /^TOPUP[A-Za-z0-9]+$/.test(vpc_MerchTxnRef)) {
-      const agentCode = vpc_MerchTxnRef.replace(/^TOPUP/i, '');
-      const { data: agentRow, error: agentFetchErr } = await supabase
-        .from('agents')
-        .select('id')
-        .eq('code', agentCode)
-        .single();
-
-      if (agentFetchErr || !agentRow) {
-        console.error('[onepay-ipn] Agent not found for code:', agentCode, agentFetchErr);
+    // credit_agent_from_topup() is idempotent – safe to call from both the IPN
+    // and the client-side fallback without risk of double-crediting.
+    if (isPaid && /^TOPUP[A-Za-z0-9]+/.test(vpc_MerchTxnRef)) {
+      const { data: credited, error: creditErr } = await supabase.rpc('credit_agent_from_topup', {
+        p_payment_ref: vpc_MerchTxnRef,
+      });
+      if (creditErr) {
+        console.error('[onepay-ipn] credit_agent_from_topup error:', creditErr);
       } else {
-        // Use an atomic SQL increment via RPC to avoid read-modify-write races
-        const { error: balanceErr } = await supabase.rpc('increment_agent_balance', {
-          agent_id: agentRow.id,
-          amount: amountVND,
-        });
-        if (balanceErr) {
-          console.error('[onepay-ipn] Failed to update agent balance:', balanceErr);
-        } else {
-          console.log(`[onepay-ipn] Credited ${amountVND} to agent ${agentCode}`);
-        }
+        console.log(`[onepay-ipn] credit_agent_from_topup(${vpc_MerchTxnRef}) => ${credited}`);
       }
     }
 

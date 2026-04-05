@@ -1509,6 +1509,8 @@ export function SeatMappingPage({
                   const isAgent = currentUser?.role === UserRole.AGENT;
                   const agentDataForBooking = isAgent ? agents.find(a => a.id === currentUser?.id) : null;
                   const isPostpaidAgent = isAgent && (agentDataForBooking?.paymentType === 'POSTPAID' || !agentDataForBooking?.paymentType);
+                  const isPrepaidAgent = isAgent && agentDataForBooking?.paymentType === 'PREPAID';
+                  const agentBalance = agentDataForBooking?.balance ?? 0;
 
                   if (isManager) {
                     return (
@@ -1545,6 +1547,30 @@ export function SeatMappingPage({
                           {language === 'vi'
                             ? '"Giữ vé" có thể chỉnh sửa/xóa trước 24h xe chạy. "Thanh toán sau" xuất vé ngay, tính vào công nợ.'
                             : '"Hold Ticket" can be edited/deleted up to 24h before departure. "Pay Later" issues immediately, billed to your account.'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (isPrepaidAgent) {
+                    const prepaidMethod = (paymentMethodInput === 'Thanh toán từ số dư' || paymentMethodInput === 'Chuyển khoản QR')
+                      ? paymentMethodInput
+                      : 'Thanh toán từ số dư';
+                    return (
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
+                        <select
+                          value={prepaidMethod}
+                          onChange={(e) => setPaymentMethodInput(e.target.value as any)}
+                          className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
+                        >
+                          <option value="Thanh toán từ số dư">{t.payment_balance || 'Thanh toán từ số dư'}</option>
+                          <option value="Chuyển khoản QR">{t.payment_qr || 'Chuyển khoản QR'}</option>
+                        </select>
+                        <p className="text-[10px] text-emerald-600 mt-1 ml-1 font-semibold">
+                          {language === 'vi'
+                            ? `Số dư hiện tại: ${agentBalance.toLocaleString('vi-VN')}đ`
+                            : `Current balance: ${agentBalance.toLocaleString()}đ`}
                         </p>
                       </div>
                     );

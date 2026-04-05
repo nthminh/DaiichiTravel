@@ -998,25 +998,28 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
     const unsubscribe = transportService.subscribeToPendingPayment(paymentRef, (data) => {
       if (!data || autoConfirmCalledRef.current) return;
       if (data.status === 'PAID') {
-        const paidAmt = data.paidAmount ?? 0;
-        const paidContent = (data.paidContent ?? '').toUpperCase();
-        const refUpper = paymentRef.toUpperCase();
-        if (paidAmt === topUpAmount && paidContent.includes(refUpper)) {
-          autoConfirmCalledRef.current = true;
-          setAutoDetected(true);
-          setTopUpSuccess(true);
-          autoCloseTimer = setTimeout(() => {
-            onTopUpSuccessRef.current?.();
-            onClose();
-          }, TOPUP_AUTO_CLOSE_MS);
-        }
+        autoConfirmCalledRef.current = true;
+        // Amount validation is intentionally delegated to credit_agent_from_topup on the
+        // server side (which uses the paid_amount stored by the IPN), so the UI can show
+        // success as soon as the payment is confirmed regardless of any client-side rounding.
+        // Client-side fallback: call credit_agent_from_topup so the balance is
+        // updated even when the IPN Edge Function is not configured or unreachable.
+        // The RPC is idempotent – if the IPN already credited the balance it's a no-op.
+        transportService.creditAgentFromTopup(paymentRef)
+          .catch(err => console.error('[AgentTopUpQRModal] creditAgentFromTopup error:', err));
+        setAutoDetected(true);
+        setTopUpSuccess(true);
+        autoCloseTimer = setTimeout(() => {
+          onTopUpSuccessRef.current?.();
+          onClose();
+        }, TOPUP_AUTO_CLOSE_MS);
       }
     });
     return () => {
       unsubscribe();
       clearTimeout(autoCloseTimer);
     };
-  }, [paymentInitiated, paymentRef, topUpAmount, onClose]);
+  }, [paymentInitiated, paymentRef, onClose]);
 
   const handleInitiatePayment = async () => {
     if (topUpAmount <= 0) return;

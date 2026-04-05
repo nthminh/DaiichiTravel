@@ -79,6 +79,7 @@ const SeatMappingPage = lazy(() => import('./pages/SeatMappingPage').then(m => (
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 const CustomerVerificationPage = lazy(() => import('./pages/CustomerVerificationPage').then(m => ({ default: m.CustomerVerificationPage })));
 const AuditLogPage = lazy(() => import('./pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
+const KioskPage = lazy(() => import('./pages/KioskPage').then(m => ({ default: m.KioskPage })));
 import { DriverAssignment, StaffMessage } from './types';
 import type { TourItem } from './components/TourBookingForm';
 import { TripFormModal } from './components/TripFormModal';
@@ -643,6 +644,34 @@ export default function App() {
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
   const [ticketAutoDownload, setTicketAutoDownload] = useState(false);
+
+  // Handle OnePay return URL – fired when OnePay redirects the customer back
+  // after completing (or cancelling) a payment. The URL contains vpc_* query params.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const responseCode = params.get('vpc_TxnResponseCode');
+    const paymentRef = params.get('vpc_MerchTxnRef');
+    if (!responseCode || !paymentRef) return;
+
+    // Strip the query string from the URL immediately so that:
+    //  1. The vpc_* params are not re-processed if the component re-mounts.
+    //  2. Sensitive payment data is not kept visible in the browser's address bar.
+    //  Note: this runs before the async lookup, so there is no risk of losing the params
+    //  because they were already captured in the local variables above.
+    window.history.replaceState(null, '', window.location.pathname);
+
+    if (responseCode === '0' && paymentRef) {
+      // Payment was successful – look up the booking and open the ticket modal.
+      transportService.getBookingByPaymentRef(paymentRef).then(booking => {
+        if (booking) {
+          setLastBooking(booking);
+          setTicketAutoDownload(true);
+          setIsTicketOpen(true);
+        }
+      }).catch(err => console.error('[OnePay return] booking lookup error:', err));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const t = TRANSLATIONS[language];
 
@@ -1393,6 +1422,13 @@ export default function App() {
             onUpdateAgent={handleUpdateAgent} 
             onUpdateAdmin={handleUpdateAdmin} 
           />
+        );
+
+      case 'kiosk':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading...</div>}>
+            <KioskPage language={language} trips={trips} />
+          </Suspense>
         );
 
       case 'customers':

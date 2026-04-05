@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Download, Share2, CheckCircle2, ArrowLeftRight,
   MapPin, Calendar, Clock, User, Users,
-  CreditCard, QrCode, Copy, Palmtree, Moon, Coffee
+  CreditCard, Copy, Palmtree, Moon, Coffee
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../App';
@@ -592,12 +593,17 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
 
               <div className="flex flex-col items-center gap-4 pt-4">
                 <div className="p-4 bg-white border-2 border-gray-50 rounded-3xl shadow-sm">
-                  <QrCode size={120} className="text-gray-800" />
+                  <QRCodeSVG
+                    value={booking.ticketCode || booking.id || 'DAIICHI'}
+                    size={120}
+                    level="M"
+                    includeMargin={false}
+                  />
                 </div>
                 <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">
                   {isTour
                     ? (language === 'vi' ? 'Quét mã để xác nhận tour' : 'Scan to confirm tour')
-                    : (language === 'vi' ? 'Quét mã để lên xe' : 'Scan to board')}
+                    : (language === 'vi' ? 'Quét mã để lên xe / check-in' : 'Scan to board / check-in')}
                 </p>
               </div>
 

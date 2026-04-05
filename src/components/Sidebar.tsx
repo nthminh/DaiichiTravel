@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Home, Bus, Package, Users, 
   MapPin, Truck, Star, LogOut, X, Globe, Settings as SettingsIcon,
-  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket, Anchor, Building2
+  BarChart2, ChevronDown, CheckCircle, BookOpen, ChevronRight, CreditCard, Ticket, Anchor, Building2, ScanQrCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -44,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'agents', label: t.agents, icon: Users },
     { id: 'payment-management', label: language === 'vi' ? 'Quản lý Thanh toán' : language === 'ja' ? '支払い管理' : 'Payment Mgmt', icon: CreditCard },
     { id: 'financial-report', label: TRANSLATIONS[language].financial_report || 'Financial Report', icon: BarChart2 },
+    { id: 'kiosk', label: language === 'vi' ? 'Kiosk Check-in' : language === 'ja' ? 'チェックインキオスク' : 'Check-in Kiosk', icon: ScanQrCode },
   ];
 
   // Items visible to all applicable roles (non-admin-exclusive)

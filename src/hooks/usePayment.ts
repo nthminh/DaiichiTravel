@@ -1018,6 +1018,23 @@ export function usePayment(ctx: BookingContext) {
 
     // When payment method is QR bank transfer (or for customer/guest who always use QR), show the QR modal first
     const isCustomerOrGuest = c.currentUser?.role === UserRole.CUSTOMER || c.currentUser?.role === 'GUEST';
+
+    // ── BALANCE PAYMENT (PREPAID agents only) ─────────────────────────────────
+    if (payMethod === 'Thanh toán từ số dư' && isAgentBooking) {
+      const agentData = c.agents.find(a => a.id === c.currentUser!.id);
+      const currentBalance = agentData?.balance ?? 0;
+      if (currentBalance < totalAmount) {
+        alert(c.language === 'vi'
+          ? `Số dư không đủ. Số dư hiện tại: ${currentBalance.toLocaleString('vi-VN')}đ. Cần: ${totalAmount.toLocaleString('vi-VN')}đ.`
+          : `Insufficient balance. Current: ${currentBalance.toLocaleString()}đ. Required: ${totalAmount.toLocaleString()}đ.`);
+        return;
+      }
+      // For PREPAID agents, saveBooking → updateAgentBalance automatically deducts
+      // the booking amount from the agent's deposit balance (newBalance = balance − amount).
+      await saveBooking();
+      return;
+    }
+
     if (payMethod === 'Chuyển khoản QR' || isCustomerOrGuest) {
       const paymentReference = transportService.generateTicketCode();
       bookingData.paymentRef = paymentReference;

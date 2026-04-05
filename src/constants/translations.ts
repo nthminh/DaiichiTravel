@@ -584,8 +584,21 @@ export const TRANSLATIONS: Record<Language, any> = {
 
     // Booking hold
     payment_hold: 'Giữ vé (chưa thanh toán)',
+    payment_balance: 'Thanh toán từ số dư',
     hold_ticket_label: 'Giữ vé trước',
     hold_until_label: 'Giữ vé đến',
+
+    // Check-in / Kiosk
+    check_in: 'Check-in',
+    checked_in: 'Đã check-in',
+    not_checked_in: 'Chưa check-in',
+    kiosk_title: 'Kiosk Check-in',
+    kiosk_scan_prompt: 'Đưa mã QR vé vào camera để check-in',
+    kiosk_manual_input: 'Nhập mã vé',
+    kiosk_booking_found: 'Đã tìm thấy vé',
+    kiosk_already_checked_in: 'Đã check-in trước đó',
+    kiosk_check_in_success: 'Check-in thành công!',
+    kiosk_not_found: 'Không tìm thấy vé với mã này',
 
     // QR Payment
     qr_payment_title: 'Thanh toán qua OnePay QR',
@@ -1501,8 +1514,21 @@ export const TRANSLATIONS: Record<Language, any> = {
 
     // Booking hold
     payment_hold: 'Hold Ticket (Unpaid)',
+    payment_balance: 'Pay from Balance',
     hold_ticket_label: 'Hold Ticket',
     hold_until_label: 'Hold Until',
+
+    // Check-in / Kiosk
+    check_in: 'Check-in',
+    checked_in: 'Checked In',
+    not_checked_in: 'Not Checked In',
+    kiosk_title: 'Check-in Kiosk',
+    kiosk_scan_prompt: 'Point the ticket QR code at the camera to check in',
+    kiosk_manual_input: 'Enter ticket code',
+    kiosk_booking_found: 'Booking found',
+    kiosk_already_checked_in: 'Already checked in',
+    kiosk_check_in_success: 'Check-in successful!',
+    kiosk_not_found: 'No booking found for this code',
 
     // QR Payment
     qr_payment_title: 'Pay via OnePay QR',
@@ -2418,8 +2444,21 @@ export const TRANSLATIONS: Record<Language, any> = {
 
     // Booking hold
     payment_hold: '仮予約（未払い）',
+    payment_balance: '残高から支払い',
     hold_ticket_label: 'チケット保留',
     hold_until_label: '保留期限',
+
+    // Check-in / Kiosk
+    check_in: 'チェックイン',
+    checked_in: 'チェックイン済み',
+    not_checked_in: '未チェックイン',
+    kiosk_title: 'チェックインキオスク',
+    kiosk_scan_prompt: 'チケットのQRコードをカメラに向けてチェックインしてください',
+    kiosk_manual_input: 'チケットコードを入力',
+    kiosk_booking_found: '予約が見つかりました',
+    kiosk_already_checked_in: 'すでにチェックイン済みです',
+    kiosk_check_in_success: 'チェックイン完了！',
+    kiosk_not_found: 'このコードの予約は見つかりません',
 
     // QR Payment
     qr_payment_title: 'OnePay QRで支払い',
