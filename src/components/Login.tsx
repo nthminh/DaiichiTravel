@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language, User, UserRole } from '../App';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { firebaseAuth, isFirebaseConfigured } from '../lib/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, sendSignInLinkToEmail } from 'firebase/auth';
 import type { CustomerCategory, CustomerProfile } from '../types';
 
 type MemberLoginMethod = 'phone' | 'gmail' | 'facebook' | 'whatsapp' | 'email';
@@ -121,14 +119,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   // Holds verified info from phone OTP or social OAuth before profile completion
   const [pendingAuthData, setPendingAuthData] = useState<{ uid?: string; phone?: string; email?: string; name?: string } | null>(null);
 
-  // Firebase Auth – RecaptchaVerifier and ConfirmationResult refs
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
-  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
-  const memberConfirmationResultRef = useRef<ConfirmationResult | null>(null);
-
-
   /**
-   * Ensures an authenticated Supabase session exists for admin/staff users.
    * Admin/staff use custom username+password auth (not Supabase Auth), so we
    * sign in anonymously to obtain a Supabase session whose auth.role() equals
    * 'authenticated', satisfying the RLS write policies on all tables.
@@ -149,27 +140,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
   const t = TRANSLATIONS[language];
 
   /**
-   * Creates (or recreates) an invisible Firebase RecaptchaVerifier bound to the
-   * given container element.  Clears any pre-existing verifier first.
-   */
-  const getRecaptchaVerifier = (containerId: string): RecaptchaVerifier => {
-    if (recaptchaVerifierRef.current) {
-      // Clearing may throw if the widget was already unmounted; safe to ignore.
-      try { recaptchaVerifierRef.current.clear(); } catch (e) {
-        console.warn('[reCAPTCHA] clear error (non-fatal):', e);
-      }
-      recaptchaVerifierRef.current = null;
-    }
-    const verifier = new RecaptchaVerifier(firebaseAuth!, containerId, {
-      size: 'invisible',
-      callback: () => { console.debug('[reCAPTCHA] solved'); },
-      'expired-callback': () => { console.warn('[reCAPTCHA] expired – user must retry'); },
-    });
-    recaptchaVerifierRef.current = verifier;
-    return verifier;
-  };
-
-  /**
    * Helper: set an OTP-related error in both the OTP step panel and the login form
    * so the message is always visible regardless of which step is currently rendered.
    */
@@ -184,26 +154,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setOtpLoading(true);
     setOtpError('');
     try {
-      if (!isFirebaseConfigured || !firebaseAuth) {
-        setOtpSendError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+      if (!isSupabaseConfigured || !supabase) {
+        setOtpSendError(language === 'vi' ? 'Supabase chưa được cấu hình' : 'Supabase not configured');
         return false;
       }
-      const verifier = getRecaptchaVerifier('recaptcha-container');
-      const result = await signInWithPhoneNumber(firebaseAuth, phoneNumber, verifier);
-      confirmationResultRef.current = result;
+      const { error } = await supabase.auth.signInWithOtp({ phone: phoneNumber });
+      if (error) throw error;
       setPendingUser(user);
       setOtpPhone(phoneNumber);
       setOtpStep(true);
       return true;
     } catch (err: any) {
-      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
       let errMsg: string;
-      if (code === 'auth/invalid-phone-number') {
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('phone')) {
         errMsg = language === 'vi'
           ? 'Số điện thoại không hợp lệ. Vui lòng kiểm tra cài đặt bảo mật.'
           : 'Invalid phone number. Please check the security settings.';
-      } else if (code === 'auth/too-many-requests') {
+      } else if (msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('limit')) {
         errMsg = language === 'vi'
           ? 'Quá nhiều yêu cầu, vui lòng thử lại sau vài phút'
           : 'Too many requests, please try again in a few minutes';
@@ -223,8 +191,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setOtpLoading(true);
     setOtpError('');
     try {
-      if (!confirmationResultRef.current) throw new Error('No confirmation result');
-      await confirmationResultRef.current.confirm(otpCode.trim());
+      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
+      const { error } = await supabase.auth.verifyOtp({ phone: otpPhone, token: otpCode.trim(), type: 'sms' });
+      if (error) throw error;
       onLogin(pendingUser);
     } catch {
       setOtpError(language === 'vi' ? 'Mã OTP không đúng, vui lòng thử lại' : 'Incorrect OTP code, please try again');
@@ -412,28 +381,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
   };
 
-  /** Send SMS OTP to the member's phone number via Firebase Authentication */
+  /** Send SMS OTP to the member's phone number via Supabase Authentication */
   const handleMemberSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberPhone.trim()) return;
     setMemberOtpLoading(true);
     setMemberOtpError('');
     try {
-      if (!isFirebaseConfigured || !firebaseAuth) {
-        setMemberOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+      if (!isSupabaseConfigured || !supabase) {
+        setMemberOtpError(language === 'vi' ? 'Supabase chưa được cấu hình' : 'Supabase not configured');
         return;
       }
       const phoneE164 = toE164(memberPhone);
-      const verifier = getRecaptchaVerifier('recaptcha-container');
-      const result = await signInWithPhoneNumber(firebaseAuth, phoneE164, verifier);
-      memberConfirmationResultRef.current = result;
+      const { error } = await supabase.auth.signInWithOtp({ phone: phoneE164 });
+      if (error) throw error;
       setMemberAuthStep('otp');
     } catch (err: any) {
-      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
-      if (code === 'auth/invalid-phone-number') {
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('phone')) {
         setMemberOtpError(language === 'vi' ? 'Số điện thoại không hợp lệ.' : 'Invalid phone number.');
-      } else if (code === 'auth/too-many-requests') {
+      } else if (msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('limit')) {
         setMemberOtpError(language === 'vi' ? 'Quá nhiều yêu cầu, vui lòng thử lại sau.' : 'Too many requests, please try again later.');
       } else {
         setMemberOtpError(language === 'vi' ? `Không thể gửi OTP: ${msg}` : `Cannot send OTP: ${msg}`);
@@ -443,26 +410,27 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
   };
 
-  /** Verify the 6-digit OTP entered by the member via Firebase Authentication */
+  /** Verify the 6-digit OTP entered by the member via Supabase Authentication */
   const handleMemberOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (memberOtp.length !== 6) return;
     setMemberOtpLoading(true);
     setMemberOtpError('');
     try {
-      if (!memberConfirmationResultRef.current) throw new Error('No confirmation result');
+      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
       const phoneE164 = toE164(memberPhone);
-      const credential = await memberConfirmationResultRef.current.confirm(memberOtp.trim());
-      const fbUser = credential.user;
+      const { data, error } = await supabase.auth.verifyOtp({ phone: phoneE164, token: memberOtp.trim(), type: 'sms' });
+      if (error) throw error;
+      const supUser = data.user;
+      if (!supUser) throw new Error('OTP verification succeeded but no user returned');
       await completeMemberLogin(
-        { uid: fbUser.uid, phone: fbUser.phoneNumber || phoneE164, name: undefined },
+        { uid: supUser.id, phone: phoneE164, name: undefined },
         selectedMethod || 'phone',
       );
     } catch (err: any) {
       console.error('[OTP verify]', err);
-      const code: string = err?.code ?? '';
       const msg: string = err?.message ?? '';
-      if (code === 'auth/invalid-verification-code' || code === 'auth/code-expired') {
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('token') || msg.toLowerCase().includes('expired')) {
         setMemberOtpError(t.otp_wrong || 'Mã OTP không đúng hoặc đã hết hạn, vui lòng thử lại');
       } else if (msg) {
         setMemberOtpError(language === 'vi' ? `Lỗi xác thực: ${msg}` : `Verification error: ${msg}`);
@@ -516,13 +484,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     }
   };
 
-  /** Send a Firebase Email Sign-in link (passwordless magic link) */
+  /** Send a Supabase Email Sign-in link (passwordless magic link) */
   const handleEmailSendLink = async (e: React.FormEvent) => {
     e.preventDefault();
     const email = memberEmail.trim();
     if (!email) return;
-    if (!isFirebaseConfigured || !firebaseAuth) {
-      setMemberOtpError(language === 'vi' ? 'Firebase chưa được cấu hình' : 'Firebase not configured');
+    if (!isSupabaseConfigured || !supabase) {
+      setMemberOtpError(language === 'vi' ? 'Supabase chưa được cấu hình' : 'Supabase not configured');
       return;
     }
     // Basic email format check
@@ -534,16 +502,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
     setMemberOtpError('');
     try {
       const redirectUrl = window.location.origin + window.location.pathname;
-      await sendSignInLinkToEmail(firebaseAuth, email, {
-        url: redirectUrl,
-        handleCodeInApp: true,
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectUrl },
       });
-      // Persist email so the completion handler can read it after redirect
-      window.localStorage.setItem('emailForSignIn', email);
+      if (error) throw error;
       setMemberAuthStep('email-sent');
     } catch (err: any) {
       const msg: string = err?.message ?? '';
-      if (msg.includes('invalid-email') || (msg.toLowerCase().includes('invalid') && msg.toLowerCase().includes('email'))) {
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('email')) {
         setMemberOtpError(t.otp_email_error_invalid || 'Địa chỉ email không hợp lệ.');
       } else {
         setMemberOtpError(t.otp_email_error_failed || 'Không thể gửi email. Vui lòng thử lại.');
@@ -1236,13 +1203,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
                     {t.login_btn}
                   </motion.button>
 
-                  <p className="text-white/40 text-[10px] text-center mt-3 leading-relaxed px-2">
-                    {t.recaptcha_disclaimer}
-                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" aria-label="Google Privacy Policy" className="underline hover:text-white/60 transition-colors">{t.recaptcha_privacy}</a>
-                    {t.recaptcha_and}
-                    <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" aria-label="Google Terms of Service" className="underline hover:text-white/60 transition-colors">{t.recaptcha_terms}</a>
-                    {t.recaptcha_of_google}
-                  </p>
                 </form>
 
                 <div className="mt-5 pt-5 border-t border-white/10 text-center">
@@ -1260,8 +1220,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, language, setLanguage, ad
           )}
         </AnimatePresence>
       </div>
-      {/* Hidden container for reCAPTCHA invisible widget */}
-      <div id="recaptcha-container" />
     </div>
   );
 };
