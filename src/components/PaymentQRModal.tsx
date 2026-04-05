@@ -912,33 +912,124 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
 // ─── Agent Top-Up QR Modal ────────────────────────────────────────────────────
 
+const TOPUP_AUTO_CLOSE_MS = 2500;
+
 interface AgentTopUpQRModalProps {
   agentName: string;
   agentCode: string;
+  agentId: string;
   language: Language;
   onClose: () => void;
+  onTopUpSuccess?: () => void;
 }
 
 export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
   agentName,
   agentCode,
+  agentId,
   language,
   onClose,
+  onTopUpSuccess,
 }) => {
   const t = TRANSLATIONS[language];
   const [topUpAmount, setTopUpAmount] = useState<number>(0);
-  const [showQr, setShowQr] = useState(false);
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [onepayQrString, setOnepayQrString] = useState<string | null>(null);
+  const [onepayEnabled, setOnepayEnabled] = useState(false);
+  const [onepayTabOpened, setOnepayTabOpened] = useState(false);
+  const [autoDetected, setAutoDetected] = useState(false);
+  const [topUpSuccess, setTopUpSuccess] = useState(false);
+  const openedOnepayRef = useRef(false);
+  const autoConfirmCalledRef = useRef(false);
+  const onTopUpSuccessRef = useRef(onTopUpSuccess);
+  onTopUpSuccessRef.current = onTopUpSuccess;
 
   const paymentRef = `TOPUP${agentCode}`;
   const description = `NAP TIEN DAI LY ${agentCode}`;
 
-  const qrImageUrl = showQr && topUpAmount > 0
-    ? generatePaymentQrUrl({ amount: topUpAmount, description })
-    : '';
-  const qrString = showQr && topUpAmount > 0
-    ? generatePaymentQrString({ amount: topUpAmount, description })
-    : '';
+  // Load OnePay settings and build signed payment URL
+  useEffect(() => {
+    if (!paymentInitiated || topUpAmount <= 0) return;
+    const unsubscribe = transportService.subscribeToPaymentSettings((saved) => {
+      if (!saved || typeof saved !== 'object') return;
+      const enabled = saved.onepayEnabled === true;
+      const merchant = (saved.onepayMerchant as string) || '';
+      const accessCode = (saved.onepayAccessCode as string) || '';
+      const hashKey = (saved.onepayHashKey as string) || '';
+      const environment = ((saved.onepayEnvironment as string) === 'production' ? 'production' : 'sandbox') as 'sandbox' | 'production';
+      const gatewayType = ((saved.onepayGatewayType as string) === 'international' ? 'international' : 'domestic') as 'domestic' | 'international';
+      const returnUrl = (saved.onepayReturnUrl as string) || window.location.origin;
+      const ipnUrl = (saved.onepayIpnUrl as string) || '';
+
+      setOnepayEnabled(enabled);
+
+      if (enabled && merchant && accessCode && hashKey) {
+        createOnepayPaymentUrl(
+          { merchant, accessCode, hashKey, environment, gatewayType },
+          {
+            amount: topUpAmount,
+            orderId: paymentRef,
+            orderInfo: description,
+            customerIp: '127.0.0.1',
+            returnUrl,
+            locale: 'vn',
+            callbackUrl: ipnUrl || undefined,
+          }
+        )
+          .then(url => {
+            setOnepayQrString(url);
+            if (!openedOnepayRef.current) {
+              openedOnepayRef.current = true;
+              window.open(url, '_blank', 'noopener,noreferrer');
+              setOnepayTabOpened(true);
+            }
+          })
+          .catch(err => console.error('[AgentTopUpQRModal] Failed to generate OnePay URL:', err));
+      }
+    });
+    return unsubscribe;
+  }, [paymentInitiated, topUpAmount, paymentRef, description]);
+
+  // Subscribe to pending payment status – auto-complete when PAID
+  useEffect(() => {
+    if (!paymentInitiated) return;
+    const unsubscribe = transportService.subscribeToPendingPayment(paymentRef, (data) => {
+      if (!data || autoConfirmCalledRef.current) return;
+      if (data.status === 'PAID') {
+        const paidAmt = data.paidAmount ?? 0;
+        const paidContent = (data.paidContent ?? '').toUpperCase();
+        const refUpper = paymentRef.toUpperCase();
+        if (paidAmt === topUpAmount && paidContent.includes(refUpper)) {
+          autoConfirmCalledRef.current = true;
+          setAutoDetected(true);
+          setTopUpSuccess(true);
+          setTimeout(() => {
+            onTopUpSuccessRef.current?.();
+            onClose();
+          }, TOPUP_AUTO_CLOSE_MS);
+        }
+      }
+    });
+    return unsubscribe;
+  }, [paymentInitiated, paymentRef, topUpAmount, onClose]);
+
+  const handleInitiatePayment = async () => {
+    if (topUpAmount <= 0) return;
+    try {
+      await transportService.createPendingPayment({
+        paymentRef,
+        expectedAmount: topUpAmount,
+        customerName: agentName,
+        routeInfo: `Nạp tiền đại lý ${agentCode}`,
+      });
+    } catch (err) {
+      console.error('[AgentTopUpQRModal] createPendingPayment error:', err);
+    }
+    openedOnepayRef.current = false;
+    autoConfirmCalledRef.current = false;
+    setPaymentInitiated(true);
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(paymentRef).then(() => {
@@ -946,6 +1037,10 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
       setTimeout(() => setCopied(false), 2000);
     });
   };
+
+  const qrImageUrl = generatePaymentQrUrl({ amount: topUpAmount, description });
+  const qrString = onepayQrString ?? generatePaymentQrString({ amount: topUpAmount, description });
+  const isDemo = !onepayEnabled || BANK_CONFIG.isDemoMode;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -963,65 +1058,110 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
           >
             <X size={16} />
           </button>
-          <p className="font-bold text-lg">{t.agent_topup_title || 'Nạp tiền đại lý'}</p>
-          <p className="text-orange-100 text-xs mt-0.5">{agentName} ({agentCode})</p>
+          <p className="font-bold text-lg">{t.agent_topup_title || 'Nạp tiền vào tài khoản đại lý'}</p>
+          <p className="text-orange-100 text-xs mt-0.5">"{agentName}" ({agentCode})</p>
         </div>
 
         {/* Demo mode banner */}
-        {BANK_CONFIG.isDemoMode && (
+        {isDemo && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
             <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
             <p className="text-xs text-amber-700 font-medium">
-              {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ — Không chuyển tiền thật'}
+              {t.qr_payment_demo_banner || '🧪 CHẾ ĐỘ THỬ NGHIỆM — Thông tin là giả, KHÔNG thực hiện thanh toán thật'}
             </p>
           </div>
         )}
 
         <div className="p-5 space-y-4">
-          {/* Amount input */}
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-              {t.agent_topup_amount || 'Số tiền muốn nạp'}
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={100000}
-              value={topUpAmount || ''}
-              onChange={e => {
-                setTopUpAmount(Number(e.target.value));
-                setShowQr(false);
-              }}
-              placeholder="500000"
-              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30 font-mono"
-            />
-          </div>
+          {/* Success state */}
+          {topUpSuccess ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <CheckCircle size={48} className="text-green-500" />
+              <p className="text-lg font-bold text-green-700">
+                {language === 'vi' ? 'Nạp tiền thành công!' : 'Top-up successful!'}
+              </p>
+              <p className="text-sm text-gray-500 text-center">
+                {language === 'vi'
+                  ? `+${topUpAmount.toLocaleString('vi-VN')}đ đã được cộng vào số dư.`
+                  : `+${topUpAmount.toLocaleString('vi-VN')}đ added to balance.`}
+              </p>
+            </div>
+          ) : !paymentInitiated ? (
+            <>
+              {/* Amount input */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                  {t.agent_topup_amount || 'Số tiền muốn nạp'}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={100000}
+                  value={topUpAmount || ''}
+                  onChange={e => setTopUpAmount(Number(e.target.value))}
+                  placeholder="500000"
+                  className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30 font-mono"
+                />
+              </div>
 
-          {/* Generate QR button */}
-          {!showQr && (
-            <button
-              type="button"
-              onClick={() => topUpAmount > 0 && setShowQr(true)}
-              disabled={topUpAmount <= 0}
-              className={cn(
-                'w-full py-3 rounded-xl font-bold text-sm transition-all',
-                topUpAmount > 0
-                  ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-200'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              {topUpAmount > 0 && (
+                <p className="text-3xl font-extrabold text-orange-600 text-center">
+                  {topUpAmount.toLocaleString('vi-VN')}đ
+                </p>
               )}
-            >
-              {t.agent_topup_confirm || 'Tạo QR nạp tiền'}
-            </button>
-          )}
 
-          {/* QR display */}
-          {showQr && topUpAmount > 0 && (
+              <button
+                type="button"
+                onClick={handleInitiatePayment}
+                disabled={topUpAmount <= 0}
+                className={cn(
+                  'w-full py-3 rounded-xl font-bold text-sm transition-all',
+                  topUpAmount > 0
+                    ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-200'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                )}
+              >
+                {t.agent_topup_confirm || 'Thanh toán qua OnePay'}
+              </button>
+            </>
+          ) : (
             <>
               <div className="text-center">
                 <p className="text-3xl font-extrabold text-orange-600">
                   {topUpAmount.toLocaleString('vi-VN')}đ
                 </p>
               </div>
+
+              {/* OnePay tab opened banner */}
+              {onepayTabOpened && onepayQrString && (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-start gap-2">
+                  <Smartphone size={16} className="text-blue-500 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-blue-700 font-semibold">
+                      {language === 'vi' ? 'Đã mở trang thanh toán OnePay' : 'OnePay payment page opened'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => window.open(onepayQrString, '_blank', 'noopener,noreferrer')}
+                      className="text-xs text-blue-600 underline mt-0.5"
+                    >
+                      {language === 'vi' ? 'Mở lại trang thanh toán' : 'Re-open payment page'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Auto-detected banner */}
+              {autoDetected && (
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-3 flex items-center gap-2">
+                  <Zap size={16} className="text-green-500 shrink-0" />
+                  <p className="text-xs text-green-700 font-semibold">
+                    {language === 'vi' ? 'Phát hiện thanh toán thành công!' : 'Payment detected!'}
+                  </p>
+                </div>
+              )}
+
+              {/* QR code fallback */}
               <div className="flex flex-col items-center gap-2">
                 <div className="p-4 bg-white border-2 border-orange-100 rounded-2xl shadow-sm">
                   <img
@@ -1040,19 +1180,15 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
                 </div>
               </div>
 
-              {/* Bank info */}
+              {/* Payment info */}
               <div className="bg-gray-50 rounded-2xl p-3 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_bank || 'Ngân hàng'}</span>
-                  <span className="font-bold text-gray-700">{BANK_CONFIG.bankName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_account || 'Số TK'}</span>
-                  <span className="font-bold text-gray-700 font-mono">{BANK_CONFIG.accountNumber}</span>
+                  <span className="text-gray-400 text-xs font-bold uppercase">{language === 'vi' ? 'Cổng thanh toán' : 'Payment gateway'}</span>
+                  <span className="font-bold text-gray-700">OnePay</span>
                 </div>
                 <div className="pt-1 border-t border-gray-200 flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_ref || 'Nội dung CK'}</p>
+                    <p className="text-gray-400 text-xs font-bold uppercase">{t.qr_payment_ref || 'Mã giao dịch'}</p>
                     <p className="font-bold text-orange-700 font-mono text-sm">{paymentRef}</p>
                   </div>
                   <button
@@ -1064,13 +1200,13 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
                     )}
                   >
                     {copied ? <CheckCircle size={13} /> : <Copy size={13} />}
-                    {copied ? (t.qr_payment_copied || 'Đã sao chép!') : (t.qr_payment_copy_ref || 'Sao chép')}
+                    {copied ? (t.qr_payment_copied || 'Đã sao chép!') : (t.qr_payment_copy_ref || 'Sao chép mã giao dịch')}
                   </button>
                 </div>
               </div>
 
               <p className="text-xs text-gray-500 text-center">
-                {t.agent_topup_instruction || 'Sau khi chuyển khoản, số dư sẽ được cập nhật trong 5–15 phút làm việc.'}
+                {t.agent_topup_instruction || 'Sau khi thanh toán xong, số dư sẽ được cập nhật tự động.'}
               </p>
             </>
           )}

@@ -101,6 +101,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // If this is an agent top-up payment, credit the agent's balance
+    if (isPaid && /^TOPUP/i.test(vpc_MerchTxnRef)) {
+      const agentCode = vpc_MerchTxnRef.replace(/^TOPUP/i, '');
+      const { data: agentRow, error: agentFetchErr } = await supabase
+        .from('agents')
+        .select('id, balance')
+        .eq('code', agentCode)
+        .single();
+
+      if (agentFetchErr || !agentRow) {
+        console.error('[onepay-ipn] Agent not found for code:', agentCode, agentFetchErr);
+      } else {
+        const newBalance = (Number(agentRow.balance) || 0) + amountVND;
+        const { error: balanceErr } = await supabase
+          .from('agents')
+          .update({ balance: newBalance })
+          .eq('id', agentRow.id);
+        if (balanceErr) {
+          console.error('[onepay-ipn] Failed to update agent balance:', balanceErr);
+        } else {
+          console.log(`[onepay-ipn] Credited ${amountVND} to agent ${agentCode}, new balance: ${newBalance}`);
+        }
+      }
+    }
+
     return new Response('responsecode=1&desc=confirm-success', {
       status: 200,
       headers: { 'Content-Type': 'text/plain' },
