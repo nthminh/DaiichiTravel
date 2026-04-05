@@ -2391,8 +2391,10 @@ export default function App() {
             <AgentTopUpQRModal
               agentName={agentData.name}
               agentCode={agentData.code}
+              agentId={agentData.id}
               language={language}
               onClose={() => setAgentTopUpModal(false)}
+              onTopUpSuccess={() => setAgentTopUpModal(false)}
             />
           </Suspense>
         );

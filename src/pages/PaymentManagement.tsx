@@ -943,8 +943,10 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
         <AgentTopUpQRModal
           agentName={topUpAgent.name}
           agentCode={topUpAgent.code}
+          agentId={topUpAgent.id}
           language={language}
           onClose={() => setTopUpAgent(null)}
+          onTopUpSuccess={() => setTopUpAgent(null)}
         />
       )}
 

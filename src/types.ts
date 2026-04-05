@@ -608,8 +608,8 @@ export interface PendingPayment {
   customerName: string;
   /** Route info string for display (e.g. "HCM → HN") */
   routeInfo: string;
-  /** Trip ID the seats belong to */
-  tripId: string;
+  /** Trip ID the seats belong to (undefined for non-booking payments such as agent top-ups) */
+  tripId?: string;
   /** Current status */
   status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED';
   /** Amount actually received (filled by simulator / payment gateway IPN) */

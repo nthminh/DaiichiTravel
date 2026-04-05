@@ -1503,7 +1503,7 @@ export const transportService = {
       expected_amount: payment.expectedAmount,
       customer_name: payment.customerName,
       route_info: payment.routeInfo,
-      trip_id: payment.tripId,
+      trip_id: payment.tripId || null,
       status: 'PENDING',
       created_at: new Date().toISOString(),
     });
