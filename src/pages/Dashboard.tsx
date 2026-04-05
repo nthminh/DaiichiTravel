@@ -38,6 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [filterTimeSlot, setFilterTimeSlot] = useState<'ALL' | 'night' | 'morning' | 'afternoon' | 'evening'>('ALL');
   const [bookingPage, setBookingPage] = useState(1);
   const BOOKINGS_PER_PAGE = 50;
 
@@ -227,6 +228,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       matchesSearch(b.agent || '', searchTerm) ||
       matchesSearch(b.id || '', searchTerm) ||
       matchesSearch(b.customerPhone || '', searchTerm) ||
+      matchesSearch(b.phone || '', searchTerm) ||
       matchesSearch(b.route || '', searchTerm) ||
       (isNumericSearch && String(b.amount ?? '').includes(normalizedSearchAmount));
 
@@ -242,7 +244,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
     const matchesStart = !startDate || bookingDate >= new Date(startDate);
     const matchesEnd = !endDate || bookingDate <= new Date(endDate);
 
-    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesStatus && matchesMinPrice && matchesMaxPrice;
+    const matchesTimeSlot = (() => {
+      if (filterTimeSlot === 'ALL') return true;
+      const timeStr = b.time || '';
+      const hour = parseInt(timeStr.split(':')[0], 10);
+      if (isNaN(hour)) return false;
+      if (filterTimeSlot === 'night')     return hour >= 0  && hour < 6;
+      if (filterTimeSlot === 'morning')   return hour >= 6  && hour < 12;
+      if (filterTimeSlot === 'afternoon') return hour >= 12 && hour < 18;
+      if (filterTimeSlot === 'evening')   return hour >= 18 && hour < 24;
+      return true;
+    })();
+
+    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesStatus && matchesMinPrice && matchesMaxPrice && matchesTimeSlot;
   }).sort(sortByCreatedDesc);
 
   const bookingTotalPages = Math.max(1, Math.ceil(filteredBookings.length / BOOKINGS_PER_PAGE));
@@ -708,6 +722,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   <option value="PAID">{language === 'vi' ? 'Đã trả' : 'Paid'}</option>
                   <option value="BOOKED">{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
                 </select>
+                <select
+                  value={filterTimeSlot}
+                  onChange={(e) => { setFilterTimeSlot(e.target.value as 'ALL' | 'night' | 'morning' | 'afternoon' | 'evening'); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', filterTimeSlot !== 'ALL' ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                >
+                  <option value="ALL">{language === 'vi' ? 'Tất cả giờ' : 'All Hours'}</option>
+                  <option value="night">{language === 'vi' ? 'Đêm (00–06h)' : 'Night (00–06h)'}</option>
+                  <option value="morning">{language === 'vi' ? 'Sáng (06–12h)' : 'Morning (06–12h)'}</option>
+                  <option value="afternoon">{language === 'vi' ? 'Chiều (12–18h)' : 'Afternoon (12–18h)'}</option>
+                  <option value="evening">{language === 'vi' ? 'Tối (18–24h)' : 'Evening (18–24h)'}</option>
+                </select>
                 <input
                   type="number"
                   min="0"
@@ -724,11 +749,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   onChange={(e) => { setMaxPrice(e.target.value); setBookingPage(1); }}
                   className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none w-28', maxPrice ? 'bg-daiichi-red text-white border-daiichi-red placeholder-white/70' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
                 />
-                {(startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterStatus !== 'ALL' || minPrice || maxPrice) && (
+                {(startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterStatus !== 'ALL' || filterTimeSlot !== 'ALL' || minPrice || maxPrice) && (
                   <button
                     onClick={() => {
                       setStartDate(''); setEndDate(''); setAgentFilter('ALL');
                       setFilterType('ALL'); setFilterStatus('ALL');
+                      setFilterTimeSlot('ALL');
                       setMinPrice(''); setMaxPrice(''); setBookingPage(1);
                     }}
                     className="px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1"
