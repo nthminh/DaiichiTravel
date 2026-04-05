@@ -33,7 +33,7 @@ export async function uploadFile(
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(path, file, { contentType: (file as File).type || 'application/octet-stream', upsert: false });
+    .upload(path, file, { contentType: (file as File).type || 'application/octet-stream', upsert: true });
 
   if (error) throw error;
 

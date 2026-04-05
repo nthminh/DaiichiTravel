@@ -10,7 +10,7 @@ import { Language } from '../App';
 import { User, Property, PropertyRoomType, PropertyRoomSurcharge } from '../types';
 import { transportService } from '../services/transportService';
 import { formatBookingDate } from '../lib/vnDate';
-import { compressImage } from '../lib/imageUtils';
+import { compressImage, generateStoragePath } from '../lib/imageUtils';
 
 interface PropertyManagementProps {
   language: Language;
@@ -185,7 +185,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ language
     const urls: string[] = [];
     for (const file of Array.from(files)) {
       const compressed = await compressImage(file, 0.75, 1280);
-      const path = `${Date.now()}_${compressed.name}`;
+      const path = generateStoragePath(bucket, compressed.name);
       const url = await uploadFile(bucket, path, compressed);
       urls.push(url);
     }
