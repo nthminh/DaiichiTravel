@@ -220,14 +220,11 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
         )
           .then(url => {
             setOnepayQrString(url);
-            // Auto-open OnePay payment page in a new tab on first URL load.
-            // window.open() may return null if blocked by a popup blocker;
-            // in that case we still set onepayTabOpened so the banner with the
-            // manual re-open button is shown.
+            // Navigate to OnePay payment page in the same tab so the user stays in the
+            // main browsing session and OnePay can redirect them back after payment.
             if (!openedOnepayRef.current) {
               openedOnepayRef.current = true;
-              window.open(url, '_blank', 'noopener,noreferrer');
-              setOnepayTabOpened(true);
+              window.location.href = url;
             }
           })
           .catch(err => {
@@ -979,10 +976,10 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
         )
           .then(url => {
             setOnepayQrString(url);
+            // Navigate to OnePay in the same tab so the user can return after payment
             if (!openedOnepayRef.current) {
               openedOnepayRef.current = true;
-              window.open(url, '_blank', 'noopener,noreferrer');
-              setOnepayTabOpened(true);
+              window.location.href = url;
             }
           })
           .catch(err => console.error('[AgentTopUpQRModal] Failed to generate OnePay URL:', err));
@@ -1033,6 +1030,17 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
     } catch (err) {
       console.error('[AgentTopUpQRModal] createPendingPayment error:', err);
     }
+    // Save top-up info to localStorage so the return URL handler can show success
+    try {
+      localStorage.setItem('pendingOnepayBooking', JSON.stringify({
+        type: 'topup',
+        paymentRef,
+        agentId,
+        agentCode,
+        amount: topUpAmount,
+        createdAt: Date.now(),
+      }));
+    } catch (_) { /* ignore storage errors */ }
     openedOnepayRef.current = false;
     autoConfirmCalledRef.current = false;
     setPaymentInitiated(true);

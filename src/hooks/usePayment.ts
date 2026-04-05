@@ -913,6 +913,22 @@ export function usePayment(ctx: BookingContext) {
             { label: isVi2 ? 'Tổng thanh toán (khứ hồi)' : 'Total (round-trip)', amount: combinedAmount, isTotal: true },
           ];
 
+          // Save booking data to localStorage so it can be recovered after same-tab OnePay redirect
+          try {
+            localStorage.setItem('pendingOnepayBooking', JSON.stringify({
+              type: 'roundtrip',
+              paymentRef: paymentReference,
+              outboundBookingData: { ...outboundLeg.bookingData },
+              outboundTripId: capturedOutboundTripId,
+              outboundSeatIds: capturedOutboundSeatIds,
+              returnBookingData: { ...bookingData },
+              returnTripId: capturedReturnTripId,
+              returnSeatIds: capturedReturnSeatIds,
+              combinedAmount,
+              createdAt: Date.now(),
+            }));
+          } catch (_) { /* ignore storage errors */ }
+
           setPendingQrBooking({
             amount: combinedAmount,
             ref: paymentReference,
@@ -1209,6 +1225,19 @@ export function usePayment(ctx: BookingContext) {
         singleLegBreakdown.push({ label: `${a.name} × ${qty}`, amount: a.price * qty });
       });
       singleLegBreakdown.push({ label: isVi ? 'Tổng thanh toán' : 'Total', amount: totalAmount, isTotal: true });
+
+      // Save booking data to localStorage so it can be recovered after same-tab OnePay redirect
+      try {
+        localStorage.setItem('pendingOnepayBooking', JSON.stringify({
+          type: 'single',
+          paymentRef: paymentReference,
+          bookingData: { ...bookingData },
+          tripId: capturedTripId,
+          seatIds: capturedSeatIds,
+          segmentInfo: capturedSegmentInfo,
+          createdAt: Date.now(),
+        }));
+      } catch (_) { /* ignore storage errors */ }
 
       setPendingQrBooking({
         amount: totalAmount,

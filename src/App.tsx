@@ -644,9 +644,44 @@ export default function App() {
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [lastBooking, setLastBooking] = useState<any>(null);
   const [ticketAutoDownload, setTicketAutoDownload] = useState(false);
+  const [onepayTopUpSuccess, setOnepayTopUpSuccess] = useState(false);
 
-  // Handle OnePay return URL – fired when OnePay redirects the customer back
-  // after completing (or cancelling) a payment. The URL contains vpc_* query params.
+  // Auto-dismiss top-up success banner after 5 seconds
+  useEffect(() => {
+    if (!onepayTopUpSuccess) return;
+    const timer = setTimeout(() => setOnepayTopUpSuccess(false), 5000);
+    return () => clearTimeout(timer);
+  }, [onepayTopUpSuccess]);
+
+  // On mount: clean up stale pre-reserved seats from abandoned OnePay sessions
+  // (e.g. user navigated to OnePay then closed the browser without completing payment)
+  useEffect(() => {
+    const PENDING_KEY = 'pendingOnepayBooking';
+    const str = localStorage.getItem(PENDING_KEY);
+    if (!str) return;
+    try {
+      const pending = JSON.parse(str);
+      // Use 35 minutes (PAYMENT_TIMEOUT_SECONDS is 30 min + 5 min buffer)
+      if (Date.now() - (pending.createdAt || 0) > 35 * 60 * 1000) {
+        localStorage.removeItem(PENDING_KEY);
+        transportService.deletePendingPayment(pending.paymentRef).catch(() => {});
+        if (pending.type === 'single' && pending.tripId && pending.seatIds) {
+          transportService.releaseSeats(pending.tripId, pending.seatIds, pending.segmentInfo).catch(() => {});
+        } else if (pending.type === 'roundtrip') {
+          Promise.all([
+            transportService.releaseSeats(pending.outboundTripId, pending.outboundSeatIds),
+            transportService.releaseSeats(pending.returnTripId, pending.returnSeatIds),
+          ]).catch(() => {});
+        }
+      }
+    } catch {
+      localStorage.removeItem(PENDING_KEY);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle OnePay return URL – fired when OnePay redirects the user back after payment.
+  // The URL contains vpc_* query params. Booking data is recovered from localStorage.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const responseCode = params.get('vpc_TxnResponseCode');
@@ -656,20 +691,113 @@ export default function App() {
     // Strip the query string from the URL immediately so that:
     //  1. The vpc_* params are not re-processed if the component re-mounts.
     //  2. Sensitive payment data is not kept visible in the browser's address bar.
-    //  Note: this runs before the async lookup, so there is no risk of losing the params
-    //  because they were already captured in the local variables above.
     window.history.replaceState(null, '', window.location.pathname);
 
-    if (responseCode === '0' && paymentRef) {
-      // Payment was successful – look up the booking and open the ticket modal.
-      transportService.getBookingByPaymentRef(paymentRef).then(booking => {
-        if (booking) {
-          setLastBooking(booking);
+    const PENDING_KEY = 'pendingOnepayBooking';
+    let pending: any = null;
+    try {
+      const str = localStorage.getItem(PENDING_KEY);
+      if (str) {
+        const parsed = JSON.parse(str);
+        if (parsed.paymentRef === paymentRef) pending = parsed;
+      }
+    } catch { /* ignore */ }
+
+    if (responseCode !== '0') {
+      // Payment failed or cancelled – release any pre-reserved seats
+      if (pending) {
+        localStorage.removeItem(PENDING_KEY);
+        transportService.deletePendingPayment(paymentRef).catch(() => {});
+        if (pending.type === 'single' && pending.tripId && pending.seatIds) {
+          transportService.releaseSeats(pending.tripId, pending.seatIds, pending.segmentInfo).catch(() => {});
+        } else if (pending.type === 'roundtrip') {
+          Promise.all([
+            transportService.releaseSeats(pending.outboundTripId, pending.outboundSeatIds),
+            transportService.releaseSeats(pending.returnTripId, pending.returnSeatIds),
+          ]).catch(() => {});
+        }
+      }
+      return;
+    }
+
+    // Successful payment (responseCode === '0')
+
+    // Agent top-up – IPN already credited the balance; just show success notification
+    if (paymentRef.startsWith('TOPUP')) {
+      if (pending) localStorage.removeItem(PENDING_KEY);
+      transportService.creditAgentFromTopup(paymentRef)
+        .catch(err => console.error('[OnePay return] creditAgentFromTopup error:', err));
+      setOnepayTopUpSuccess(true);
+      return;
+    }
+
+    // Regular booking payment
+    (async () => {
+      // Check if the booking was already created (e.g. by a previous session)
+      const existingBooking = await transportService.getBookingByPaymentRef(paymentRef).catch(() => null);
+      if (existingBooking) {
+        if (pending) localStorage.removeItem(PENDING_KEY);
+        setLastBooking(existingBooking);
+        setTicketAutoDownload(true);
+        setIsTicketOpen(true);
+        return;
+      }
+
+      if (!pending) return;
+
+      // Discard entries older than 35 minutes
+      if (Date.now() - (pending.createdAt || 0) > 35 * 60 * 1000) {
+        localStorage.removeItem(PENDING_KEY);
+        return;
+      }
+
+      localStorage.removeItem(PENDING_KEY);
+      await transportService.deletePendingPayment(paymentRef).catch(() => {});
+
+      const MY_TICKETS_KEY = 'daiichi_my_tickets';
+      const saveToMyTickets = (booking: any) => {
+        try {
+          const existing: any[] = JSON.parse(localStorage.getItem(MY_TICKETS_KEY) || '[]');
+          if (!existing.some((b: any) => b.id === booking.id || (booking.ticketCode && b.ticketCode === booking.ticketCode))) {
+            localStorage.setItem(MY_TICKETS_KEY, JSON.stringify([booking, ...existing].slice(0, 100)));
+          }
+        } catch { /* ignore */ }
+      };
+
+      try {
+        if (pending.type === 'single') {
+          const result = await transportService.createBooking({ ...pending.bookingData, paymentStatus: 'PAID', status: 'PAID' });
+          await transportService.bookSeats(pending.tripId, pending.seatIds, { status: SeatStatus.PAID });
+          const savedBooking = { ...pending.bookingData, id: result.id, ticketCode: result.ticketCode };
+          saveToMyTickets(savedBooking);
+          transportService.updateCustomerOnBooking(
+            pending.bookingData.phone, pending.bookingData.route, pending.bookingData.amount,
+            pending.bookingData.pickupPoint, pending.bookingData.dropoffPoint,
+          ).catch(() => {});
+          setLastBooking(savedBooking);
+          setTicketAutoDownload(true);
+          setIsTicketOpen(true);
+        } else if (pending.type === 'roundtrip') {
+          const [outResult, retResult] = await Promise.all([
+            transportService.createBooking({ ...pending.outboundBookingData, paymentStatus: 'PAID', status: 'PAID' }),
+            transportService.createBooking({ ...pending.returnBookingData, paymentStatus: 'PAID', status: 'PAID' }),
+          ]);
+          await Promise.all([
+            transportService.bookSeats(pending.outboundTripId, pending.outboundSeatIds, { status: SeatStatus.PAID }),
+            transportService.bookSeats(pending.returnTripId, pending.returnSeatIds, { status: SeatStatus.PAID }),
+          ]);
+          const outboundBooking = { ...pending.outboundBookingData, id: outResult.id, ticketCode: outResult.ticketCode };
+          const returnBooking = { ...pending.returnBookingData, id: retResult.id, ticketCode: retResult.ticketCode };
+          const combinedTicket = { ...returnBooking, isRoundTrip: true, amount: pending.combinedAmount, outboundLeg: outboundBooking };
+          saveToMyTickets(combinedTicket);
+          setLastBooking(combinedTicket);
           setTicketAutoDownload(true);
           setIsTicketOpen(true);
         }
-      }).catch(err => console.error('[OnePay return] booking lookup error:', err));
-    }
+      } catch (err) {
+        console.error('[OnePay return] Failed to restore pending booking:', err);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2375,6 +2503,29 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* Agent top-up success notification (shown after returning from OnePay) */}
+      <AnimatePresence>
+        {onepayTopUpSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] bg-green-500 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3"
+          >
+            <CheckCircle2 size={20} />
+            <span className="font-semibold">
+              {language === 'vi' ? 'Nạp tiền thành công!' : 'Top-up successful!'}
+            </span>
+            <button
+              onClick={() => setOnepayTopUpSuccess(false)}
+              className="ml-2 hover:opacity-80 transition-opacity"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* QR Payment Modal – shown when paymentMethod is 'Chuyển khoản QR' */}
       {pendingQrBooking && (
