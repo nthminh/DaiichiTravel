@@ -793,7 +793,11 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({
                                 </div>
                                 <div>
                                   <p className="text-gray-400 font-bold uppercase">{language === 'vi' ? 'Chuyến' : 'Trip'}</p>
-                                  <p className="font-semibold text-gray-700">{b.tripId || '—'}</p>
+                                  <p className="font-semibold text-gray-700">
+                                    {b.time || b.date
+                                      ? [b.time, b.date ? formatDateVN(b.date) : ''].filter(Boolean).join(' – ')
+                                      : '—'}
+                                  </p>
                                 </div>
                                 <div>
                                   <p className="text-gray-400 font-bold uppercase">{language === 'vi' ? 'Ghế' : 'Seats'}</p>
