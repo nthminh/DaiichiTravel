@@ -929,9 +929,10 @@ export const transportService = {
 
   addTrip: async (trip: Omit<Trip, 'id'>) => {
     if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
+    const id = crypto.randomUUID();
     const { data, error } = await supabase
       .from('trips')
-      .insert(toDb({ ...trip, updatedAt: new Date().toISOString() } as Record<string, unknown>))
+      .insert(toDb({ id, ...trip, updatedAt: new Date().toISOString() } as Record<string, unknown>))
       .select().single();
     if (error) throw error;
     return { id: data.id };
@@ -940,7 +941,7 @@ export const transportService = {
   addTripsBatch: async (trips: Omit<Trip, 'id'>[]) => {
     if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
     const rows = trips.map((t) =>
-      toDb({ ...t, updatedAt: new Date().toISOString() } as Record<string, unknown>));
+      toDb({ id: crypto.randomUUID(), ...t, updatedAt: new Date().toISOString() } as Record<string, unknown>));
     const { data, error } = await supabase.from('trips').insert(rows).select();
     if (error) throw error;
     return (data || []).map((r: { id: string }) => ({ id: r.id }));
