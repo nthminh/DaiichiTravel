@@ -1823,10 +1823,7 @@ export function BookTicketPage({
       const vehicleMap = new Map(vehicles.map(v => [v.licensePlate, v]));
       const count = allTrips.filter(trip => {
         if (!filterTrip(trip, true)) return false;
-        if (segmentFaresLoaded) {
-          const tripRoute = routeByName.get(trip.route);
-          if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
-        }
+        if (!tripHasConfiguredFare(trip)) return false;
         if (localVehicleCombo) {
           const v = vehicleMap.get(trip.licensePlate);
           if (comboType && v?.type !== comboType) return false;
@@ -2025,6 +2022,16 @@ export function BookTicketPage({
     const emptySeats = (trip.seats || []).filter(s => s.status === SeatStatus.EMPTY).length;
     // For RUNNING trips, skip seat availability check (no open booking slots).
     if (trip.status === TripStatus.WAITING && emptySeats < totalPassengers) return false;
+    return true;
+  };
+
+  // Returns false when segment fares have been fully loaded but the trip's route has no
+  // configured fare for the searched from→to segment. Used to gate trip visibility after
+  // the async fare fetch resolves (segmentFaresLoaded=true).
+  const tripHasConfiguredFare = (trip: Trip): boolean => {
+    if (!segmentFaresLoaded) return true;
+    const tripRoute = routeByName.get(trip.route);
+    if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
     return true;
   };
 
@@ -3120,10 +3127,7 @@ export function BookTicketPage({
               // segmentFaresLoaded is only set to true when both from and to are specified
               // and fares have been fetched. Routes without a configured fare return null
               // in the fetch and are absent from the segmentFares map.
-              if (segmentFaresLoaded) {
-                const tripRoute = routeByName.get(tr.route);
-                if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
-              }
+              if (!tripHasConfiguredFare(tr)) return false;
               if (localVehicleCombo) {
                 const v = vehicleMap.get(tr.licensePlate);
                 if (comboType && v?.type !== comboType) return false;
@@ -3164,10 +3168,7 @@ export function BookTicketPage({
             ? allTrips
                 .filter(tr => {
                   if (!filterTrip(tr, false)) return false;
-                  if (segmentFaresLoaded) {
-                    const tripRoute = routeByName.get(tr.route);
-                    if (tripRoute && !segmentFares.has(tripRoute.id)) return false;
-                  }
+                  if (!tripHasConfiguredFare(tr)) return false;
                   return true;
                 })
                 .sort((a, b) => {
