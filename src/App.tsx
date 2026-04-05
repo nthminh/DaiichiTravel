@@ -653,7 +653,11 @@ export default function App() {
     const paymentRef = params.get('vpc_MerchTxnRef');
     if (!responseCode || !paymentRef) return;
 
-    // Strip the query string from the URL so it doesn't interfere on subsequent renders.
+    // Strip the query string from the URL immediately so that:
+    //  1. The vpc_* params are not re-processed if the component re-mounts.
+    //  2. Sensitive payment data is not kept visible in the browser's address bar.
+    //  Note: this runs before the async lookup, so there is no risk of losing the params
+    //  because they were already captured in the local variables above.
     window.history.replaceState(null, '', window.location.pathname);
 
     if (responseCode === '0' && paymentRef) {

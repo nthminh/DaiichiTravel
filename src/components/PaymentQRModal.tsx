@@ -999,6 +999,9 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
       if (!data || autoConfirmCalledRef.current) return;
       if (data.status === 'PAID') {
         autoConfirmCalledRef.current = true;
+        // Amount validation is intentionally delegated to credit_agent_from_topup on the
+        // server side (which uses the paid_amount stored by the IPN), so the UI can show
+        // success as soon as the payment is confirmed regardless of any client-side rounding.
         // Client-side fallback: call credit_agent_from_topup so the balance is
         // updated even when the IPN Edge Function is not configured or unreachable.
         // The RPC is idempotent – if the IPN already credited the balance it's a no-op.

@@ -1553,11 +1553,14 @@ export function SeatMappingPage({
                   }
 
                   if (isPrepaidAgent) {
+                    const prepaidMethod = (paymentMethodInput === 'Thanh toán từ số dư' || paymentMethodInput === 'Chuyển khoản QR')
+                      ? paymentMethodInput
+                      : 'Thanh toán từ số dư';
                     return (
                       <div>
                         <label className="text-xs font-bold text-gray-500 uppercase">{t.payment_method}</label>
                         <select
-                          value={paymentMethodInput === 'Thanh toán từ số dư' || paymentMethodInput === 'Chuyển khoản QR' ? paymentMethodInput : 'Thanh toán từ số dư'}
+                          value={prepaidMethod}
                           onChange={(e) => setPaymentMethodInput(e.target.value as any)}
                           className="w-full mt-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/20"
                         >

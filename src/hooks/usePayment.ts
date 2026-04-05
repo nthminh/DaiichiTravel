@@ -1029,10 +1029,9 @@ export function usePayment(ctx: BookingContext) {
           : `Insufficient balance. Current: ${currentBalance.toLocaleString()}đ. Required: ${totalAmount.toLocaleString()}đ.`);
         return;
       }
-      // Save booking and deduct balance immediately
+      // For PREPAID agents, saveBooking → updateAgentBalance automatically deducts
+      // the booking amount from the agent's deposit balance (newBalance = balance − amount).
       await saveBooking();
-      // Deduct balance (updateAgentBalance already called inside saveBooking via saveSingleBooking path,
-      // but saveBooking directly calls updateAgentBalance too – handle via the existing helper)
       return;
     }
 
