@@ -95,6 +95,15 @@ function hasRealIntermediateStops(routeStops?: RouteStop[]): boolean {
   );
 }
 
+/** localStorage key for pending OnePay booking data (used for same-tab redirect recovery) */
+const PENDING_ONEPAY_KEY = 'pendingOnepayBooking';
+/** localStorage key prefix that identifies agent top-up payment references */
+const TOPUP_PREFIX = 'TOPUP';
+/** localStorage key for the user's saved ticket list */
+const MY_TICKETS_KEY = 'daiichi_my_tickets';
+/** Stale pending session timeout in milliseconds (35 min, allowing for 30-min payment window + 5-min buffer) */
+const STALE_SESSION_TIMEOUT_MS = 35 * 60 * 1000;
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -656,14 +665,12 @@ export default function App() {
   // On mount: clean up stale pre-reserved seats from abandoned OnePay sessions
   // (e.g. user navigated to OnePay then closed the browser without completing payment)
   useEffect(() => {
-    const PENDING_KEY = 'pendingOnepayBooking';
-    const str = localStorage.getItem(PENDING_KEY);
+    const str = localStorage.getItem(PENDING_ONEPAY_KEY);
     if (!str) return;
     try {
       const pending = JSON.parse(str);
-      // Use 35 minutes (PAYMENT_TIMEOUT_SECONDS is 30 min + 5 min buffer)
-      if (Date.now() - (pending.createdAt || 0) > 35 * 60 * 1000) {
-        localStorage.removeItem(PENDING_KEY);
+      if (Date.now() - (pending.createdAt || 0) > STALE_SESSION_TIMEOUT_MS) {
+        localStorage.removeItem(PENDING_ONEPAY_KEY);
         transportService.deletePendingPayment(pending.paymentRef).catch(() => {});
         if (pending.type === 'single' && pending.tripId && pending.seatIds) {
           transportService.releaseSeats(pending.tripId, pending.seatIds, pending.segmentInfo).catch(() => {});
@@ -675,7 +682,7 @@ export default function App() {
         }
       }
     } catch {
-      localStorage.removeItem(PENDING_KEY);
+      localStorage.removeItem(PENDING_ONEPAY_KEY);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -693,10 +700,9 @@ export default function App() {
     //  2. Sensitive payment data is not kept visible in the browser's address bar.
     window.history.replaceState(null, '', window.location.pathname);
 
-    const PENDING_KEY = 'pendingOnepayBooking';
     let pending: any = null;
     try {
-      const str = localStorage.getItem(PENDING_KEY);
+      const str = localStorage.getItem(PENDING_ONEPAY_KEY);
       if (str) {
         const parsed = JSON.parse(str);
         if (parsed.paymentRef === paymentRef) pending = parsed;
@@ -706,7 +712,7 @@ export default function App() {
     if (responseCode !== '0') {
       // Payment failed or cancelled – release any pre-reserved seats
       if (pending) {
-        localStorage.removeItem(PENDING_KEY);
+        localStorage.removeItem(PENDING_ONEPAY_KEY);
         transportService.deletePendingPayment(paymentRef).catch(() => {});
         if (pending.type === 'single' && pending.tripId && pending.seatIds) {
           transportService.releaseSeats(pending.tripId, pending.seatIds, pending.segmentInfo).catch(() => {});
@@ -723,8 +729,8 @@ export default function App() {
     // Successful payment (responseCode === '0')
 
     // Agent top-up – IPN already credited the balance; just show success notification
-    if (paymentRef.startsWith('TOPUP')) {
-      if (pending) localStorage.removeItem(PENDING_KEY);
+    if (paymentRef.startsWith(TOPUP_PREFIX)) {
+      if (pending) localStorage.removeItem(PENDING_ONEPAY_KEY);
       transportService.creditAgentFromTopup(paymentRef)
         .catch(err => console.error('[OnePay return] creditAgentFromTopup error:', err));
       setOnepayTopUpSuccess(true);
@@ -736,7 +742,7 @@ export default function App() {
       // Check if the booking was already created (e.g. by a previous session)
       const existingBooking = await transportService.getBookingByPaymentRef(paymentRef).catch(() => null);
       if (existingBooking) {
-        if (pending) localStorage.removeItem(PENDING_KEY);
+        if (pending) localStorage.removeItem(PENDING_ONEPAY_KEY);
         setLastBooking(existingBooking);
         setTicketAutoDownload(true);
         setIsTicketOpen(true);
@@ -745,20 +751,19 @@ export default function App() {
 
       if (!pending) return;
 
-      // Discard entries older than 35 minutes
-      if (Date.now() - (pending.createdAt || 0) > 35 * 60 * 1000) {
-        localStorage.removeItem(PENDING_KEY);
+      // Discard entries older than the stale session timeout
+      if (Date.now() - (pending.createdAt || 0) > STALE_SESSION_TIMEOUT_MS) {
+        localStorage.removeItem(PENDING_ONEPAY_KEY);
         return;
       }
 
-      localStorage.removeItem(PENDING_KEY);
+      localStorage.removeItem(PENDING_ONEPAY_KEY);
       await transportService.deletePendingPayment(paymentRef).catch(() => {});
 
-      const MY_TICKETS_KEY = 'daiichi_my_tickets';
       const saveToMyTickets = (booking: any) => {
         try {
           const existing: any[] = JSON.parse(localStorage.getItem(MY_TICKETS_KEY) || '[]');
-          if (!existing.some((b: any) => b.id === booking.id || (booking.ticketCode && b.ticketCode === booking.ticketCode))) {
+          if (!existing.some((b: any) => b.id === booking.id || (booking.ticketCode && b.ticketCode && b.ticketCode === booking.ticketCode))) {
             localStorage.setItem(MY_TICKETS_KEY, JSON.stringify([booking, ...existing].slice(0, 100)));
           }
         } catch { /* ignore */ }
