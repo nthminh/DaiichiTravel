@@ -33,6 +33,7 @@ export const Settings: React.FC<SettingsProps> = ({
     { id: 'my-tickets', label: language === 'vi' ? 'Vé đã mua' : 'My Tickets' },
     { id: 'agent-bookings', label: language === 'vi' ? 'Vé của tôi (Đại lý)' : 'My Bookings (Agent)' },
     { id: 'tours', label: language === 'vi' ? 'Tour' : 'Day Tours' },
+    { id: 'cruise-tours', label: language === 'vi' ? 'Tour du thuyền' : 'Cruise Tours' },
     { id: 'consignments', label: language === 'vi' ? 'Gửi hàng' : 'Consignments' },
     { id: 'user-guide', label: language === 'vi' ? 'Hướng dẫn sử dụng' : 'User Guide' },
     { id: 'dashboard', label: 'Dashboard', adminOnly: true },
@@ -42,8 +43,15 @@ export const Settings: React.FC<SettingsProps> = ({
     { id: 'vehicles', label: language === 'vi' ? 'Xe & Sơ đồ' : 'Vehicles', adminOnly: true },
     { id: 'operations', label: language === 'vi' ? 'Điều hành' : 'Operations', adminOnly: true },
     { id: 'customers', label: language === 'vi' ? 'Khách hàng' : 'Customers', adminOnly: true },
+    { id: 'audit-log', label: language === 'vi' ? 'Nhật ký hoạt động' : 'Activity Log', adminOnly: true },
     { id: 'completed-trips', label: language === 'vi' ? 'Chuyến đã hoàn' : 'Completed Trips', adminOnly: true },
+    { id: 'tour-management', label: language === 'vi' ? 'Tour du thuyền (quản lý)' : 'Tour Management', adminOnly: true },
+    { id: 'property-management', label: language === 'vi' ? 'Quản lý tài sản' : 'Property Mgmt', adminOnly: true },
+    { id: 'pickup-dropoff', label: language === 'vi' ? 'Quản lý Điểm đón/Trả' : 'Pickup/Dropoff Mgmt', adminOnly: true },
+    { id: 'stop-management', label: language === 'vi' ? 'Quản lý Điểm dừng' : 'Stop Management', adminOnly: true },
+    { id: 'payment-management', label: language === 'vi' ? 'Quản lý Thanh toán' : 'Payment Mgmt', adminOnly: true },
     { id: 'financial-report', label: language === 'vi' ? 'Báo cáo tài chính' : 'Financial Report', adminOnly: true },
+    { id: 'kiosk', label: language === 'vi' ? 'Kiosk Check-in' : 'Check-in Kiosk', adminOnly: true },
     { id: 'settings', label: language === 'vi' ? 'Cài đặt' : 'Settings' },
   ];
 

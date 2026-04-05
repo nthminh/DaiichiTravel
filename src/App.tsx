@@ -860,10 +860,17 @@ export default function App() {
 
   // Auto-load bookings when the user navigates to pages that require them and haven't loaded yet.
   useEffect(() => {
-    if (['my-tickets', 'agent-bookings'].includes(activeTab) && !bookingsRequested) {
+    if (['my-tickets', 'agent-bookings', 'dashboard'].includes(activeTab) && !bookingsRequested) {
       setBookingsRequested(true);
     }
   }, [activeTab, bookingsRequested]);
+
+  // Auto-load consignments when navigating to the dashboard.
+  useEffect(() => {
+    if (activeTab === 'dashboard' && !consignmentsRequested) {
+      setConsignmentsRequested(true);
+    }
+  }, [activeTab, consignmentsRequested]);
 
   // Subscribe to all trips
   useEffect(() => {
