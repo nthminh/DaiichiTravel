@@ -30,7 +30,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignments, bookings, currentUser, setActiveTab, dataRequested, onLoadData }) => {
   const t = TRANSLATIONS[language];
   const [filterType, setFilterType] = useState<'ALL' | 'TRIP' | 'TOUR'>('ALL');
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PAID' | 'BOOKED'>('ALL');
+  const [filterDepartureTime, setFilterDepartureTime] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -233,7 +233,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
       (isNumericSearch && String(b.amount ?? '').includes(normalizedSearchAmount));
 
     const matchesAgent = agentFilter === 'ALL' || b.agent === agentFilter;
-    const matchesStatus = filterStatus === 'ALL' || b.status === filterStatus;
+    const matchesDepartureTime = filterDepartureTime === 'ALL' || (b.time || '') === filterDepartureTime;
 
     const amount = b.amount ?? 0;
     const matchesMinPrice = minPriceNum === null || amount >= minPriceNum;
@@ -246,7 +246,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
     const matchesRoute = filterRoute === 'ALL' || (b.route || '') === filterRoute;
 
-    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesStatus && matchesMinPrice && matchesMaxPrice && matchesRoute;
+    return matchesType && searchMatches && matchesAgent && matchesStart && matchesEnd && matchesDepartureTime && matchesMinPrice && matchesMaxPrice && matchesRoute;
   }).sort(sortByCreatedDesc);
 
   const bookingTotalPages = Math.max(1, Math.ceil(filteredBookings.length / BOOKINGS_PER_PAGE));
@@ -254,6 +254,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
 
   const uniqueAgents = Array.from(new Set(bookings.filter(b => b.agentId).map(b => b.agent).filter(Boolean)));
   const uniqueRoutes = Array.from(new Set(bookings.map(b => b.route).filter(Boolean))).sort() as string[];
+  const uniqueDepartureTimes = Array.from(new Set(bookings.map(b => b.time).filter(Boolean))).sort() as string[];
 
   const filteredConsignments = consignments.filter(c => {
     // Agent scope: only show consignments created by this agent
@@ -705,13 +706,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   <option value="TOUR">TOUR</option>
                 </select>
                 <select
-                  value={filterStatus}
-                  onChange={(e) => { setFilterStatus(e.target.value as 'ALL' | 'PAID' | 'BOOKED'); setBookingPage(1); }}
-                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', filterStatus !== 'ALL' ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
+                  value={filterDepartureTime}
+                  onChange={(e) => { setFilterDepartureTime(e.target.value); setBookingPage(1); }}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none', filterDepartureTime !== 'ALL' ? 'bg-daiichi-red text-white border-daiichi-red' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
                 >
-                  <option value="ALL">{language === 'vi' ? 'Tất cả trạng thái' : 'All Statuses'}</option>
-                  <option value="PAID">{language === 'vi' ? 'Đã trả' : 'Paid'}</option>
-                  <option value="BOOKED">{language === 'vi' ? 'Đã đặt' : 'Booked'}</option>
+                  <option value="ALL">{language === 'vi' ? 'Tất cả giờ xuất bến' : 'All Departure Times'}</option>
+                  {uniqueDepartureTimes.map(time => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
                 </select>
                 <select
                   value={filterRoute}
@@ -739,11 +741,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   onChange={(e) => { setMaxPrice(e.target.value); setBookingPage(1); }}
                   className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all focus:outline-none w-28', maxPrice ? 'bg-daiichi-red text-white border-daiichi-red placeholder-white/70' : 'bg-white text-gray-600 border-gray-200 hover:border-daiichi-red/40')}
                 />
-                {(startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterStatus !== 'ALL' || filterRoute !== 'ALL' || minPrice || maxPrice) && (
+                {(startDate || endDate || agentFilter !== 'ALL' || filterType !== 'ALL' || filterDepartureTime !== 'ALL' || filterRoute !== 'ALL' || minPrice || maxPrice) && (
                   <button
                     onClick={() => {
                       setStartDate(''); setEndDate(''); setAgentFilter('ALL');
-                      setFilterType('ALL'); setFilterStatus('ALL');
+                      setFilterType('ALL'); setFilterDepartureTime('ALL');
                       setFilterRoute('ALL');
                       setMinPrice(''); setMaxPrice(''); setBookingPage(1);
                     }}
