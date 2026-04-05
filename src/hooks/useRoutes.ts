@@ -261,15 +261,32 @@ export function useRoutes(ctx: RouteContext) {
             ]
           : []),
       ];
+      // departureDescription and arrivalDescription are UI-only form helpers
+      // that are embedded into the __departure__ / __arrival__ entries of
+      // fullRouteStops above. They must NOT be persisted as top-level columns
+      // (no such columns exist in the routes table).
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { departureDescription: _dd, arrivalDescription: _ad, ...restForm } = currentForm;
       const routeData = {
-        ...currentForm,
+        ...restForm,
         pricePeriods: routePricePeriods,
         surcharges: routeSurcharges,
         routeStops: fullRouteStops,
         childPricingRules,
         addons: routeAddons.length > 0 ? routeAddons : undefined,
-        // Strip empty string so Firestore stores undefined instead of ''.
+        // Strip empty string so Supabase stores NULL instead of ''.
         routeCategory: (currentForm.routeCategory as Route['routeCategory']) || undefined,
+        // Strip empty strings for date/optional fields so they are stored as NULL.
+        disablePickupAddressFrom: currentForm.disablePickupAddressFrom || undefined,
+        disablePickupAddressTo: currentForm.disablePickupAddressTo || undefined,
+        disablePickupAddressStopType: currentForm.disablePickupAddressStopType || undefined,
+        disableDropoffAddressFrom: currentForm.disableDropoffAddressFrom || undefined,
+        disableDropoffAddressTo: currentForm.disableDropoffAddressTo || undefined,
+        disableDropoffAddressStopType: currentForm.disableDropoffAddressStopType || undefined,
+        disabledPickupCategoriesFromDate: currentForm.disabledPickupCategoriesFromDate || undefined,
+        disabledPickupCategoriesToDate: currentForm.disabledPickupCategoriesToDate || undefined,
+        disabledDropoffCategoriesFromDate: currentForm.disabledDropoffCategoriesFromDate || undefined,
+        disabledDropoffCategoriesToDate: currentForm.disabledDropoffCategoriesToDate || undefined,
       };
       let routeId = editingRoute?.id;
       if (editingRoute) {

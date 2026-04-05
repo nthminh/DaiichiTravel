@@ -425,10 +425,11 @@ export const transportService = {
 
   updateRoute: async (routeId: string, updates: Partial<Route>) => {
     if (!isSupabaseConfigured || !supabase) return;
-    await supabase
+    const { error } = await supabase
       .from('routes')
       .update(toDb({ ...updates, updatedAt: new Date().toISOString() } as Record<string, unknown>))
       .eq('id', routeId);
+    if (error) throw error;
   },
 
   deleteRoute: async (routeId: string) => {
