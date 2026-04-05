@@ -994,6 +994,7 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
   // Subscribe to pending payment status – auto-complete when PAID
   useEffect(() => {
     if (!paymentInitiated) return;
+    let autoCloseTimer: ReturnType<typeof setTimeout> | undefined;
     const unsubscribe = transportService.subscribeToPendingPayment(paymentRef, (data) => {
       if (!data || autoConfirmCalledRef.current) return;
       if (data.status === 'PAID') {
@@ -1004,14 +1005,17 @@ export const AgentTopUpQRModal: React.FC<AgentTopUpQRModalProps> = ({
           autoConfirmCalledRef.current = true;
           setAutoDetected(true);
           setTopUpSuccess(true);
-          setTimeout(() => {
+          autoCloseTimer = setTimeout(() => {
             onTopUpSuccessRef.current?.();
             onClose();
           }, TOPUP_AUTO_CLOSE_MS);
         }
       }
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(autoCloseTimer);
+    };
   }, [paymentInitiated, paymentRef, topUpAmount, onClose]);
 
   const handleInitiatePayment = async () => {

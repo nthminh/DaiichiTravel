@@ -88,10 +88,15 @@ Deno.serve(async (req) => {
       confirmed_at: isPaid ? new Date().toISOString() : null,
     };
 
-    const { error } = await supabase
+    // Atomically transition from PENDING to final state.
+    // Filtering by status=PENDING ensures that duplicate IPN callbacks for the
+    // same transaction reference do NOT trigger a second balance credit.
+    const { data: updatedRows, error } = await supabase
       .from('pending_payments')
       .update(update)
-      .eq('payment_ref', vpc_MerchTxnRef);
+      .eq('payment_ref', vpc_MerchTxnRef)
+      .eq('status', 'PENDING')
+      .select('id');
 
     if (error) {
       console.error('[onepay-ipn] DB update error:', error);
@@ -101,27 +106,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    // If this is an agent top-up payment, credit the agent's balance
-    if (isPaid && /^TOPUP/i.test(vpc_MerchTxnRef)) {
+    // If 0 rows were updated the payment was already processed – acknowledge
+    // success so OnePay stops retrying, but skip the balance credit.
+    if (!updatedRows || updatedRows.length === 0) {
+      console.log('[onepay-ipn] Payment already processed, skipping balance credit:', vpc_MerchTxnRef);
+      return new Response('responsecode=1&desc=confirm-success', {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }
+
+    // If this is an agent top-up payment, credit the agent's balance atomically.
+    // Agent code is encoded in the payment reference as "TOPUP{code}".
+    // Only alphanumeric characters are accepted to prevent unexpected queries.
+    if (isPaid && /^TOPUP[A-Za-z0-9]+$/.test(vpc_MerchTxnRef)) {
       const agentCode = vpc_MerchTxnRef.replace(/^TOPUP/i, '');
       const { data: agentRow, error: agentFetchErr } = await supabase
         .from('agents')
-        .select('id, balance')
+        .select('id')
         .eq('code', agentCode)
         .single();
 
       if (agentFetchErr || !agentRow) {
         console.error('[onepay-ipn] Agent not found for code:', agentCode, agentFetchErr);
       } else {
-        const newBalance = (Number(agentRow.balance) || 0) + amountVND;
-        const { error: balanceErr } = await supabase
-          .from('agents')
-          .update({ balance: newBalance })
-          .eq('id', agentRow.id);
+        // Use an atomic SQL increment via RPC to avoid read-modify-write races
+        const { error: balanceErr } = await supabase.rpc('increment_agent_balance', {
+          agent_id: agentRow.id,
+          amount: amountVND,
+        });
         if (balanceErr) {
           console.error('[onepay-ipn] Failed to update agent balance:', balanceErr);
         } else {
-          console.log(`[onepay-ipn] Credited ${amountVND} to agent ${agentCode}, new balance: ${newBalance}`);
+          console.log(`[onepay-ipn] Credited ${amountVND} to agent ${agentCode}`);
         }
       }
     }
