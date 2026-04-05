@@ -2616,6 +2616,7 @@ export default function App() {
           routes={routes}
           onRegisterMember={lastBooking?.phone ? handleRegisterMember : undefined}
           autoDownload={ticketAutoDownload}
+          currentUser={currentUser}
         />
       </Suspense>
 

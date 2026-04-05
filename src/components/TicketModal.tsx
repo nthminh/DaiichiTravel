@@ -8,7 +8,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { TRANSLATIONS, Language } from '../App';
-import { Route } from '../types';
+import { Route, UserRole } from '../types';
 import { getJourneyStops } from '../lib/routeUtils';
 import { formatBookingDate } from '../lib/vnDate';
 
@@ -23,9 +23,11 @@ interface TicketModalProps {
   onRegisterMember?: (data: { name: string; phone: string; email?: string; username?: string; password: string }) => Promise<boolean>;
   /** When true, automatically triggers window.print() when the modal opens (e.g. after payment) */
   autoDownload?: boolean;
+  currentUser?: { role?: string } | null;
 }
 
-export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, routes = [], autoDownload }) => {
+export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booking, language, routes = [], autoDownload, currentUser }) => {
+  const hidePrice = currentUser?.role === UserRole.AGENT;
   const t = TRANSLATIONS[language];
   const [copied, setCopied] = useState(false);
 
@@ -77,7 +79,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `📅 ${language === 'vi' ? 'Ngày khởi hành' : 'Departure'}: ${formatBookingDate(booking.date)}`,
         `👤 ${booking.customerName} - ${booking.phone}`,
         `👥 ${booking.adults} ${language === 'vi' ? 'người lớn' : 'adults'}${booking.children > 0 ? `, ${booking.children} ${language === 'vi' ? 'trẻ em' : 'children'}` : ''}`,
-        `💰 ${(booking.amount || 0).toLocaleString()}đ`,
+        ...(!hidePrice ? [`💰 ${(booking.amount || 0).toLocaleString()}đ`] : []),
       ].filter(Boolean).join('\n');
     } else if (isRoundTrip) {
       const ob = booking.outboundLeg;
@@ -87,7 +89,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `🚌 ${language === 'vi' ? 'Chiều đi' : 'Outbound'}: ${ob?.route} – ${formatBookingDate(ob?.date)} ${ob?.time}`,
         `🚌 ${language === 'vi' ? 'Chiều về' : 'Return'}: ${booking.route} – ${formatBookingDate(booking.date)} ${booking.time}`,
         `👤 ${booking.customerName} - ${booking.phone}`,
-        `💰 ${(booking.amount || 0).toLocaleString()}đ`,
+        ...(!hidePrice ? [`💰 ${(booking.amount || 0).toLocaleString()}đ`] : []),
       ].join('\n');
     } else {
       text = [
@@ -97,7 +99,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
         `📅 ${formatBookingDate(booking.date)} ${booking.time}`,
         ...(!booking.freeSeating ? [`💺 ${language === 'vi' ? 'Ghế' : 'Seat'}: ${(booking.seatIds && booking.seatIds.length > 1) ? booking.seatIds.join(', ') : booking.seatId}`] : []),
         `👤 ${booking.customerName} - ${booking.phone}`,
-        `💰 ${(booking.amount || 0).toLocaleString()}đ`,
+        ...(!hidePrice ? [`💰 ${(booking.amount || 0).toLocaleString()}đ`] : []),
       ].join('\n');
     }
 
@@ -272,7 +274,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
-                      <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
+                      {!hidePrice && <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>}
                     </div>
                   </div>
                 </div>
@@ -361,10 +363,12 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{language === 'vi' ? 'Trạng thái' : 'Status'}</p>
                           <p className="text-base font-bold text-emerald-600">{language === 'vi' ? 'Đã đặt' : 'Booked'}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
-                          <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
-                        </div>
+                        {!hidePrice && (
+                          <div className="text-right">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
+                            <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Journey stops – outbound */}
@@ -514,14 +518,16 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, booki
                         </p>
                       </div>
                     )}
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
-                      <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
-                    </div>
+                    {!hidePrice && (
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.total_payment}</p>
+                        <p className="text-2xl font-bold text-gray-800">{(booking.amount || 0).toLocaleString()}đ</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Surcharge & add-on breakdown */}
-                  {((booking.routeSurcharges && booking.routeSurcharges.length > 0) ||
+                  {!hidePrice && ((booking.routeSurcharges && booking.routeSurcharges.length > 0) ||
                     booking.pickupSurchargeAmount > 0 ||
                     booking.dropoffSurchargeAmount > 0 ||
                     (booking.selectedAddons && booking.selectedAddons.length > 0)) && (
