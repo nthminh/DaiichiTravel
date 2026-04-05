@@ -882,7 +882,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                             items[idx] = { ...items[idx], quantity: parseInt(e.target.value) || 1, total: (parseInt(e.target.value) || 1) * items[idx].unitPrice };
                             setNewInvoice(p => ({ ...p, items }));
                           }} placeholder="Qty" className="col-span-2 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none text-center" />
-                          <input type="number" value={item.unitPrice} min={0} onChange={e => {
+                          <input type="number" value={item.unitPrice || ''} min={0} onChange={e => {
                             const items = [...(newInvoice.items || [])];
                             items[idx] = { ...items[idx], unitPrice: parseFloat(e.target.value) || 0, total: items[idx].quantity * (parseFloat(e.target.value) || 0) };
                             setNewInvoice(p => ({ ...p, items }));
@@ -900,12 +900,12 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ language, agen
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase">{t.discount || 'Discount'} (%)</label>
-                      <input type="number" min={0} max={100} value={newInvoice.discount || 0} onChange={e => setNewInvoice(p => ({ ...p, discount: parseFloat(e.target.value) || 0 }))}
+                      <input type="number" min={0} max={100} value={newInvoice.discount || ''} onChange={e => setNewInvoice(p => ({ ...p, discount: parseFloat(e.target.value) || 0 }))}
                         className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none text-sm" />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase">{t.tax || 'VAT'} (%)</label>
-                      <input type="number" min={0} max={100} value={newInvoice.tax || 0} onChange={e => setNewInvoice(p => ({ ...p, tax: parseFloat(e.target.value) || 0 }))}
+                      <input type="number" min={0} max={100} value={newInvoice.tax || ''} onChange={e => setNewInvoice(p => ({ ...p, tax: parseFloat(e.target.value) || 0 }))}
                         className="w-full mt-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none text-sm" />
                     </div>
                     <div>
