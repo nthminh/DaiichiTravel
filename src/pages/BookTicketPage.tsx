@@ -2940,7 +2940,7 @@ export function BookTicketPage({
                       setSearchChildren(n);
                       setSearchChildrenAges(prev => Array.from({ length: n }, (_, i) => prev[i]));
                     }}
-                    placeholder="0"
+                    placeholder=""
                     className="w-full text-center bg-transparent focus:outline-none font-bold text-gray-700 text-sm leading-none"
                   />
                 </div>

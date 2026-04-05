@@ -1456,7 +1456,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Trẻ em' : 'Children'}</label>
-                      <input type="number" min="0" value={editingBooking.children ?? 0}
+                      <input type="number" min="0" value={editingBooking.children ?? ''}
                         onChange={e => setEditingBooking({...editingBooking, children: parseInt(e.target.value) || 0})}
                         className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                     </div>
@@ -1734,7 +1734,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ language, trips, consignme
                   {/* Amount */}
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{language === 'vi' ? 'Tổng tiền (đ)' : 'Amount (VND)'}</label>
-                    <input type="number" min="0" value={editingBooking.amount || 0}
+                    <input type="number" min="0" value={editingBooking.amount || ''}
                       onChange={e => setEditingBooking({...editingBooking, amount: parseInt(e.target.value) || 0})}
                       className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-daiichi-red/10" />
                   </div>

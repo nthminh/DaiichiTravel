@@ -380,7 +380,7 @@ export const KioskPage: React.FC<KioskPageProps> = ({ language, trips }) => {
                 {state === 'already_checked_in' && booking.checkedInAt && (
                   <div className="px-4 py-3 bg-amber-900/30 border border-amber-700/40 rounded-2xl text-amber-300 text-sm">
                     {isVi ? 'Đã check-in lúc: ' : 'Checked in at: '}
-                    {new Date(booking.checkedInAt).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US')}
+                    {new Date(booking.checkedInAt).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </div>
                 )}
               </div>
