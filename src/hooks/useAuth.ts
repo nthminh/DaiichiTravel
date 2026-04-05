@@ -69,7 +69,7 @@ export function useAuth({ language, customers }: UseAuthOptions) {
 
     const defaultName = language === 'vi' ? 'Khách hàng' : 'Customer';
 
-    // 1. Find existing customer by uid, phone, or email
+    // 1. Find existing customer by uid, phone, or email in the in-memory list.
     // Compare phone digits only to handle format variations (+61..., 61..., 0...).
     let customer = customers.find(c => {
       if (data.uid && c.firebaseUid === data.uid) return true;
@@ -82,6 +82,16 @@ export function useAuth({ language, customers }: UseAuthOptions) {
       if (data.email && c.email && c.email.toLowerCase() === data.email.toLowerCase()) return true;
       return false;
     });
+
+    // 1b. Fallback: if the in-memory list is empty (customers not yet loaded),
+    // query Supabase directly to avoid duplicate-key errors on insert.
+    if (!customer && customers.length === 0) {
+      customer = await transportService.findCustomerByAuthData({
+        uid: data.uid,
+        phone: normalizedPhone || data.phone,
+        email: data.email,
+      }) ?? undefined;
+    }
 
     if (customer) {
       // Update profile fields that may have changed

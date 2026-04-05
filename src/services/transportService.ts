@@ -1207,6 +1207,63 @@ export const transportService = {
     return createSubscription('customers', fetch, callback);
   },
 
+  /**
+   * Find a single customer by Supabase auth uid, phone, or email.
+   * Used as a fallback in OTP/OAuth login when the in-memory customers list has
+   * not yet been loaded (customersRequested === false).
+   *
+   * Phone lookup handles format variations between E.164 (+84xxx) and local (0xxx):
+   * both the supplied value and its alternate representation are tried via exact
+   * equality so that database indexes can be used.
+   */
+  findCustomerByAuthData: async (data: {
+    uid?: string;
+    phone?: string;
+    email?: string;
+  }): Promise<CustomerProfile | null> => {
+    if (!isSupabaseConfigured || !supabase) return null;
+
+    /** Convert a phone to its alternate representation: +84xxx ↔ 0xxx */
+    const altPhone = (phone: string): string | undefined => {
+      if (phone.startsWith('+84')) return '0' + phone.slice(3);
+      if (phone.startsWith('0')) return '+84' + phone.slice(1);
+      return undefined;
+    };
+
+    // Try uid first (most specific)
+    if (data.uid) {
+      const { data: rows } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('firebase_uid', data.uid)
+        .limit(1);
+      if (rows && rows.length > 0) return fromDb<CustomerProfile>(rows[0]);
+    }
+
+    // Try phone: exact match plus alternate format (+84 ↔ 0)
+    if (data.phone) {
+      const phonesToTry = Array.from(new Set([data.phone, altPhone(data.phone)].filter(Boolean) as string[]));
+      const { data: rows } = await supabase
+        .from('customers')
+        .select('*')
+        .in('phone', phonesToTry)
+        .limit(1);
+      if (rows && rows.length > 0) return fromDb<CustomerProfile>(rows[0]);
+    }
+
+    // Try email (case-insensitive)
+    if (data.email) {
+      const { data: rows } = await supabase
+        .from('customers')
+        .select('*')
+        .ilike('email', data.email)
+        .limit(1);
+      if (rows && rows.length > 0) return fromDb<CustomerProfile>(rows[0]);
+    }
+
+    return null;
+  },
+
   addCustomer: async (customer: Omit<CustomerProfile, 'id'>) => {
     if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured');
     const { data, error } = await supabase.from('customers')
