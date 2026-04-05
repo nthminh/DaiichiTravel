@@ -11,30 +11,49 @@
  *   responsecode=1&desc=confirm-success   (success, HTTP 200)
  *   responsecode=0&desc=confirm-fail      (failure, non-200 or 200 with code 0)
  */
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { createHmac } from 'https://deno.land/std@0.177.0/node/crypto.ts';
 
 const ONEPAY_HASH_KEY = Deno.env.get('ONEPAY_HASH_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-/** Verify OnePay HMAC-SHA256 signature */
-function verifyHmac(params: URLSearchParams, hashKey: string): boolean {
+/** Convert a hex string to a Uint8Array. Throws if the input is not valid hex. */
+function hexToBytes(hex: string): Uint8Array {
+  if (!hex || hex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error(`Invalid hex string: "${hex}"`);
+  }
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+/** Verify OnePay HMAC-SHA256 signature using the native Web Crypto API */
+async function verifyHmac(params: URLSearchParams, hashKey: string): Promise<boolean> {
   const vpc_SecureHash = params.get('vpc_SecureHash') ?? '';
   // Build the sorted query string without vpc_SecureHash
   const sortedKeys = Array.from(params.keys())
     .filter((k) => k !== 'vpc_SecureHash' && k.startsWith('vpc_'))
     .sort();
   const rawData = sortedKeys.map((k) => `${k}=${params.get(k)}`).join('&');
-  const hmac = createHmac('sha256', Buffer.from(hashKey, 'hex'))
-    .update(rawData)
-    .digest('hex')
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    hexToBytes(hashKey),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(rawData));
+  const hmac = Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
     .toUpperCase();
   return hmac === vpc_SecureHash.toUpperCase();
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   try {
     let params: URLSearchParams;
     if (req.method === 'POST') {
@@ -49,7 +68,7 @@ serve(async (req) => {
     const vpc_Amount = params.get('vpc_Amount') ?? '0';
 
     // Verify HMAC
-    if (ONEPAY_HASH_KEY && !verifyHmac(params, ONEPAY_HASH_KEY)) {
+    if (ONEPAY_HASH_KEY && !(await verifyHmac(params, ONEPAY_HASH_KEY))) {
       console.error('[onepay-ipn] HMAC verification failed');
       return new Response('responsecode=0&desc=confirm-fail', {
         status: 400,
