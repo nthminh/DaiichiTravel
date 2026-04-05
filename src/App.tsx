@@ -26,8 +26,6 @@ import { Stop, Trip, Consignment, Agent, Route, TripAddon, PricePeriod, RouteSur
 import { transportService } from './services/transportService';
 import { FareError } from './services/fareService';
 import { supabase, uploadFile, isSupabaseConfigured } from './lib/supabase';
-import { firebaseAuth, isFirebaseConfigured } from './lib/firebase';
-import { isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 
 // Import Components – always needed on first paint
 import { Login } from './components/Login';
@@ -725,26 +723,7 @@ export default function App() {
     };
   }, []);
 
-  // Detect Firebase email magic link sign-in on page load (callback URL)
-  useEffect(() => {
-    if (!isFirebaseConfigured || !firebaseAuth) return;
-    if (!isSignInWithEmailLink(firebaseAuth, window.location.href)) return;
-    const email = window.localStorage.getItem('emailForSignIn') || '';
-    if (!email) return;
-    signInWithEmailLink(firebaseAuth, email, window.location.href)
-      .then(result => {
-        const fbUser = result.user;
-        window.localStorage.removeItem('emailForSignIn');
-        window.history.replaceState(null, '', window.location.pathname);
-        setEmailLinkPending({ uid: fbUser.uid, email: fbUser.email || email });
-      })
-      .catch(err => {
-        console.error('[Firebase EmailLink] Sign-in failed:', err);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Keep Supabase onAuthStateChange only for Google / Facebook OAuth callbacks
+  // Keep Supabase onAuthStateChange for Google / Facebook OAuth and email magic link callbacks
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
     supabase.auth.onAuthStateChange((event, session) => {
@@ -752,12 +731,10 @@ export default function App() {
         const user = session.user;
         // Skip anonymous sign-ins (used by admin/staff for Supabase RLS).
         if ((user as { is_anonymous?: boolean }).is_anonymous) return;
-        // Skip phone-only sessions (phone OTP is now handled by Firebase).
+        // Skip phone-only sessions (phone OTP is handled directly in Login.tsx).
+        // Any session with an email (OAuth or email magic link) is processed below.
         if (!user.email) return;
-        // Skip email sessions – Firebase handles those now.
-        // Only handle OAuth providers (Google, Facebook, etc.).
-        const provider = user.app_metadata?.provider as string | undefined;
-        if (!provider || provider === 'email') return;
+        // Process both OAuth providers (Google, Facebook) and email magic link callbacks.
         window.history.replaceState(null, '', window.location.pathname);
         setEmailLinkPending({ uid: user.id, email: user.email });
       }
