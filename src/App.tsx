@@ -373,6 +373,27 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Ensure admin/staff users always have an authenticated Supabase session so
+  // that RLS write policies (auth.role() = 'authenticated') are satisfied.
+  // This covers both fresh logins and page reloads where currentUser is
+  // restored from localStorage but no Supabase session has been re-established.
+  // Note: isSupabaseConfigured and supabase are module-level constants that
+  // never change at runtime, so they are intentionally omitted from deps.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    if (!currentUser) return;
+    // Customer/Guest users manage their own Supabase Auth session via OTP.
+    if (currentUser.role === UserRole.CUSTOMER || currentUser.role === UserRole.GUEST) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        supabase.auth.signInAnonymously().catch((err) =>
+          console.warn('[Auth] Anonymous sign-in failed (non-fatal):', err)
+        );
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, currentUser?.role]);
+
   // Subscribe to permissions from Firestore in real-time
   useEffect(() => {
     const unsubscribe = transportService.subscribeToPermissions((perms) => {
